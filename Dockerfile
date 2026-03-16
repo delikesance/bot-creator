@@ -3,12 +3,12 @@ FROM dart:stable AS builder
 
 WORKDIR /workspace
 
-# Copy workspace pubspec first for caching
-COPY pubspec.yaml ./
+# Copy only packages needed to build runner
+COPY packages/shared packages/shared
+COPY packages/runner packages/runner
 
-# Copy all packages
-COPY packages/shared  packages/shared
-COPY packages/runner  packages/runner
+# Create a minimal workspace for Docker build (exclude Flutter app package)
+RUN printf "name: bot_creator_runner_workspace\ndescription: Docker build workspace for runner\npublish_to: none\nenvironment:\n  sdk: ^3.7.2\nworkspace:\n  - packages/shared\n  - packages/runner\n" > /workspace/pubspec.yaml
 
 # Resolve dependencies for the runner (workspace-aware)
 WORKDIR /workspace/packages/runner
