@@ -34,6 +34,8 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/bot-creator-runner
+  SMOKE_PLATFORM: linux/amd64
+  PUBLISH_PLATFORMS: linux/amd64,linux/arm64
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -47,6 +49,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -58,7 +63,7 @@ jobs:
           load: true
           push: false
           tags: bot-creator-runner:ci
-          platforms: linux/amd64
+          platforms: ${{ env.SMOKE_PLATFORM }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -90,6 +95,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -111,13 +119,13 @@ jobs:
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push image
+      - name: Build and push multi-arch image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
           push: true
-          platforms: linux/amd64
+          platforms: ${{ env.PUBLISH_PLATFORMS }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

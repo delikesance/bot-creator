@@ -1,6 +1,7 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/onboarding.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/ad_consent_service.dart';
 import 'package:bot_creator/utils/app_diagnostics.dart';
 import 'package:bot_creator/utils/drive.dart';
 import 'package:bot_creator/utils/i18n.dart';
@@ -35,6 +36,9 @@ class _SettingPageState extends State<SettingPage> {
   final TextEditingController _runnerUrlController = TextEditingController();
   bool _checkingRunner = false;
   bool? _runnerReachable;
+  bool _checkingAdPrivacy = false;
+  bool _adPrivacyRequired = false;
+  bool _developerSectionExpanded = false;
 
   Future<void> _runWithLoading(
     String message,
@@ -77,6 +81,39 @@ class _SettingPageState extends State<SettingPage> {
     _loadRecoverySettings();
     _initializeDriveApi();
     _loadRunnerUrl();
+    _loadAdPrivacyRequirement();
+  }
+
+  Future<void> _loadAdPrivacyRequirement() async {
+    if (!mounted) return;
+    setState(() {
+      _checkingAdPrivacy = true;
+    });
+
+    final required = await AdConsentService.isPrivacyOptionsRequired();
+    if (!mounted) return;
+    setState(() {
+      _adPrivacyRequired = required;
+      _checkingAdPrivacy = false;
+    });
+  }
+
+  Future<void> _openAdPrivacyOptions() async {
+    final opened = await AdConsentService.showPrivacyOptionsForm();
+    if (!mounted) return;
+
+    await _loadAdPrivacyRequirement();
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          opened
+              ? AppStrings.t('settings_ads_privacy_opened')
+              : AppStrings.t('settings_ads_privacy_open_error'),
+        ),
+      ),
+    );
   }
 
   Future<void> _initializeDriveApi() async {
@@ -632,7 +669,16 @@ class _SettingPageState extends State<SettingPage> {
                   // ── Support Discord card ────────────────────────────────────
                   _SupportDiscordCard(),
                   const SizedBox(height: 16),
-                  _PrivacyPolicyCard(),
+                  _PrivacyPolicyCard(
+                    checkingAdPrivacy: _checkingAdPrivacy,
+                    adPrivacyRequired: _adPrivacyRequired,
+                    onOpenAdPrivacy:
+                        _checkingAdPrivacy
+                            ? null
+                            : (_adPrivacyRequired
+                                ? _openAdPrivacyOptions
+                                : null),
+                  ),
                   const SizedBox(height: 16),
 
                   Card(
@@ -945,32 +991,46 @@ class _SettingPageState extends State<SettingPage> {
                   ),
                   const SizedBox(height: 24),
                   // Developer Mode Section
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outline,
+                  Card(
+                    child: ExpansionTile(
+                      initiallyExpanded: _developerSectionExpanded,
+                      onExpansionChanged: (expanded) {
+                        setState(() {
+                          _developerSectionExpanded = expanded;
+                        });
+                      },
+                      leading: const Icon(Icons.developer_mode, size: 18),
+                      title: Text(
+                        AppStrings.t('settings_runner_title'),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      subtitle:
+                          _runnerReachable == null
+                              ? null
+                              : Text(
+                                _runnerReachable!
+                                    ? AppStrings.t('settings_runner_connected')
+                                    : AppStrings.t(
+                                      'settings_runner_unreachable',
+                                    ),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.copyWith(
+                                  color:
+                                      _runnerReachable!
+                                          ? Colors.green[400]
+                                          : Colors.red[400],
+                                ),
+                              ),
+                      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                       children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.developer_mode, size: 18),
-                            const SizedBox(width: 8),
-                            Text(
-                              AppStrings.t('settings_runner_title'),
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          AppStrings.t('settings_runner_desc'),
-                          style: Theme.of(context).textTheme.bodySmall,
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            AppStrings.t('settings_runner_desc'),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
@@ -1007,59 +1067,25 @@ class _SettingPageState extends State<SettingPage> {
                           keyboardType: TextInputType.url,
                           autocorrect: false,
                         ),
-                        const SizedBox(height: 10),
-                        if (_runnerReachable != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _runnerReachable!
-                                      ? Icons.wifi
-                                      : Icons.wifi_off,
-                                  size: 16,
-                                  color:
-                                      _runnerReachable!
-                                          ? Colors.green[400]
-                                          : Colors.red[400],
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _runnerReachable!
-                                      ? AppStrings.t(
-                                        'settings_runner_connected',
-                                      )
-                                      : AppStrings.t(
-                                        'settings_runner_unreachable',
-                                      ),
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.bodySmall?.copyWith(
-                                    color:
-                                        _runnerReachable!
-                                            ? Colors.green[400]
-                                            : Colors.red[400],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed:
-                                    _isBusy || _checkingRunner
-                                        ? null
-                                        : _saveRunnerUrl,
-                                icon: const Icon(Icons.save_outlined, size: 18),
-                                label: Text(
-                                  AppStrings.t('settings_runner_url_save'),
-                                ),
+                        const SizedBox(height: 12),
+                        if (isMobile) ...[
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed:
+                                  _isBusy || _checkingRunner
+                                      ? null
+                                      : _saveRunnerUrl,
+                              icon: const Icon(Icons.save_outlined, size: 18),
+                              label: Text(
+                                AppStrings.t('settings_runner_url_save'),
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            ElevatedButton.icon(
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
                               onPressed:
                                   _checkingRunner
                                       ? null
@@ -1084,8 +1110,11 @@ class _SettingPageState extends State<SettingPage> {
                                     ).colorScheme.secondaryContainer,
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            IconButton(
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
                               onPressed:
                                   _isBusy
                                       ? null
@@ -1094,12 +1123,72 @@ class _SettingPageState extends State<SettingPage> {
                                         _saveRunnerUrl();
                                       },
                               icon: const Icon(Icons.clear, size: 18),
-                              tooltip: AppStrings.t(
-                                'settings_runner_url_clear',
+                              label: Text(
+                                AppStrings.t('settings_runner_url_clear'),
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ] else ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed:
+                                      _isBusy || _checkingRunner
+                                          ? null
+                                          : _saveRunnerUrl,
+                                  icon: const Icon(
+                                    Icons.save_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    AppStrings.t('settings_runner_url_save'),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton.icon(
+                                onPressed:
+                                    _checkingRunner
+                                        ? null
+                                        : _checkRunnerConnection,
+                                icon:
+                                    _checkingRunner
+                                        ? const SizedBox(
+                                          width: 14,
+                                          height: 14,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                        : const Icon(Icons.wifi_find, size: 18),
+                                label: Text(
+                                  AppStrings.t('settings_runner_check'),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor:
+                                      Theme.of(
+                                        context,
+                                      ).colorScheme.secondaryContainer,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                onPressed:
+                                    _isBusy
+                                        ? null
+                                        : () {
+                                          _runnerUrlController.clear();
+                                          _saveRunnerUrl();
+                                        },
+                                icon: const Icon(Icons.clear, size: 18),
+                                tooltip: AppStrings.t(
+                                  'settings_runner_url_clear',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -1679,7 +1768,15 @@ class _SettingPageState extends State<SettingPage> {
 }
 
 class _PrivacyPolicyCard extends StatelessWidget {
-  const _PrivacyPolicyCard();
+  const _PrivacyPolicyCard({
+    required this.checkingAdPrivacy,
+    required this.adPrivacyRequired,
+    required this.onOpenAdPrivacy,
+  });
+
+  final bool checkingAdPrivacy;
+  final bool adPrivacyRequired;
+  final VoidCallback? onOpenAdPrivacy;
 
   static const _privacyPolicyUrl = 'https://bot-creator.fr/privacy-policy.html';
 
@@ -1725,6 +1822,28 @@ class _PrivacyPolicyCard extends StatelessWidget {
                 onPressed: () => _open(context),
                 icon: const Icon(Icons.privacy_tip_outlined),
                 label: Text(AppStrings.t('settings_privacy_policy')),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onOpenAdPrivacy,
+                icon:
+                    checkingAdPrivacy
+                        ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Icon(Icons.shield_outlined),
+                label: Text(
+                  checkingAdPrivacy
+                      ? AppStrings.t('settings_ads_privacy_loading')
+                      : (adPrivacyRequired
+                          ? AppStrings.t('settings_ads_privacy_manage')
+                          : AppStrings.t('settings_ads_privacy_not_required')),
+                ),
               ),
             ),
           ],

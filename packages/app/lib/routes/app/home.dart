@@ -7,8 +7,11 @@ import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/bot_payload_builder.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/ad_reward_service.dart';
+import 'package:bot_creator/utils/ad_consent_service.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/services.dart';
@@ -170,6 +173,83 @@ class _AppHomePageState extends State<AppHomePage>
     });
   }
 
+  Future<void> _maybeOfferRewardedAd() async {
+    if (!_supportsForegroundTask || !mounted) {
+      return;
+    }
+
+    if (!await AdRewardService.shouldOfferRewardedAd()) {
+      return;
+    }
+
+    if (!AdRewardService.hasReadyRewardedAd) {
+      return;
+    }
+
+    final consentGranted = await _ensureAdsConsent();
+    if (!consentGranted || !mounted) {
+      return;
+    }
+
+    if (kDebugMode) {
+      final shouldWatch =
+          await showDialog<bool>(
+            context: context,
+            builder:
+                (dialogContext) => AlertDialog(
+                  title: Text(AppStrings.t('rewarded_start_title')),
+                  content: Text(AppStrings.t('rewarded_start_message')),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: Text(AppStrings.t('rewarded_start_skip')),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: Text(AppStrings.t('rewarded_start_watch')),
+                    ),
+                  ],
+                ),
+          ) ??
+          false;
+
+      if (!shouldWatch || !mounted) {
+        return;
+      }
+    } else {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (dialogContext) => AlertDialog(
+              title: Text(AppStrings.t('rewarded_start_title')),
+              content: Text(AppStrings.t('rewarded_start_message')),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(AppStrings.t('rewarded_start_continue')),
+                ),
+              ],
+            ),
+      );
+    }
+
+    AdRewardService.showRewardedAdNonBlocking();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppStrings.t('rewarded_start_thanks'))),
+    );
+  }
+
+  Future<bool> _ensureAdsConsent() async {
+    final consentGranted = await AdConsentService.ensureCanRequestAds();
+    if (!consentGranted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('ads_consent_refused_info'))),
+      );
+    }
+    return consentGranted;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -236,6 +316,10 @@ class _AppHomePageState extends State<AppHomePage>
                             }
 
                             final botId = widget.client.user.id.toString();
+
+                            if (!_botLaunched) {
+                              await _maybeOfferRewardedAd();
+                            }
 
                             // ── Runner API (mode développeur) ────────────────────
                             final runnerUrl = await RunnerSettings.getUrl();

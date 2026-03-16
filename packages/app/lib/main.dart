@@ -17,6 +17,7 @@ import 'routes/onboarding.dart';
 import 'utils/app_diagnostics.dart';
 import 'utils/database.dart';
 import 'utils/analytics.dart';
+import 'utils/ad_reward_service.dart';
 import 'utils/i18n.dart';
 import 'utils/onboarding_manager.dart';
 
@@ -175,6 +176,8 @@ Future<void> _bootstrapAndRunApp() async {
       fatal: false,
     );
   }
+
+  await AdRewardService.initialize();
 
   try {
     appManager = AppManager();
