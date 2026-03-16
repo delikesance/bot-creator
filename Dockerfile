@@ -15,7 +15,7 @@ WORKDIR /workspace/packages/runner
 RUN dart pub get
 
 # Compile to a native executable (AOT)
-RUN dart compile exe bin/runner.dart -o /out/runner
+RUN mkdir -p /out && dart compile exe bin/runner.dart -o /out/runner
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
