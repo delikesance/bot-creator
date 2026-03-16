@@ -5,7 +5,13 @@ import 'package:bot_creator/routes/app/bot_logs.dart';
 import 'package:bot_creator/routes/app/bot_stats.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/bot_payload_builder.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/ad_reward_service.dart';
+import 'package:bot_creator/utils/ad_consent_service.dart';
+import 'package:bot_creator/utils/runner_client.dart';
+import 'package:bot_creator/utils/runner_settings.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/services.dart';
@@ -128,16 +134,27 @@ class _AppHomePageState extends State<AppHomePage>
   }
 
   Future<void> _init() async {
-    final app = await appManager.getApp(widget.client.user.id.toString());
+    final botId = widget.client.user.id.toString();
+    final app = await appManager.getApp(botId);
     var isRunning = false;
-    if (_supportsForegroundTask) {
+    final runnerUrl = await RunnerSettings.getUrl();
+    if (runnerUrl != null && runnerUrl.isNotEmpty) {
       try {
-        isRunning = await FlutterForegroundTask.isRunningService;
-      } on MissingPluginException {
+        final status = await RunnerClient(baseUrl: runnerUrl).getStatus();
+        isRunning = status.running && status.activeBotId == botId;
+      } catch (_) {
         isRunning = false;
       }
     } else {
-      isRunning = isDesktopBotRunning;
+      if (_supportsForegroundTask) {
+        try {
+          isRunning = await FlutterForegroundTask.isRunningService;
+        } on MissingPluginException {
+          isRunning = false;
+        }
+      } else {
+        isRunning = isDesktopBotRunning;
+      }
     }
 
     await AppAnalytics.logScreenView(
@@ -145,7 +162,7 @@ class _AppHomePageState extends State<AppHomePage>
       screenClass: "AppHomePage",
       parameters: {
         "app_name": app["name"],
-        "app_id": widget.client.user.id.toString(),
+        "app_id": botId,
         "is_running": isRunning ? "true" : "false",
       },
     );
@@ -154,6 +171,83 @@ class _AppHomePageState extends State<AppHomePage>
       _appName = app["name"];
       avatar = app["avatar"] ?? "";
     });
+  }
+
+  Future<void> _maybeOfferRewardedAd() async {
+    if (!_supportsForegroundTask || !mounted) {
+      return;
+    }
+
+    if (!await AdRewardService.shouldOfferRewardedAd()) {
+      return;
+    }
+
+    if (!AdRewardService.hasReadyRewardedAd) {
+      return;
+    }
+
+    final consentGranted = await _ensureAdsConsent();
+    if (!consentGranted || !mounted) {
+      return;
+    }
+
+    if (kDebugMode) {
+      final shouldWatch =
+          await showDialog<bool>(
+            context: context,
+            builder:
+                (dialogContext) => AlertDialog(
+                  title: Text(AppStrings.t('rewarded_start_title')),
+                  content: Text(AppStrings.t('rewarded_start_message')),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: Text(AppStrings.t('rewarded_start_skip')),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: Text(AppStrings.t('rewarded_start_watch')),
+                    ),
+                  ],
+                ),
+          ) ??
+          false;
+
+      if (!shouldWatch || !mounted) {
+        return;
+      }
+    } else {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (dialogContext) => AlertDialog(
+              title: Text(AppStrings.t('rewarded_start_title')),
+              content: Text(AppStrings.t('rewarded_start_message')),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(AppStrings.t('rewarded_start_continue')),
+                ),
+              ],
+            ),
+      );
+    }
+
+    AdRewardService.showRewardedAdNonBlocking();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppStrings.t('rewarded_start_thanks'))),
+    );
+  }
+
+  Future<bool> _ensureAdsConsent() async {
+    final consentGranted = await AdConsentService.ensureCanRequestAds();
+    if (!consentGranted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('ads_consent_refused_info'))),
+      );
+    }
+    return consentGranted;
   }
 
   @override
@@ -222,6 +316,53 @@ class _AppHomePageState extends State<AppHomePage>
                             }
 
                             final botId = widget.client.user.id.toString();
+
+                            if (!_botLaunched) {
+                              await _maybeOfferRewardedAd();
+                            }
+
+                            // ── Runner API (mode développeur) ────────────────────
+                            final runnerUrl = await RunnerSettings.getUrl();
+                            if (runnerUrl != null && runnerUrl.isNotEmpty) {
+                              final remoteClient = RunnerClient(
+                                baseUrl: runnerUrl,
+                              );
+                              if (_botLaunched) {
+                                appendBotLog(
+                                  AppStrings.t('bot_home_log_stop'),
+                                  botId: botId,
+                                );
+                                await remoteClient.stopBot();
+                                setBotRuntimeActive(false);
+                                if (mounted) {
+                                  setState(() => _botLaunched = false);
+                                }
+                              } else {
+                                startBotLogSession(botId: botId);
+                                clearBotBaselineRss();
+                                appendBotLog(
+                                  AppStrings.t('bot_home_log_start'),
+                                  botId: botId,
+                                );
+                                final payload = await buildBotPayload(botId);
+                                await remoteClient.syncBot(
+                                  botId,
+                                  _appName,
+                                  payload,
+                                );
+                                await remoteClient.startBot(
+                                  botId,
+                                  botName: _appName,
+                                );
+                                setBotRuntimeActive(true);
+                                if (mounted) {
+                                  setState(() => _botLaunched = true);
+                                }
+                              }
+                              return;
+                            }
+
+                            // ── Local engine ─────────────────────────────────
                             if (!_botLaunched) {
                               clearBotBaselineRss();
                               startBotLogSession(botId: botId);

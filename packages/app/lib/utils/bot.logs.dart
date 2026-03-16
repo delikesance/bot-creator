@@ -8,6 +8,7 @@ class _CpuSample {
 }
 
 _CpuSample? _lastCpuSample;
+bool _remoteMetricsBaselineInitialized = false;
 
 Future<void> _persistDebugLogsEnabled(bool enabled) async {
   try {
@@ -56,6 +57,7 @@ void setBotRuntimeActive(bool active) {
     return;
   }
 
+  _remoteMetricsBaselineInitialized = false;
   clearBotBaselineRss();
   _lastCpuSample = null;
   _updateBotMetrics(
@@ -172,6 +174,7 @@ void _updateBotMetrics({
   int? rssBytes,
   double? cpuPercent,
   int? storageBytes,
+  int? estimatedRssBytes,
   String? botId,
   bool overwriteNulls = false,
 }) {
@@ -195,14 +198,18 @@ void _updateBotMetrics({
     _botProcessRssController.add(_botProcessRssBytes);
   }
 
-  final currentRss = _botProcessRssBytes;
-  if (currentRss != null && _botBaselineRssBytes != null) {
-    _botEstimatedRssBytes = (currentRss - _botBaselineRssBytes!).clamp(
-      0,
-      currentRss,
-    );
-  } else if (overwriteNulls || currentRss == null) {
-    _botEstimatedRssBytes = null;
+  if (estimatedRssBytes != null) {
+    _botEstimatedRssBytes = estimatedRssBytes;
+  } else {
+    final currentRss = _botProcessRssBytes;
+    if (currentRss != null && _botBaselineRssBytes != null) {
+      _botEstimatedRssBytes = (currentRss - _botBaselineRssBytes!).clamp(
+        0,
+        currentRss,
+      );
+    } else if (overwriteNulls || currentRss == null) {
+      _botEstimatedRssBytes = null;
+    }
   }
 
   if (!_botEstimatedRssController.isClosed) {
@@ -248,6 +255,36 @@ Future<void> refreshBotStatsNow({
     captureBotBaselineRss(force: true);
   }
   await _refreshBotMetrics(botId: botId);
+}
+
+void updateBotRuntimeMetricsFromRemote({
+  required bool running,
+  String? botId,
+  int? rssBytes,
+  int? estimatedRssBytes,
+  double? cpuPercent,
+  int? storageBytes,
+}) {
+  if (!running) {
+    setBotRuntimeActive(false);
+    return;
+  }
+
+  if (!_remoteMetricsBaselineInitialized && rssBytes != null) {
+    _botBaselineRssBytes = rssBytes;
+    _botBaselineCapturedAt = DateTime.now();
+    _remoteMetricsBaselineInitialized = true;
+  }
+
+  setBotRuntimeActive(true);
+  _updateBotMetrics(
+    rssBytes: rssBytes,
+    estimatedRssBytes: estimatedRssBytes,
+    cpuPercent: cpuPercent,
+    storageBytes: storageBytes,
+    botId: botId,
+    overwriteNulls: true,
+  );
 }
 
 Stream<int?> getBotProcessRssStream() => _botProcessRssController.stream;
@@ -301,6 +338,7 @@ List<String> getBotLogsSnapshot() => List<String>.unmodifiable(_botLogs);
 void startBotLogSession({required String botId}) {
   _activeBotLogBotId = botId;
   _botLogs = <String>[];
+  _remoteMetricsBaselineInitialized = false;
   captureBotBaselineRss(force: true);
   _lastCpuSample = null;
   _updateBotMetrics(

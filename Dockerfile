@@ -3,19 +3,19 @@ FROM dart:stable AS builder
 
 WORKDIR /workspace
 
-# Copy workspace pubspec first for caching
-COPY pubspec.yaml ./
+# Copy only packages needed to build runner
+COPY packages/shared packages/shared
+COPY packages/runner packages/runner
 
-# Copy all packages
-COPY packages/shared  packages/shared
-COPY packages/runner  packages/runner
+# Create a minimal workspace for Docker build (exclude Flutter app package)
+RUN printf "name: bot_creator_runner_workspace\ndescription: Docker build workspace for runner\npublish_to: none\nenvironment:\n  sdk: ^3.7.2\nworkspace:\n  - packages/shared\n  - packages/runner\n" > /workspace/pubspec.yaml
 
 # Resolve dependencies for the runner (workspace-aware)
 WORKDIR /workspace/packages/runner
 RUN dart pub get
 
-# Compile to a self-contained native executable
-RUN dart compile exe bin/runner.dart -o /runner
+# Compile to a native executable (AOT)
+RUN mkdir -p /out && dart compile exe bin/runner.dart -o /out/runner
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -24,10 +24,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /runner /usr/local/bin/runner
+COPY --from=builder /out/runner /usr/local/bin/runner
 
-# The user passes a bot ZIP via --config
-# Example: docker run bot-creator-runner --config /data/bot.zip
-# Mount the ZIP using -v /host/path/bot.zip:/data/bot.zip
+# Persistent runtime data (synced bot configs + logs)
+ENV BOT_CREATOR_DATA_DIR=/data/bots
+ENV BOT_CREATOR_RUNNER_LOG_FILE=/data/logs/runner.log
+ENV BOT_CREATOR_WEB_HOST=0.0.0.0
+ENV BOT_CREATOR_WEB_PORT=8080
+
+VOLUME ["/data"]
+EXPOSE 8080
+
+# Default mode: runner REST API.
 ENTRYPOINT ["/usr/local/bin/runner"]
-CMD ["--help"]
+CMD ["--web"]

@@ -6,7 +6,13 @@ import 'package:bot_creator/routes/app.dart';
 import 'package:bot_creator/routes/app/bot_logs.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/bot_payload_builder.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/ad_reward_service.dart';
+import 'package:bot_creator/utils/ad_consent_service.dart';
+import 'package:bot_creator/utils/runner_client.dart';
+import 'package:bot_creator/utils/runner_settings.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -54,6 +60,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _initRunningState() async {
     String? runningId;
+
+    final runnerUrl = await RunnerSettings.getUrl();
+    if (runnerUrl != null && runnerUrl.isNotEmpty) {
+      try {
+        final status = await RunnerClient(baseUrl: runnerUrl).getStatus();
+        runningId = status.running ? status.activeBotId : null;
+      } catch (_) {
+        runningId = null;
+      }
+
+      if (!mounted) return;
+      setState(() => _runningBotId = runningId);
+      _syncPulse(runningId);
+      return;
+    }
+
     if (_supportsForegroundTask) {
       try {
         final running = await FlutterForegroundTask.isRunningService;
@@ -118,6 +140,35 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     try {
       final isRunning = _runningBotId == botId;
+
+      if (!isRunning) {
+        await _maybeOfferRewardedAd();
+      }
+
+      // ── Runner API (mode développeur) ─────────────────────────────────────
+      final runnerUrl = await RunnerSettings.getUrl();
+      if (runnerUrl != null && runnerUrl.isNotEmpty) {
+        final client = RunnerClient(baseUrl: runnerUrl);
+        if (isRunning) {
+          appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
+          await client.stopBot();
+          setBotRuntimeActive(false);
+          if (mounted) setState(() => _runningBotId = null);
+        } else {
+          startBotLogSession(botId: botId);
+          clearBotBaselineRss();
+          appendBotLog(AppStrings.t('home_log_start_requested'), botId: botId);
+          final payload = await buildBotPayload(botId);
+          await client.syncBot(botId, botName, payload);
+          await client.startBot(botId, botName: botName);
+          setBotRuntimeActive(true);
+          if (mounted) setState(() => _runningBotId = botId);
+        }
+        _syncPulse(_runningBotId);
+        return;
+      }
+
+      // ── Local engine ──────────────────────────────────────────────────────
       final app = await appManager.getApp(botId);
       final token = app['token']?.toString();
       if (token == null || token.trim().isEmpty) {
@@ -215,6 +266,83 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     } finally {
       if (mounted) setState(() => _isTogglingBot = false);
     }
+  }
+
+  Future<void> _maybeOfferRewardedAd() async {
+    if (!_supportsForegroundTask || !mounted) {
+      return;
+    }
+
+    if (!await AdRewardService.shouldOfferRewardedAd()) {
+      return;
+    }
+
+    if (!AdRewardService.hasReadyRewardedAd) {
+      return;
+    }
+
+    final consentGranted = await _ensureAdsConsent();
+    if (!consentGranted || !mounted) {
+      return;
+    }
+
+    if (kDebugMode) {
+      final shouldWatch =
+          await showDialog<bool>(
+            context: context,
+            builder:
+                (dialogContext) => AlertDialog(
+                  title: Text(AppStrings.t('rewarded_start_title')),
+                  content: Text(AppStrings.t('rewarded_start_message')),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(false),
+                      child: Text(AppStrings.t('rewarded_start_skip')),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.of(dialogContext).pop(true),
+                      child: Text(AppStrings.t('rewarded_start_watch')),
+                    ),
+                  ],
+                ),
+          ) ??
+          false;
+
+      if (!shouldWatch || !mounted) {
+        return;
+      }
+    } else {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder:
+            (dialogContext) => AlertDialog(
+              title: Text(AppStrings.t('rewarded_start_title')),
+              content: Text(AppStrings.t('rewarded_start_message')),
+              actions: [
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: Text(AppStrings.t('rewarded_start_continue')),
+                ),
+              ],
+            ),
+      );
+    }
+
+    AdRewardService.showRewardedAdNonBlocking();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppStrings.t('rewarded_start_thanks'))),
+    );
+  }
+
+  Future<bool> _ensureAdsConsent() async {
+    final consentGranted = await AdConsentService.ensureCanRequestAds();
+    if (!consentGranted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('ads_consent_refused_info'))),
+      );
+    }
+    return consentGranted;
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────

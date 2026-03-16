@@ -161,6 +161,21 @@ class AppStrings {
       'settings_drive_disconnect_loading': 'Disconnecting…',
       'settings_drive_disconnected': 'Disconnected from Google Drive',
       'settings_drive_disconnect': 'Disconnect',
+      // Developer mode (Runner API)
+      'settings_runner_title': 'Developer Mode',
+      'settings_runner_desc':
+          'Connect the app to a remote Bot Creator Runner. When configured, '
+          'Start/Stop and logs will use the runner API instead of the local engine.',
+      'settings_runner_url_hint': 'http://192.168.1.x:8080',
+      'settings_runner_url_save': 'Save URL',
+      'settings_runner_url_clear': 'Clear',
+      'settings_runner_url_saved': 'Runner URL saved',
+      'settings_runner_url_cleared': 'Runner URL cleared',
+      'settings_runner_check': 'Check connection',
+      'settings_runner_connected': 'Runner reachable ✓',
+      'settings_runner_unreachable': 'Runner unreachable',
+      'settings_runner_connecting': 'Checking connection…',
+      'settings_runner_active': 'Active runner: {url}',
       'settings_data_operations_title': 'Data Operations',
       'settings_export': 'Export',
       'settings_import': 'Import',
@@ -197,6 +212,12 @@ class AppStrings {
       'settings_legal_title': 'Legal',
       'settings_legal_desc': 'Review how your data is handled and stored.',
       'settings_privacy_policy': 'Privacy Policy',
+      'settings_ads_privacy_manage': 'Manage ad privacy choices',
+      'settings_ads_privacy_not_required':
+          'Ad privacy options are not required right now',
+      'settings_ads_privacy_loading': 'Checking ad privacy settings...',
+      'settings_ads_privacy_opened': 'Ad privacy options opened',
+      'settings_ads_privacy_open_error': 'Could not open ad privacy options',
 
       'home_token_missing': 'Token not found for {botName}',
       'home_log_start_requested': 'Bot start requested',
@@ -215,6 +236,20 @@ class AppStrings {
       'home_start': 'Start',
       'home_manage': 'Manage',
       'home_logs_tooltip': 'Bot logs',
+      'rewarded_start_title': 'Support Bot Creator',
+      'rewarded_start_message':
+          'This ad helps fund the app and can only appear when you press Start. If no ad can be shown, the bot will still start normally.',
+      'rewarded_start_watch': 'Watch ad',
+      'rewarded_start_continue': 'Continue',
+      'rewarded_start_skip': 'Skip',
+      'rewarded_start_thanks': 'Thanks for your support!',
+      'ads_consent_title': 'Ads consent',
+      'ads_consent_message':
+          'To comply with GDPR, we need your consent before showing ads. You can continue using the app even if you refuse.',
+      'ads_consent_accept': 'I accept',
+      'ads_consent_refuse': 'I refuse',
+      'ads_consent_refused_info':
+          'Ad consent declined. The bot will still start normally.',
 
       'error': 'Error',
       'error_with_details': 'Error: {error}',
@@ -318,6 +353,7 @@ class AppStrings {
       'bot_logs_show_more': 'Show more',
       'bot_logs_show_less': 'Show less',
       'bot_logs_ram': 'Bot process RAM: {memory}',
+      'bot_logs_ram_estimated': 'Estimated bot RAM: {memory}',
       'bot_logs_go_to_latest': 'Go to latest log',
       'bot_logs_go_to_bottom': 'Go to bottom',
 
@@ -327,6 +363,8 @@ class AppStrings {
       'bot_stats_ram_estimated': 'Bot RAM only (estimated)',
       'bot_stats_cpu': 'Bot process CPU',
       'bot_stats_storage': 'Bot storage (app data)',
+      'bot_stats_source_runner_api': 'Source: Runner API',
+      'bot_stats_source_local_hosting': 'Source: Local Hosting',
       'bot_stats_notes':
           'Notes: CPU available on Android/Linux. Storage = bot data files in the app.',
       'bot_stats_collecting': 'Collecting…',
@@ -571,6 +609,21 @@ class AppStrings {
       'settings_drive_disconnect_loading': 'Déconnexion en cours…',
       'settings_drive_disconnected': 'Déconnecté de Google Drive',
       'settings_drive_disconnect': 'Déconnecter',
+      // Mode développeur (Runner API)
+      'settings_runner_title': 'Mode développeur',
+      'settings_runner_desc':
+          "Connecte l'application à un Bot Creator Runner distant. "
+          "Lorsque configuré, les boutons Lancer/Arrêter et les logs utilisent l'API du runner.",
+      'settings_runner_url_hint': 'http://192.168.1.x:8080',
+      'settings_runner_url_save': "Enregistrer l'URL",
+      'settings_runner_url_clear': 'Effacer',
+      'settings_runner_url_saved': 'URL du runner enregistrée',
+      'settings_runner_url_cleared': 'URL du runner effacée',
+      'settings_runner_check': 'Tester la connexion',
+      'settings_runner_connected': 'Runner accessible ✓',
+      'settings_runner_unreachable': 'Runner inaccessible',
+      'settings_runner_connecting': 'Vérification de la connexion…',
+      'settings_runner_active': 'Runner actif : {url}',
       'settings_data_operations_title': 'Opérations de données',
       'settings_export': 'Exporter',
       'settings_import': 'Importer',
@@ -608,6 +661,14 @@ class AppStrings {
       'settings_legal_desc':
           'Consultez la manière dont vos données sont traitées et stockées.',
       'settings_privacy_policy': 'Politique de confidentialité',
+      'settings_ads_privacy_manage': 'Gérer les choix de confidentialité pub',
+      'settings_ads_privacy_not_required':
+          'Options de confidentialité pub non requises pour le moment',
+      'settings_ads_privacy_loading':
+          'Vérification des paramètres de confidentialité pub...',
+      'settings_ads_privacy_opened': 'Options de confidentialité pub ouvertes',
+      'settings_ads_privacy_open_error':
+          'Impossible d’ouvrir les options de confidentialité pub',
 
       'home_token_missing': 'Token introuvable pour {botName}',
       'home_log_start_requested': 'Démarrage du bot demandé',
@@ -626,6 +687,20 @@ class AppStrings {
       'home_start': 'Lancer',
       'home_manage': 'Gérer',
       'home_logs_tooltip': 'Logs du bot',
+      'rewarded_start_title': 'Soutenir Bot Creator',
+      'rewarded_start_message':
+          'Cette pub sert simplement à financer l’application et ne peut s’afficher que lorsque vous appuyez sur démarrer. Si aucune pub ne peut être affichée, le bot démarre normalement.',
+      'rewarded_start_watch': 'Regarder la pub',
+      'rewarded_start_continue': 'Continuer',
+      'rewarded_start_skip': 'Ignorer',
+      'rewarded_start_thanks': 'Merci pour votre soutien !',
+      'ads_consent_title': 'Consentement publicitaire',
+      'ads_consent_message':
+          'Pour respecter le RGPD, nous avons besoin de votre consentement avant d’afficher des publicités. Vous pouvez continuer à utiliser l’application même en refusant.',
+      'ads_consent_accept': 'J’accepte',
+      'ads_consent_refuse': 'Je refuse',
+      'ads_consent_refused_info':
+          'Consentement pub refusé. Le bot démarre normalement.',
 
       'error': 'Erreur',
       'error_with_details': 'Erreur : {error}',
@@ -732,6 +807,7 @@ class AppStrings {
       'bot_logs_show_more': 'Afficher plus',
       'bot_logs_show_less': 'Afficher moins',
       'bot_logs_ram': 'RAM du processus bot : {memory}',
+      'bot_logs_ram_estimated': 'RAM bot estimée : {memory}',
       'bot_logs_go_to_latest': 'Aller au dernier log',
       'bot_logs_go_to_bottom': 'Aller en bas',
 
@@ -741,6 +817,8 @@ class AppStrings {
       'bot_stats_ram_estimated': 'RAM bot uniquement (estimée)',
       'bot_stats_cpu': 'CPU du processus bot',
       'bot_stats_storage': 'Stockage du bot (données app)',
+      'bot_stats_source_runner_api': 'Source : API Runner',
+      'bot_stats_source_local_hosting': 'Source : hébergement local',
       'bot_stats_notes':
           'Notes : CPU disponible sur Android/Linux. Stockage = fichiers de données du bot dans l’application.',
       'bot_stats_collecting': 'Collecte…',
