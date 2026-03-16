@@ -161,6 +161,21 @@ class AppStrings {
       'settings_drive_disconnect_loading': 'Disconnecting…',
       'settings_drive_disconnected': 'Disconnected from Google Drive',
       'settings_drive_disconnect': 'Disconnect',
+      // Developer mode (Runner API)
+      'settings_runner_title': 'Developer Mode',
+      'settings_runner_desc':
+          'Connect the app to a remote Bot Creator Runner. When configured, '
+          'Start/Stop and logs will use the runner API instead of the local engine.',
+      'settings_runner_url_hint': 'http://192.168.1.x:8080',
+      'settings_runner_url_save': 'Save URL',
+      'settings_runner_url_clear': 'Clear',
+      'settings_runner_url_saved': 'Runner URL saved',
+      'settings_runner_url_cleared': 'Runner URL cleared',
+      'settings_runner_check': 'Check connection',
+      'settings_runner_connected': 'Runner reachable ✓',
+      'settings_runner_unreachable': 'Runner unreachable',
+      'settings_runner_connecting': 'Checking connection…',
+      'settings_runner_active': 'Active runner: {url}',
       'settings_data_operations_title': 'Data Operations',
       'settings_export': 'Export',
       'settings_import': 'Import',
@@ -318,6 +333,7 @@ class AppStrings {
       'bot_logs_show_more': 'Show more',
       'bot_logs_show_less': 'Show less',
       'bot_logs_ram': 'Bot process RAM: {memory}',
+      'bot_logs_ram_estimated': 'Estimated bot RAM: {memory}',
       'bot_logs_go_to_latest': 'Go to latest log',
       'bot_logs_go_to_bottom': 'Go to bottom',
 
@@ -571,6 +587,21 @@ class AppStrings {
       'settings_drive_disconnect_loading': 'Déconnexion en cours…',
       'settings_drive_disconnected': 'Déconnecté de Google Drive',
       'settings_drive_disconnect': 'Déconnecter',
+      // Mode développeur (Runner API)
+      'settings_runner_title': 'Mode développeur',
+      'settings_runner_desc':
+          "Connecte l'application à un Bot Creator Runner distant. "
+          "Lorsque configuré, les boutons Lancer/Arrêter et les logs utilisent l'API du runner.",
+      'settings_runner_url_hint': 'http://192.168.1.x:8080',
+      'settings_runner_url_save': "Enregistrer l'URL",
+      'settings_runner_url_clear': 'Effacer',
+      'settings_runner_url_saved': 'URL du runner enregistrée',
+      'settings_runner_url_cleared': 'URL du runner effacée',
+      'settings_runner_check': 'Tester la connexion',
+      'settings_runner_connected': 'Runner accessible ✓',
+      'settings_runner_unreachable': 'Runner inaccessible',
+      'settings_runner_connecting': 'Vérification de la connexion…',
+      'settings_runner_active': 'Runner actif : {url}',
       'settings_data_operations_title': 'Opérations de données',
       'settings_export': 'Exporter',
       'settings_import': 'Importer',
@@ -732,6 +763,7 @@ class AppStrings {
       'bot_logs_show_more': 'Afficher plus',
       'bot_logs_show_less': 'Afficher moins',
       'bot_logs_ram': 'RAM du processus bot : {memory}',
+      'bot_logs_ram_estimated': 'RAM bot estimée : {memory}',
       'bot_logs_go_to_latest': 'Aller au dernier log',
       'bot_logs_go_to_bottom': 'Aller en bas',
 

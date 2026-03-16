@@ -6,6 +6,8 @@ import 'package:bot_creator/utils/drive.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/onboarding_manager.dart';
 import 'package:bot_creator/utils/recovery_manager.dart';
+import 'package:bot_creator/utils/runner_client.dart';
+import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart';
@@ -28,6 +30,11 @@ class _SettingPageState extends State<SettingPage> {
   bool _loadingRecoverySettings = true;
   bool _loadingSnapshots = false;
   List<BackupSnapshotSummary> _snapshots = const [];
+
+  // Developer mode state
+  final TextEditingController _runnerUrlController = TextEditingController();
+  bool _checkingRunner = false;
+  bool? _runnerReachable;
 
   Future<void> _runWithLoading(
     String message,
@@ -69,6 +76,7 @@ class _SettingPageState extends State<SettingPage> {
     super.initState();
     _loadRecoverySettings();
     _initializeDriveApi();
+    _loadRunnerUrl();
   }
 
   Future<void> _initializeDriveApi() async {
@@ -89,6 +97,69 @@ class _SettingPageState extends State<SettingPage> {
       parameters: {"user_id": userId as Object},
     );
     // La connexion à Google Drive se fait uniquement sur action de l'utilisateur.
+  }
+
+  Future<void> _loadRunnerUrl() async {
+    final url = await RunnerSettings.getUrl();
+    if (!mounted) return;
+    setState(() {
+      _runnerUrlController.text = url ?? '';
+    });
+    if (url != null && url.isNotEmpty) {
+      await _checkRunnerConnection();
+    }
+  }
+
+  Future<void> _saveRunnerUrl() async {
+    final url = _runnerUrlController.text.trim();
+    await RunnerSettings.setUrl(url);
+    if (!mounted) return;
+    setState(() {
+      _runnerReachable = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          url.isEmpty
+              ? AppStrings.t('settings_runner_url_cleared')
+              : AppStrings.t('settings_runner_url_saved'),
+        ),
+      ),
+    );
+    if (url.isNotEmpty) {
+      await _checkRunnerConnection();
+    }
+  }
+
+  Future<void> _checkRunnerConnection() async {
+    final url = _runnerUrlController.text.trim();
+    if (url.isEmpty) return;
+    if (!mounted) return;
+    setState(() {
+      _checkingRunner = true;
+      _runnerReachable = null;
+    });
+    try {
+      final client = RunnerClient(baseUrl: url);
+      final ok = await client.checkHealth();
+      if (!mounted) return;
+      setState(() {
+        _runnerReachable = ok;
+        _checkingRunner = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _runnerReachable = false;
+        _checkingRunner = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _runnerUrlController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadRecoverySettings() async {
@@ -869,6 +940,166 @@ class _SettingPageState extends State<SettingPage> {
                             ),
                           ),
                         ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Developer Mode Section
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.developer_mode, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              AppStrings.t('settings_runner_title'),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          AppStrings.t('settings_runner_desc'),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _runnerUrlController,
+                          decoration: InputDecoration(
+                            hintText: AppStrings.t('settings_runner_url_hint'),
+                            isDense: true,
+                            border: const OutlineInputBorder(),
+                            suffixIcon:
+                                _checkingRunner
+                                    ? const Padding(
+                                      padding: EdgeInsets.all(10),
+                                      child: SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    )
+                                    : (_runnerReachable == null
+                                        ? null
+                                        : Icon(
+                                          _runnerReachable!
+                                              ? Icons.check_circle
+                                              : Icons.error_outline,
+                                          color:
+                                              _runnerReachable!
+                                                  ? Colors.green[400]
+                                                  : Colors.red[400],
+                                          size: 18,
+                                        )),
+                          ),
+                          keyboardType: TextInputType.url,
+                          autocorrect: false,
+                        ),
+                        const SizedBox(height: 10),
+                        if (_runnerReachable != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _runnerReachable!
+                                      ? Icons.wifi
+                                      : Icons.wifi_off,
+                                  size: 16,
+                                  color:
+                                      _runnerReachable!
+                                          ? Colors.green[400]
+                                          : Colors.red[400],
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  _runnerReachable!
+                                      ? AppStrings.t(
+                                        'settings_runner_connected',
+                                      )
+                                      : AppStrings.t(
+                                        'settings_runner_unreachable',
+                                      ),
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.copyWith(
+                                    color:
+                                        _runnerReachable!
+                                            ? Colors.green[400]
+                                            : Colors.red[400],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed:
+                                    _isBusy || _checkingRunner
+                                        ? null
+                                        : _saveRunnerUrl,
+                                icon: const Icon(Icons.save_outlined, size: 18),
+                                label: Text(
+                                  AppStrings.t('settings_runner_url_save'),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton.icon(
+                              onPressed:
+                                  _checkingRunner
+                                      ? null
+                                      : _checkRunnerConnection,
+                              icon:
+                                  _checkingRunner
+                                      ? const SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                      : const Icon(Icons.wifi_find, size: 18),
+                              label: Text(
+                                AppStrings.t('settings_runner_check'),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    Theme.of(
+                                      context,
+                                    ).colorScheme.secondaryContainer,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed:
+                                  _isBusy
+                                      ? null
+                                      : () {
+                                        _runnerUrlController.clear();
+                                        _saveRunnerUrl();
+                                      },
+                              icon: const Icon(Icons.clear, size: 18),
+                              tooltip: AppStrings.t(
+                                'settings_runner_url_clear',
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),

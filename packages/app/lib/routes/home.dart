@@ -6,7 +6,10 @@ import 'package:bot_creator/routes/app.dart';
 import 'package:bot_creator/routes/app/bot_logs.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/bot_payload_builder.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/runner_client.dart';
+import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
@@ -54,6 +57,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _initRunningState() async {
     String? runningId;
+
+    final runnerUrl = await RunnerSettings.getUrl();
+    if (runnerUrl != null && runnerUrl.isNotEmpty) {
+      try {
+        final status = await RunnerClient(baseUrl: runnerUrl).getStatus();
+        runningId = status.running ? status.activeBotId : null;
+      } catch (_) {
+        runningId = null;
+      }
+
+      if (!mounted) return;
+      setState(() => _runningBotId = runningId);
+      _syncPulse(runningId);
+      return;
+    }
+
     if (_supportsForegroundTask) {
       try {
         final running = await FlutterForegroundTask.isRunningService;
@@ -118,6 +137,31 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     try {
       final isRunning = _runningBotId == botId;
+
+      // ── Runner API (mode développeur) ─────────────────────────────────────
+      final runnerUrl = await RunnerSettings.getUrl();
+      if (runnerUrl != null && runnerUrl.isNotEmpty) {
+        final client = RunnerClient(baseUrl: runnerUrl);
+        if (isRunning) {
+          appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
+          await client.stopBot();
+          setBotRuntimeActive(false);
+          if (mounted) setState(() => _runningBotId = null);
+        } else {
+          startBotLogSession(botId: botId);
+          clearBotBaselineRss();
+          appendBotLog(AppStrings.t('home_log_start_requested'), botId: botId);
+          final payload = await buildBotPayload(botId);
+          await client.syncBot(botId, botName, payload);
+          await client.startBot(botId, botName: botName);
+          setBotRuntimeActive(true);
+          if (mounted) setState(() => _runningBotId = botId);
+        }
+        _syncPulse(_runningBotId);
+        return;
+      }
+
+      // ── Local engine ──────────────────────────────────────────────────────
       final app = await appManager.getApp(botId);
       final token = app['token']?.toString();
       if (token == null || token.trim().isEmpty) {

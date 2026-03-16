@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/runner_client.dart';
+import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -19,16 +23,102 @@ class _BotLogsPageState extends State<BotLogsPage> {
 
   static const int _collapseThreshold = 240;
 
+  // Runner log polling
+  Timer? _runnerPollTimer;
+  List<String> _lastKnownRemoteLogs = const [];
+
   @override
   void initState() {
     super.initState();
     _debugEnabled = isBotDebugLogsEnabled;
+    _initRunnerPolling();
   }
 
   @override
   void dispose() {
+    _runnerPollTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _initRunnerPolling() async {
+    final url = await RunnerSettings.getUrl();
+    if (!mounted || url == null || url.isEmpty) return;
+    final client = RunnerClient(baseUrl: url);
+    await _pollRunnerData(client);
+    _runnerPollTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
+      if (mounted) {
+        unawaited(_pollRunnerData(client));
+      }
+    });
+  }
+
+  Future<void> _pollRunnerData(RunnerClient client) async {
+    await Future.wait<void>(<Future<void>>[
+      _pollRunnerLogs(client),
+      _pollRunnerMetrics(client),
+    ]);
+  }
+
+  Future<void> _pollRunnerLogs(RunnerClient client) async {
+    try {
+      final lines = await client.getLogs(limit: 500);
+      if (lines.isEmpty) {
+        _lastKnownRemoteLogs = const [];
+        return;
+      }
+
+      final overlap = _computeOverlap(_lastKnownRemoteLogs, lines);
+      if (overlap < lines.length) {
+        final newLines = lines.sublist(overlap);
+        for (final line in newLines) {
+          appendBotLog(line);
+        }
+      }
+      _lastKnownRemoteLogs = List<String>.from(lines);
+    } catch (_) {
+      // Polling errors are silently ignored to avoid UI noise.
+    }
+  }
+
+  Future<void> _pollRunnerMetrics(RunnerClient client) async {
+    try {
+      final metrics = await client.getMetrics();
+      updateBotRuntimeMetricsFromRemote(
+        running: metrics.running,
+        botId: metrics.activeBotId,
+        rssBytes: metrics.rssBytes,
+        estimatedRssBytes: metrics.botEstimatedRssBytes,
+        cpuPercent: metrics.cpuPercent,
+        storageBytes: metrics.storageBytes,
+      );
+    } catch (_) {
+      // Polling errors are silently ignored to avoid UI noise.
+    }
+  }
+
+  int _computeOverlap(List<String> previous, List<String> current) {
+    if (previous.isEmpty || current.isEmpty) {
+      return 0;
+    }
+
+    final maxOverlap =
+        previous.length < current.length ? previous.length : current.length;
+    for (var overlap = maxOverlap; overlap > 0; overlap--) {
+      var same = true;
+      for (var index = 0; index < overlap; index++) {
+        final prevValue = previous[previous.length - overlap + index];
+        final currentValue = current[index];
+        if (prevValue != currentValue) {
+          same = false;
+          break;
+        }
+      }
+      if (same) {
+        return overlap;
+      }
+    }
+    return 0;
   }
 
   void _jumpToEdge() {
@@ -150,176 +240,195 @@ class _BotLogsPageState extends State<BotLogsPage> {
         stream: getBotProcessRssStream(),
         initialData: getBotProcessRssBytes(),
         builder: (context, metricsSnapshot) {
-          final memoryText = _formatMemory(metricsSnapshot.data);
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.memory, size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        AppStrings.tr(
-                          'bot_logs_ram',
-                          params: {'memory': memoryText},
-                        ),
+          return StreamBuilder<int?>(
+            stream: getBotEstimatedRssStream(),
+            initialData: getBotEstimatedRssBytes(),
+            builder: (context, estimatedSnapshot) {
+              final memoryText = _formatMemory(metricsSnapshot.data);
+              final estimatedText = _formatMemory(estimatedSnapshot.data);
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: StreamBuilder<List<String>>(
-                  stream: getBotLogsStream(),
-                  initialData: getBotLogsSnapshot(),
-                  builder: (context, snapshot) {
-                    final allLogs = snapshot.data ?? const <String>[];
-                    if (allLogs.isEmpty) {
-                      return Center(
-                        child: Text(AppStrings.t('bot_logs_empty')),
-                      );
-                    }
-
-                    final sourceLogs =
-                        (_visibleLimit > 0 && allLogs.length > _visibleLimit)
-                            ? allLogs.sublist(allLogs.length - _visibleLimit)
-                            : allLogs;
-
-                    final logs =
-                        _showNewestFirst
-                            ? sourceLogs.reversed.toList(growable: false)
-                            : sourceLogs;
-
-                    final textTheme = Theme.of(context).textTheme;
-                    final bottomInset = MediaQuery.of(context).padding.bottom;
-
-                    return ListView.separated(
-                      controller: _scrollController,
-                      padding: EdgeInsets.fromLTRB(
-                        12,
-                        12,
-                        12,
-                        16 + bottomInset + 64,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainer,
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      itemCount: logs.length,
-                      separatorBuilder:
-                          (BuildContext context, int index) =>
-                              const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final raw = logs[index];
-                        final parsed = _parseLog(raw);
-                        final displayMessage = _formatMessageForDisplay(
-                          parsed.message,
-                        );
-                        final isExpanded = _expandedLogs.contains(raw);
-                        final shouldCollapse =
-                            displayMessage.length > _collapseThreshold;
-                        final visibleMessage =
-                            shouldCollapse && !isExpanded
-                                ? '${displayMessage.substring(0, _collapseThreshold)}…'
-                                : displayMessage;
-
-                        return Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(10),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.memory, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${AppStrings.tr('bot_logs_ram', params: {'memory': memoryText})} • '
+                              '${AppStrings.tr('bot_logs_ram_estimated', params: {'memory': estimatedText})}',
+                            ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: StreamBuilder<List<String>>(
+                      stream: getBotLogsStream(),
+                      initialData: getBotLogsSnapshot(),
+                      builder: (context, snapshot) {
+                        final allLogs = snapshot.data ?? const <String>[];
+                        if (allLogs.isEmpty) {
+                          return Center(
+                            child: Text(AppStrings.t('bot_logs_empty')),
+                          );
+                        }
+
+                        final sourceLogs =
+                            (_visibleLimit > 0 &&
+                                    allLogs.length > _visibleLimit)
+                                ? allLogs.sublist(
+                                  allLogs.length - _visibleLimit,
+                                )
+                                : allLogs;
+
+                        final logs =
+                            _showNewestFirst
+                                ? sourceLogs.reversed.toList(growable: false)
+                                : sourceLogs;
+
+                        final textTheme = Theme.of(context).textTheme;
+                        final bottomInset =
+                            MediaQuery.of(context).padding.bottom;
+
+                        return ListView.separated(
+                          controller: _scrollController,
+                          padding: EdgeInsets.fromLTRB(
+                            12,
+                            12,
+                            12,
+                            16 + bottomInset + 64,
+                          ),
+                          itemCount: logs.length,
+                          separatorBuilder:
+                              (BuildContext context, int index) =>
+                                  const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final raw = logs[index];
+                            final parsed = _parseLog(raw);
+                            final displayMessage = _formatMessageForDisplay(
+                              parsed.message,
+                            );
+                            final isExpanded = _expandedLogs.contains(raw);
+                            final shouldCollapse =
+                                displayMessage.length > _collapseThreshold;
+                            final visibleMessage =
+                                shouldCollapse && !isExpanded
+                                    ? '${displayMessage.substring(0, _collapseThreshold)}…'
+                                    : displayMessage;
+
+                            return Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color:
+                                    Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  _Badge(
-                                    text: parsed.time,
-                                    background:
-                                        Theme.of(context).colorScheme.surface,
-                                    foreground:
-                                        Theme.of(context).colorScheme.onSurface,
+                                  Row(
+                                    children: [
+                                      _Badge(
+                                        text: parsed.time,
+                                        background:
+                                            Theme.of(
+                                              context,
+                                            ).colorScheme.surface,
+                                        foreground:
+                                            Theme.of(
+                                              context,
+                                            ).colorScheme.onSurface,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _Badge(
+                                        text: parsed.level,
+                                        background: _levelBackground(
+                                          context,
+                                          parsed.level,
+                                          parsed.isDebug,
+                                        ),
+                                        foreground: _levelForeground(
+                                          context,
+                                          parsed.level,
+                                          parsed.isDebug,
+                                        ),
+                                      ),
+                                      if (parsed.logger.isNotEmpty) ...[
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            parsed.logger,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: textTheme.labelMedium,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                  const SizedBox(width: 8),
-                                  _Badge(
-                                    text: parsed.level,
-                                    background: _levelBackground(
-                                      context,
-                                      parsed.level,
-                                      parsed.isDebug,
-                                    ),
-                                    foreground: _levelForeground(
-                                      context,
-                                      parsed.level,
-                                      parsed.isDebug,
+                                  const SizedBox(height: 8),
+                                  SelectableText(
+                                    visibleMessage,
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      fontFamily: 'monospace',
+                                      height: 1.35,
                                     ),
                                   ),
-                                  if (parsed.logger.isNotEmpty) ...[
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        parsed.logger,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: textTheme.labelMedium,
+                                  if (shouldCollapse)
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: TextButton.icon(
+                                        onPressed: () {
+                                          setState(() {
+                                            if (isExpanded) {
+                                              _expandedLogs.remove(raw);
+                                            } else {
+                                              _expandedLogs.add(raw);
+                                            }
+                                          });
+                                        },
+                                        icon: Icon(
+                                          isExpanded
+                                              ? Icons.expand_less
+                                              : Icons.expand_more,
+                                        ),
+                                        label: Text(
+                                          isExpanded
+                                              ? AppStrings.t(
+                                                'bot_logs_show_less',
+                                              )
+                                              : AppStrings.t(
+                                                'bot_logs_show_more',
+                                              ),
+                                        ),
                                       ),
                                     ),
-                                  ],
                                 ],
                               ),
-                              const SizedBox(height: 8),
-                              SelectableText(
-                                visibleMessage,
-                                style: textTheme.bodyMedium?.copyWith(
-                                  fontFamily: 'monospace',
-                                  height: 1.35,
-                                ),
-                              ),
-                              if (shouldCollapse)
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: TextButton.icon(
-                                    onPressed: () {
-                                      setState(() {
-                                        if (isExpanded) {
-                                          _expandedLogs.remove(raw);
-                                        } else {
-                                          _expandedLogs.add(raw);
-                                        }
-                                      });
-                                    },
-                                    icon: Icon(
-                                      isExpanded
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
-                                    ),
-                                    label: Text(
-                                      isExpanded
-                                          ? AppStrings.t('bot_logs_show_less')
-                                          : AppStrings.t('bot_logs_show_more'),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                            );
+                          },
                         );
                       },
-                    );
-                  },
-                ),
-              ),
-            ],
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
