@@ -59,35 +59,16 @@ You may still see legacy identifiers like `cardia_kexa` in package IDs or intern
 ```bash
 flutter pub get
 flutter run
+
 ```
 
 ## Runner Docker (Web bootstrap)
 
-The Docker image now starts the runner in web mode by default.
-
-- First startup checks if a persisted Google Drive token exists.
-- If token exists (or can be refreshed), the web UI starts immediately.
-- If token is missing, the web page shows a Google OAuth authorization link.
-- After successful authorization, the runner stores the token and switches to ready state.
-- Once ready, the web UI can list bots, start/stop a bot, and stream logs.
-- The web UI also includes a **Switch account** action for Google Drive re-auth.
-- If authorization fails, the process exits with `Connection failed`.
-
-The web OAuth flow keeps the Google Drive scope on `drive.appdata`.
-
-The redirect URI is built from the web UI origin you use to open the Runner.
-For example, if you open the UI on `http://192.168.1.50:8080`, the OAuth
-callback will target that same IP.
+The Docker image starts the runner in web mode by default. Displaying an API that can be consummed by the App.
 
 If needed, you can force the public origin with `BOT_CREATOR_WEB_PUBLIC_ORIGIN`.
 
-If your OAuth policy/setup requires it, you can also pass optional desktop
-authorization parameters via env vars:
-
-- `BOT_CREATOR_DRIVE_DEVICE_ID`
-- `BOT_CREATOR_DRIVE_DEVICE_NAME`
-
-Use a persistent Docker volume to keep OAuth tokens between restarts:
+Use a persistent Docker volume to keep Bots Configs between restarts:
 
 ```bash
 docker volume create bot_creator_data
@@ -96,6 +77,7 @@ docker run --rm \
   -p 8080:8080 \
   -v bot_creator_data:/data \
   bot-creator-runner
+
 ```
 
 Detailed guide: `docs/runner-docker.md`.
@@ -114,52 +96,53 @@ Detailed guide: `docs/runner-docker.md`.
 
 Bot Creator stores data locally under the app documents directory, including:
 
-- bot/app metadata
-- command configs
-- workflows
-- global variables
-- logs and runtime-related app data
+* bot/app metadata
+* command configs
+* workflows
+* global variables
+* logs and runtime-related app data
 
-Backup/restore syncs this app data structure to Google Drive `appDataFolder`.
+Backup/restore syncs this app data structure to the Google Drive `appDataFolder`.
 
 ## Google Drive backup/restore
 
-The app supports two auth modes:
+The app supports two main auth modes:
 
-- **Mobile (Android/iOS):** native Google Sign-In flow
-- **Desktop:** browser-based OAuth with localhost callback
+* **Mobile (Android/iOS):** native Google Sign-In flow
+* **Desktop:** browser-based OAuth with localhost callback
 
-Desktop supports `--dart-define` overrides for OAuth values (for example client id/secret) when needed by your environment.
+Desktop supports `--dart-define` overrides for OAuth values (e.g., client id/secret) when needed by your environment. *Note: As mentioned in the Docker section, the pre-built Docker image does not include this Drive configuration out of the box.*
 
 ## Startup diagnostics and crash debugging
 
-- App startup is now wrapped with guarded initialization.
-- If Firebase/Crashlytics initialization fails on some devices, the app logs the failure locally instead of crashing silently.
-- Local diagnostics file path: app documents directory `/diagnostics/startup_diagnostics.log`
-- In-app access: **Settings** -> **Diagnostics** -> **View startup logs** / **Clear logs**
-- On fatal startup error, a fallback error screen appears with a **Copy diagnostics** action.
+* App startup is now wrapped with guarded initialization.
+* If Firebase/Crashlytics initialization fails on some devices, the app logs the failure locally instead of crashing silently.
+* Local diagnostics file path: app documents directory `/diagnostics/startup_diagnostics.log`
+* In-app access: **Settings** -> **Diagnostics** -> **View startup logs** / **Clear logs**
+* On fatal startup error, a fallback error screen appears with a **Copy diagnostics** action.
 
 ## Security notes
 
-- Bot tokens are sensitive secrets; treat exported data carefully.
-- Avoid committing local credentials or generated auth files.
-- Review platform-specific OAuth/Firebase config before distribution.
+* Bot tokens are sensitive secrets; treat exported data carefully.
+* Avoid committing local credentials or generated auth files.
+* Review platform-specific OAuth/Firebase config before distribution.
 
 ## Current limitations
 
-- No dedicated backend service; logic is local-first
-- Local persistence is JSON-file based (not relational DB)
-- Some UI/log messages are currently French/English mixed
-- Legacy internal naming may still appear in non-user-facing code paths
+* No dedicated backend service; logic is local-first
+* Local persistence is JSON-file based (not relational DB)
+* Google Drive OAuth configuration is not bundled with the Docker image
+* Some UI/log messages are currently French/English mixed
+* Legacy internal naming may still appear in non-user-facing code paths
 
 ## Development notes
 
-- Main entrypoint: `lib/main.dart`
-- App/workspace navigation: `lib/routes/`
-- Discord runtime + command handling: `lib/utils/bot.dart`
-- Action system: `lib/actions/` and `lib/types/action.dart`
-- Persistence: `lib/utils/database.dart`
-- Drive sync: `lib/utils/drive.dart`
+* Main entrypoint: `lib/main.dart`
+* App/workspace navigation: `lib/routes/`
+* Discord runtime + command handling: `lib/utils/bot.dart`
+* Action system: `lib/actions/` and `lib/types/action.dart`
+* Persistence: `lib/utils/database.dart`
+* Drive sync: `lib/utils/drive.dart`
 
 ## License
 
