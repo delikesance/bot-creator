@@ -31,12 +31,8 @@ String supportedDiscordAvatarFormatsLabel() {
 }
 
 Future<User> getDiscordUser(String botToken) async {
-  try {
-    final client = await Nyxx.connectRest(botToken);
-    return await client.user.fetch();
-  } catch (e) {
-    throw Exception("Failed to fetch user: $e");
-  }
+  final client = await Nyxx.connectRest(botToken);
+  return await client.user.fetch();
 }
 
 Future<User> updateDiscordBotProfile(

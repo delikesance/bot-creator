@@ -8,6 +8,7 @@ import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/bot_payload_builder.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
+import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
@@ -235,6 +236,9 @@ class _AppHomePageState extends State<AppHomePage>
     }
 
     AdRewardService.showRewardedAdNonBlocking();
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppStrings.t('rewarded_start_thanks'))),
     );
@@ -318,6 +322,52 @@ class _AppHomePageState extends State<AppHomePage>
                             final botId = widget.client.user.id.toString();
 
                             if (!_botLaunched) {
+                              try {
+                                await getDiscordUser(token);
+                              } catch (_) {
+                                if (!mounted) return;
+                                final proceed =
+                                    await showDialog<bool>(
+                                      context: context,
+                                      builder:
+                                          (ctx) => AlertDialog(
+                                            title: Text(
+                                              AppStrings.t(
+                                                'bot_home_token_invalid_title',
+                                              ),
+                                            ),
+                                            content: Text(
+                                              AppStrings.t(
+                                                'bot_home_token_invalid_content',
+                                              ),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      ctx,
+                                                    ).pop(false),
+                                                child: Text(
+                                                  AppStrings.t('cancel'),
+                                                ),
+                                              ),
+                                              FilledButton(
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      ctx,
+                                                    ).pop(true),
+                                                child: Text(
+                                                  AppStrings.t(
+                                                    'bot_home_start',
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                    ) ??
+                                    false;
+                                if (!proceed || !mounted) return;
+                              }
                               await _maybeOfferRewardedAd();
                             }
 

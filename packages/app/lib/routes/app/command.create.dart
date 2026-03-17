@@ -14,8 +14,14 @@ import 'package:nyxx/nyxx.dart';
 
 class CommandCreatePage extends StatefulWidget {
   final NyxxRest? client;
+  final String? botId;
   final Snowflake id;
-  const CommandCreatePage({super.key, this.client, this.id = Snowflake.zero});
+  const CommandCreatePage({
+    super.key,
+    this.client,
+    this.botId,
+    this.id = Snowflake.zero,
+  });
 
   @override
   State<CommandCreatePage> createState() => _CommandCreatePageState();
@@ -37,6 +43,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   List<Map<String, dynamic>> _actions = [];
   Map<String, dynamic> _responseWorkflow = _defaultWorkflow();
   bool _isLoading = true;
+
+  /// True when editing an existing command that couldn't be fully loaded
+  /// (client offline AND no local `data` block). Disables editing UI.
+  bool _isDataIncomplete = false;
   List<ApplicationIntegrationType> _integrationTypes = [
     ApplicationIntegrationType.guildInstall,
   ];
@@ -373,7 +383,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     return '${autoDefer ? 'Auto defer if actions' : 'No auto defer'} • $visibility • $conditionLabel';
   }
 
-  String? get _botIdForConfig => widget.client?.user.id.toString();
+  String? get _botIdForConfig =>
+      widget.client?.user.id.toString() ?? widget.botId;
 
   final List<Map<String, String>> _argsList = [
     {"name": "guildName", "description": "Name of the guild"},
@@ -448,8 +459,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       } catch (_) {}
 
       // check if we also have the command in the database
+      final botId = _botIdForConfig;
+      if (botId == null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
       final commandData = await appManager.getAppCommand(
-        widget.client!.user.id.toString(),
+        botId,
         widget.id.toString(),
       );
       // let's set the command data to the fields
@@ -550,64 +571,82 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           _simpleModeLocked = true;
         });
       }
-      if (command != null) {
-        final currentCommand = command;
+      // ── Safety net: always terminate loading even if Discord is offline ──
+      if (command == null) {
+        // Load minimal fields from local storage so the read-only banner can
+        // display the command name/description even without a Discord connection.
+        final localName = commandData['name']?.toString() ?? '';
+        final localDescription = commandData['description']?.toString() ?? '';
+        // The command is incomplete only when the full `data` block is absent.
+        // If the data block exists, the command can be edited locally offline.
+        final hasFullLocalData = data != null;
         if (!mounted) return;
         setState(() {
-          _commandName = currentCommand.name;
-          _commandDescription = currentCommand.description;
-          if (currentCommand.options != null) {
-            _options =
-                currentCommand.options!.map((e) {
-                  final option = CommandOptionBuilder(
-                    type: e.type,
-                    name: e.name,
-                    description: e.description,
-                    isRequired: e.isRequired,
-                    minValue: e.minValue,
-                    maxValue: e.maxValue,
-                    nameLocalizations: e.nameLocalizations,
-                    descriptionLocalizations: e.descriptionLocalizations,
-                  );
-                  if (e.choices?.isNotEmpty ?? false) {
-                    option.choices =
-                        e.choices?.map((choice) {
-                          return CommandOptionChoiceBuilder(
-                            name: choice.name,
-                            value: choice.value,
-                          );
-                        }).toList();
-                  }
-                  return option;
-                }).toList();
-          } else {
-            _options = [];
-          }
-          _integrationTypes =
-              currentCommand.integrationTypes.map((e) {
-                if (e == ApplicationIntegrationType.guildInstall) {
-                  return ApplicationIntegrationType.guildInstall;
-                } else if (e == ApplicationIntegrationType.userInstall) {
-                  return ApplicationIntegrationType.userInstall;
-                } else {
-                  return ApplicationIntegrationType.guildInstall;
-                }
-              }).toList();
-          _contexts = [];
-          if (currentCommand.contexts != null) {
-            _contexts = currentCommand.contexts!.toList();
-          } else {
-            // legacy defaults to guild
-            _contexts = [InteractionContextType.guild];
-          }
-          if (_defaultMemberPermissions.isEmpty &&
-              currentCommand.defaultMemberPermissions != null) {
-            _defaultMemberPermissions =
-                currentCommand.defaultMemberPermissions!.value.toString();
-          }
+          if (localName.isNotEmpty) _commandName = localName;
+          if (localDescription.isNotEmpty)
+            _commandDescription = localDescription;
           _isLoading = false;
+          _isDataIncomplete = !hasFullLocalData;
         });
+        return;
       }
+
+      final currentCommand = command;
+      if (!mounted) return;
+      setState(() {
+        _commandName = currentCommand.name;
+        _commandDescription = currentCommand.description;
+        if (currentCommand.options != null) {
+          _options =
+              currentCommand.options!.map((e) {
+                final option = CommandOptionBuilder(
+                  type: e.type,
+                  name: e.name,
+                  description: e.description,
+                  isRequired: e.isRequired,
+                  minValue: e.minValue,
+                  maxValue: e.maxValue,
+                  nameLocalizations: e.nameLocalizations,
+                  descriptionLocalizations: e.descriptionLocalizations,
+                );
+                if (e.choices?.isNotEmpty ?? false) {
+                  option.choices =
+                      e.choices?.map((choice) {
+                        return CommandOptionChoiceBuilder(
+                          name: choice.name,
+                          value: choice.value,
+                        );
+                      }).toList();
+                }
+                return option;
+              }).toList();
+        } else {
+          _options = [];
+        }
+        _integrationTypes =
+            currentCommand.integrationTypes.map((e) {
+              if (e == ApplicationIntegrationType.guildInstall) {
+                return ApplicationIntegrationType.guildInstall;
+              } else if (e == ApplicationIntegrationType.userInstall) {
+                return ApplicationIntegrationType.userInstall;
+              } else {
+                return ApplicationIntegrationType.guildInstall;
+              }
+            }).toList();
+        _contexts = [];
+        if (currentCommand.contexts != null) {
+          _contexts = currentCommand.contexts!.toList();
+        } else {
+          // legacy defaults to guild
+          _contexts = [InteractionContextType.guild];
+        }
+        if (_defaultMemberPermissions.isEmpty &&
+            currentCommand.defaultMemberPermissions != null) {
+          _defaultMemberPermissions =
+              currentCommand.defaultMemberPermissions!.value.toString();
+        }
+        _isLoading = false;
+      });
     } else {
       setState(() {
         _isLoading = false;
@@ -997,10 +1036,51 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     };
 
     final client = widget.client;
-    if (client == null) {
-      // Handle error: client is null
+    final botId = _botIdForConfig;
+    if (botId == null) {
+      final dialog = AlertDialog(
+        title: const Text('Error'),
+        content: const Text('Missing bot id for local command save.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      );
+      showDialog(context: context, builder: (context) => dialog);
       return;
     }
+
+    Future<void> saveLocal(String commandId) async {
+      final localPayload = <String, dynamic>{
+        'name': _commandName,
+        'description': _commandDescription,
+        'id': commandId,
+        'updatedAt': DateTime.now().toIso8601String(),
+        'data': commandData,
+      };
+      if (widget.id.isZero) {
+        localPayload['createdAt'] = DateTime.now().toIso8601String();
+      }
+      await appManager.saveAppCommand(botId, commandId, localPayload);
+    }
+
+    if (client == null) {
+      final localCommandId =
+          widget.id.isZero
+              ? DateTime.now().microsecondsSinceEpoch.toString()
+              : widget.id.toString();
+      await saveLocal(localCommandId);
+      if (!mounted) {
+        return;
+      }
+      Navigator.pop(context);
+      return;
+    }
+
     try {
       if (widget.id.isZero) {
         // Create a new command
@@ -1054,8 +1134,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       }
       Navigator.pop(context);
     } catch (e) {
-      // Handle error
-      final errorText = e.toString();
+      final localCommandId =
+          widget.id.isZero
+              ? DateTime.now().microsecondsSinceEpoch.toString()
+              : widget.id.toString();
+      await saveLocal(localCommandId);
+      final errorText = 'Saved locally. Discord sync failed: $e';
       final dialog = AlertDialog(
         title: const Text("Error"),
         content: Text(errorText),
@@ -1538,7 +1622,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             tooltip: AppStrings.t('cmd_show_variables'),
             icon: const Icon(Icons.info_outline),
           ),
-          if (widget.id.isZero)
+          if (widget.id.isZero && !_isDataIncomplete)
             IconButton(
               icon: const Icon(Icons.add),
               tooltip: AppStrings.t('cmd_create_tooltip'),
@@ -1566,63 +1650,84 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 // You can implement the logic to add a new command here
               },
             ),
-          IconButton(
-            icon: Icon(
-              widget.id.isZero ? Icons.cancel : Icons.save,
-            ), // Change icon based on command existence
-            tooltip:
-                widget.id.isZero
-                    ? AppStrings.t('cancel')
-                    : AppStrings.t('cmd_create_tooltip'),
-            onPressed: () async {
-              if (widget.id.isZero) {
-                Navigator.pop(context);
-                // Handle cancel action
-                // You can implement the logic to cancel the command creation here
-              } else {
-                if (_formKey.currentState!.validate()) {
-                  _updateOrCreate();
-                  AppAnalytics.logEvent(
-                    name: "update_command",
-                    parameters: {
-                      "command_name": _commandName,
-                      "command_id": widget.id.toString(),
-                    },
-                  );
-                  // Form is valid, proceed with command creation
+          if (!_isDataIncomplete)
+            IconButton(
+              icon: Icon(widget.id.isZero ? Icons.cancel : Icons.save),
+              tooltip:
+                  widget.id.isZero
+                      ? AppStrings.t('cancel')
+                      : AppStrings.t('cmd_create_tooltip'),
+              onPressed: () async {
+                if (widget.id.isZero) {
+                  Navigator.pop(context);
                 } else {
-                  // Form is invalid, show error message
-                  final dialog = AlertDialog(
-                    title: Text(AppStrings.t('error')),
-                    content: Text(AppStrings.t('cmd_error_fill_fields')),
-                    actions: [
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        child: Text(AppStrings.t('ok')),
-                      ),
-                    ],
-                  );
-                  showDialog(context: context, builder: (context) => dialog);
+                  if (_formKey.currentState!.validate()) {
+                    _updateOrCreate();
+                    AppAnalytics.logEvent(
+                      name: "update_command",
+                      parameters: {
+                        "command_name": _commandName,
+                        "command_id": widget.id.toString(),
+                      },
+                    );
+                  } else {
+                    final dialog = AlertDialog(
+                      title: Text(AppStrings.t('error')),
+                      content: Text(AppStrings.t('cmd_error_fill_fields')),
+                      actions: [
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          child: Text(AppStrings.t('ok')),
+                        ),
+                      ],
+                    );
+                    showDialog(context: context, builder: (context) => dialog);
+                  }
                 }
-                // You can implement the logic to save the command here
-              }
-            },
-          ),
+              },
+            ),
           if (!widget.id.isZero)
             IconButton(
               icon: const Icon(Icons.delete),
               tooltip: AppStrings.t('cmd_delete_tooltip'),
               onPressed: () async {
-                await widget.client?.commands.delete(widget.id);
-                await appManager.deleteAppCommand(
-                  widget.client!.user.id.toString(),
-                  widget.id.toString(),
-                );
+                final botId = _botIdForConfig;
+                if (botId == null) {
+                  return;
+                }
+
+                final remoteClient = widget.client;
+                if (remoteClient != null) {
+                  try {
+                    await remoteClient.commands.delete(widget.id);
+                  } catch (e) {
+                    final message = e.toString();
+                    final alreadyDeleted =
+                        message.contains('10063') ||
+                        message.contains('Unknown application command') ||
+                        message.contains('404');
+                    if (!alreadyDeleted) {
+                      if (!mounted) {
+                        return;
+                      }
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Discord delete failed. Local delete applied. $e',
+                          ),
+                        ),
+                      );
+                    }
+                  }
+                }
+
+                await appManager.deleteAppCommand(botId, widget.id.toString());
+                if (!mounted) {
+                  return;
+                }
                 Navigator.pop(context);
-                // Handle delete action
-                // You can implement the logic to delete the command here
               },
             ),
         ],
@@ -1653,7 +1758,51 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                     const SizedBox(height: 20),
                     if (_isLoading)
                       const CircularProgressIndicator()
-                    else
+                    else if (_isDataIncomplete) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          border: Border.all(color: Colors.orange.shade300),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: Colors.orange.shade700,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                AppStrings.t('cmd_offline_incomplete_warning'),
+                                style: TextStyle(
+                                  color: Colors.orange.shade800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.terminal),
+                          title: Text(
+                            _commandName.isNotEmpty
+                                ? _commandName
+                                : widget.id.toString(),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle:
+                              _commandDescription.isNotEmpty
+                                  ? Text(_commandDescription)
+                                  : null,
+                        ),
+                      ),
+                    ] else
                       Form(
                         key: _formKey,
                         child: Column(

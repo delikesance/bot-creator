@@ -10,6 +10,7 @@ import 'package:bot_creator/utils/bot_payload_builder.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
+import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/foundation.dart';
@@ -141,8 +142,56 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       final isRunning = _runningBotId == botId;
 
+      // ── Fetch + validate token before anything else (only when starting) ──
+      String? token;
       if (!isRunning) {
+        final runnerUrl = await RunnerSettings.getUrl();
+        final usingRunner = runnerUrl != null && runnerUrl.isNotEmpty;
+
+        if (!usingRunner) {
+          final app = await appManager.getApp(botId);
+          token = app['token']?.toString();
+          if (token == null || token.trim().isEmpty) {
+            throw Exception(
+              AppStrings.tr('home_token_missing', params: {'botName': botName}),
+            );
+          }
+
+          // Token check against Discord before showing ads
+          try {
+            await getDiscordUser(token);
+          } catch (_) {
+            if (!mounted) return;
+            final proceed =
+                await showDialog<bool>(
+                  context: context,
+                  builder:
+                      (ctx) => AlertDialog(
+                        title: Text(
+                          AppStrings.t('bot_home_token_invalid_title'),
+                        ),
+                        content: Text(
+                          AppStrings.t('bot_home_token_invalid_content'),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(false),
+                            child: Text(AppStrings.t('cancel')),
+                          ),
+                          FilledButton(
+                            onPressed: () => Navigator.of(ctx).pop(true),
+                            child: Text(AppStrings.t('bot_home_start')),
+                          ),
+                        ],
+                      ),
+                ) ??
+                false;
+            if (!proceed || !mounted) return;
+          }
+        }
+
         await _maybeOfferRewardedAd();
+        if (!mounted) return;
       }
 
       // ── Runner API (mode développeur) ─────────────────────────────────────
@@ -169,8 +218,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
 
       // ── Local engine ──────────────────────────────────────────────────────
-      final app = await appManager.getApp(botId);
-      final token = app['token']?.toString();
+      // Token already fetched and validated above; re-read if needed (stop path)
+      if (token == null) {
+        final app = await appManager.getApp(botId);
+        token = app['token']?.toString();
+      }
       if (token == null || token.trim().isEmpty) {
         throw Exception(
           AppStrings.tr('home_token_missing', params: {'botName': botName}),
@@ -330,6 +382,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     AdRewardService.showRewardedAdNonBlocking();
+    if (!mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppStrings.t('rewarded_start_thanks'))),
     );

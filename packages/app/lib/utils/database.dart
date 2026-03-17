@@ -388,6 +388,50 @@ class AppManager implements BotDataStore {
     return normalized;
   }
 
+  Future<List<Map<String, dynamic>>> listAppCommands(String id) async {
+    final path = await _path();
+    final dir = Directory("$path/apps/$id");
+    if (!await dir.exists()) {
+      return const <Map<String, dynamic>>[];
+    }
+
+    final entities = await dir.list().toList();
+    final commands = <Map<String, dynamic>>[];
+
+    for (final entity in entities) {
+      if (entity is! File || !entity.path.endsWith('.json')) {
+        continue;
+      }
+
+      try {
+        final content = await entity.readAsString();
+        if (content.trim().isEmpty) {
+          continue;
+        }
+
+        final decoded = Map<String, dynamic>.from(jsonDecode(content));
+        final normalized = normalizeCommandData(decoded);
+        final fileName = entity.uri.pathSegments.last;
+        final fallbackId = fileName.substring(0, fileName.length - 5);
+
+        normalized['id'] = (normalized['id'] ?? fallbackId).toString();
+        normalized['name'] = (normalized['name'] ?? 'unknown').toString();
+        normalized['description'] =
+            (normalized['description'] ?? '').toString();
+        commands.add(normalized);
+      } catch (_) {
+        // Ignore malformed command files to keep list rendering resilient.
+      }
+    }
+
+    commands.sort((a, b) {
+      final aName = (a['name'] ?? '').toString().toLowerCase();
+      final bName = (b['name'] ?? '').toString().toLowerCase();
+      return aName.compareTo(bName);
+    });
+    return commands;
+  }
+
   Future<void> saveAppCommand(
     String id,
     String commandId,
