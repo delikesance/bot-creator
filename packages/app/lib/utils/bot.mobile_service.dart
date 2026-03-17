@@ -1,5 +1,193 @@
 part of 'bot.dart';
 
+const String _mobileSessionsDataKey = 'mobile_bot_sessions';
+const String _mobileCommandTypeKey = 'type';
+const String _mobileCommandAddSession = 'mobile_session_add';
+const String _mobileCommandRemoveSession = 'mobile_session_remove';
+const String _mobileCommandSyncSessions = 'mobile_sessions_sync';
+final MobileSessionsOrchestrator _mobileSessionsOrchestrator =
+    MobileSessionsOrchestrator();
+
+Map<String, String> _normalizeMobileSessionsMap(dynamic raw) {
+  if (raw is! Map) {
+    return <String, String>{};
+  }
+  final normalized = <String, String>{};
+  raw.forEach((key, value) {
+    final botId = key.toString().trim();
+    final token = value?.toString().trim() ?? '';
+    if (botId.isEmpty || token.isEmpty) {
+      return;
+    }
+    normalized[botId] = token;
+  });
+  return normalized;
+}
+
+Future<Map<String, String>> _readConfiguredMobileSessions() async {
+  try {
+    final raw = await FlutterForegroundTask.getData<dynamic>(
+      key: _mobileSessionsDataKey,
+    );
+    final mapped = _normalizeMobileSessionsMap(raw);
+    if (mapped.isNotEmpty) {
+      return mapped;
+    }
+  } catch (_) {}
+
+  // Legacy single-bot fallback.
+  try {
+    final token = await FlutterForegroundTask.getData<String>(key: 'token');
+    final runningBotId = await FlutterForegroundTask.getData<String>(
+      key: 'running_bot_id',
+    );
+    if (runningBotId != null &&
+        runningBotId.trim().isNotEmpty &&
+        token != null &&
+        token.trim().isNotEmpty) {
+      return <String, String>{runningBotId.trim(): token.trim()};
+    }
+  } catch (_) {}
+
+  return <String, String>{};
+}
+
+Future<void> _writeConfiguredMobileSessions(
+  Map<String, String> sessions,
+) async {
+  final sanitized = <String, String>{};
+  for (final entry in sessions.entries) {
+    final botId = entry.key.trim();
+    final token = entry.value.trim();
+    if (botId.isEmpty || token.isEmpty) {
+      continue;
+    }
+    sanitized[botId] = token;
+  }
+
+  try {
+    await FlutterForegroundTask.saveData(
+      key: _mobileSessionsDataKey,
+      value: sanitized,
+    );
+  } catch (_) {}
+
+  if (sanitized.isEmpty) {
+    try {
+      await FlutterForegroundTask.removeData(key: 'token');
+    } catch (_) {}
+    try {
+      await FlutterForegroundTask.removeData(key: 'running_bot_id');
+    } catch (_) {}
+    return;
+  }
+
+  final first = sanitized.entries.first;
+  try {
+    await FlutterForegroundTask.saveData(key: 'token', value: first.value);
+  } catch (_) {}
+  try {
+    await FlutterForegroundTask.saveData(
+      key: 'running_bot_id',
+      value: first.key,
+    );
+  } catch (_) {}
+}
+
+Future<Set<String>> getConfiguredMobileBotIds() async {
+  final sessions = await _readConfiguredMobileSessions();
+  return sessions.keys.toSet();
+}
+
+Future<void> startMobileBotSession({
+  required String botId,
+  required String token,
+}) async {
+  await _mobileSessionsOrchestrator.runSerialized(() async {
+    final trimmedBotId = botId.trim();
+    final trimmedToken = token.trim();
+    if (trimmedBotId.isEmpty || trimmedToken.isEmpty) {
+      throw Exception('botId/token invalid for mobile session start.');
+    }
+
+    final sessions = await _readConfiguredMobileSessions();
+    sessions[trimmedBotId] = trimmedToken;
+    await _writeConfiguredMobileSessions(sessions);
+
+    final payload = <String, dynamic>{
+      _mobileCommandTypeKey: _mobileCommandAddSession,
+      'botId': trimmedBotId,
+      'token': trimmedToken,
+    };
+
+    var running = false;
+    try {
+      running = await FlutterForegroundTask.isRunningService;
+    } on MissingPluginException {
+      running = false;
+    }
+
+    if (running) {
+      try {
+        FlutterForegroundTask.sendDataToTask(payload);
+      } catch (_) {}
+    } else {
+      await startService();
+    }
+
+    addMobileRunningBotId(trimmedBotId);
+    setBotRuntimeActive(true);
+  });
+}
+
+Future<void> stopMobileBotSession({required String botId}) async {
+  await _mobileSessionsOrchestrator.runSerialized(() async {
+    final trimmedBotId = botId.trim();
+    if (trimmedBotId.isEmpty) {
+      return;
+    }
+
+    final sessions = await _readConfiguredMobileSessions();
+    sessions.remove(trimmedBotId);
+    await _writeConfiguredMobileSessions(sessions);
+
+    var running = false;
+    try {
+      running = await FlutterForegroundTask.isRunningService;
+    } on MissingPluginException {
+      running = false;
+    }
+
+    if (running) {
+      if (sessions.isEmpty) {
+        await FlutterForegroundTask.stopService();
+      } else {
+        try {
+          FlutterForegroundTask.sendDataToTask(<String, dynamic>{
+            _mobileCommandTypeKey: _mobileCommandRemoveSession,
+            'botId': trimmedBotId,
+          });
+        } catch (_) {}
+      }
+    }
+
+    removeMobileRunningBotId(trimmedBotId);
+    setBotRuntimeActive(isDesktopBotRunning || mobileRunningBotIds.isNotEmpty);
+  });
+}
+
+Future<void> syncMobileBotSessionsWithService() async {
+  await _mobileSessionsOrchestrator.runSerialized(() async {
+    final sessions = await _readConfiguredMobileSessions();
+    try {
+      FlutterForegroundTask.sendDataToTask(<String, dynamic>{
+        _mobileCommandTypeKey: _mobileCommandSyncSessions,
+        'sessions': sessions,
+      });
+    } catch (_) {}
+  });
+}
+
 Future<void> initForegroundService() async {
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
@@ -27,8 +215,8 @@ Future<void> startService() async {
   debugPrint('[Bot] startService() called');
   await FlutterForegroundTask.startService(
     serviceId: 110,
-    notificationTitle: 'Bot is running',
-    notificationText: 'Bot is running in the background',
+    notificationTitle: 'Bots are running',
+    notificationText: 'Bots are running in the background',
     callback: startCallback,
     notificationButtons: [NotificationButton(id: 'stop', text: 'Stop')],
   );
@@ -48,37 +236,38 @@ void stopCallback() {
 
 @pragma('vm:entry-point')
 class DiscordBotTaskHandler extends TaskHandler {
-  NyxxGateway? client;
-  bool isReady = false;
+  final Map<String, NyxxGateway> _clients = <String, NyxxGateway>{};
+  final Map<String, Timer> _mobileStatusRotationTimers = <String, Timer>{};
+  final Map<String, bool> _readyBots = <String, bool>{};
   AppManager? _manager;
-  String? _botId;
   StreamSubscription<LogRecord>? _mobileNyxxLogsSubscription;
   bool? _lastKnownDebugEnabled;
-  Timer? _mobileStatusRotationTimer;
   final Random _mobileStatusRandom = Random();
 
   void _startMobileStatusRotation(
+    String botId,
     NyxxGateway gateway,
     Map<String, dynamic> appData,
   ) {
-    _mobileStatusRotationTimer?.cancel();
-    _mobileStatusRotationTimer = null;
+    _mobileStatusRotationTimers[botId]?.cancel();
+    _mobileStatusRotationTimers.remove(botId);
 
     final statuses = _normalizeStatuses(appData['statuses']);
     if (statuses.isEmpty) {
       unawaited(
         _emitTaskLogToMain(
           'Aucun status configure pour la presence mobile',
-          botId: _botId,
+          botId: botId,
         ),
       );
       return;
     }
 
-    unawaited(_applyMobileInitialStatusThenRotate(gateway, statuses));
+    unawaited(_applyMobileInitialStatusThenRotate(botId, gateway, statuses));
   }
 
   Future<void> _applyMobileInitialStatusThenRotate(
+    String botId,
     NyxxGateway gateway,
     List<Map<String, dynamic>> statuses,
   ) async {
@@ -87,11 +276,11 @@ class DiscordBotTaskHandler extends TaskHandler {
     }
 
     final firstStatus = statuses.first;
-    await _applyMobileStatus(gateway, firstStatus);
+    await _applyMobileStatus(botId, gateway, firstStatus);
 
     // Re-send once after READY to avoid occasional dropped first presence frame.
     Timer(const Duration(seconds: 3), () {
-      unawaited(_applyMobileStatus(gateway, firstStatus));
+      unawaited(_applyMobileStatus(botId, gateway, firstStatus));
     });
 
     final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
@@ -99,13 +288,17 @@ class DiscordBotTaskHandler extends TaskHandler {
     final delaySeconds =
         max <= min ? min : min + _mobileStatusRandom.nextInt(max - min + 1);
 
-    _mobileStatusRotationTimer?.cancel();
-    _mobileStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
-      unawaited(_applyMobileRandomStatus(gateway, statuses));
-    });
+    _mobileStatusRotationTimers[botId]?.cancel();
+    _mobileStatusRotationTimers[botId] = Timer(
+      Duration(seconds: delaySeconds),
+      () {
+        unawaited(_applyMobileRandomStatus(botId, gateway, statuses));
+      },
+    );
   }
 
   Future<void> _applyMobileRandomStatus(
+    String botId,
     NyxxGateway gateway,
     List<Map<String, dynamic>> statuses,
   ) async {
@@ -114,20 +307,24 @@ class DiscordBotTaskHandler extends TaskHandler {
     }
 
     final picked = statuses[_mobileStatusRandom.nextInt(statuses.length)];
-    await _applyMobileStatus(gateway, picked);
+    await _applyMobileStatus(botId, gateway, picked);
 
     final min = (picked['minIntervalSeconds'] as int?) ?? 60;
     final max = (picked['maxIntervalSeconds'] as int?) ?? min;
     final delaySeconds =
         max <= min ? min : min + _mobileStatusRandom.nextInt(max - min + 1);
 
-    _mobileStatusRotationTimer?.cancel();
-    _mobileStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
-      unawaited(_applyMobileRandomStatus(gateway, statuses));
-    });
+    _mobileStatusRotationTimers[botId]?.cancel();
+    _mobileStatusRotationTimers[botId] = Timer(
+      Duration(seconds: delaySeconds),
+      () {
+        unawaited(_applyMobileRandomStatus(botId, gateway, statuses));
+      },
+    );
   }
 
   Future<void> _applyMobileStatus(
+    String botId,
     NyxxGateway gateway,
     Map<String, dynamic> status,
   ) async {
@@ -152,12 +349,12 @@ class DiscordBotTaskHandler extends TaskHandler {
       );
       await _emitTaskLogToMain(
         'Presence mobile appliquee: $type $text',
-        botId: _botId,
+        botId: botId,
       );
     } catch (error) {
       await _emitTaskDebugLogToMain(
         'Echec update presence mobile: $error',
-        botId: _botId,
+        botId: botId,
       );
     }
   }
@@ -176,7 +373,7 @@ class DiscordBotTaskHandler extends TaskHandler {
             persisted
                 ? 'Debug logs mobile activés'
                 : 'Debug logs mobile désactivés',
-            botId: _botId,
+            botId: null,
           );
         }
       }
@@ -190,10 +387,122 @@ class DiscordBotTaskHandler extends TaskHandler {
       // Sur mobile, certains logs Nyxx n'utilisent pas toujours le préfixe
       // logger attendu. On laisse passer les records et le filtre final se fait
       // via _emitTaskDebugLogToMain (actif uniquement en mode debug).
-      unawaited(
-        _emitTaskDebugLogToMain(_formatNyxxLogRecord(record), botId: _botId),
-      );
+      unawaited(_emitTaskDebugLogToMain(_formatNyxxLogRecord(record)));
     });
+  }
+
+  Future<void> _startSession(String botId, String token) async {
+    if (_clients.containsKey(botId)) {
+      return;
+    }
+
+    final trimmedBotId = botId.trim();
+    final trimmedToken = token.trim();
+    if (trimmedBotId.isEmpty || trimmedToken.isEmpty) {
+      return;
+    }
+
+    try {
+      await _emitTaskLogToMain(
+        'Connexion en cours pour $trimmedBotId',
+        botId: trimmedBotId,
+      );
+      final botUser = await getDiscordUser(trimmedToken);
+      final resolvedBotId = botUser.id.toString();
+      final appData = await _manager!.getApp(resolvedBotId);
+      final intentsMap = Map<String, bool>.from(
+        appData['intents'] as Map? ?? {},
+      );
+      final intents = buildGatewayIntents(intentsMap);
+      final enabledIntentNames = _enabledIntentNames(intentsMap);
+
+      await _emitTaskLogToMain(
+        'Intents runtime actifs (${enabledIntentNames.length}): '
+        '${enabledIntentNames.isEmpty ? 'aucun' : enabledIntentNames.join(', ')}',
+        botId: resolvedBotId,
+      );
+
+      final gateway = await Nyxx.connectGateway(
+        trimmedToken,
+        intents,
+        options: GatewayClientOptions(
+          loggerName: 'CardiaKexa-$resolvedBotId',
+          plugins: [Logging(logLevel: Level.ALL)],
+        ),
+      );
+
+      _clients[resolvedBotId] = gateway;
+      _readyBots[resolvedBotId] = false;
+
+      gateway.onReady.listen((event) async {
+        _readyBots[resolvedBotId] = true;
+        await _emitTaskLifecycleToMain('started', botId: resolvedBotId);
+        await _emitTaskLogToMain(
+          'Bot mobile connecté et prêt',
+          botId: resolvedBotId,
+        );
+        final latestAppData = await _manager!.getApp(resolvedBotId);
+        _startMobileStatusRotation(resolvedBotId, gateway, latestAppData);
+        await _emitTaskMetricsToMain(botId: resolvedBotId);
+
+        gateway.onInteractionCreate.listen((event) async {
+          await handleLocalCommands(event, _manager!);
+        });
+
+        _registerLocalEventWorkflowListeners(
+          gateway,
+          manager: _manager!,
+          botId: resolvedBotId,
+          appData: latestAppData,
+          onLog: (message) {
+            unawaited(_emitTaskLogToMain(message, botId: resolvedBotId));
+          },
+        );
+      });
+    } catch (e) {
+      await _emitTaskLifecycleToMain('stopped', botId: trimmedBotId);
+      await _emitTaskLogToMain(
+        'Échec de connexion Discord: $e',
+        botId: trimmedBotId,
+      );
+      developer.log(
+        'Failed to start mobile session for $trimmedBotId: $e',
+        name: 'DiscordBotTaskHandler',
+      );
+    }
+  }
+
+  Future<void> _stopSession(String botId) async {
+    final trimmedBotId = botId.trim();
+    if (trimmedBotId.isEmpty) {
+      return;
+    }
+
+    _mobileStatusRotationTimers[trimmedBotId]?.cancel();
+    _mobileStatusRotationTimers.remove(trimmedBotId);
+
+    final client = _clients.remove(trimmedBotId);
+    _readyBots.remove(trimmedBotId);
+    if (client != null) {
+      await client.close();
+    }
+    await _emitTaskLifecycleToMain('stopped', botId: trimmedBotId);
+    await _emitTaskLogToMain('Session bot arrêtée', botId: trimmedBotId);
+  }
+
+  Future<void> _syncSessions(Map<String, String> desired) async {
+    final currentIds = _clients.keys.toSet();
+    final desiredIds = desired.keys.toSet();
+
+    for (final botId in currentIds.difference(desiredIds)) {
+      await _stopSession(botId);
+    }
+
+    for (final entry in desired.entries) {
+      if (!_clients.containsKey(entry.key)) {
+        await _startSession(entry.key, entry.value);
+      }
+    }
   }
 
   @override
@@ -202,92 +511,43 @@ class DiscordBotTaskHandler extends TaskHandler {
     debugPrint('[Bot] DiscordBotTaskHandler.onStart()');
     await _syncDebugFlagFromMain();
     await _emitTaskLogToMain('Service mobile démarré');
-    await _emitTaskMetricsToMain(botId: _botId);
     developer.log('Starting Discord bot', name: 'DiscordBotTaskHandler');
     _manager ??= AppManager();
 
-    final token = await FlutterForegroundTask.getData<String>(key: 'token');
-    debugPrint(
-      '[Bot] token present: ${token != null && token.trim().isNotEmpty}',
-    );
-    if (token != null && token.toString().trim().isNotEmpty) {
-      try {
-        _bindMobileNyxxLogs();
-        await _emitTaskLogToMain('Token trouvé, connexion en cours');
-        await _emitTaskDebugLogToMain('Longueur token: ${token.length}');
-        developer.log('Token: $token', name: 'DiscordBotTaskHandler');
+    _bindMobileNyxxLogs();
+    final sessions = await _readConfiguredMobileSessions();
+    if (sessions.isEmpty) {
+      await _emitTaskLogToMain('Aucune session mobile configurée');
+      return;
+    }
 
-        final botUser = await getDiscordUser(token);
-        _botId = botUser.id.toString();
-        await _emitTaskLogToMain(
-          'Authentification Discord réussie (${botUser.username})',
-          botId: _botId,
-        );
-        final appData = await _manager!.getApp(botUser.id.toString());
-        final intentsMap = Map<String, bool>.from(
-          appData['intents'] as Map? ?? {},
-        );
-        final intents = buildGatewayIntents(intentsMap);
-        final enabledIntentNames = _enabledIntentNames(intentsMap);
-        await _emitTaskLogToMain(
-          'Intents runtime actifs (${enabledIntentNames.length}): '
-          '${enabledIntentNames.isEmpty ? 'aucun' : enabledIntentNames.join(', ')}',
-          botId: _botId,
-        );
+    for (final entry in sessions.entries) {
+      await _startSession(entry.key, entry.value);
+    }
+  }
 
-        final gateway = await Nyxx.connectGateway(
-          token,
-          intents,
-          options: GatewayClientOptions(
-            loggerName: 'CardiaKexa',
-            plugins: [Logging(logLevel: Level.ALL)],
-          ),
-        );
-        gateway.onReady.listen((event) async {
-          debugPrint('[Bot] Gateway connected and ready');
-          await _emitTaskLifecycleToMain('started', botId: _botId);
-          await _emitTaskLogToMain(
-            'Bot mobile connecté et prêt',
-            botId: _botId,
-          );
-          final latestAppData = await _manager!.getApp(
-            _botId ?? botUser.id.toString(),
-          );
-          _startMobileStatusRotation(gateway, latestAppData);
-          await _emitTaskMetricsToMain(botId: _botId);
-          isReady = true;
-          gateway.onInteractionCreate.listen((event) async {
-            await handleLocalCommands(event, _manager!);
-          });
-          _registerLocalEventWorkflowListeners(
-            gateway,
-            manager: _manager!,
-            botId: _botId ?? botUser.id.toString(),
-            appData: latestAppData,
-            onLog: (message) {
-              unawaited(_emitTaskLogToMain(message, botId: _botId));
-            },
-          );
-        });
+  @override
+  Future<void> onReceiveData(Object data) async {
+    if (data is! Map) {
+      return;
+    }
 
-        client = gateway;
-      } catch (e) {
-        debugPrint('[Bot] Failed to connect to Discord: $e');
-        await _emitTaskLifecycleToMain('stopped', botId: _botId);
-        await _emitTaskLogToMain(
-          'Échec de connexion Discord: $e',
-          botId: _botId,
-        );
-        developer.log(
-          'Failed to connect to Discord: $e',
-          name: 'DiscordBotTaskHandler',
-        );
-      }
-    } else {
-      debugPrint('[Bot] Token not found or empty');
-      await _emitTaskLifecycleToMain('stopped', botId: _botId);
-      await _emitTaskLogToMain('Token absent ou vide');
-      developer.log('Token not found or empty', name: 'DiscordBotTaskHandler');
+    final payload = Map<String, dynamic>.from(data.cast<dynamic, dynamic>());
+    final type = (payload[_mobileCommandTypeKey] ?? '').toString();
+    if (type == _mobileCommandAddSession) {
+      final botId = (payload['botId'] ?? '').toString();
+      final token = (payload['token'] ?? '').toString();
+      await _startSession(botId, token);
+      return;
+    }
+    if (type == _mobileCommandRemoveSession) {
+      final botId = (payload['botId'] ?? '').toString();
+      await _stopSession(botId);
+      return;
+    }
+    if (type == _mobileCommandSyncSessions) {
+      final sessions = _normalizeMobileSessionsMap(payload['sessions']);
+      await _syncSessions(sessions);
     }
   }
 
@@ -295,10 +555,7 @@ class DiscordBotTaskHandler extends TaskHandler {
   void onNotificationButtonPressed(String id) {
     if (id == 'stop') {
       unawaited(
-        _emitTaskLogToMain(
-          'Arrêt demandé depuis la notification',
-          botId: _botId,
-        ),
+        _emitTaskLogToMain('Arrêt demandé depuis la notification', botId: null),
       );
       stopCallback();
     }
@@ -306,22 +563,25 @@ class DiscordBotTaskHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
-    await _emitTaskLifecycleToMain('stopped', botId: _botId);
-    _mobileStatusRotationTimer?.cancel();
-    _mobileStatusRotationTimer = null;
+    for (final timer in _mobileStatusRotationTimers.values) {
+      timer.cancel();
+    }
+    _mobileStatusRotationTimers.clear();
+
+    final sessionIds = _clients.keys.toList(growable: false);
+    for (final botId in sessionIds) {
+      await _stopSession(botId);
+    }
+
     await _mobileNyxxLogsSubscription?.cancel();
     _mobileNyxxLogsSubscription = null;
-    await client?.close();
-    client = null;
+
     if (isTimeout) {
-      await _emitTaskLogToMain(
-        'Service interrompu (timeout), redémarrage...',
-        botId: _botId,
-      );
+      await _emitTaskLogToMain('Service interrompu (timeout), redémarrage...');
       developer.log('Service timeout', name: 'DiscordBotTaskHandler');
       await startService();
     } else {
-      await _emitTaskLogToMain('Service arrêté', botId: _botId);
+      await _emitTaskLogToMain('Service arrêté');
       developer.log('Service stopped', name: 'DiscordBotTaskHandler');
     }
   }
@@ -329,8 +589,10 @@ class DiscordBotTaskHandler extends TaskHandler {
   @override
   void onRepeatEvent(DateTime timestamp) {
     unawaited(_syncDebugFlagFromMain());
-    unawaited(_emitTaskMetricsToMain(botId: _botId));
-    unawaited(_emitTaskLogToMain('Heartbeat service', botId: _botId));
+    for (final botId in _clients.keys) {
+      unawaited(_emitTaskMetricsToMain(botId: botId));
+    }
+    unawaited(_emitTaskLogToMain('Heartbeat service'));
     developer.log('Repeat event', name: 'DiscordBotTaskHandler');
   }
 }

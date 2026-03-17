@@ -2,23 +2,72 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+class RunnerBotRuntime {
+  const RunnerBotRuntime({
+    required this.botId,
+    required this.botName,
+    required this.state,
+    this.lastSeenAt,
+    this.lastError,
+    this.baselineRssBytes,
+  });
+
+  final String botId;
+  final String botName;
+  final String state;
+  final DateTime? lastSeenAt;
+  final String? lastError;
+  final int? baselineRssBytes;
+
+  bool get isRunning => state == 'running';
+
+  factory RunnerBotRuntime.fromJson(Map<String, dynamic> json) {
+    final rawLastSeenAt = json['lastSeenAt']?.toString();
+    return RunnerBotRuntime(
+      botId: (json['botId'] ?? '').toString(),
+      botName:
+          ((json['botName'] ?? '').toString()).trim().isEmpty
+              ? (json['botId'] ?? '').toString()
+              : json['botName'].toString(),
+      state: (json['state'] ?? 'stopped').toString(),
+      lastSeenAt:
+          (rawLastSeenAt == null || rawLastSeenAt.isEmpty)
+              ? null
+              : DateTime.tryParse(rawLastSeenAt),
+      lastError: json['lastError']?.toString(),
+      baselineRssBytes: _asInt(json['baselineRssBytes']),
+    );
+  }
+}
+
 /// Status returned by the runner API.
 class RunnerStatus {
   const RunnerStatus({
     required this.running,
+    required this.bots,
     this.activeBotId,
     this.activeBotName,
   });
 
   final bool running;
+  final List<RunnerBotRuntime> bots;
   final String? activeBotId;
   final String? activeBotName;
 
+  bool isBotRunning(String botId) =>
+      bots.any((bot) => bot.botId == botId && bot.isRunning);
+
   factory RunnerStatus.fromJson(Map<String, dynamic> json) {
+    final bots = _parseBotRuntimeList(json['bots']);
+    final firstRunning = bots
+        .where((bot) => bot.isRunning)
+        .cast<RunnerBotRuntime?>()
+        .firstWhere((bot) => bot != null, orElse: () => null);
     return RunnerStatus(
-      running: (json['running'] as bool?) ?? false,
-      activeBotId: json['activeBotId'] as String?,
-      activeBotName: json['activeBotName'] as String?,
+      running: (json['running'] as bool?) ?? bots.any((bot) => bot.isRunning),
+      bots: bots,
+      activeBotId: json['activeBotId']?.toString() ?? firstRunning?.botId,
+      activeBotName: json['activeBotName']?.toString() ?? firstRunning?.botName,
     );
   }
 }
@@ -27,6 +76,7 @@ class RunnerStatus {
 class RunnerMetrics {
   const RunnerMetrics({
     required this.running,
+    required this.bots,
     this.activeBotId,
     this.rssBytes,
     this.baselineRssBytes,
@@ -36,6 +86,7 @@ class RunnerMetrics {
   });
 
   final bool running;
+  final List<RunnerBotRuntime> bots;
   final String? activeBotId;
   final int? rssBytes;
   final int? baselineRssBytes;
@@ -44,9 +95,15 @@ class RunnerMetrics {
   final int? storageBytes;
 
   factory RunnerMetrics.fromJson(Map<String, dynamic> json) {
+    final bots = _parseBotRuntimeList(json['bots']);
+    final firstRunning = bots
+        .where((bot) => bot.isRunning)
+        .cast<RunnerBotRuntime?>()
+        .firstWhere((bot) => bot != null, orElse: () => null);
     return RunnerMetrics(
       running: json['running'] == true,
-      activeBotId: json['activeBotId']?.toString(),
+      bots: bots,
+      activeBotId: json['activeBotId']?.toString() ?? firstRunning?.botId,
       rssBytes: _asInt(json['rssBytes']),
       baselineRssBytes: _asInt(json['baselineRssBytes']),
       botEstimatedRssBytes: _asInt(json['botEstimatedRssBytes']),
@@ -157,15 +214,38 @@ class RunnerClient {
     }
   }
 
-  /// Returns the current runner status (running, activeBotId, activeBotName).
-  Future<RunnerStatus> getStatus() async {
-    final json = await _get('/status');
-    return RunnerStatus.fromJson(json);
+  /// Returns the current runner status.
+  ///
+  /// If [botId] is provided, this calls `/bots/{botId}/status` and adapts
+  /// the response shape to [RunnerStatus].
+  Future<RunnerStatus> getStatus({String? botId}) async {
+    if (botId == null || botId.trim().isEmpty) {
+      final json = await _get('/status');
+      return RunnerStatus.fromJson(json);
+    }
+
+    final json = await _get(
+      '/bots/${Uri.encodeComponent(botId.trim())}/status',
+    );
+    final bot = json['bot'];
+    if (bot is Map) {
+      return RunnerStatus.fromJson(<String, dynamic>{
+        'running': (bot['state'] ?? '').toString() == 'running',
+        'bots': <dynamic>[bot],
+      });
+    }
+    return const RunnerStatus(running: false, bots: <RunnerBotRuntime>[]);
   }
 
   /// Returns process/runtime metrics from the runner.
-  Future<RunnerMetrics> getMetrics() async {
-    final json = await _get('/metrics');
+  ///
+  /// If [botId] is provided, this calls `/bots/{botId}/metrics`.
+  Future<RunnerMetrics> getMetrics({String? botId}) async {
+    final path =
+        (botId == null || botId.trim().isEmpty)
+            ? '/metrics'
+            : '/bots/${Uri.encodeComponent(botId.trim())}/metrics';
+    final json = await _get(path);
     return RunnerMetrics.fromJson(json);
   }
 
@@ -197,16 +277,24 @@ class RunnerClient {
   ///
   /// The bot must have been synced beforehand via [syncBot].
   Future<RunnerStatus> startBot(String botId, {String? botName}) async {
-    final json = await _post('/runner/start', <String, dynamic>{
-      'botId': botId,
-      if (botName != null && botName.isNotEmpty) 'botName': botName,
-    });
+    final json = await _post(
+      '/bots/${Uri.encodeComponent(botId)}/start',
+      <String, dynamic>{
+        if (botName != null && botName.isNotEmpty) 'botName': botName,
+      },
+    );
     return RunnerStatus.fromJson(json);
   }
 
-  /// Stops the currently running bot on the runner.
-  Future<RunnerStatus> stopBot() async {
-    final json = await _post('/runner/stop', const <String, dynamic>{});
+  /// Stops the bot identified by [botId] on the runner.
+  ///
+  /// If [botId] is omitted, the compatibility endpoint stops all bots.
+  Future<RunnerStatus> stopBot([String? botId]) async {
+    final path =
+        (botId == null || botId.trim().isEmpty)
+            ? '/runner/stop'
+            : '/bots/${Uri.encodeComponent(botId.trim())}/stop';
+    final json = await _post(path, const <String, dynamic>{});
     return RunnerStatus.fromJson(json);
   }
 
@@ -244,4 +332,15 @@ int? _asInt(dynamic value) {
 double? _asDouble(dynamic value) {
   if (value is num) return value.toDouble();
   return double.tryParse((value ?? '').toString());
+}
+
+List<RunnerBotRuntime> _parseBotRuntimeList(dynamic raw) {
+  if (raw is! List) return const [];
+  return raw
+      .whereType<Map>()
+      .map(
+        (entry) => RunnerBotRuntime.fromJson(Map<String, dynamic>.from(entry)),
+      )
+      .where((entry) => entry.botId.isNotEmpty)
+      .toList(growable: false);
 }
