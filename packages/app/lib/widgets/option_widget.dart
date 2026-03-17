@@ -36,6 +36,9 @@ class OptionWidgetState extends State<OptionWidget> {
   void addOption() {
     // let's check if currentOption has everything we need
     if (currentOption.name.isEmpty || currentOption.description.isEmpty) {
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all fields')),
       );
@@ -45,6 +48,9 @@ class OptionWidgetState extends State<OptionWidget> {
     // Check if the option already exists
     for (var option in options) {
       if (option.name == currentOption.name) {
+        if (!mounted) {
+          return;
+        }
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Option with this name already exists')),
         );

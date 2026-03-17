@@ -200,6 +200,44 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       }
 
       final discordUser = await getDiscordUser(effectiveToken);
+
+      // ── Bot ID mismatch check ─────────────────────────────────────────────
+      final localBotId = widget.client.user.id.toString();
+      final newBotId = discordUser.id.toString();
+      if (newBotId != localBotId) {
+        if (!mounted) return;
+        final proceed =
+            await showDialog<bool>(
+              context: context,
+              builder:
+                  (ctx) => AlertDialog(
+                    title: Text(
+                      AppStrings.t('bot_settings_token_mismatch_title'),
+                    ),
+                    content: Text(
+                      AppStrings.tr(
+                        'bot_settings_token_mismatch_content',
+                        params: {'oldId': localBotId, 'newId': newBotId},
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: Text(AppStrings.t('cancel')),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(ctx).pop(true),
+                        child: Text(
+                          AppStrings.t('bot_settings_token_mismatch_confirm'),
+                        ),
+                      ),
+                    ],
+                  ),
+            ) ??
+            false;
+        if (!proceed || !mounted) return;
+      }
+
       final existingAppData = Map<String, dynamic>.from(
         await appManager.getApp(widget.client.user.id.toString()),
       );

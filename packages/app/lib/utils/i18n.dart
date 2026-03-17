@@ -277,6 +277,17 @@ class AppStrings {
       'bot_home_notif_required':
           'Notification permission is required to start the bot service.',
       'bot_home_service_not_started': 'Foreground service did not start.',
+      'bot_home_token_invalid_title': 'Token seems invalid',
+      'bot_home_token_invalid_content':
+          'Unable to connect to Discord with the provided token. It may be invalid or revoked. Do you want to start the bot anyway?',
+      'bot_offline_token_desc':
+          'Token invalid or missing. Enter a new Discord bot token to restore the connection.',
+      'cmd_offline_incomplete_warning':
+          'This command could not be fully loaded (offline or token invalid). Connect a valid token to edit.',
+      'bot_settings_token_mismatch_title': 'Different bot detected',
+      'bot_settings_token_mismatch_content':
+          'This token belongs to bot {newId}, but the current data is for bot {oldId}. Commands and settings may not match. Continue anyway?',
+      'bot_settings_token_mismatch_confirm': 'Replace token anyway',
 
       // Bot internal pages — app/settings.dart
       'bot_settings_title': 'Application Settings',
@@ -729,6 +740,17 @@ class AppStrings {
       'bot_home_notif_required':
           'La permission de notification est requise pour lancer le service du bot.',
       'bot_home_service_not_started': 'Le service foreground n’a pas démarré.',
+      'bot_home_token_invalid_title': 'Token apparemment invalide',
+      'bot_home_token_invalid_content':
+          'Impossible de se connecter a Discord avec le token fourni. Il est peut-etre invalide ou revoque. Voulez-vous quand meme lancer le bot ?',
+      'bot_offline_token_desc':
+          'Token invalide ou manquant. Entrez un nouveau token Discord pour retablir la connexion.',
+      'cmd_offline_incomplete_warning':
+          'Cette commande n\'a pas pu être entièrement chargée (hors-ligne ou token invalide). Connectez un token valide pour modifier.',
+      'bot_settings_token_mismatch_title': 'Bot différent détecté',
+      'bot_settings_token_mismatch_content':
+          'Ce token appartient au bot {newId}, mais les données actuelles concernent le bot {oldId}. Les commandes et paramètres peuvent ne pas correspondre. Continuer quand même ?',
+      'bot_settings_token_mismatch_confirm': 'Remplacer le token quand même',
 
       // Pages internes au bot — app/settings.dart
       'bot_settings_title': 'Paramètres de l’application',

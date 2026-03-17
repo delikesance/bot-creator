@@ -1,12 +1,14 @@
 import 'package:bot_creator/routes/app/command.create.dart';
+import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
 class AppCommandsPage extends StatefulWidget {
-  final NyxxRest client;
-  const AppCommandsPage({super.key, required this.client});
+  final NyxxRest? client;
+  final String botId;
+  const AppCommandsPage({super.key, required this.botId, this.client});
 
   @override
   State<AppCommandsPage> createState() => _AppCommandsPageState();
@@ -21,19 +23,24 @@ class _AppCommandsPageState extends State<AppCommandsPage>
     AppAnalytics.logScreenView(
       screenName: "AppCommandsPage",
       screenClass: "AppCommandsPage",
-      parameters: {"app_id": widget.client.application.id.toString()},
+      parameters: {"app_id": widget.botId},
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _getCommands() async {
+    return appManager.listAppCommands(widget.botId);
+  }
+
+  Snowflake? _toSnowflake(String raw) {
+    final parsed = int.tryParse(raw);
+    if (parsed == null) {
+      return null;
+    }
+    return Snowflake(parsed);
   }
 
   @override
   Widget build(BuildContext context) {
-    NyxxRest client = widget.client;
-
-    Future<List<ApplicationCommand>> getCommands() async {
-      final commands = await client.commands.list();
-      return commands;
-    }
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
@@ -44,7 +51,7 @@ class _AppCommandsPageState extends State<AppCommandsPage>
         builder: (context, constraints) {
           final contentMaxWidth = constraints.maxWidth >= 900 ? 760.0 : 640.0;
           return FutureBuilder(
-            future: getCommands(),
+            future: _getCommands(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(
@@ -67,7 +74,7 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                 );
               }
 
-              final commands = snapshot.data ?? const <ApplicationCommand>[];
+              final commands = snapshot.data ?? const <Map<String, dynamic>>[];
               if (commands.isEmpty) {
                 return Center(child: Text(AppStrings.t('commands_empty')));
               }
@@ -84,33 +91,47 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                     separatorBuilder: (_, _) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final command = commands[index];
+                      final commandId = (command['id'] ?? '').toString();
+                      final snowflake = _toSnowflake(commandId);
                       return Card(
                         child: ListTile(
                           trailing: const Icon(
                             Icons.arrow_forward_ios_outlined,
                           ),
                           title: Text(
-                            command.name,
+                            (command['name'] ?? 'unknown').toString(),
                             style: const TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                           subtitle: Text(
-                            command.description,
+                            (command['description'] ?? '').toString(),
                             style: const TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w400,
                             ),
                           ),
                           onTap: () async {
+                            if (snowflake == null) {
+                              if (!mounted) {
+                                return;
+                              }
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Invalid local command id.'),
+                                ),
+                              );
+                              return;
+                            }
                             await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder:
                                     (context) => CommandCreatePage(
-                                      client: client,
-                                      id: command.id,
+                                      client: widget.client,
+                                      botId: widget.botId,
+                                      id: snowflake,
                                     ),
                               ),
                             );
@@ -134,7 +155,11 @@ class _AppCommandsPageState extends State<AppCommandsPage>
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => CommandCreatePage(client: client),
+              builder:
+                  (context) => CommandCreatePage(
+                    client: widget.client,
+                    botId: widget.botId,
+                  ),
             ),
           );
           if (!mounted) {

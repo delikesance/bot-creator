@@ -181,14 +181,17 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
                 color: Colors.purple.shade600,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Full Component V2 Builder',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.purple.shade700,
+              Flexible(
+                child: Text(
+                  'Full Component V2 Builder',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple.shade700,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 '${_components.length} Root Nodes',
                 style: TextStyle(color: Colors.purple.shade400, fontSize: 12),
