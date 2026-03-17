@@ -1,0 +1,528 @@
+const Map<String, String> appStringsFr = {
+  'app_title': 'Bot Creator',
+
+  // Onboarding
+  'onboarding_welcome_title': 'Bienvenue dans Bot Creator',
+  'onboarding_welcome_desc':
+      'Créez votre premier bot Discord en 3 étapes simples. Nous vous guidons à travers chaque étape.',
+  'onboarding_welcome_start': 'Commencer',
+  'onboarding_welcome_skip': 'Passer',
+
+  'onboarding_create_title': 'Étape 1: Créer un bot',
+  'onboarding_create_desc': 'Obtenez votre token Discord',
+  'onboarding_create_steps':
+      '1. Allez sur Discord Developer Portal\n2. Créez une nouvelle app\n3. Copiez le token du bot\n4. Collez-le ci-dessous',
+  'onboarding_create_tip':
+      '💡 Conseil: Ne partagez jamais votre token! Il donne accès complet à votre bot.',
+  'onboarding_create_tutorial': 'Tutoriel: Comment obtenir un token',
+  'onboarding_create_button': 'Continuer',
+
+  'onboarding_command_title': 'Étape 2: Ajouter une commande',
+  'onboarding_command_desc': 'Créez votre première commande',
+  'onboarding_command_text':
+      'Les commandes sont le cœur de votre bot. Elles permettent aux utilisateurs d\'interagir avec votre bot via Discord.',
+  'onboarding_command_example':
+      'Exemple:\n/hello → Le bot répond "Bonjour! 👋"',
+  'onboarding_command_button': 'Continuer',
+
+  'onboarding_start_title': 'Étape 3: Lancer le bot',
+  'onboarding_start_desc': 'Lancez votre bot!',
+  'onboarding_start_text':
+      'Appuyez sur le bouton "Démarrer" sur la carte de votre bot. Testez ensuite votre commande dans Discord!',
+  'onboarding_start_tip':
+      '✨ Bravo! Vous avez créé votre premier bot Discord. Vous pouvez maintenant ajouter plus de commandes et le personnaliser!',
+  'onboarding_start_button': 'Continuer',
+
+  'onboarding_success_title': 'Bravo! 🎉',
+  'onboarding_success_desc':
+      'Votre bot Discord est maintenant prêt à l\'emploi!',
+  'onboarding_success_whatsnext': 'Que faire maintenant?',
+  'onboarding_success_tip1': 'Ajouter plus de commandes',
+  'onboarding_success_tip2': 'Créer des workflows',
+  'onboarding_success_tip3': 'Sauvegarder vos données',
+  'onboarding_success_button': 'Commencer!',
+
+  // App UI
+  'app_create_new': 'Créer une nouvelle application',
+  'app_create_page_title': 'Créer un bot',
+  'app_create_hero_title': 'Connectez votre bot Discord',
+  'app_create_hero_desc':
+      'Un parcours guidé pour ouvrir les bonnes pages, copier votre token et importer le bot proprement.',
+  'app_resources_title': 'Parcours guidé',
+  'app_resources_desc':
+      'Ces actions ouvrent les pages officielles nécessaires avant d’enregistrer votre bot ici.',
+  'app_open_discord_portal': 'Ouvrir Discord Developer Portal',
+  'app_open_discord_portal_desc':
+      'Créez votre application et activez la section bot.',
+  'app_open_token_tutorial': 'Lire le tutoriel du token',
+  'app_open_token_tutorial_desc':
+      'Un guide pas à pas pour générer et copier votre token de bot.',
+  'app_external_link_badge': 'Lien externe',
+  'app_token_section_title': 'Collez votre token de bot',
+  'app_token_section_desc':
+      'Une fois le token copié, collez-le ci-dessous pour ajouter votre bot à l’application.',
+  'app_token_field_helper':
+      'Collez le token exactement tel que fourni par Discord.',
+  'app_token_security_hint':
+      'Gardez ce token privé. Toute personne qui le possède peut contrôler votre bot.',
+  'app_show_token': 'Afficher le token',
+  'app_hide_token': 'Masquer le token',
+  'app_save_bot': 'Ajouter le bot',
+  'app_open_link_error': 'Impossible d’ouvrir cette page externe.',
+  'app_how_to_create_token': 'Comment créer un token de bot ?',
+  'app_bot_token': 'Token du bot',
+  'app_enter_token': 'Entrez votre token du bot ici',
+  'app_note':
+      'Remarque: Vous devez créer une nouvelle application sur Discord Developer Portal et obtenir le token du bot.',
+  'app_save': 'Enregistrer les modifications',
+  'app_no_apps': 'Aucune application trouvée',
+  'app_loading_error': 'Erreur de chargement',
+  'app_create_button': 'Créer un bot',
+
+  'home_tab': 'Accueil',
+  'commands_tab': 'Commandes',
+  'commands_tab_short': 'Cmd',
+  'globals_tab': 'Globales',
+  'globals_tab_short': 'Vars',
+  'workflows_tab': 'Workflows',
+  'workflows_tab_short': 'Flow',
+  'settings_tab': 'Paramètres',
+  'settings_theme_switch_light': 'Passer en mode clair',
+  'settings_theme_switch_dark': 'Passer en mode sombre',
+  'settings_appearance_title': 'Apparence et langue',
+  'settings_language_title': 'Langue',
+  'settings_language_desc': 'Choisissez la langue utilisée par l’application.',
+  'settings_language_system': 'Automatique (appareil)',
+  'settings_language_updated': 'Langue mise à jour',
+  'settings_debug_title': 'Outils de debug',
+  'settings_debug_desc':
+      'Réinitialise les préférences locales ou relance l’onboarding pour les tests.',
+  'settings_reset_preferences': 'Réinitialiser les préférences',
+  'settings_reset_preferences_desc':
+      'Réinitialise le thème, la langue et la progression de l’onboarding.',
+  'settings_replay_onboarding': 'Relancer l’onboarding',
+  'settings_replay_onboarding_desc':
+      'Réinitialise l’onboarding et le relance immédiatement.',
+  'settings_preferences_reset_done': 'Préférences réinitialisées',
+  'settings_backup_restore_title': 'Sauvegarde et restauration',
+  'settings_backup_restore_desc':
+      'Gérez la synchronisation de vos données avec Google Drive',
+  'settings_snapshot_preview_title': 'Aperçu du snapshot',
+  'settings_snapshot_id': 'ID : {id}',
+  'settings_snapshot_label': 'Libellé : {label}',
+  'settings_snapshot_created_at': 'Créé le : {date}',
+  'settings_snapshot_files_size': 'Fichiers : {count} • Taille : {size}',
+  'settings_snapshot_apps_count': 'Apps : {count}',
+  'settings_snapshot_apps_list': 'Apps dans ce snapshot',
+  'settings_snapshot_no_metadata':
+      'Aucune métadonnée d’application disponible.',
+  'settings_snapshot_delete_loading': 'Suppression du snapshot…',
+  'settings_snapshot_deleted': 'Snapshot supprimé',
+  'settings_snapshot_restore_loading': 'Restauration du snapshot…',
+  'settings_restore_snapshot': 'Restaurer ce snapshot',
+  'settings_diagnostics_dialog_title': 'Diagnostics de démarrage',
+  'settings_diagnostics_copied': 'Diagnostics copiés dans le presse-papiers',
+  'settings_drive_title': 'Connexion Google Drive',
+  'settings_drive_desc':
+      'Connectez votre compte Google Drive pour synchroniser vos données',
+  'settings_drive_connect_loading': 'Connexion à Google Drive…',
+  'settings_drive_connected': 'Connecté à Google Drive',
+  'settings_drive_connect': 'Connecter Google Drive',
+  'settings_drive_status_connected': 'Connecté',
+  'settings_drive_disconnect_loading': 'Déconnexion en cours…',
+  'settings_drive_disconnected': 'Déconnecté de Google Drive',
+  'settings_drive_disconnect': 'Déconnecter',
+  // Mode développeur (Runner API)
+  'settings_runner_title': 'Mode développeur',
+  'settings_runner_desc':
+      "Connecte l'application à un Bot Creator Runner distant. "
+      "Lorsque configuré, les boutons Lancer/Arrêter et les logs utilisent l'API du runner.",
+  'settings_runner_url_hint': 'http://192.168.1.x:8080',
+  'settings_runner_url_save': "Enregistrer l'URL",
+  'settings_runner_url_clear': 'Effacer',
+  'settings_runner_url_saved': 'URL du runner enregistrée',
+  'settings_runner_url_cleared': 'URL du runner effacée',
+  'settings_runner_check': 'Tester la connexion',
+  'settings_runner_connected': 'Runner accessible ✓',
+  'settings_runner_unreachable': 'Runner inaccessible',
+  'settings_runner_connecting': 'Vérification de la connexion…',
+  'settings_runner_active': 'Runner actif : {url}',
+  'settings_data_operations_title': 'Opérations de données',
+  'settings_export': 'Exporter',
+  'settings_import': 'Importer',
+  'settings_export_app_data': 'Exporter les données de l’app',
+  'settings_import_app_data': 'Importer les données de l’app',
+  'settings_export_loading': 'Export en cours…',
+  'settings_import_loading': 'Import en cours…',
+  'settings_recovery_title': 'Recovery Pro',
+  'settings_enable_auto_backup': 'Activer l’auto-sauvegarde',
+  'settings_enable_auto_backup_desc':
+      'Crée automatiquement des snapshots versionnés lorsque nécessaire.',
+  'settings_auto_backup_interval': 'Intervalle d’auto-sauvegarde',
+  'settings_auto_backup_every_6h': 'Toutes les 6 h',
+  'settings_auto_backup_every_12h': 'Toutes les 12 h',
+  'settings_auto_backup_every_24h': 'Toutes les 24 h',
+  'settings_auto_backup_every_72h': 'Toutes les 72 h',
+  'settings_last_auto_backup_never': 'Dernière auto-sauvegarde : jamais',
+  'settings_last_auto_backup_at': 'Dernière auto-sauvegarde : {date}',
+  'settings_snapshot_create_loading': 'Création du snapshot…',
+  'settings_manual_snapshot_label': 'Snapshot manuel',
+  'settings_snapshot_created_message': 'Snapshot créé : {id}',
+  'settings_backup_now': 'Sauvegarder maintenant',
+  'settings_run_auto_backup_now': 'Lancer l’auto-sauvegarde',
+  'settings_auto_backup_check_loading': 'Vérification auto-sauvegarde…',
+  'settings_snapshots_title': 'Snapshots',
+  'settings_snapshots_refresh': 'Actualiser les snapshots',
+  'settings_snapshots_refresh_loading': 'Actualisation des snapshots…',
+  'settings_snapshots_empty': 'Aucun snapshot trouvé pour le moment.',
+  'settings_snapshot_list_entry': '{date} • {count} fichiers • {size}',
+  'settings_diagnostics_section_title': 'Diagnostics',
+  'settings_view_startup_logs': 'Voir les logs de démarrage',
+  'settings_clear_logs': 'Effacer les logs',
+  'settings_logs_cleared': 'Logs de diagnostic effacés',
+  'settings_legal_title': 'Légal',
+  'settings_legal_desc':
+      'Consultez la manière dont vos données sont traitées et stockées.',
+  'settings_privacy_policy': 'Politique de confidentialité',
+  'settings_ads_privacy_manage': 'Gérer les choix de confidentialité pub',
+  'settings_ads_privacy_not_required':
+      'Options de confidentialité pub non requises pour le moment',
+  'settings_ads_privacy_loading':
+      'Vérification des paramètres de confidentialité pub...',
+  'settings_ads_privacy_opened': 'Options de confidentialité pub ouvertes',
+  'settings_ads_privacy_open_error':
+      'Impossible d’ouvrir les options de confidentialité pub',
+
+  'home_token_missing': 'Token introuvable pour {botName}',
+  'home_log_start_requested': 'Démarrage du bot demandé',
+  'home_log_stop_requested': 'Arrêt du bot demandé',
+  'home_notification_permission_required':
+      'La permission de notification est requise pour lancer le bot.',
+  'home_foreground_service_not_started':
+      'Le service foreground n’a pas démarré.',
+  'home_log_desktop_stop_requested': 'Arrêt du bot desktop demandé',
+  'home_unknown_app': 'Inconnu',
+  'home_status_online': 'En ligne',
+  'home_status_offline': 'Hors ligne',
+  'home_server_count_one': '{count} serveur',
+  'home_server_count_other': '{count} serveurs',
+  'home_stop': 'Arrêter',
+  'home_start': 'Lancer',
+  'home_manage': 'Gérer',
+  'home_logs_tooltip': 'Logs du bot',
+  'rewarded_start_title': 'Soutenir Bot Creator',
+  'rewarded_start_message':
+      'Cette pub sert simplement à financer l’application et ne peut s’afficher que lorsque vous appuyez sur démarrer. Si aucune pub ne peut être affichée, le bot démarre normalement.',
+  'rewarded_start_watch': 'Regarder la pub',
+  'rewarded_start_continue': 'Continuer',
+  'rewarded_start_skip': 'Ignorer',
+  'rewarded_start_thanks': 'Merci pour votre soutien !',
+  'ads_consent_title': 'Consentement publicitaire',
+  'ads_consent_message':
+      'Pour respecter le RGPD, nous avons besoin de votre consentement avant d’afficher des publicités. Vous pouvez continuer à utiliser l’application même en refusant.',
+  'ads_consent_accept': 'J’accepte',
+  'ads_consent_refuse': 'Je refuse',
+  'ads_consent_refused_info':
+      'Consentement pub refusé. Le bot démarre normalement.',
+
+  'error': 'Erreur',
+  'error_with_details': 'Erreur : {error}',
+  'ok': 'OK',
+  'close': 'Fermer',
+  'copy': 'Copier',
+  'delete': 'Supprimer',
+  'cancel': 'Annuler',
+
+  // Pages internes au bot — app/home.dart
+  'bot_home_start': 'Lancer le bot',
+  'bot_home_stop': 'Arrêter le bot',
+  'bot_home_view_logs': 'Voir les logs du bot',
+  'bot_home_view_stats': 'Voir les stats du bot',
+  'bot_home_sync': 'Synchroniser l’app',
+  'bot_home_sync_success': 'Application synchronisée avec succès',
+  'bot_home_invite': 'Inviter le bot',
+  'bot_home_invite_error': 'Impossible d’ouvrir le lien d’invitation',
+  'bot_home_delete': 'Supprimer l’application',
+  'bot_home_delete_confirm':
+      'Êtes-vous sûr de vouloir supprimer cette application ?',
+  'bot_home_start_error': 'Impossible de démarrer : {error}',
+  'bot_home_log_start': 'Démarrage du bot demandé',
+  'bot_home_log_stop': 'Arrêt du bot demandé',
+  'bot_home_log_desktop_stop': 'Arrêt du bot desktop demandé',
+  'bot_home_notif_required':
+      'La permission de notification est requise pour lancer le service du bot.',
+  'bot_home_service_not_started': 'Le service foreground n’a pas démarré.',
+  'bot_home_token_invalid_title': 'Token apparemment invalide',
+  'bot_home_token_invalid_content':
+      'Impossible de se connecter a Discord avec le token fourni. Il est peut-etre invalide ou revoque. Voulez-vous quand meme lancer le bot ?',
+  'bot_offline_token_desc':
+      'Token invalide ou manquant. Entrez un nouveau token Discord pour retablir la connexion.',
+  'cmd_offline_incomplete_warning':
+      'Cette commande n\'a pas pu être entièrement chargée (hors-ligne ou token invalide). Connectez un token valide pour modifier.',
+  'bot_settings_token_mismatch_title': 'Bot différent détecté',
+  'bot_settings_token_mismatch_content':
+      'Ce token appartient au bot {newId}, mais les données actuelles concernent le bot {oldId}. Les commandes et paramètres peuvent ne pas correspondre. Continuer quand même ?',
+  'bot_settings_token_mismatch_confirm': 'Remplacer le token quand même',
+
+  // Pages internes au bot — app/settings.dart
+  'bot_settings_title': 'Paramètres de l’application',
+  'bot_settings_workflow_docs': 'Documentation des workflows',
+  'bot_settings_workflow_docs_desc':
+      'Guide détaillé sur les points d’entrée, arguments d’appel et comportement à l’exécution.',
+  'bot_settings_app_flags': 'Indicateurs de l’application',
+  'bot_settings_gateway_intents': 'Configuration des Gateway Intents',
+  'bot_settings_gateway_intents_desc':
+      'Sélectionnez les intents dont votre bot a besoin. Configurez-les sur le Discord Developer Portal.',
+  'bot_settings_token_title': 'Token du bot',
+  'bot_settings_update_token': 'Mettre à jour le token du bot',
+  'bot_settings_token_hint': 'Entrez votre token de bot ici',
+  'bot_settings_save_success': 'Paramètres enregistrés avec succès',
+  'bot_settings_save_token_btn': 'Sauvegarder token et intents',
+  'bot_settings_save_token_only_btn': 'Sauvegarder le token',
+  'bot_settings_save_intents_btn': 'Sauvegarder les intents',
+  'bot_settings_save_profile_status_btn': 'Sauvegarder profil et statuts',
+  'bot_settings_save_token_caption':
+      'Le token est protege. Cliquez d\'abord sur "Modifier le token", puis sauvegardez.',
+  'bot_settings_save_intents_caption':
+      'Cette action met a jour uniquement la configuration des intents.',
+  'bot_settings_save_profile_caption':
+      'Cette action applique le nom/avatar immediatement et enregistre la rotation des statuts.',
+  'bot_settings_token_saved': 'Token sauvegarde avec succes',
+  'bot_settings_intents_saved': 'Intents sauvegardes avec succes',
+  'bot_settings_profile_saved': 'Profil/statuts appliqués avec succès',
+  'bot_settings_edit_token_btn': 'Modifier le token',
+  'bot_settings_cancel_token_edit_btn': 'Annuler la modification du token',
+  'bot_settings_token_hidden_desc':
+      'Le champ du token est masque par defaut pour plus de securite.',
+  'bot_settings_token_required': 'Le token du bot est requis.',
+  'bot_settings_save_token_first':
+      'Veuillez d\'abord sauvegarder le token avant d\'appliquer les changements de profil/statuts.',
+  'bot_settings_profile_title': 'Profil du bot',
+  'bot_settings_username_override': 'Nom d\'utilisateur personnalisé',
+  'bot_settings_username_hint':
+      'Laisser vide pour conserver le nom d\'utilisateur actuel',
+  'bot_settings_avatar_local_path': 'Chemin local de l\'avatar',
+  'bot_settings_avatar_path_hint': '/chemin/absolu/vers/avatar.png',
+  'bot_settings_browse': 'Parcourir',
+  'bot_settings_avatar_selected_file': 'Fichier selectionne : {path}',
+  'bot_settings_avatar_preview_label': "Apercu de l'avatar",
+  'bot_settings_avatar_preview_error':
+      'Impossible d\'afficher l\'aperçu de l\'image',
+  'bot_settings_avatar_unsupported_format':
+      'Format d\'avatar non supporte : {ext}. Formats supportes : {formats}.',
+  'bot_settings_avatar_clear_selection': 'Effacer la selection',
+  'bot_settings_status_rotation_title': 'Rotation des statuts',
+  'bot_settings_status_rotation_desc':
+      'Ajoutez un ou plusieurs statuts. Chaque statut nécessite un type, un texte et un intervalle min/max (secondes).',
+  'bot_settings_add_status': 'Ajouter un statut',
+  'bot_settings_status_item_title': 'Statut {index}',
+  'bot_settings_remove_status': 'Supprimer le statut',
+  'bot_settings_status_type_label': 'Type',
+  'bot_settings_status_type_playing': 'Joue a',
+  'bot_settings_status_type_streaming': 'Diffuse',
+  'bot_settings_status_type_listening': 'Ecoute',
+  'bot_settings_status_type_watching': 'Regarde',
+  'bot_settings_status_type_competing': 'Participe',
+  'bot_settings_status_text_label': 'Texte du statut',
+  'bot_settings_status_min_interval': 'Intervalle min (s)',
+  'bot_settings_status_max_interval': 'Intervalle max (s)',
+
+  // Page logs du bot
+  'bot_logs_title': 'Logs du bot',
+  'bot_logs_disable_debug': 'Désactiver les logs debug',
+  'bot_logs_enable_debug': 'Activer les logs debug',
+  'bot_logs_copied': 'Logs copiés',
+  'bot_logs_oldest_first': 'Afficher les plus anciens en premier',
+  'bot_logs_newest_first': 'Afficher les plus récents en premier',
+  'bot_logs_filter_count': 'Nombre de logs affichés',
+  'bot_logs_show_n': 'Afficher {count} logs',
+  'bot_logs_show_all': 'Afficher tout',
+  'bot_logs_empty': 'Aucun log pour le moment',
+  'bot_logs_show_more': 'Afficher plus',
+  'bot_logs_show_less': 'Afficher moins',
+  'bot_logs_ram': 'RAM du processus bot : {memory}',
+  'bot_logs_ram_estimated': 'RAM bot estimée : {memory}',
+  'bot_logs_go_to_latest': 'Aller au dernier log',
+  'bot_logs_go_to_bottom': 'Aller en bas',
+
+  // Page stats du bot
+  'bot_stats_title': 'Statistiques du bot',
+  'bot_stats_ram_process': 'RAM du processus bot',
+  'bot_stats_ram_estimated': 'RAM bot uniquement (estimée)',
+  'bot_stats_cpu': 'CPU du processus bot',
+  'bot_stats_storage': 'Stockage du bot (données app)',
+  'bot_stats_source_runner_api': 'Source : API Runner',
+  'bot_stats_source_local_hosting': 'Source : hébergement local',
+  'bot_stats_notes':
+      'Notes : CPU disponible sur Android/Linux. Stockage = fichiers de données du bot dans l’application.',
+  'bot_stats_collecting': 'Collecte…',
+
+  // Page liste des commandes
+  'commands_title': 'Commandes',
+  'commands_empty': 'Aucune commande trouvée',
+  'commands_error': 'Erreur : {error}',
+  'commands_create_button': 'Créer une commande',
+
+  // Page variables globales
+  'globals_title': 'Variables globales',
+  'globals_empty': 'Aucune variable globale pour le moment',
+  'globals_add': 'Ajouter une variable',
+  'globals_edit': 'Modifier une variable',
+  'globals_key': 'Clé',
+  'globals_value': 'Valeur',
+
+  // Page workflows
+  'workflows_title': 'Workflows',
+  'workflows_empty': 'Aucun workflow pour le moment',
+  'workflows_create': 'Créer un workflow',
+  'workflows_edit': 'Modifier le workflow',
+  'workflows_name': 'Nom du workflow',
+  'workflows_entry_point': 'Point d’entrée par défaut',
+  'workflows_entry_point_hint': 'Utilisé si l’appelant ne le remplace pas',
+  'workflows_arguments': 'Arguments',
+  'workflows_arg_name': 'Nom',
+  'workflows_arg_default': 'Valeur par défaut',
+  'workflows_arg_required_short': 'Req',
+  'workflows_arg_hint':
+      'Les arguments deviennent des variables runtime sous la forme ((arg.name)) et ((workflow.arg.name)).',
+  'workflows_continue': 'Continuer',
+  'workflows_add_arg': 'Ajouter un argument',
+  'workflows_docs_tooltip': 'Documentation des workflows',
+  'workflows_subtitle': '{count} action(s) • entrée : {entry} • args : {args}',
+  'workflows_event_subtitle': '{count} action(s) • Listen for : {event}',
+  'workflows_general_section': 'Workflows generaux',
+  'workflows_event_section': 'Workflows d\'event',
+  'workflows_type_title': 'Type de workflow',
+  'workflows_type_general': 'Workflow general',
+  'workflows_type_general_desc':
+      'Logique reutilisable appelee depuis les commandes, boutons, modals ou autres workflows.',
+  'workflows_type_event': 'Workflow d\'event',
+  'workflows_type_event_desc':
+      'Se declenche automatiquement quand Discord emet un event.',
+  'workflows_type_badge_general': 'General',
+  'workflows_type_badge_event': 'Event',
+  'workflows_listen_for': 'Listen for',
+  'workflows_event_category': 'Categorie d\'event',
+  'workflows_event_hint':
+      'Choisissez l\'event Discord qui doit declencher ce workflow.',
+  'workflows_event_preview': 'Listen for : {event}',
+  'workflows_event_available_vars': 'Variables disponibles',
+  'workflows_event_category_messages': 'Messages',
+  'workflows_event_category_members': 'Membres',
+  'workflows_event_category_channels': 'Salons',
+  'workflows_event_category_invites': 'Invitations',
+  'workflows_event_message_create': 'Message Create',
+  'workflows_event_message_create_desc':
+      'Declenche quand un nouveau message est cree.',
+  'workflows_event_message_update': 'Message Update',
+  'workflows_event_message_update_desc':
+      'Declenche quand un message existant est modifie.',
+  'workflows_event_message_delete': 'Message Delete',
+  'workflows_event_message_delete_desc':
+      'Declenche quand un message est supprime.',
+  'workflows_event_member_join': 'Member Join',
+  'workflows_event_member_join_desc':
+      'Declenche quand un membre rejoint le serveur.',
+  'workflows_event_member_remove': 'Member Remove',
+  'workflows_event_member_remove_desc':
+      'Declenche quand un membre quitte le serveur ou en est retire.',
+  'workflows_event_channel_update': 'Channel Update',
+  'workflows_event_channel_update_desc':
+      'Declenche quand un salon est mis a jour.',
+  'workflows_event_invite_create': 'Invite Create',
+  'workflows_event_invite_create_desc':
+      'Declenche quand une invitation est creee.',
+  'workflows_import_tooltip': 'Importer des workflows',
+  'workflows_export_tooltip': 'Copier des workflows',
+  'workflows_copy_none': 'Aucun workflow à copier.',
+  'workflows_copy_done_json': 'Workflows copiés en JSON.',
+  'workflows_copy_done_base64': 'Workflows copiés en Base64.',
+  'workflows_export_json': 'Copier en JSON',
+  'workflows_export_json_desc': 'Lisible et modifiable facilement.',
+  'workflows_export_base64': 'Copier en Base64',
+  'workflows_export_base64_desc': 'Pratique pour partage compact.',
+  'workflows_import_title': 'Importer des workflows',
+  'workflows_import_desc':
+      'Colle un payload JSON ou Base64 (JSON) exporté depuis Bot Creator.',
+  'workflows_import_input_hint': 'Colle ici le JSON ou le Base64...',
+  'workflows_import_overwrite': 'Remplacer si le nom existe',
+  'workflows_import_action': 'Importer',
+  'workflows_import_empty': 'Aucune donnée à importer.',
+  'workflows_import_invalid_format':
+      'Format invalide. Utilise JSON ou Base64(JSON).',
+  'workflows_import_no_valid': 'Aucun workflow valide trouvé.',
+  'workflows_import_done': '{count} workflow(s) importé(s).',
+
+  // Page création de commande
+  'cmd_error_fill_fields': 'Veuillez remplir tous les champs',
+  'cmd_variables_title': 'Variables de la commande',
+  'cmd_show_variables': 'Afficher les variables',
+  'cmd_create_tooltip': 'Créer la commande',
+  'cmd_delete_tooltip': 'Supprimer la commande',
+  'cmd_editor_mode_title': 'Mode d’édition',
+  'cmd_editor_mode_simple': 'Mode simplifié',
+  'cmd_editor_mode_advanced': 'Mode avancé',
+  'cmd_editor_mode_simple_desc':
+      'Créez une commande rapidement avec des options guidées et des actions préconfigurées.',
+  'cmd_editor_mode_advanced_desc':
+      'Éditeur complet avec réponse personnalisée, options et builder d’actions.',
+  'cmd_editor_mode_switch_adv': 'Passer en mode avancé',
+  'cmd_editor_mode_switch_adv_title': 'Passer en mode avancé ?',
+  'cmd_editor_mode_switch_adv_content':
+      'Ce changement est définitif pour cette commande. Vous ne pourrez plus revenir au mode simplifié.',
+  'cmd_editor_mode_switch_adv_confirm': 'Passer',
+  'cmd_editor_mode_locked':
+      'Le mode avancé est verrouillé pour cette commande.',
+  'cmd_simple_actions_title': 'Actions simplifiées',
+  'cmd_simple_actions_desc':
+      'Sélectionnez ce que la commande doit faire. Les options sont générées automatiquement.',
+  'cmd_simple_action_delete': 'Supprimer des messages',
+  'cmd_simple_action_delete_desc':
+      'Supprime des messages dans le salon courant (option /count).',
+  'cmd_simple_action_kick': 'Expulser un utilisateur',
+  'cmd_simple_action_kick_desc': 'Expulse le /user sélectionné du serveur.',
+  'cmd_simple_action_ban': 'Bannir un utilisateur',
+  'cmd_simple_action_ban_desc': 'Bannit le /user sélectionné du serveur.',
+  'cmd_simple_action_mute': 'Rendre muet un utilisateur',
+  'cmd_simple_action_mute_desc':
+      'Rend temporairement muet le /user sélectionné.',
+  'cmd_simple_action_add_role': 'Ajouter un rôle',
+  'cmd_simple_action_add_role_desc':
+      'Attribue le /role sélectionné au /user sélectionné.',
+  'cmd_simple_action_remove_role': 'Retirer un rôle',
+  'cmd_simple_action_remove_role_desc':
+      'Retire le /role sélectionné du /user sélectionné.',
+  'cmd_simple_action_send_message': 'Envoyer un message',
+  'cmd_simple_action_send_message_desc':
+      'Envoie un message supplémentaire dans le salon courant.',
+  'cmd_simple_action_send_message_label': 'Message de l’action',
+  'cmd_simple_action_send_message_hint':
+      'Message envoyé par l’action Send Message',
+  'cmd_simple_generated_options': 'Options de commande générées',
+  'cmd_simple_generated_none':
+      'Aucune option générée pour le moment. Sélectionnez au moins une action.',
+  'cmd_simple_option_user': '/user (Utilisateur)',
+  'cmd_simple_option_role': '/role (Rôle)',
+  'cmd_simple_option_count': '/count (Entier)',
+  'cmd_simple_option_user_desc': 'Utilisateur ciblé',
+  'cmd_simple_option_role_desc': 'Rôle ciblé',
+  'cmd_simple_option_count_desc': 'Nombre de messages à supprimer',
+  'cmd_simple_response_title': 'Réponse finale',
+  'cmd_simple_response_desc':
+      'Message renvoyé à l’utilisateur après l’exécution des actions.',
+  'cmd_simple_response_hint': 'Terminé ✅',
+  'cmd_simple_response_embeds_title': 'Embeds de réponse',
+  'cmd_simple_response_embeds_desc':
+      'Embeds optionnels envoyés avec la réponse finale.',
+  'cmd_simple_send_message_required':
+      'Veuillez renseigner le message de l’action avant de sauvegarder.',
+
+  // Support & communauté
+  'support_card_title': 'Support & Communauté',
+  'support_card_desc':
+      'Une question, un bug, une suggestion ? Venez discuter avec l’équipe et la communauté.',
+  'support_join_discord': 'Rejoindre le serveur Discord',
+  'support_discord_badge': 'Support officiel',
+  'home_empty_support_hint': 'Besoin d’aide pour commencer ?',
+  'home_empty_support_btn': 'Rejoindre notre Discord',
+};

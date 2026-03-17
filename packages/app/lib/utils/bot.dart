@@ -11,9 +11,11 @@ import 'package:bot_creator/main.dart';
 import 'package:bot_creator/types/action.dart';
 import 'package:bot_creator_shared/actions/handle_component_interaction.dart';
 import 'package:bot_creator_shared/actions/interaction_response.dart';
+import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/template_resolver.dart';
+import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:path_provider/path_provider.dart';
@@ -24,6 +26,7 @@ part 'bot.logs.dart';
 part 'bot.template.dart';
 part 'bot.mobile_service.dart';
 part 'bot.commands.dart';
+part 'bot.event_workflows.dart';
 
 NyxxGateway? _desktopGateway;
 StreamSubscription<LogRecord>? _desktopNyxxLogsSubscription;
@@ -91,6 +94,13 @@ String _two(int value) => value < 10 ? '0$value' : '$value';
 String _timestampNow() {
   final now = DateTime.now();
   return '${_two(now.hour)}:${_two(now.minute)}:${_two(now.second)}';
+}
+
+List<String> _enabledIntentNames(Map<String, bool> intentsMap) {
+  return intentsMap.entries
+    .where((entry) => entry.value)
+    .map((entry) => entry.key)
+    .toList(growable: false)..sort();
 }
 
 /// Convert the intents configuration map to GatewayIntents
@@ -164,9 +174,11 @@ Future<void> startDesktopBot(String token) async {
   final appData = await appManager.getApp(botUser.id.toString());
   final intentsMap = Map<String, bool>.from(appData['intents'] as Map? ?? {});
   final intents = buildGatewayIntents(intentsMap);
+  final enabledIntentNames = _enabledIntentNames(intentsMap);
   _bindDesktopNyxxLogs(botId: botUser.id.toString());
-  appendBotDebugLog(
-    'Intents actifs: ${intentsMap.entries.where((e) => e.value).length}',
+  appendBotLog(
+    'Intents runtime actifs (${enabledIntentNames.length}): '
+    '${enabledIntentNames.isEmpty ? 'aucun' : enabledIntentNames.join(', ')}',
     botId: botUser.id.toString(),
   );
 
@@ -190,11 +202,21 @@ Future<void> startDesktopBot(String token) async {
     _desktopMetricsTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       unawaited(_refreshBotMetrics(botId: botId));
     });
-    _startDesktopStatusRotation(gateway, appData);
+    final latestAppData = await appManager.getApp(botId);
+    _startDesktopStatusRotation(gateway, latestAppData);
     appManager = AppManager();
     gateway.onInteractionCreate.listen((event) async {
       await handleLocalCommands(event, appManager);
     });
+    _registerLocalEventWorkflowListeners(
+      gateway,
+      manager: appManager,
+      botId: botId,
+      appData: latestAppData,
+      onLog: (message) {
+        appendBotLog(message, botId: botId);
+      },
+    );
   });
 
   _desktopGateway = gateway;
