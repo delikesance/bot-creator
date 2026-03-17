@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../types/action.dart' show BotCreatorActionType;
+import '../../utils/remote_config_provider.dart';
 import 'builder/action_types.dart';
 import 'builder/action_type_extension.dart';
 import 'builder/action_card.dart';
@@ -132,6 +134,10 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
 
   void _showAddActionDialog() {
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
+    final remoteConfig = context.read<RemoteConfigProvider>();
+    final availableActionTypes = BotCreatorActionType.values
+        .where(remoteConfig.isActionEnabledForCurrentUser)
+        .toList(growable: false);
     String searchQuery = '';
 
     showDialog(
@@ -142,7 +148,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
             // Rebuild the category list each time the search query changes
             final actionsByCategory = <String, List<BotCreatorActionType>>{};
 
-            for (final actionType in BotCreatorActionType.values) {
+            for (final actionType in availableActionTypes) {
               if (searchQuery.isNotEmpty &&
                   !actionType.displayName.toLowerCase().contains(
                     searchQuery.toLowerCase(),

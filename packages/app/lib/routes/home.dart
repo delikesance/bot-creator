@@ -17,8 +17,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
+
+import 'package:bot_creator/utils/remote_config_provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -39,6 +42,16 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final Map<String, AnimationController> _pulseControllers = {};
 
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
+
+  Duration _runnerGetTimeout(RemoteConfigProvider remoteConfig) {
+    final timeoutSeconds = remoteConfig.apiTimeoutSeconds.clamp(3, 120);
+    return Duration(seconds: timeoutSeconds);
+  }
+
+  Duration _runnerPostTimeout(RemoteConfigProvider remoteConfig) {
+    final timeoutSeconds = (remoteConfig.apiTimeoutSeconds * 3).clamp(5, 180);
+    return Duration(seconds: timeoutSeconds);
+  }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -62,11 +75,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _initRunningState() async {
     final runningIds = <String>{};
+    final remoteConfig = context.read<RemoteConfigProvider>();
 
     final runnerUrl = await RunnerSettings.getUrl();
     if (runnerUrl != null && runnerUrl.isNotEmpty) {
       try {
-        final status = await RunnerClient(baseUrl: runnerUrl).getStatus();
+        final status =
+            await RunnerClient(
+              baseUrl: runnerUrl,
+              getTimeout: _runnerGetTimeout(remoteConfig),
+              postTimeout: _runnerPostTimeout(remoteConfig),
+            ).getStatus();
         for (final bot in status.bots) {
           if (bot.isRunning) {
             runningIds.add(bot.botId);
@@ -158,6 +177,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     try {
       final isRunning = _runningBotIds.contains(botId);
+      final remoteConfig = context.read<RemoteConfigProvider>();
+
+      if (!isRunning && _runningBotIds.length >= remoteConfig.maxActiveBots) {
+        throw Exception(
+          AppStrings.tr(
+            'error_with_details',
+            params: {
+              'error':
+                  'Maximum active bots reached (${remoteConfig.maxActiveBots})',
+            },
+          ),
+        );
+      }
 
       // ── Fetch + validate token before anything else (only when starting) ──
       String? token;
@@ -214,7 +246,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       // ── Runner API (mode développeur) ─────────────────────────────────────
       final runnerUrl = await RunnerSettings.getUrl();
       if (runnerUrl != null && runnerUrl.isNotEmpty) {
-        final client = RunnerClient(baseUrl: runnerUrl);
+        final client = RunnerClient(
+          baseUrl: runnerUrl,
+          getTimeout: _runnerGetTimeout(remoteConfig),
+          postTimeout: _runnerPostTimeout(remoteConfig),
+        );
         if (isRunning) {
           appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
           await client.stopBot(botId);
@@ -283,7 +319,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             // Continuer sans vérification sur les plateformes non supportées.
           }
 
-          await initForegroundService();
+          await initForegroundService(
+            eventIntervalMs: remoteConfig.syncIntervalMs,
+          );
           await startMobileBotSession(botId: botId, token: token);
 
           try {
