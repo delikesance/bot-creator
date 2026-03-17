@@ -49,20 +49,6 @@ class RunnerDataStore implements BotDataStore {
   }
 
   Map<String, dynamic> _normalizeWorkflow(Map<String, dynamic> w) {
-    final normalized = Map<String, dynamic>.from(w);
-    normalized['name'] = (normalized['name'] ?? '').toString().trim();
-    normalized['entryPoint'] = normalizeWorkflowEntryPoint(
-      normalized['entryPoint'],
-    );
-    normalized['arguments'] = serializeWorkflowArgumentDefinitions(
-      parseWorkflowArgumentDefinitions(normalized['arguments']),
-    );
-    normalized['actions'] = List<Map<String, dynamic>>.from(
-      (normalized['actions'] as List?)?.whereType<Map>().map(
-            (a) => Map<String, dynamic>.from(a),
-          ) ??
-          const [],
-    );
-    return normalized;
+    return normalizeStoredWorkflowDefinition(w);
   }
 }

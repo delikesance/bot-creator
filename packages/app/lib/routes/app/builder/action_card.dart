@@ -25,6 +25,14 @@ class ActionCard extends StatelessWidget {
   final Function(String key, dynamic value) onParameterChanged;
   final String? botIdForConfig;
 
+  /// Opens a sub-action builder for nested blocks (IF/ELSE). Provided by the
+  /// parent [ActionsBuilderPage]. When null, nested editing is disabled.
+  final Future<List<Map<String, dynamic>>?> Function(
+    List<Map<String, dynamic>> current,
+    List<VariableSuggestion> suggestions,
+  )?
+  onEditNestedActions;
+
   const ActionCard({
     super.key,
     required this.action,
@@ -35,6 +43,7 @@ class ActionCard extends StatelessWidget {
     required this.actionKey,
     required this.variableSuggestions,
     this.botIdForConfig,
+    this.onEditNestedActions,
   });
 
   Key _parameterInputKey(String paramKey) {
@@ -856,6 +865,113 @@ class ActionCard extends StatelessWidget {
               },
             ),
           ],
+        );
+
+      case ParameterType.nestedActions:
+        final nestedList =
+            currentValue is List
+                ? currentValue
+                    .whereType<Map>()
+                    .map((m) => Map<String, dynamic>.from(m))
+                    .toList()
+                : <Map<String, dynamic>>[];
+        final blockLabel = paramDef.hint ?? _formatParameterName(paramDef.key);
+        final blockColor =
+            paramDef.key == 'thenActions' ? Colors.green : Colors.orange;
+        return Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: blockColor.withValues(alpha: 0.5)),
+            borderRadius: BorderRadius.circular(8),
+            color: blockColor.withValues(alpha: 0.05),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    paramDef.key == 'thenActions'
+                        ? Icons.check_circle_outline
+                        : Icons.cancel_outlined,
+                    color: blockColor,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      blockLabel,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: blockColor,
+                      ),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed:
+                        onEditNestedActions == null
+                            ? null
+                            : () async {
+                              final result = await onEditNestedActions!(
+                                nestedList,
+                                variableSuggestions,
+                              );
+                              if (result != null) {
+                                onParameterChanged(paramDef.key, result);
+                              }
+                            },
+                    icon: const Icon(Icons.edit, size: 15),
+                    label: Text(
+                      'Edit (${nestedList.length})',
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: blockColor.withValues(alpha: 0.15),
+                      foregroundColor: blockColor,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (nestedList.isNotEmpty)
+                ...nestedList
+                    .take(3)
+                    .map(
+                      (a) => Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.arrow_right,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              a['type']?.toString() ?? '?',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+              if (nestedList.length > 3)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, left: 20),
+                  child: Text(
+                    '… and ${nestedList.length - 3} more',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ),
+            ],
+          ),
         );
 
       case ParameterType.componentV2:

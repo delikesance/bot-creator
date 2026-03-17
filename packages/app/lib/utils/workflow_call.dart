@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+const String workflowTypeGeneral = 'general';
+const String workflowTypeEvent = 'event';
+
 class WorkflowArgumentDefinition {
   final String name;
   final bool required;
@@ -33,6 +36,46 @@ String normalizeWorkflowEntryPoint(dynamic raw, {String fallback = 'main'}) {
   }
   final normalizedFallback = fallback.trim();
   return normalizedFallback.isEmpty ? 'main' : normalizedFallback;
+}
+
+String normalizeWorkflowType(dynamic raw) {
+  final value = (raw ?? '').toString().trim().toLowerCase();
+  if (value == workflowTypeEvent) {
+    return workflowTypeEvent;
+  }
+  return workflowTypeGeneral;
+}
+
+Map<String, dynamic> normalizeWorkflowEventTrigger(
+  dynamic raw, {
+  String fallbackCategory = 'messages',
+  String fallbackEvent = 'messageCreate',
+}) {
+  final source = <String, dynamic>{};
+  if (raw is Map) {
+    source.addAll(raw.map((key, value) => MapEntry(key.toString(), value)));
+  } else {
+    final value = (raw ?? '').toString().trim();
+    if (value.isNotEmpty) {
+      source['event'] = value;
+    }
+  }
+
+  final category =
+      (source['category'] ?? fallbackCategory).toString().trim().isEmpty
+          ? fallbackCategory
+          : (source['category'] ?? fallbackCategory).toString().trim();
+  final event =
+      (source['event'] ?? source['listenFor'] ?? fallbackEvent)
+              .toString()
+              .trim()
+              .isEmpty
+          ? fallbackEvent
+          : (source['event'] ?? source['listenFor'] ?? fallbackEvent)
+              .toString()
+              .trim();
+
+  return <String, dynamic>{'category': category, 'event': event};
 }
 
 List<WorkflowArgumentDefinition> parseWorkflowArgumentDefinitions(dynamic raw) {
@@ -73,6 +116,36 @@ List<Map<String, dynamic>> serializeWorkflowArgumentDefinitions(
       .where((definition) => definition.name.trim().isNotEmpty)
       .map((definition) => definition.toJson())
       .toList(growable: false);
+}
+
+Map<String, dynamic> normalizeStoredWorkflowDefinition(
+  Map<String, dynamic> workflow,
+) {
+  final normalized = Map<String, dynamic>.from(workflow);
+  normalized['name'] = (normalized['name'] ?? '').toString().trim();
+  normalized['workflowType'] = normalizeWorkflowType(
+    normalized['workflowType'],
+  );
+  normalized['entryPoint'] = normalizeWorkflowEntryPoint(
+    normalized['entryPoint'],
+  );
+  normalized['arguments'] = serializeWorkflowArgumentDefinitions(
+    parseWorkflowArgumentDefinitions(normalized['arguments']),
+  );
+  normalized['actions'] = List<Map<String, dynamic>>.from(
+    (normalized['actions'] as List?)?.whereType<Map>().map(
+          (item) => Map<String, dynamic>.from(item),
+        ) ??
+        const <Map<String, dynamic>>[],
+  );
+  if (normalized['workflowType'] == workflowTypeEvent) {
+    normalized['eventTrigger'] = normalizeWorkflowEventTrigger(
+      normalized['eventTrigger'],
+    );
+  } else {
+    normalized.remove('eventTrigger');
+  }
+  return normalized;
 }
 
 Map<String, String> normalizeWorkflowCallArguments(dynamic raw) {

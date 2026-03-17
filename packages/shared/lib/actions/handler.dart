@@ -52,6 +52,56 @@ Snowflake? _toSnowflake(dynamic value) {
   return Snowflake(parsed);
 }
 
+/// Evaluates a condition between [leftValue] (already resolved) and [rightValue]
+/// (already resolved) using the given [operator] string.
+bool _evaluateCondition({
+  required String leftValue,
+  required String operator,
+  required String rightValue,
+}) {
+  final op = operator.toLowerCase().trim();
+  switch (op) {
+    case 'equals':
+    case '==':
+      return leftValue == rightValue;
+    case 'notequals':
+    case '!=':
+      return leftValue != rightValue;
+    case 'contains':
+      return leftValue.contains(rightValue);
+    case 'notcontains':
+      return !leftValue.contains(rightValue);
+    case 'startswith':
+      return leftValue.startsWith(rightValue);
+    case 'endswith':
+      return leftValue.endsWith(rightValue);
+    case 'greaterthan':
+    case '>':
+      return (num.tryParse(leftValue) ?? 0) > (num.tryParse(rightValue) ?? 0);
+    case 'lessthan':
+    case '<':
+      return (num.tryParse(leftValue) ?? 0) < (num.tryParse(rightValue) ?? 0);
+    case 'greaterorequal':
+    case '>=':
+      return (num.tryParse(leftValue) ?? 0) >= (num.tryParse(rightValue) ?? 0);
+    case 'lessorequal':
+    case '<=':
+      return (num.tryParse(leftValue) ?? 0) <= (num.tryParse(rightValue) ?? 0);
+    case 'isempty':
+      return leftValue.trim().isEmpty;
+    case 'isnotempty':
+      return leftValue.trim().isNotEmpty;
+    case 'matches':
+      try {
+        return RegExp(rightValue, caseSensitive: false).hasMatch(leftValue);
+      } catch (_) {
+        return false;
+      }
+    default:
+      return false;
+  }
+}
+
 dynamic _extractByJsonPath(dynamic data, String rawPath) {
   var path = rawPath.trim();
   if (path.isEmpty) {
@@ -152,12 +202,16 @@ Future<Map<String, String>> handleActions(
   required String botId,
   required Map<String, String> variables,
   required String Function(String input) resolveTemplate,
+  Snowflake? fallbackChannelId,
+  Snowflake? fallbackGuildId,
   Set<String>? workflowStack,
   void Function(String message)? onLog,
 }) async {
   final results = <String, String>{};
-  final fallbackChannelId = (interaction as dynamic)?.channel?.id as Snowflake?;
-  final guildId = (interaction as dynamic)?.guildId as Snowflake?;
+  final resolvedFallbackChannelId =
+      fallbackChannelId ?? (interaction as dynamic)?.channel?.id as Snowflake?;
+  final guildId =
+      fallbackGuildId ?? (interaction as dynamic)?.guildId as Snowflake?;
   final activeWorkflowStack = workflowStack ?? <String>{};
 
   String resolveValue(String value) => resolveTemplate(value);
@@ -193,6 +247,32 @@ Future<Map<String, String>> handleActions(
     return value;
   }
 
+  String resolveConditionLeftValue(String rawConditionVariable) {
+    final raw = rawConditionVariable.trim();
+    if (raw.isEmpty) {
+      return '';
+    }
+
+    if (variables.containsKey(raw)) {
+      return variables[raw] ?? '';
+    }
+
+    final wrappedMatch = RegExp(r'^\(\((.+)\)\)$').firstMatch(raw);
+    if (wrappedMatch != null) {
+      final wrappedKey = (wrappedMatch.group(1) ?? '').trim();
+      if (wrappedKey.isNotEmpty && variables.containsKey(wrappedKey)) {
+        return variables[wrappedKey] ?? '';
+      }
+    }
+
+    final resolved = resolveValue(raw).trim();
+    if (variables.containsKey(resolved)) {
+      return variables[resolved] ?? '';
+    }
+
+    return resolved;
+  }
+
   for (var i = 0; i < actions.length; i++) {
     final action = actions[i];
     final resultKey = action.key ?? 'action_$i';
@@ -207,7 +287,7 @@ Future<Map<String, String>> handleActions(
             (action.payload['channelId'] ?? '').toString(),
           );
           final channelId =
-              _toSnowflake(resolvedChannelIdRaw) ?? fallbackChannelId;
+              _toSnowflake(resolvedChannelIdRaw) ?? resolvedFallbackChannelId;
           if (channelId == null) {
             throw Exception('Missing or invalid channelId for deleteMessages');
           }
@@ -995,6 +1075,83 @@ Future<Map<String, String>> handleActions(
             results['$resultKey.${entry.key}'] = entry.value;
           }
           results[resultKey] = 'WORKFLOW_OK:$workflowEntryPoint';
+          break;
+        case BotCreatorActionType.stopUnless:
+          final rawCondVar =
+              (action.payload['condition.variable'] ?? '').toString();
+          final condVar = resolveValue(rawCondVar);
+          final condOp =
+              (action.payload['condition.operator'] ?? 'equals').toString();
+          final condVal = resolveValue(
+            (action.payload['condition.value'] ?? '').toString(),
+          );
+          final passed = _evaluateCondition(
+            leftValue: resolveConditionLeftValue(rawCondVar),
+            operator: condOp,
+            rightValue: condVal,
+          );
+          if (!passed) {
+            onLog?.call(
+              'Workflow stopped: "$condVar $condOp $condVal" not met',
+            );
+            return results;
+          }
+          results[resultKey] = 'passed';
+          break;
+        case BotCreatorActionType.ifBlock:
+          final rawIfCondVar =
+              (action.payload['condition.variable'] ?? '').toString();
+          final ifCondVar = resolveValue(rawIfCondVar);
+          final ifCondOp =
+              (action.payload['condition.operator'] ?? 'equals').toString();
+          final ifCondVal = resolveValue(
+            (action.payload['condition.value'] ?? '').toString(),
+          );
+          final ifPassed = _evaluateCondition(
+            leftValue: resolveConditionLeftValue(rawIfCondVar),
+            operator: ifCondOp,
+            rightValue: ifCondVal,
+          );
+          onLog?.call(
+            'IF "$ifCondVar $ifCondOp $ifCondVal" → ${ifPassed ? "THEN" : "ELSE"}',
+          );
+          final branchKey = ifPassed ? 'thenActions' : 'elseActions';
+          final rawBranchActions = action.payload[branchKey];
+          if (rawBranchActions is List && rawBranchActions.isNotEmpty) {
+            final branchActions =
+                rawBranchActions
+                    .whereType<Map>()
+                    .map(
+                      (json) =>
+                          Action.fromJson(Map<String, dynamic>.from(json)),
+                    )
+                    .toList();
+            late final Map<String, String> branchResults;
+            try {
+              branchResults = await handleActions(
+                client,
+                interaction,
+                actions: branchActions,
+                store: store,
+                botId: botId,
+                variables: variables,
+                resolveTemplate: resolveTemplate,
+                fallbackChannelId: resolvedFallbackChannelId,
+                fallbackGuildId: guildId,
+                workflowStack: activeWorkflowStack,
+                onLog: onLog,
+              );
+            } catch (e) {
+              branchResults = {'__error__': e.toString()};
+            }
+            for (final entry in branchResults.entries) {
+              results['$resultKey.${entry.key}'] = entry.value;
+            }
+            if (branchResults.containsKey('__stopped__')) {
+              return results;
+            }
+          }
+          results[resultKey] = ifPassed ? 'then' : 'else';
           break;
       }
     } catch (e) {

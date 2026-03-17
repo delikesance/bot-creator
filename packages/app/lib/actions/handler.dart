@@ -152,12 +152,16 @@ Future<Map<String, String>> handleActions(
   required String botId,
   required Map<String, String> variables,
   required String Function(String input) resolveTemplate,
+  Snowflake? fallbackChannelId,
+  Snowflake? fallbackGuildId,
   Set<String>? workflowStack,
   void Function(String message)? onLog,
 }) async {
   final results = <String, String>{};
-  final fallbackChannelId = (interaction as dynamic)?.channel?.id as Snowflake?;
-  final guildId = (interaction as dynamic)?.guildId as Snowflake?;
+  final resolvedFallbackChannelId =
+      fallbackChannelId ?? (interaction as dynamic)?.channel?.id as Snowflake?;
+  final guildId =
+      fallbackGuildId ?? (interaction as dynamic)?.guildId as Snowflake?;
   final activeWorkflowStack = workflowStack ?? <String>{};
 
   String resolveValue(String value) => resolveTemplate(value);
@@ -193,6 +197,86 @@ Future<Map<String, String>> handleActions(
     return value;
   }
 
+  bool evaluateCondition({
+    required String leftValue,
+    required String operator,
+    required String rightValue,
+  }) {
+    final left = leftValue;
+    final right = rightValue;
+    switch (operator) {
+      case 'equals':
+        return left == right;
+      case 'notEquals':
+        return left != right;
+      case 'contains':
+        return left.contains(right);
+      case 'notContains':
+        return !left.contains(right);
+      case 'startsWith':
+        return left.startsWith(right);
+      case 'endsWith':
+        return left.endsWith(right);
+      case 'greaterThan':
+      case 'lessThan':
+      case 'greaterOrEqual':
+      case 'lessOrEqual':
+        final leftNum = num.tryParse(left);
+        final rightNum = num.tryParse(right);
+        if (leftNum == null || rightNum == null) {
+          return false;
+        }
+        if (operator == 'greaterThan') {
+          return leftNum > rightNum;
+        }
+        if (operator == 'lessThan') {
+          return leftNum < rightNum;
+        }
+        if (operator == 'greaterOrEqual') {
+          return leftNum >= rightNum;
+        }
+        return leftNum <= rightNum;
+      case 'isEmpty':
+        return left.trim().isEmpty;
+      case 'isNotEmpty':
+        return left.trim().isNotEmpty;
+      case 'matches':
+        try {
+          return RegExp(right).hasMatch(left);
+        } catch (_) {
+          return false;
+        }
+      default:
+        return left == right;
+    }
+  }
+
+  String resolveConditionLeftValue(String rawConditionVariable) {
+    final raw = rawConditionVariable.trim();
+    if (raw.isEmpty) {
+      return '';
+    }
+
+    if (variables.containsKey(raw)) {
+      return variables[raw] ?? '';
+    }
+
+    final wrappedMatch = RegExp(r'^\(\((.+)\)\)$').firstMatch(raw);
+    if (wrappedMatch != null) {
+      final wrappedKey = (wrappedMatch.group(1) ?? '').trim();
+      if (wrappedKey.isNotEmpty && variables.containsKey(wrappedKey)) {
+        return variables[wrappedKey] ?? '';
+      }
+    }
+
+    final resolved = resolveValue(raw).trim();
+    if (variables.containsKey(resolved)) {
+      return variables[resolved] ?? '';
+    }
+
+    return resolved;
+  }
+
   for (var i = 0; i < actions.length; i++) {
     final action = actions[i];
     final resultKey = action.key ?? 'action_$i';
@@ -207,7 +291,7 @@ Future<Map<String, String>> handleActions(
             (action.payload['channelId'] ?? '').toString(),
           );
           final channelId =
-              _toSnowflake(resolvedChannelIdRaw) ?? fallbackChannelId;
+              _toSnowflake(resolvedChannelIdRaw) ?? resolvedFallbackChannelId;
           if (channelId == null) {
             throw Exception('Missing or invalid channelId for deleteMessages');
           }
@@ -334,7 +418,8 @@ Future<Map<String, String>> handleActions(
           break;
         case BotCreatorActionType.sendMessage:
           final channelId =
-              _toSnowflake(action.payload['channelId']) ?? fallbackChannelId;
+              _toSnowflake(action.payload['channelId']) ??
+              resolvedFallbackChannelId;
           if (channelId == null) {
             throw Exception('Missing or invalid channelId for sendMessage');
           }
@@ -365,7 +450,7 @@ Future<Map<String, String>> handleActions(
           final result = await editMessageAction(
             client,
             payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
+            fallbackChannelId: resolvedFallbackChannelId,
             content: content,
             resolve: resolveValue,
           );
@@ -378,7 +463,7 @@ Future<Map<String, String>> handleActions(
           final result = await addReactionAction(
             client,
             payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
+            fallbackChannelId: resolvedFallbackChannelId,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -389,7 +474,7 @@ Future<Map<String, String>> handleActions(
           final result = await removeReactionAction(
             client,
             payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
+            fallbackChannelId: resolvedFallbackChannelId,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -400,7 +485,7 @@ Future<Map<String, String>> handleActions(
           final result = await clearAllReactionsAction(
             client,
             payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
+            fallbackChannelId: resolvedFallbackChannelId,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -463,7 +548,7 @@ Future<Map<String, String>> handleActions(
           final result = await pinMessageAction(
             client,
             payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
+            fallbackChannelId: resolvedFallbackChannelId,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -518,7 +603,7 @@ Future<Map<String, String>> handleActions(
           final result = await sendComponentV2Action(
             client,
             payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
+            fallbackChannelId: resolvedFallbackChannelId,
             resolve: resolveValue,
           );
           if (result['error'] != null) {
@@ -612,7 +697,7 @@ Future<Map<String, String>> handleActions(
                 type: 'modal',
                 oneShot: true,
                 guildId: guildId?.toString(),
-                channelId: fallbackChannelId?.toString(),
+                channelId: resolvedFallbackChannelId?.toString(),
               ),
             );
           }
@@ -679,7 +764,7 @@ Future<Map<String, String>> handleActions(
                       : 'modal',
               oneShot: oneShot,
               guildId: guildId?.toString(),
-              channelId: fallbackChannelId?.toString(),
+              channelId: resolvedFallbackChannelId?.toString(),
             ),
           );
           results[resultKey] = 'listening:$customId';
@@ -712,7 +797,7 @@ Future<Map<String, String>> handleActions(
           final result = await listWebhooksAction(
             client,
             payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
+            fallbackChannelId: resolvedFallbackChannelId,
             fallbackGuildId: guildId,
           );
           if (result['error'] != null) {
@@ -984,6 +1069,8 @@ Future<Map<String, String>> handleActions(
               botId: botId,
               variables: variables,
               resolveTemplate: resolveTemplate,
+              fallbackChannelId: resolvedFallbackChannelId,
+              fallbackGuildId: guildId,
               workflowStack: activeWorkflowStack,
               onLog: onLog,
             );
@@ -995,6 +1082,90 @@ Future<Map<String, String>> handleActions(
             results['$resultKey.${entry.key}'] = entry.value;
           }
           results[resultKey] = 'WORKFLOW_OK:$workflowEntryPoint';
+          break;
+        case BotCreatorActionType.stopUnless:
+          final rawConditionVariable =
+              (action.payload['condition.variable'] ?? '').toString();
+          final conditionVariable = resolveValue(rawConditionVariable).trim();
+          final conditionOperator =
+              resolveValue(
+                (action.payload['condition.operator'] ?? 'equals').toString(),
+              ).trim();
+          final conditionValue = resolveValue(
+            (action.payload['condition.value'] ?? '').toString(),
+          );
+
+          final leftValue = resolveConditionLeftValue(rawConditionVariable);
+          final conditionPassed = evaluateCondition(
+            leftValue: leftValue,
+            operator: conditionOperator,
+            rightValue: conditionValue,
+          );
+          results[resultKey] = conditionPassed ? 'PASSED' : 'STOPPED';
+          if (!conditionPassed) {
+            onLog?.call(
+              'Action $resultKey stopped workflow: "$conditionVariable" $conditionOperator "$conditionValue" failed (actual: "$leftValue")',
+            );
+            results['__stopped__'] = 'true';
+            return results;
+          }
+          break;
+        case BotCreatorActionType.ifBlock:
+          final rawConditionVariable =
+              (action.payload['condition.variable'] ?? '').toString();
+          final conditionOperator =
+              resolveValue(
+                (action.payload['condition.operator'] ?? 'equals').toString(),
+              ).trim();
+          final conditionValue = resolveValue(
+            (action.payload['condition.value'] ?? '').toString(),
+          );
+          final leftValue = resolveConditionLeftValue(rawConditionVariable);
+          final conditionPassed = evaluateCondition(
+            leftValue: leftValue,
+            operator: conditionOperator,
+            rightValue: conditionValue,
+          );
+
+          final rawThen = action.payload['thenActions'];
+          final rawElse = action.payload['elseActions'];
+          final branchRaw = conditionPassed ? rawThen : rawElse;
+
+          final branchActions = <Action>[];
+          if (branchRaw is List) {
+            for (final item in branchRaw) {
+              if (item is Map) {
+                branchActions.add(
+                  Action.fromJson(Map<String, dynamic>.from(item)),
+                );
+              }
+            }
+          }
+
+          results[resultKey] = conditionPassed ? 'IF_TRUE' : 'IF_FALSE';
+          if (branchActions.isEmpty) {
+            break;
+          }
+
+          final branchResults = await handleActions(
+            client,
+            interaction,
+            actions: branchActions,
+            manager: manager,
+            botId: botId,
+            variables: variables,
+            resolveTemplate: resolveTemplate,
+            fallbackChannelId: resolvedFallbackChannelId,
+            fallbackGuildId: guildId,
+            workflowStack: activeWorkflowStack,
+            onLog: onLog,
+          );
+          for (final entry in branchResults.entries) {
+            results['$resultKey.${entry.key}'] = entry.value;
+          }
+          if (branchResults.containsKey('__stopped__')) {
+            return results;
+          }
           break;
       }
     } catch (e) {

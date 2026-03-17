@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:bot_creator_shared/utils/workflow_call.dart';
+
 class BotStatusConfig {
   final String type;
   final String text;
@@ -110,7 +112,9 @@ class BotConfig {
       ),
       workflows: List<Map<String, dynamic>>.from(
         (json['workflows'] as List?)?.whereType<Map>().map(
-              (w) => Map<String, dynamic>.from(w),
+              (w) => normalizeStoredWorkflowDefinition(
+                Map<String, dynamic>.from(w),
+              ),
             ) ??
             const [],
       ),

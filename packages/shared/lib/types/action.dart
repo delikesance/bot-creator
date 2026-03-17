@@ -34,6 +34,9 @@ enum BotCreatorActionType {
   removeGlobalVariable,
   listGlobalVariables,
   runWorkflow,
+  // Logic & Flow actions
+  stopUnless,
+  ifBlock,
   // Interaction / Component actions
   respondWithMessage,
   respondWithComponentV2,

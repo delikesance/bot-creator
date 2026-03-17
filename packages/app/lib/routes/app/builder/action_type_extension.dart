@@ -88,6 +88,10 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return 'Listen for Button Click';
       case BotCreatorActionType.listenForModalSubmit:
         return 'Listen for Modal Submit';
+      case BotCreatorActionType.stopUnless:
+        return 'Stop Unless Condition';
+      case BotCreatorActionType.ifBlock:
+        return 'IF / ELSE Block';
     }
   }
 
@@ -175,8 +179,28 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.touch_app;
       case BotCreatorActionType.listenForModalSubmit:
         return Icons.dynamic_form;
+      case BotCreatorActionType.stopUnless:
+        return Icons.filter_alt;
+      case BotCreatorActionType.ifBlock:
+        return Icons.account_tree;
     }
   }
+
+  static const _conditionOperators = [
+    'equals',
+    'notEquals',
+    'contains',
+    'notContains',
+    'startsWith',
+    'endsWith',
+    'greaterThan',
+    'lessThan',
+    'greaterOrEqual',
+    'lessOrEqual',
+    'isEmpty',
+    'isNotEmpty',
+    'matches',
+  ];
 
   // Nouvelle méthode pour obtenir les définitions de paramètres typés
   List<ParameterDefinition> get parameterDefinitions {
@@ -1277,6 +1301,66 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'Listener TTL in minutes (max 60)',
             minValue: 1,
             maxValue: 60,
+          ),
+        ];
+      case BotCreatorActionType.stopUnless:
+        return [
+          ParameterDefinition(
+            key: 'condition.variable',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint:
+                'Value to test — use ((variableName)) to inject a variable. E.g. ((message.content[0]))',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'condition.operator',
+            type: ParameterType.multiSelect,
+            defaultValue: 'equals',
+            hint: 'Comparison operator',
+            options: _conditionOperators,
+          ),
+          ParameterDefinition(
+            key: 'condition.value',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Value to compare against (can use ((variables)))',
+          ),
+        ];
+      case BotCreatorActionType.ifBlock:
+        return [
+          ParameterDefinition(
+            key: 'condition.variable',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint:
+                'Value to test — use ((variableName)). E.g. ((message.content[0]))',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'condition.operator',
+            type: ParameterType.multiSelect,
+            defaultValue: 'equals',
+            hint: 'Comparison operator',
+            options: _conditionOperators,
+          ),
+          ParameterDefinition(
+            key: 'condition.value',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Value to compare against (can use ((variables)))',
+          ),
+          ParameterDefinition(
+            key: 'thenActions',
+            type: ParameterType.nestedActions,
+            defaultValue: <Map<String, dynamic>>[],
+            hint: 'THEN — actions to run when condition is TRUE',
+          ),
+          ParameterDefinition(
+            key: 'elseActions',
+            type: ParameterType.nestedActions,
+            defaultValue: <Map<String, dynamic>>[],
+            hint: 'ELSE — actions to run when condition is FALSE',
           ),
         ];
     }
