@@ -3,6 +3,7 @@ import 'package:bot_creator/utils/onboarding_manager.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 const double _onboardingContentMaxWidth = 560;
 
@@ -317,8 +318,11 @@ class _CreateBotStep extends StatelessWidget {
               child: ElevatedButton.icon(
                 icon: const Icon(Icons.open_in_browser),
                 label: Text(AppStrings.t('onboarding_create_tutorial')),
-                onPressed: () {
-                  // TODO: Open tutorial link
+                onPressed: () async {
+                  final uri = Uri.parse(
+                    'https://bot-creator.fr/tutorials/2025/05/18/how-to-create-a-bot-token-bot-creator.html',
+                  );
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
                 },
               ),
             ),

@@ -6,8 +6,10 @@ import 'package:bot_creator_shared/actions/handle_component_interaction.dart';
 import 'package:bot_creator_shared/actions/handler.dart';
 import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator_shared/bot/bot_config.dart';
+import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator_shared/utils/global.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart';
+import 'package:bot_creator_shared/utils/workflow_call.dart';
 import 'package:bot_creator_shared/types/action.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -26,6 +28,18 @@ class DiscordRunner {
   final Random _random = Random();
 
   DiscordRunner(this.config) : store = RunnerDataStore(config);
+
+  List<Map<String, dynamic>> get _eventWorkflows {
+    final result = <Map<String, dynamic>>[];
+    for (final workflow in config.workflows) {
+      final normalized = normalizeStoredWorkflowDefinition(workflow);
+      if (normalizeWorkflowType(normalized['workflowType']) ==
+          workflowTypeEvent) {
+        result.add(normalized);
+      }
+    }
+    return result;
+  }
 
   Future<void> start() async {
     _log.info('Starting runner with ${config.commands.length} command(s)...');
@@ -52,7 +66,11 @@ class DiscordRunner {
       await _handleInteraction(event);
     });
 
-    _log.info('Gateway connected — listening for interactions.');
+    _registerEventWorkflowListeners();
+
+    _log.info(
+      'Gateway connected — listening for interactions and ${_eventWorkflows.length} event workflow(s).',
+    );
   }
 
   Future<void> stop() async {
@@ -105,6 +123,437 @@ class DiscordRunner {
       }
     }
     return null;
+  }
+
+  void _registerEventWorkflowListeners() {
+    final gateway = _gateway;
+    if (gateway == null) {
+      return;
+    }
+
+    if (_eventWorkflows.isEmpty) {
+      return;
+    }
+
+    void registerEvent<T>(
+      Stream<T> stream,
+      String eventName, {
+      EventExecutionContext Function(T event)? buildContext,
+    }) {
+      stream.listen((event) async {
+        await _dispatchEventWorkflows(
+          eventName: eventName,
+          context:
+              buildContext?.call(event) ??
+              _baseEventContext(
+                eventName: eventName,
+                guildId: null,
+                channelId: null,
+                userId: null,
+              ),
+        );
+      });
+    }
+
+    registerEvent<MessageCreateEvent>(
+      gateway.onMessageCreate,
+      'messageCreate',
+      buildContext: buildMessageCreateEventContext,
+    );
+    registerEvent<MessageUpdateEvent>(
+      gateway.onMessageUpdate,
+      'messageUpdate',
+      buildContext: buildMessageUpdateEventContext,
+    );
+    registerEvent<MessageDeleteEvent>(
+      gateway.onMessageDelete,
+      'messageDelete',
+      buildContext: buildMessageDeleteEventContext,
+    );
+    registerEvent<GuildMemberAddEvent>(
+      gateway.onGuildMemberAdd,
+      'guildMemberAdd',
+      buildContext: buildGuildMemberAddEventContext,
+    );
+    registerEvent<GuildMemberRemoveEvent>(
+      gateway.onGuildMemberRemove,
+      'guildMemberRemove',
+      buildContext: buildGuildMemberRemoveEventContext,
+    );
+    registerEvent<ChannelUpdateEvent>(
+      gateway.onChannelUpdate,
+      'channelUpdate',
+      buildContext: buildChannelUpdateEventContext,
+    );
+    registerEvent<InviteCreateEvent>(
+      gateway.onInviteCreate,
+      'inviteCreate',
+      buildContext: buildInviteCreateEventContext,
+    );
+
+    registerEvent<ReadyEvent>(gateway.onReady, 'ready');
+    registerEvent<ResumedEvent>(gateway.onResumed, 'resumed');
+    registerEvent<InteractionCreateEvent>(
+      gateway.onInteractionCreate,
+      'interactionCreate',
+    );
+    registerEvent<ApplicationCommandPermissionsUpdateEvent>(
+      gateway.onApplicationCommandPermissionsUpdate,
+      'applicationCommandPermissionsUpdate',
+    );
+    registerEvent<AutoModerationRuleCreateEvent>(
+      gateway.onAutoModerationRuleCreate,
+      'autoModerationRuleCreate',
+    );
+    registerEvent<AutoModerationRuleUpdateEvent>(
+      gateway.onAutoModerationRuleUpdate,
+      'autoModerationRuleUpdate',
+    );
+    registerEvent<AutoModerationRuleDeleteEvent>(
+      gateway.onAutoModerationRuleDelete,
+      'autoModerationRuleDelete',
+    );
+    registerEvent<AutoModerationActionExecutionEvent>(
+      gateway.onAutoModerationActionExecution,
+      'autoModerationActionExecution',
+    );
+    registerEvent<ChannelCreateEvent>(gateway.onChannelCreate, 'channelCreate');
+    registerEvent<ChannelDeleteEvent>(gateway.onChannelDelete, 'channelDelete');
+    registerEvent<ChannelPinsUpdateEvent>(
+      gateway.onChannelPinsUpdate,
+      'channelPinsUpdate',
+      buildContext: buildChannelPinsUpdateEventContext,
+    );
+    registerEvent<ThreadCreateEvent>(
+      gateway.onThreadCreate,
+      'threadCreate',
+      buildContext: buildThreadCreateEventContext,
+    );
+    registerEvent<ThreadUpdateEvent>(
+      gateway.onThreadUpdate,
+      'threadUpdate',
+      buildContext: buildThreadUpdateEventContext,
+    );
+    registerEvent<ThreadDeleteEvent>(
+      gateway.onThreadDelete,
+      'threadDelete',
+      buildContext: buildThreadDeleteEventContext,
+    );
+    registerEvent<ThreadListSyncEvent>(
+      gateway.onThreadListSync,
+      'threadListSync',
+    );
+    registerEvent<ThreadMemberUpdateEvent>(
+      gateway.onThreadMemberUpdate,
+      'threadMemberUpdate',
+      buildContext: buildThreadMemberUpdateEventContext,
+    );
+    registerEvent<ThreadMembersUpdateEvent>(
+      gateway.onThreadMembersUpdate,
+      'threadMembersUpdate',
+      buildContext: buildThreadMembersUpdateEventContext,
+    );
+    registerEvent<UnavailableGuildCreateEvent>(
+      gateway.onGuildCreate,
+      'guildCreate',
+    );
+    registerEvent<GuildUpdateEvent>(gateway.onGuildUpdate, 'guildUpdate');
+    registerEvent<GuildDeleteEvent>(gateway.onGuildDelete, 'guildDelete');
+    registerEvent<GuildAuditLogCreateEvent>(
+      gateway.onGuildAuditLogCreate,
+      'guildAuditLogCreate',
+      buildContext: buildGuildAuditLogCreateEventContext,
+    );
+    registerEvent<GuildBanAddEvent>(gateway.onGuildBanAdd, 'guildBanAdd');
+    registerEvent<GuildBanRemoveEvent>(
+      gateway.onGuildBanRemove,
+      'guildBanRemove',
+    );
+    registerEvent<GuildEmojisUpdateEvent>(
+      gateway.onGuildEmojisUpdate,
+      'guildEmojisUpdate',
+    );
+    registerEvent<GuildStickersUpdateEvent>(
+      gateway.onGuildStickersUpdate,
+      'guildStickersUpdate',
+    );
+    registerEvent<GuildIntegrationsUpdateEvent>(
+      gateway.onGuildIntegrationsUpdate,
+      'guildIntegrationsUpdate',
+    );
+    registerEvent<GuildMemberUpdateEvent>(
+      gateway.onGuildMemberUpdate,
+      'guildMemberUpdate',
+    );
+    registerEvent<GuildMembersChunkEvent>(
+      gateway.onGuildMembersChunk,
+      'guildMembersChunk',
+    );
+    registerEvent<GuildRoleCreateEvent>(
+      gateway.onGuildRoleCreate,
+      'guildRoleCreate',
+      buildContext: buildGuildRoleCreateEventContext,
+    );
+    registerEvent<GuildRoleUpdateEvent>(
+      gateway.onGuildRoleUpdate,
+      'guildRoleUpdate',
+      buildContext: buildGuildRoleUpdateEventContext,
+    );
+    registerEvent<GuildRoleDeleteEvent>(
+      gateway.onGuildRoleDelete,
+      'guildRoleDelete',
+      buildContext: buildGuildRoleDeleteEventContext,
+    );
+    registerEvent<GuildScheduledEventCreateEvent>(
+      gateway.onGuildScheduledEventCreate,
+      'guildScheduledEventCreate',
+    );
+    registerEvent<GuildScheduledEventUpdateEvent>(
+      gateway.onGuildScheduledEventUpdate,
+      'guildScheduledEventUpdate',
+    );
+    registerEvent<GuildScheduledEventDeleteEvent>(
+      gateway.onGuildScheduledEventDelete,
+      'guildScheduledEventDelete',
+    );
+    registerEvent<GuildScheduledEventUserAddEvent>(
+      gateway.onGuildScheduledEventUserAdd,
+      'guildScheduledEventUserAdd',
+    );
+    registerEvent<GuildScheduledEventUserRemoveEvent>(
+      gateway.onGuildScheduledEventUserRemove,
+      'guildScheduledEventUserRemove',
+    );
+    registerEvent<IntegrationCreateEvent>(
+      gateway.onIntegrationCreate,
+      'integrationCreate',
+    );
+    registerEvent<IntegrationUpdateEvent>(
+      gateway.onIntegrationUpdate,
+      'integrationUpdate',
+    );
+    registerEvent<IntegrationDeleteEvent>(
+      gateway.onIntegrationDelete,
+      'integrationDelete',
+    );
+    registerEvent<InviteDeleteEvent>(
+      gateway.onInviteDelete,
+      'inviteDelete',
+      buildContext: buildInviteDeleteEventContext,
+    );
+    registerEvent<MessageBulkDeleteEvent>(
+      gateway.onMessageBulkDelete,
+      'messageBulkDelete',
+    );
+    registerEvent<MessageReactionAddEvent>(
+      gateway.onMessageReactionAdd,
+      'messageReactionAdd',
+      buildContext: buildMessageReactionAddEventContext,
+    );
+    registerEvent<MessageReactionRemoveEvent>(
+      gateway.onMessageReactionRemove,
+      'messageReactionRemove',
+      buildContext: buildMessageReactionRemoveEventContext,
+    );
+    registerEvent<MessageReactionRemoveAllEvent>(
+      gateway.onMessageReactionRemoveAll,
+      'messageReactionRemoveAll',
+      buildContext: buildMessageReactionRemoveAllEventContext,
+    );
+    registerEvent<MessageReactionRemoveEmojiEvent>(
+      gateway.onMessageReactionRemoveEmoji,
+      'messageReactionRemoveEmoji',
+      buildContext: buildMessageReactionRemoveEmojiEventContext,
+    );
+    registerEvent<PresenceUpdateEvent>(
+      gateway.onPresenceUpdate,
+      'presenceUpdate',
+      buildContext: buildPresenceUpdateEventContext,
+    );
+    registerEvent<TypingStartEvent>(
+      gateway.onTypingStart,
+      'typingStart',
+      buildContext: buildTypingStartEventContext,
+    );
+    registerEvent<UserUpdateEvent>(
+      gateway.onUserUpdate,
+      'userUpdate',
+      buildContext: buildUserUpdateEventContext,
+    );
+    registerEvent<VoiceStateUpdateEvent>(
+      gateway.onVoiceStateUpdate,
+      'voiceStateUpdate',
+      buildContext: buildVoiceStateUpdateEventContext,
+    );
+    registerEvent<VoiceServerUpdateEvent>(
+      gateway.onVoiceServerUpdate,
+      'voiceServerUpdate',
+      buildContext: buildVoiceServerUpdateEventContext,
+    );
+    registerEvent<WebhooksUpdateEvent>(
+      gateway.onWebhooksUpdate,
+      'webhooksUpdate',
+    );
+    registerEvent<StageInstanceCreateEvent>(
+      gateway.onStageInstanceCreate,
+      'stageInstanceCreate',
+    );
+    registerEvent<StageInstanceUpdateEvent>(
+      gateway.onStageInstanceUpdate,
+      'stageInstanceUpdate',
+    );
+    registerEvent<StageInstanceDeleteEvent>(
+      gateway.onStageInstanceDelete,
+      'stageInstanceDelete',
+    );
+    registerEvent<EntitlementCreateEvent>(
+      gateway.onEntitlementCreate,
+      'entitlementCreate',
+    );
+    registerEvent<EntitlementUpdateEvent>(
+      gateway.onEntitlementUpdate,
+      'entitlementUpdate',
+    );
+    registerEvent<EntitlementDeleteEvent>(
+      gateway.onEntitlementDelete,
+      'entitlementDelete',
+    );
+    registerEvent<MessagePollVoteAddEvent>(
+      gateway.onMessagePollVoteAdd,
+      'messagePollVoteAdd',
+      buildContext: buildMessagePollVoteAddEventContext,
+    );
+    registerEvent<MessagePollVoteRemoveEvent>(
+      gateway.onMessagePollVoteRemove,
+      'messagePollVoteRemove',
+      buildContext: buildMessagePollVoteRemoveEventContext,
+    );
+    registerEvent<SoundboardSoundCreateEvent>(
+      gateway.onSoundboardSoundCreate,
+      'soundboardSoundCreate',
+    );
+    registerEvent<SoundboardSoundUpdateEvent>(
+      gateway.onSoundboardSoundUpdate,
+      'soundboardSoundUpdate',
+    );
+    registerEvent<SoundboardSoundDeleteEvent>(
+      gateway.onSoundboardSoundDelete,
+      'soundboardSoundDelete',
+    );
+    registerEvent<SoundboardSoundsUpdateEvent>(
+      gateway.onSoundboardSoundsUpdate,
+      'soundboardSoundsUpdate',
+    );
+    registerEvent<VoiceChannelEffectSendEvent>(
+      gateway.onVoiceChannelEffectSend,
+      'voiceChannelEffectSend',
+      buildContext: buildVoiceChannelEffectSendEventContext,
+    );
+  }
+
+  EventExecutionContext _baseEventContext({
+    required String eventName,
+    required Snowflake? guildId,
+    required Snowflake? channelId,
+    required Snowflake? userId,
+  }) {
+    return EventExecutionContext(
+      eventName: eventName,
+      variables: const <String, String>{},
+      guildId: guildId,
+      channelId: channelId,
+      userId: userId,
+    );
+  }
+
+  Future<void> _dispatchEventWorkflows({
+    required String eventName,
+    required EventExecutionContext context,
+  }) async {
+    final botId = _gateway?.user.id.toString() ?? store.botId;
+    final matching = _eventWorkflows
+        .where((workflow) {
+          final trigger = normalizeWorkflowEventTrigger(
+            workflow['eventTrigger'],
+          );
+          return (trigger['event'] ?? '').toString() == eventName;
+        })
+        .toList(growable: false);
+
+    if (matching.isEmpty) {
+      return;
+    }
+
+    for (final workflow in matching) {
+      await _executeEventWorkflow(
+        botId: botId,
+        workflow: workflow,
+        context: context,
+      );
+    }
+  }
+
+  Future<void> _executeEventWorkflow({
+    required String botId,
+    required Map<String, dynamic> workflow,
+    required EventExecutionContext context,
+  }) async {
+    final workflowName = (workflow['name'] ?? '').toString().trim();
+    final entryPoint = normalizeWorkflowEntryPoint(workflow['entryPoint']);
+    final definitions = parseWorkflowArgumentDefinitions(workflow['arguments']);
+    final actions = List<Action>.from(
+      ((workflow['actions'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((json) => Action.fromJson(Map<String, dynamic>.from(json))),
+    );
+    if (actions.isEmpty) {
+      return;
+    }
+
+    final runtimeVariables = <String, String>{
+      ...context.variables,
+      'workflow.type': workflowTypeEvent,
+    };
+    final globalVars = await store.getGlobalVariables(botId);
+    for (final entry in globalVars.entries) {
+      runtimeVariables['global.${entry.key}'] = entry.value;
+    }
+
+    applyWorkflowInvocationContext(
+      variables: runtimeVariables,
+      workflowName: workflowName,
+      entryPoint: entryPoint,
+      definitions: definitions,
+      providedArguments: const <String, String>{},
+    );
+
+    try {
+      await handleActions(
+        _gateway!,
+        null,
+        actions: actions,
+        store: store,
+        botId: botId,
+        variables: runtimeVariables,
+        resolveTemplate:
+            (input) => resolveTemplatePlaceholders(
+              input,
+              Map<String, String>.from(runtimeVariables),
+            ),
+        fallbackChannelId: context.channelId,
+        fallbackGuildId: context.guildId,
+        onLog: (msg) => _log.info(msg),
+      );
+      _log.info(
+        'Executed event workflow "$workflowName" for ${context.eventName}.',
+      );
+    } catch (error, stackTrace) {
+      _log.warning(
+        'Failed executing event workflow "$workflowName" for ${context.eventName}: $error',
+        error,
+        stackTrace,
+      );
+    }
   }
 
   Future<void> _executeCommand({
