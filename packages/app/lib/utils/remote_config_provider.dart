@@ -13,31 +13,19 @@ class RemoteRuntimeConfig {
   const RemoteRuntimeConfig({
     required this.maxActiveBots,
     required this.syncIntervalMs,
-    required this.experimentalEditorEnabled,
-    required this.experimentalEditorRolloutPercent,
     required this.apiTimeoutSeconds,
-    required this.aiActionsEnabled,
-    required this.aiActionsRolloutPercent,
     required this.loadedFromRemote,
   });
 
   final int maxActiveBots;
   final int syncIntervalMs;
-  final bool experimentalEditorEnabled;
-  final int experimentalEditorRolloutPercent;
   final int apiTimeoutSeconds;
-  final bool aiActionsEnabled;
-  final int aiActionsRolloutPercent;
   final bool loadedFromRemote;
 
   static const RemoteRuntimeConfig defaults = RemoteRuntimeConfig(
     maxActiveBots: 5,
     syncIntervalMs: 5000,
-    experimentalEditorEnabled: false,
-    experimentalEditorRolloutPercent: 0,
     apiTimeoutSeconds: 30,
-    aiActionsEnabled: false,
-    aiActionsRolloutPercent: 0,
     loadedFromRemote: false,
   );
 }
@@ -54,12 +42,7 @@ class RemoteConfigProvider extends ChangeNotifier {
   RemoteRuntimeConfig get config => _config;
   int get maxActiveBots => _config.maxActiveBots;
   int get syncIntervalMs => _config.syncIntervalMs;
-  bool get experimentalEditorEnabled => _config.experimentalEditorEnabled;
-  int get experimentalEditorRolloutPercent =>
-      _config.experimentalEditorRolloutPercent;
   int get apiTimeoutSeconds => _config.apiTimeoutSeconds;
-  bool get aiActionsEnabled => _config.aiActionsEnabled;
-  int get aiActionsRolloutPercent => _config.aiActionsRolloutPercent;
   Map<String, bool> get actionFlagsByName => _actionFlagsByName;
   Map<String, int> get actionRolloutByName => _actionRolloutByName;
 
@@ -85,22 +68,6 @@ class RemoteConfigProvider extends ChangeNotifier {
     final value =
         (digest[0] << 24) | (digest[1] << 16) | (digest[2] << 8) | digest[3];
     return value % 100;
-  }
-
-  bool get isExperimentalEditorEnabledForCurrentUser {
-    return isFeatureEnabledForCurrentUser(
-      featureKey: 'experimental_editor',
-      baseEnabled: _config.experimentalEditorEnabled,
-      rolloutPercent: _config.experimentalEditorRolloutPercent,
-    );
-  }
-
-  bool get isAiActionsEnabledForCurrentUser {
-    return isFeatureEnabledForCurrentUser(
-      featureKey: 'ai_actions',
-      baseEnabled: _config.aiActionsEnabled,
-      rolloutPercent: _config.aiActionsRolloutPercent,
-    );
   }
 
   bool isActionEnabledForCurrentUser(BotCreatorActionType actionType) {
@@ -144,15 +111,7 @@ class RemoteConfigProvider extends ChangeNotifier {
       await remoteConfig.setDefaults(<String, dynamic>{
         'max_active_bots': RemoteRuntimeConfig.defaults.maxActiveBots,
         'sync_interval_ms': RemoteRuntimeConfig.defaults.syncIntervalMs,
-        'experimental_editor_enabled':
-            RemoteRuntimeConfig.defaults.experimentalEditorEnabled,
-        'experimental_editor_rollout_percent':
-            RemoteRuntimeConfig.defaults.experimentalEditorRolloutPercent,
         'api_timeout_seconds': RemoteRuntimeConfig.defaults.apiTimeoutSeconds,
-        'feature_ai_actions_enabled':
-            RemoteRuntimeConfig.defaults.aiActionsEnabled,
-        'feature_ai_actions_rollout_percent':
-            RemoteRuntimeConfig.defaults.aiActionsRolloutPercent,
         'feature_action_flags_json': '{}',
         'feature_action_rollout_json': '{}',
       });
@@ -169,13 +128,7 @@ class RemoteConfigProvider extends ChangeNotifier {
           'loadedFromRemote': loadedFromRemote,
           'maxActiveBots': _config.maxActiveBots,
           'syncIntervalMs': _config.syncIntervalMs,
-          'experimentalEditorEnabled': _config.experimentalEditorEnabled,
-          'experimentalEditorRolloutPercent':
-              _config.experimentalEditorRolloutPercent,
           'apiTimeoutSeconds': _config.apiTimeoutSeconds,
-          'aiActionsEnabled': _config.aiActionsEnabled,
-          'aiActionsRolloutPercent': _config.aiActionsRolloutPercent,
-          'aiActionsBucket': rolloutBucketForFeature('ai_actions'),
           'dynamicActionFlagsCount': _actionFlagsByName.length,
           'dynamicActionRolloutsCount': _actionRolloutByName.length,
         },
@@ -270,17 +223,7 @@ class RemoteConfigProvider extends ChangeNotifier {
   }) {
     final rawMaxBots = remoteConfig.getInt('max_active_bots');
     final rawSyncIntervalMs = remoteConfig.getInt('sync_interval_ms');
-    final rawExperimental = remoteConfig.getBool('experimental_editor_enabled');
-    final rawExperimentalRollout = remoteConfig.getInt(
-      'experimental_editor_rollout_percent',
-    );
     final rawApiTimeout = remoteConfig.getInt('api_timeout_seconds');
-    final rawAiActionsEnabled = remoteConfig.getBool(
-      'feature_ai_actions_enabled',
-    );
-    final rawAiActionsRollout = remoteConfig.getInt(
-      'feature_ai_actions_rollout_percent',
-    );
 
     return RemoteRuntimeConfig(
       maxActiveBots: _clampInt(
@@ -295,27 +238,11 @@ class RemoteConfigProvider extends ChangeNotifier {
         min: 1000,
         max: 60000,
       ),
-      experimentalEditorEnabled: rawExperimental,
-      experimentalEditorRolloutPercent: _clampInt(
-        rawExperimentalRollout,
-        fallback: RemoteRuntimeConfig.defaults.experimentalEditorRolloutPercent,
-        min: 0,
-        max: 100,
-        allowZero: true,
-      ),
       apiTimeoutSeconds: _clampInt(
         rawApiTimeout,
         fallback: RemoteRuntimeConfig.defaults.apiTimeoutSeconds,
         min: 3,
         max: 120,
-      ),
-      aiActionsEnabled: rawAiActionsEnabled,
-      aiActionsRolloutPercent: _clampInt(
-        rawAiActionsRollout,
-        fallback: RemoteRuntimeConfig.defaults.aiActionsRolloutPercent,
-        min: 0,
-        max: 100,
-        allowZero: true,
       ),
       loadedFromRemote: loadedFromRemote,
     );
