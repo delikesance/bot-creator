@@ -18,6 +18,14 @@
           "client_type": 1,
           "android_info": {
             "package_name": "fr.botcreator.app",
+            "certificate_hash": "b354b7cc7979a8b4c4d7d3cb3ac0073f6072228f"
+          }
+        },
+        {
+          "client_id": "777382167262-gvaifj08fbm20a12l1e2q2llg2s1c5ga.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "fr.botcreator.app",
             "certificate_hash": "9b5d3207af68476b99e3149a6b15743eba42b1da"
           }
         },
