@@ -51,3 +51,4 @@ app.*.map.json
 *.keystore
 /android/key.properties
 /packages/app/build
+/build
