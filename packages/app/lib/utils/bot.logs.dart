@@ -7,6 +7,54 @@ class _CpuSample {
   final int timestampMs;
 }
 
+class BotRuntimeMetrics {
+  const BotRuntimeMetrics({
+    this.rssBytes,
+    this.estimatedRssBytes,
+    this.cpuPercent,
+    this.storageBytes,
+    this.baselineRssBytes,
+    this.baselineCapturedAt,
+  });
+
+  final int? rssBytes;
+  final int? estimatedRssBytes;
+  final double? cpuPercent;
+  final int? storageBytes;
+  final int? baselineRssBytes;
+  final DateTime? baselineCapturedAt;
+
+  BotRuntimeMetrics copyWith({
+    int? rssBytes,
+    int? estimatedRssBytes,
+    double? cpuPercent,
+    int? storageBytes,
+    int? baselineRssBytes,
+    DateTime? baselineCapturedAt,
+  }) {
+    return BotRuntimeMetrics(
+      rssBytes: rssBytes ?? this.rssBytes,
+      estimatedRssBytes: estimatedRssBytes ?? this.estimatedRssBytes,
+      cpuPercent: cpuPercent ?? this.cpuPercent,
+      storageBytes: storageBytes ?? this.storageBytes,
+      baselineRssBytes: baselineRssBytes ?? this.baselineRssBytes,
+      baselineCapturedAt: baselineCapturedAt ?? this.baselineCapturedAt,
+    );
+  }
+}
+
+String _resolveBotBucketKey(String? botId) {
+  final trimmed = botId?.trim() ?? '';
+  if (trimmed.isNotEmpty) {
+    return trimmed;
+  }
+  final active = _activeBotLogBotId?.trim() ?? '';
+  if (active.isNotEmpty) {
+    return active;
+  }
+  return _globalBotBucketKey;
+}
+
 _CpuSample? _lastCpuSample;
 bool _remoteMetricsBaselineInitialized = false;
 
@@ -178,44 +226,62 @@ void _updateBotMetrics({
   String? botId,
   bool overwriteNulls = false,
 }) {
-  if (_activeBotLogBotId != null &&
-      botId != null &&
-      _activeBotLogBotId != botId) {
-    return;
+  final key = _resolveBotBucketKey(botId);
+  final previous = _botMetricsByBot[key] ?? const BotRuntimeMetrics();
+
+  final nextRss =
+      overwriteNulls || rssBytes != null ? rssBytes : previous.rssBytes;
+  final nextCpu =
+      overwriteNulls || cpuPercent != null ? cpuPercent : previous.cpuPercent;
+  final nextStorage =
+      overwriteNulls || storageBytes != null
+          ? storageBytes
+          : previous.storageBytes;
+
+  int? nextEstimated;
+  if (estimatedRssBytes != null) {
+    nextEstimated = estimatedRssBytes;
+  } else if (nextRss != null && _botBaselineRssBytes != null) {
+    nextEstimated = (nextRss - _botBaselineRssBytes!).clamp(0, nextRss);
+  } else if (overwriteNulls || nextRss == null) {
+    nextEstimated = null;
+  } else {
+    nextEstimated = previous.estimatedRssBytes;
   }
 
-  if (overwriteNulls || rssBytes != null) {
-    _botProcessRssBytes = rssBytes;
+  final next = BotRuntimeMetrics(
+    rssBytes: nextRss,
+    estimatedRssBytes: nextEstimated,
+    cpuPercent: nextCpu,
+    storageBytes: nextStorage,
+    baselineRssBytes: _botBaselineRssBytes,
+    baselineCapturedAt: _botBaselineCapturedAt,
+  );
+  _botMetricsByBot[key] = next;
+
+  if (!_botMetricsByBotController.isClosed) {
+    _botMetricsByBotController.add(
+      Map<String, BotRuntimeMetrics>.unmodifiable(_botMetricsByBot),
+    );
   }
-  if (overwriteNulls || cpuPercent != null) {
-    _botProcessCpuPercent = cpuPercent;
-  }
-  if (overwriteNulls || storageBytes != null) {
-    _botProcessStorageBytes = storageBytes;
-  }
+
+  final selectedKey = _resolveBotBucketKey(_activeBotLogBotId);
+  final selected =
+      _botMetricsByBot[selectedKey] ??
+      _botMetricsByBot[key] ??
+      const BotRuntimeMetrics();
+
+  _botProcessRssBytes = selected.rssBytes;
+  _botEstimatedRssBytes = selected.estimatedRssBytes;
+  _botProcessCpuPercent = selected.cpuPercent;
+  _botProcessStorageBytes = selected.storageBytes;
 
   if (!_botProcessRssController.isClosed) {
     _botProcessRssController.add(_botProcessRssBytes);
   }
-
-  if (estimatedRssBytes != null) {
-    _botEstimatedRssBytes = estimatedRssBytes;
-  } else {
-    final currentRss = _botProcessRssBytes;
-    if (currentRss != null && _botBaselineRssBytes != null) {
-      _botEstimatedRssBytes = (currentRss - _botBaselineRssBytes!).clamp(
-        0,
-        currentRss,
-      );
-    } else if (overwriteNulls || currentRss == null) {
-      _botEstimatedRssBytes = null;
-    }
-  }
-
   if (!_botEstimatedRssController.isClosed) {
     _botEstimatedRssController.add(_botEstimatedRssBytes);
   }
-
   if (!_botProcessCpuController.isClosed) {
     _botProcessCpuController.add(_botProcessCpuPercent);
   }
@@ -325,19 +391,56 @@ Future<void> _emitTaskMetricsToMain({String? botId}) async {
 }
 
 void _publishBotLogs() {
-  if (_botLogsController.isClosed) {
-    return;
+  final selectedKey = _resolveBotBucketKey(_activeBotLogBotId);
+  _botLogs = List<String>.from(
+    _botLogsByBot[selectedKey] ?? const <String>[],
+    growable: false,
+  );
+
+  if (!_botLogsController.isClosed) {
+    _botLogsController.add(List<String>.unmodifiable(_botLogs));
   }
-  _botLogsController.add(List<String>.unmodifiable(_botLogs));
+  if (!_botLogsByBotController.isClosed) {
+    _botLogsByBotController.add(
+      Map<String, List<String>>.unmodifiable(
+        _botLogsByBot.map(
+          (key, value) => MapEntry(key, List<String>.unmodifiable(value)),
+        ),
+      ),
+    );
+  }
 }
 
 Stream<List<String>> getBotLogsStream() => _botLogsController.stream;
 
 List<String> getBotLogsSnapshot() => List<String>.unmodifiable(_botLogs);
 
+Stream<List<String>> getBotLogsStreamForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botLogsByBotController.stream.map(
+    (logsByBot) =>
+        List<String>.unmodifiable(logsByBot[key] ?? const <String>[]),
+  );
+}
+
+List<String> getBotLogsSnapshotForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  final logs = _botLogsByBot[key] ?? const <String>[];
+  return List<String>.unmodifiable(logs);
+}
+
+Set<String> getKnownBotLogIds() {
+  final ids = <String>{
+    ..._botLogsByBot.keys,
+    ...mobileRunningBotIds,
+    ..._botMetricsByBot.keys,
+  }..remove(_globalBotBucketKey);
+  return ids;
+}
+
 void startBotLogSession({required String botId}) {
   _activeBotLogBotId = botId;
-  _botLogs = <String>[];
+  _botLogsByBot[botId] = <String>[];
   _remoteMetricsBaselineInitialized = false;
   captureBotBaselineRss(force: true);
   _lastCpuSample = null;
@@ -352,17 +455,62 @@ void startBotLogSession({required String botId}) {
 }
 
 void appendBotLog(String message, {String? botId}) {
-  if (_activeBotLogBotId != null &&
-      botId != null &&
-      _activeBotLogBotId != botId) {
-    return;
-  }
+  final key = _resolveBotBucketKey(botId);
+  final logs = _botLogsByBot.putIfAbsent(key, () => <String>[]);
   final line = '[${_timestampNow()}] $message';
-  _botLogs.add(line);
-  if (_botLogs.length > _maxBotLogLines) {
-    _botLogs = _botLogs.sublist(_botLogs.length - _maxBotLogLines);
+  logs.add(line);
+  if (logs.length > _maxBotLogLines) {
+    _botLogsByBot[key] = logs.sublist(logs.length - _maxBotLogLines);
   }
   _publishBotLogs();
+}
+
+Stream<int?> getBotProcessRssStreamForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botMetricsByBotController.stream.map(
+    (metricsByBot) => metricsByBot[key]?.rssBytes,
+  );
+}
+
+int? getBotProcessRssBytesForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botMetricsByBot[key]?.rssBytes;
+}
+
+Stream<int?> getBotEstimatedRssStreamForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botMetricsByBotController.stream.map(
+    (metricsByBot) => metricsByBot[key]?.estimatedRssBytes,
+  );
+}
+
+int? getBotEstimatedRssBytesForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botMetricsByBot[key]?.estimatedRssBytes;
+}
+
+Stream<double?> getBotProcessCpuStreamForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botMetricsByBotController.stream.map(
+    (metricsByBot) => metricsByBot[key]?.cpuPercent,
+  );
+}
+
+double? getBotProcessCpuPercentForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botMetricsByBot[key]?.cpuPercent;
+}
+
+Stream<int?> getBotProcessStorageStreamForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botMetricsByBotController.stream.map(
+    (metricsByBot) => metricsByBot[key]?.storageBytes,
+  );
+}
+
+int? getBotProcessStorageBytesForBot(String? botId) {
+  final key = _resolveBotBucketKey(botId);
+  return _botMetricsByBot[key]?.storageBytes;
 }
 
 void appendBotDebugLog(String message, {String? botId}) {
@@ -401,12 +549,23 @@ void consumeForegroundTaskDataForBotLogs(Object data) {
   final map = Map<String, dynamic>.from(data.cast<dynamic, dynamic>());
   if (map['type'] == 'bot_lifecycle') {
     final state = map['state']?.toString();
+    final botId = map['botId']?.toString();
     if (state == 'started') {
+      if (botId != null && botId.isNotEmpty) {
+        addMobileRunningBotId(botId);
+      }
       setBotRuntimeActive(true);
       return;
     }
     if (state == 'stopped') {
-      setBotRuntimeActive(false);
+      if (botId != null && botId.isNotEmpty) {
+        removeMobileRunningBotId(botId);
+      } else {
+        setMobileRunningBotId(null);
+      }
+      setBotRuntimeActive(
+        isDesktopBotRunning || mobileRunningBotIds.isNotEmpty,
+      );
     }
     return;
   }

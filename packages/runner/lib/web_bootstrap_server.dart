@@ -20,13 +20,15 @@ class _CpuSample {
 /// Endpoints
 /// ---------
 /// GET  /health              → {ok: true}
-/// GET  /status              → {running, activeBotId, activeBotName}
-/// GET  /metrics             → {running, activeBotId, rssBytes, baselineRssBytes, botEstimatedRssBytes, cpuPercent, storageBytes}
+/// GET  /status              → {apiVersion, running, runningCount, bots: [...]}
+/// GET  /metrics             → process metrics + bot runtime states
+/// GET  /bots/{id}/status    → state for one bot
+/// GET  /bots/{id}/metrics   → process metrics + one bot state
 /// GET  /bots                → [{id, name, syncedAt}]
 /// POST /bots/sync           → body: {botId, botName?, config: {...}}
 ///                           → {ok: true}
-/// POST /runner/start        → body: {botId}  → status payload
-/// POST /runner/stop         → status payload
+/// POST /bots/{id}/start     → status payload
+/// POST /bots/{id}/stop      → status payload
 /// GET  /logs?limit=N        → {lines: [string]}
 class RunnerWebBootstrapServer {
   RunnerWebBootstrapServer({
@@ -91,8 +93,23 @@ class RunnerWebBootstrapServer {
     }
 
     final path = request.uri.path;
+    final scopedStartBotId = _extractBotAction(path, action: 'start');
+    final scopedStopBotId = _extractBotAction(path, action: 'stop');
+    final scopedStatusBotId = _extractBotAction(path, action: 'status');
+    final scopedMetricsBotId = _extractBotAction(path, action: 'metrics');
     try {
       if (request.method == 'GET') {
+        if (scopedStatusBotId != null) {
+          await _respondJson(request, <String, dynamic>{
+            'apiVersion': 2,
+            'bot': _buildBotStatePayload(scopedStatusBotId),
+          });
+          return;
+        }
+        if (scopedMetricsBotId != null) {
+          await _handleMetrics(request, botId: scopedMetricsBotId);
+          return;
+        }
         switch (path) {
           case '/health':
             await _respondJson(request, <String, dynamic>{'ok': true});
@@ -116,10 +133,19 @@ class RunnerWebBootstrapServer {
       }
 
       if (request.method == 'POST') {
+        if (scopedStartBotId != null) {
+          await _handleRunnerStart(request, botIdFromPath: scopedStartBotId);
+          return;
+        }
+        if (scopedStopBotId != null) {
+          await _handleRunnerStop(request, botIdFromPath: scopedStopBotId);
+          return;
+        }
         switch (path) {
           case '/bots/sync':
             await _handleBotsSync(request);
             return;
+          // Backward-compatible aliases.
           case '/runner/start':
             await _handleRunnerStart(request);
             return;
@@ -199,10 +225,13 @@ class RunnerWebBootstrapServer {
     await _respondJson(request, <String, dynamic>{'ok': true});
   }
 
-  /// POST /runner/start — start a previously synced bot.
-  Future<void> _handleRunnerStart(HttpRequest request) async {
+  /// POST /bots/{id}/start — start a previously synced bot.
+  Future<void> _handleRunnerStart(
+    HttpRequest request, {
+    String? botIdFromPath,
+  }) async {
     final payload = await _readJsonBody(request);
-    final botId = (payload['botId'] ?? '').toString().trim();
+    final botId = (botIdFromPath ?? payload['botId'] ?? '').toString().trim();
     final botName = (payload['botName'] ?? '').toString().trim();
 
     if (botId.isEmpty) {
@@ -225,9 +254,22 @@ class RunnerWebBootstrapServer {
     }
   }
 
-  /// POST /runner/stop — stop the running bot.
-  Future<void> _handleRunnerStop(HttpRequest request) async {
-    await _runtimeController.stopBot();
+  /// POST /bots/{id}/stop — stop one running bot.
+  Future<void> _handleRunnerStop(
+    HttpRequest request, {
+    String? botIdFromPath,
+  }) async {
+    final payload = await _readJsonBody(request);
+    final botId = (botIdFromPath ?? payload['botId'] ?? '').toString().trim();
+
+    if (botId.isEmpty) {
+      // Backward-compatible alias semantics.
+      await _runtimeController.stopAllBots();
+      await _respondJson(request, _buildStatusPayload());
+      return;
+    }
+
+    await _runtimeController.stopBot(botId);
     await _respondJson(request, _buildStatusPayload());
   }
 
@@ -241,24 +283,28 @@ class RunnerWebBootstrapServer {
     });
   }
 
-  /// GET /metrics — return process/runtime metrics for the active runner.
-  Future<void> _handleMetrics(HttpRequest request) async {
+  /// GET /metrics — return process/runtime metrics for the runner process.
+  Future<void> _handleMetrics(HttpRequest request, {String? botId}) async {
     final running = _runtimeController.isRunning;
     final rss = running ? _readCurrentProcessRssBytes() : null;
-    final baseline = running ? _runtimeController.baselineRssBytes : null;
-    final estimated =
-        (rss != null && baseline != null)
-            ? (rss - baseline).clamp(0, rss)
-            : null;
+    final cpuPercent = running ? _readCurrentProcessCpuPercent() : null;
+
+    final botPayloads =
+        (botId == null)
+            ? _runtimeController
+                .listRuntimeStates()
+                .map(_runtimeStateToPayload)
+                .toList(growable: false)
+            : <Map<String, dynamic>>[_buildBotStatePayload(botId)];
 
     await _respondJson(request, <String, dynamic>{
+      'apiVersion': 2,
       'running': running,
-      'activeBotId': _runtimeController.activeBotId,
+      'runningCount': _runtimeController.runningCount,
       'rssBytes': rss,
-      'baselineRssBytes': baseline,
-      'botEstimatedRssBytes': estimated,
-      'cpuPercent': running ? _readCurrentProcessCpuPercent() : null,
+      'cpuPercent': cpuPercent,
       'storageBytes': null,
+      'bots': botPayloads,
     });
   }
 
@@ -329,11 +375,42 @@ class RunnerWebBootstrapServer {
     return percent.clamp(0.0, 100.0);
   }
 
-  Map<String, dynamic> _buildStatusPayload() => <String, dynamic>{
-    'running': _runtimeController.isRunning,
-    'activeBotId': _runtimeController.activeBotId,
-    'activeBotName': _runtimeController.activeBotName,
-  };
+  Map<String, dynamic> _buildStatusPayload() {
+    final bots = _runtimeController
+        .listRuntimeStates()
+        .map(_runtimeStateToPayload)
+        .toList(growable: false);
+    return <String, dynamic>{
+      'apiVersion': 2,
+      'running': _runtimeController.isRunning,
+      'runningCount': _runtimeController.runningCount,
+      'bots': bots,
+    };
+  }
+
+  Map<String, dynamic> _buildBotStatePayload(String botId) {
+    final state = _runtimeController.runtimeStateForBot(botId);
+    return _runtimeStateToPayload(state);
+  }
+
+  Map<String, dynamic> _runtimeStateToPayload(RunnerBotRuntimeState state) {
+    return <String, dynamic>{
+      'botId': state.botId,
+      'botName': state.botName,
+      'state': state.state,
+      'lastSeenAt': state.lastSeenAt?.toIso8601String(),
+      'lastError': state.lastError,
+      'baselineRssBytes': state.baselineRssBytes,
+    };
+  }
+
+  String? _extractBotAction(String path, {required String action}) {
+    final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+    if (parts.length == 3 && parts[0] == 'bots' && parts[2] == action) {
+      return Uri.decodeComponent(parts[1]);
+    }
+    return null;
+  }
 
   Future<Map<String, dynamic>> _readJsonBody(HttpRequest request) async {
     final raw = await utf8.decoder.bind(request).join();

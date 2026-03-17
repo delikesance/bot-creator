@@ -14,10 +14,12 @@ import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/global.dart';
+import 'package:bot_creator/utils/mobile_sessions_orchestrator.dart';
 import 'package:bot_creator/utils/template_resolver.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:logging/logging.dart';
 import 'package:nyxx/nyxx.dart';
@@ -35,12 +37,57 @@ Timer? _desktopStatusRotationTimer;
 String? _desktopRunningBotId;
 String? get desktopRunningBotId => _desktopRunningBotId;
 String? _mobileRunningBotId;
-String? get mobileRunningBotId => _mobileRunningBotId;
-void setMobileRunningBotId(String? id) => _mobileRunningBotId = id;
+final Set<String> _mobileRunningBotIds = <String>{};
+String? get mobileRunningBotId {
+  if (_mobileRunningBotId != null && _mobileRunningBotId!.isNotEmpty) {
+    return _mobileRunningBotId;
+  }
+  if (_mobileRunningBotIds.isEmpty) {
+    return null;
+  }
+  return _mobileRunningBotIds.first;
+}
+
+Set<String> get mobileRunningBotIds =>
+    Set<String>.unmodifiable(_mobileRunningBotIds);
+
+bool isMobileBotRunning(String botId) => _mobileRunningBotIds.contains(botId);
+
+void setMobileRunningBotId(String? id) {
+  _mobileRunningBotId = id;
+  _mobileRunningBotIds.clear();
+  if (id != null && id.trim().isNotEmpty) {
+    _mobileRunningBotIds.add(id.trim());
+  }
+}
+
+void addMobileRunningBotId(String id) {
+  final trimmed = id.trim();
+  if (trimmed.isEmpty) {
+    return;
+  }
+  _mobileRunningBotIds.add(trimmed);
+  _mobileRunningBotId ??= trimmed;
+}
+
+void removeMobileRunningBotId(String id) {
+  final trimmed = id.trim();
+  if (trimmed.isEmpty) {
+    return;
+  }
+  _mobileRunningBotIds.remove(trimmed);
+  if (_mobileRunningBotId == trimmed) {
+    _mobileRunningBotId =
+        _mobileRunningBotIds.isEmpty ? null : _mobileRunningBotIds.first;
+  }
+}
 
 const int _maxBotLogLines = 500;
+const String _globalBotBucketKey = '__global__';
 final StreamController<List<String>> _botLogsController =
     StreamController<List<String>>.broadcast();
+final StreamController<Map<String, List<String>>> _botLogsByBotController =
+    StreamController<Map<String, List<String>>>.broadcast();
 final StreamController<int?> _botProcessRssController =
     StreamController<int?>.broadcast();
 final StreamController<int?> _botEstimatedRssController =
@@ -49,7 +96,11 @@ final StreamController<double?> _botProcessCpuController =
     StreamController<double?>.broadcast();
 final StreamController<int?> _botProcessStorageController =
     StreamController<int?>.broadcast();
+final StreamController<Map<String, BotRuntimeMetrics>>
+_botMetricsByBotController =
+    StreamController<Map<String, BotRuntimeMetrics>>.broadcast();
 List<String> _botLogs = <String>[];
+final Map<String, List<String>> _botLogsByBot = <String, List<String>>{};
 String? _activeBotLogBotId;
 bool _debugBotLogsEnabled = false;
 const String _debugLogsEnabledDataKey = 'debugLogsEnabled';
@@ -59,6 +110,8 @@ DateTime? _botBaselineCapturedAt;
 int? _botEstimatedRssBytes;
 double? _botProcessCpuPercent;
 int? _botProcessStorageBytes;
+final Map<String, BotRuntimeMetrics> _botMetricsByBot =
+    <String, BotRuntimeMetrics>{};
 bool _botRuntimeActive = false;
 final Random _desktopStatusRandom = Random();
 

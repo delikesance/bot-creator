@@ -7,7 +7,9 @@ import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/material.dart';
 
 class BotStatsPage extends StatefulWidget {
-  const BotStatsPage({super.key});
+  const BotStatsPage({super.key, this.botId});
+
+  final String? botId;
 
   @override
   State<BotStatsPage> createState() => _BotStatsPageState();
@@ -15,6 +17,7 @@ class BotStatsPage extends StatefulWidget {
 
 class _BotStatsPageState extends State<BotStatsPage> {
   static const int _maxPoints = 40;
+  String? _selectedBotId;
 
   final List<double> _ramHistory = <double>[];
   final List<double> _ramEstimatedHistory = <double>[];
@@ -39,11 +42,12 @@ class _BotStatsPageState extends State<BotStatsPage> {
   @override
   void initState() {
     super.initState();
+    _selectedBotId = widget.botId;
     captureBotBaselineRss(force: false);
-    _rssBytes = getBotProcessRssBytes();
-    _rssEstimatedBytes = getBotEstimatedRssBytes();
-    _cpuPercent = getBotProcessCpuPercent();
-    _storageBytes = getBotProcessStorageBytes();
+    _rssBytes = getBotProcessRssBytesForBot(_selectedBotId);
+    _rssEstimatedBytes = getBotEstimatedRssBytesForBot(_selectedBotId);
+    _cpuPercent = getBotProcessCpuPercentForBot(_selectedBotId);
+    _storageBytes = getBotProcessStorageBytesForBot(_selectedBotId);
 
     unawaited(_initializeStatsSync());
 
@@ -52,37 +56,7 @@ class _BotStatsPageState extends State<BotStatsPage> {
     _pushMetric(_cpuHistory, _cpuPercent);
     _pushMetric(_storageHistory, _storageBytes?.toDouble());
 
-    _rssSub = getBotProcessRssStream().listen((value) {
-      if (!mounted) return;
-      setState(() {
-        _rssBytes = value;
-        _pushMetric(_ramHistory, value?.toDouble());
-      });
-    });
-
-    _rssEstimatedSub = getBotEstimatedRssStream().listen((value) {
-      if (!mounted) return;
-      setState(() {
-        _rssEstimatedBytes = value;
-        _pushMetric(_ramEstimatedHistory, value?.toDouble());
-      });
-    });
-
-    _cpuSub = getBotProcessCpuStream().listen((value) {
-      if (!mounted) return;
-      setState(() {
-        _cpuPercent = value;
-        _pushMetric(_cpuHistory, value);
-      });
-    });
-
-    _storageSub = getBotProcessStorageStream().listen((value) {
-      if (!mounted) return;
-      setState(() {
-        _storageBytes = value;
-        _pushMetric(_storageHistory, value?.toDouble());
-      });
-    });
+    _subscribeMetricStreams();
   }
 
   Future<void> _initializeStatsSync() async {
@@ -113,11 +87,18 @@ class _BotStatsPageState extends State<BotStatsPage> {
       final client = _runnerClient;
       if (client != null) {
         try {
-          final metrics = await client.getMetrics();
+          final metrics = await client.getMetrics(botId: _selectedBotId);
+          final runtimeBotId = _selectedBotId ?? metrics.activeBotId;
+          final isRunningForSelectedBot =
+              runtimeBotId == null
+                  ? metrics.running
+                  : metrics.bots.any(
+                    (bot) => bot.botId == runtimeBotId && bot.isRunning,
+                  );
           _setMetricsSource(isRemote: true);
           updateBotRuntimeMetricsFromRemote(
-            running: metrics.running,
-            botId: metrics.activeBotId,
+            running: isRunningForSelectedBot,
+            botId: runtimeBotId,
             rssBytes: metrics.rssBytes,
             estimatedRssBytes: metrics.botEstimatedRssBytes,
             cpuPercent: metrics.cpuPercent,
@@ -131,7 +112,7 @@ class _BotStatsPageState extends State<BotStatsPage> {
       }
 
       _setMetricsSource(isRemote: false);
-      await refreshBotStatsNow();
+      await refreshBotStatsNow(botId: _selectedBotId);
     } finally {
       _syncInFlight = false;
     }
@@ -166,13 +147,100 @@ class _BotStatsPageState extends State<BotStatsPage> {
     }
   }
 
+  void _subscribeMetricStreams() {
+    _rssSub?.cancel();
+    _rssEstimatedSub?.cancel();
+    _cpuSub?.cancel();
+    _storageSub?.cancel();
+
+    _rssSub = getBotProcessRssStreamForBot(_selectedBotId).listen((value) {
+      if (!mounted) return;
+      setState(() {
+        _rssBytes = value;
+        _pushMetric(_ramHistory, value?.toDouble());
+      });
+    });
+
+    _rssEstimatedSub = getBotEstimatedRssStreamForBot(_selectedBotId).listen((
+      value,
+    ) {
+      if (!mounted) return;
+      setState(() {
+        _rssEstimatedBytes = value;
+        _pushMetric(_ramEstimatedHistory, value?.toDouble());
+      });
+    });
+
+    _cpuSub = getBotProcessCpuStreamForBot(_selectedBotId).listen((value) {
+      if (!mounted) return;
+      setState(() {
+        _cpuPercent = value;
+        _pushMetric(_cpuHistory, value);
+      });
+    });
+
+    _storageSub = getBotProcessStorageStreamForBot(_selectedBotId).listen((
+      value,
+    ) {
+      if (!mounted) return;
+      setState(() {
+        _storageBytes = value;
+        _pushMetric(_storageHistory, value?.toDouble());
+      });
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final knownBotIds = getKnownBotLogIds().toList(growable: false)..sort();
+    final canSelectBot = knownBotIds.length > 1;
+
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.t('bot_stats_title'))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (canSelectBot)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: DropdownButtonFormField<String>(
+                initialValue: _selectedBotId,
+                decoration: const InputDecoration(
+                  labelText: 'Bot',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  for (final botId in knownBotIds)
+                    DropdownMenuItem<String>(value: botId, child: Text(botId)),
+                ],
+                onChanged: (value) {
+                  if (value == null || value == _selectedBotId) {
+                    return;
+                  }
+                  setState(() {
+                    _selectedBotId = value;
+                    _rssBytes = getBotProcessRssBytesForBot(value);
+                    _rssEstimatedBytes = getBotEstimatedRssBytesForBot(value);
+                    _cpuPercent = getBotProcessCpuPercentForBot(value);
+                    _storageBytes = getBotProcessStorageBytesForBot(value);
+                    _ramHistory.clear();
+                    _ramEstimatedHistory.clear();
+                    _cpuHistory.clear();
+                    _storageHistory.clear();
+                    _pushMetric(_ramHistory, _rssBytes?.toDouble());
+                    _pushMetric(
+                      _ramEstimatedHistory,
+                      _rssEstimatedBytes?.toDouble(),
+                    );
+                    _pushMetric(_cpuHistory, _cpuPercent);
+                    _pushMetric(_storageHistory, _storageBytes?.toDouble());
+                  });
+                  _subscribeMetricStreams();
+                  unawaited(_syncMetricsTick());
+                },
+              ),
+            ),
           _MetricCard(
             title: AppStrings.t('bot_stats_ram_process'),
             value: _formatBytes(_rssBytes),

@@ -28,8 +28,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
-  /// ID du bot actuellement en cours d'exécution (null = aucun).
-  String? _runningBotId;
+  /// IDs des bots en cours d'exécution.
+  Set<String> _runningBotIds = <String>{};
+  bool _runnerModeEnabled = false;
 
   /// Vrai pendant qu'un démarrage/arrêt est en cours.
   bool _isTogglingBot = false;
@@ -60,20 +61,25 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // ── Initialisation de l'état running ───────────────────────────────────────
 
   Future<void> _initRunningState() async {
-    String? runningId;
+    final runningIds = <String>{};
 
     final runnerUrl = await RunnerSettings.getUrl();
     if (runnerUrl != null && runnerUrl.isNotEmpty) {
       try {
         final status = await RunnerClient(baseUrl: runnerUrl).getStatus();
-        runningId = status.running ? status.activeBotId : null;
-      } catch (_) {
-        runningId = null;
-      }
+        for (final bot in status.bots) {
+          if (bot.isRunning) {
+            runningIds.add(bot.botId);
+          }
+        }
+      } catch (_) {}
 
       if (!mounted) return;
-      setState(() => _runningBotId = runningId);
-      _syncPulse(runningId);
+      setState(() {
+        _runningBotIds = runningIds;
+        _runnerModeEnabled = true;
+      });
+      _syncPulse(runningIds);
       return;
     }
 
@@ -81,27 +87,38 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       try {
         final running = await FlutterForegroundTask.isRunningService;
         if (running) {
-          // Priorité : variable en mémoire (process vivant)
-          // Fallback : donnée persistée (process tué puis relancé)
-          runningId =
-              mobileRunningBotId ??
-              await FlutterForegroundTask.getData<String>(
-                key: 'running_bot_id',
-              );
-          // Re-synchronise la variable en mémoire si restaurée depuis le disque
-          if (runningId != null && mobileRunningBotId == null) {
-            setMobileRunningBotId(runningId);
+          final configuredIds = await getConfiguredMobileBotIds();
+          if (configuredIds.isNotEmpty) {
+            runningIds.addAll(configuredIds);
+            for (final botId in configuredIds) {
+              addMobileRunningBotId(botId);
+            }
+          } else {
+            final fallbackId =
+                mobileRunningBotId ??
+                await FlutterForegroundTask.getData<String>(
+                  key: 'running_bot_id',
+                );
+            if (fallbackId != null && fallbackId.isNotEmpty) {
+              runningIds.add(fallbackId);
+              addMobileRunningBotId(fallbackId);
+            }
           }
         }
       } on MissingPluginException {
         // Plateforme non supportée.
       }
     } else {
-      if (isDesktopBotRunning) runningId = desktopRunningBotId;
+      if (isDesktopBotRunning && desktopRunningBotId != null) {
+        runningIds.add(desktopRunningBotId!);
+      }
     }
     if (!mounted) return;
-    setState(() => _runningBotId = runningId);
-    _syncPulse(runningId);
+    setState(() {
+      _runningBotIds = runningIds;
+      _runnerModeEnabled = false;
+    });
+    _syncPulse(runningIds);
   }
 
   // ── Gestion des animations pulse ───────────────────────────────────────────
@@ -116,9 +133,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  void _syncPulse(String? runningId) {
+  void _syncPulse(Set<String> runningIds) {
     for (final entry in _pulseControllers.entries) {
-      if (entry.key == runningId) {
+      if (runningIds.contains(entry.key)) {
         if (!entry.value.isAnimating) {
           entry.value.repeat(reverse: true);
         }
@@ -140,7 +157,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     setState(() => _isTogglingBot = true);
 
     try {
-      final isRunning = _runningBotId == botId;
+      final isRunning = _runningBotIds.contains(botId);
 
       // ── Fetch + validate token before anything else (only when starting) ──
       String? token;
@@ -200,9 +217,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         final client = RunnerClient(baseUrl: runnerUrl);
         if (isRunning) {
           appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
-          await client.stopBot();
-          setBotRuntimeActive(false);
-          if (mounted) setState(() => _runningBotId = null);
+          await client.stopBot(botId);
+          if (mounted) {
+            setState(() {
+              _runningBotIds = <String>{..._runningBotIds}..remove(botId);
+            });
+          }
+          setBotRuntimeActive(_runningBotIds.isNotEmpty);
         } else {
           startBotLogSession(botId: botId);
           clearBotBaselineRss();
@@ -211,9 +232,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           await client.syncBot(botId, botName, payload);
           await client.startBot(botId, botName: botName);
           setBotRuntimeActive(true);
-          if (mounted) setState(() => _runningBotId = botId);
+          if (mounted) {
+            setState(() {
+              _runningBotIds = <String>{..._runningBotIds, botId};
+            });
+          }
         }
-        _syncPulse(_runningBotId);
+        _syncPulse(_runningBotIds);
         return;
       }
 
@@ -239,17 +264,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         // ── Mobile (Android / iOS) ─────────────────────────────────────────
         if (isRunning) {
           appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
-          await FlutterForegroundTask.stopService();
-          try {
-            await FlutterForegroundTask.removeData(key: 'token');
-          } catch (_) {}
-          try {
-            await FlutterForegroundTask.removeData(key: 'running_bot_id');
-          } catch (_) {}
-          setMobileRunningBotId(null);
-          setBotRuntimeActive(false);
-          clearBotBaselineRss();
-          if (mounted) setState(() => _runningBotId = null);
+          await stopMobileBotSession(botId: botId);
+          if (mounted) {
+            setState(() {
+              _runningBotIds = <String>{..._runningBotIds}..remove(botId);
+            });
+          }
+          setBotRuntimeActive(_runningBotIds.isNotEmpty);
         } else {
           // Vérifier / demander la permission de notification.
           try {
@@ -263,12 +284,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           }
 
           await initForegroundService();
-          await FlutterForegroundTask.saveData(key: 'token', value: token);
-          await FlutterForegroundTask.saveData(
-            key: 'running_bot_id',
-            value: botId,
-          );
-          await startService();
+          await startMobileBotSession(botId: botId, token: token);
 
           try {
             final running = await FlutterForegroundTask.isRunningService;
@@ -281,8 +297,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             // Accepter sur les plateformes de dev.
           }
 
-          setMobileRunningBotId(botId);
-          if (mounted) setState(() => _runningBotId = botId);
+          if (mounted) {
+            setState(() {
+              _runningBotIds = <String>{..._runningBotIds, botId};
+            });
+          }
         }
       } else {
         // ── Desktop (Linux / Windows / macOS) ─────────────────────────────
@@ -294,14 +313,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           await stopDesktopBot();
           setBotRuntimeActive(false);
           clearBotBaselineRss();
-          if (mounted) setState(() => _runningBotId = null);
+          if (mounted) {
+            setState(() {
+              _runningBotIds = <String>{};
+            });
+          }
         } else {
           await startDesktopBot(token);
-          if (mounted) setState(() => _runningBotId = botId);
+          if (mounted) {
+            setState(() {
+              _runningBotIds = <String>{botId};
+            });
+          }
         }
       }
 
-      _syncPulse(_runningBotId);
+      _syncPulse(_runningBotIds);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -473,62 +500,114 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 return const _EmptyStateWithSupport();
               }
 
-              return GridView.builder(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: childAspectRatio,
-                ),
-                itemCount: apps.length,
-                itemBuilder: (context, index) {
-                  final app = apps[index];
-                  final name =
-                      app['name']?.toString() ??
-                      AppStrings.t('home_unknown_app');
-                  final id = app['id']?.toString() ?? '';
-                  final avatar = app['avatar']?.toString();
-                  final guildCount = app['guild_count'] as int?;
-                  final isRunning = _runningBotId == id;
-                  // On ne peut démarrer que si aucun autre bot ne tourne.
-                  final canToggle =
-                      !_isTogglingBot && (_runningBotId == null || isRunning);
+              final namesById = <String, String>{
+                for (final app in apps)
+                  (app['id']?.toString() ?? ''):
+                      (app['name']?.toString() ??
+                          AppStrings.t('home_unknown_app')),
+              };
+              final activeSessionIds = _runningBotIds.toList(growable: false)
+                ..sort();
 
-                  final pulseCtrl = _getOrCreatePulseController(id);
-
-                  return _BotCard(
-                    name: name,
-                    id: id,
-                    avatar: avatar,
-                    guildCount: guildCount,
-                    compact: width >= 760,
-                    isRunning: isRunning,
-                    canToggle: canToggle,
-                    isTogglingThisBot: _isTogglingBot && isRunning,
-                    pulseController: pulseCtrl,
-                    onManage:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder:
-                                (_) => AppEditPage(
-                                  appName: name,
-                                  id: int.tryParse(id) ?? 0,
-                                ),
-                          ),
-                        ).then((_) => _initRunningState()),
-                    onToggle: () => _toggleBot(botId: id, botName: name),
-                    onLogs:
-                        isRunning
-                            ? () => Navigator.push(
+              return Column(
+                children: [
+                  if (_supportsForegroundTask && activeSessionIds.isNotEmpty)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color:
+                            Theme.of(
                               context,
-                              MaterialPageRoute(
-                                builder: (_) => const BotLogsPage(),
-                              ),
-                            )
-                            : null,
-                  );
-                },
+                            ).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sessions mobiles actives (${activeSessionIds.length})',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final botId in activeSessionIds)
+                                Chip(
+                                  avatar: const Icon(Icons.smart_toy, size: 16),
+                                  label: Text(namesById[botId] ?? botId),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  Expanded(
+                    child: GridView.builder(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: childAspectRatio,
+                      ),
+                      itemCount: apps.length,
+                      itemBuilder: (context, index) {
+                        final app = apps[index];
+                        final name =
+                            app['name']?.toString() ??
+                            AppStrings.t('home_unknown_app');
+                        final id = app['id']?.toString() ?? '';
+                        final avatar = app['avatar']?.toString();
+                        final guildCount = app['guild_count'] as int?;
+                        final isRunning = _runningBotIds.contains(id);
+                        // En mode runner, plusieurs bots peuvent tourner en parallèle.
+                        final canToggle =
+                            (_runnerModeEnabled || _supportsForegroundTask)
+                                ? !_isTogglingBot
+                                : (!_isTogglingBot &&
+                                    (_runningBotIds.isEmpty || isRunning));
+
+                        final pulseCtrl = _getOrCreatePulseController(id);
+
+                        return _BotCard(
+                          name: name,
+                          id: id,
+                          avatar: avatar,
+                          guildCount: guildCount,
+                          compact: width >= 760,
+                          isRunning: isRunning,
+                          canToggle: canToggle,
+                          isTogglingThisBot: _isTogglingBot && isRunning,
+                          pulseController: pulseCtrl,
+                          onManage:
+                              () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => AppEditPage(
+                                        appName: name,
+                                        id: int.tryParse(id) ?? 0,
+                                      ),
+                                ),
+                              ).then((_) => _initRunningState()),
+                          onToggle: () => _toggleBot(botId: id, botName: name),
+                          onLogs:
+                              isRunning
+                                  ? () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => BotLogsPage(botId: id),
+                                    ),
+                                  )
+                                  : null,
+                        );
+                      },
+                    ),
+                  ),
+                ],
               );
             },
           ),

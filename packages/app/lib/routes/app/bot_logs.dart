@@ -8,7 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class BotLogsPage extends StatefulWidget {
-  const BotLogsPage({super.key});
+  const BotLogsPage({super.key, this.botId});
+
+  final String? botId;
 
   @override
   State<BotLogsPage> createState() => _BotLogsPageState();
@@ -16,6 +18,7 @@ class BotLogsPage extends StatefulWidget {
 
 class _BotLogsPageState extends State<BotLogsPage> {
   late bool _debugEnabled;
+  String? _selectedBotId;
   final Set<String> _expandedLogs = <String>{};
   final ScrollController _scrollController = ScrollController();
   bool _showNewestFirst = true;
@@ -31,6 +34,7 @@ class _BotLogsPageState extends State<BotLogsPage> {
   void initState() {
     super.initState();
     _debugEnabled = isBotDebugLogsEnabled;
+    _selectedBotId = widget.botId;
     _initRunnerPolling();
   }
 
@@ -72,7 +76,7 @@ class _BotLogsPageState extends State<BotLogsPage> {
       if (overlap < lines.length) {
         final newLines = lines.sublist(overlap);
         for (final line in newLines) {
-          appendBotLog(line);
+          appendBotLog(line, botId: _selectedBotId);
         }
       }
       _lastKnownRemoteLogs = List<String>.from(lines);
@@ -83,10 +87,17 @@ class _BotLogsPageState extends State<BotLogsPage> {
 
   Future<void> _pollRunnerMetrics(RunnerClient client) async {
     try {
-      final metrics = await client.getMetrics();
+      final metrics = await client.getMetrics(botId: _selectedBotId);
+      final runtimeBotId = _selectedBotId ?? metrics.activeBotId;
+      final isRunningForSelectedBot =
+          runtimeBotId == null
+              ? metrics.running
+              : metrics.bots.any(
+                (bot) => bot.botId == runtimeBotId && bot.isRunning,
+              );
       updateBotRuntimeMetricsFromRemote(
-        running: metrics.running,
-        botId: metrics.activeBotId,
+        running: isRunningForSelectedBot,
+        botId: runtimeBotId,
         rssBytes: metrics.rssBytes,
         estimatedRssBytes: metrics.botEstimatedRssBytes,
         cpuPercent: metrics.cpuPercent,
@@ -139,6 +150,10 @@ class _BotLogsPageState extends State<BotLogsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final knownBotIds = getKnownBotLogIds().toList(growable: false)..sort();
+    final canSelectBot = knownBotIds.length > 1;
+    final selectedBotId = _selectedBotId;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(AppStrings.t('bot_logs_title')),
@@ -162,7 +177,7 @@ class _BotLogsPageState extends State<BotLogsPage> {
             tooltip: AppStrings.t('copy'),
             icon: const Icon(Icons.copy),
             onPressed: () async {
-              final logs = getBotLogsSnapshot();
+              final logs = getBotLogsSnapshotForBot(_selectedBotId);
               await Clipboard.setData(ClipboardData(text: logs.join('\n')));
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -237,17 +252,46 @@ class _BotLogsPageState extends State<BotLogsPage> {
         ],
       ),
       body: StreamBuilder<int?>(
-        stream: getBotProcessRssStream(),
-        initialData: getBotProcessRssBytes(),
+        stream: getBotProcessRssStreamForBot(selectedBotId),
+        initialData: getBotProcessRssBytesForBot(selectedBotId),
         builder: (context, metricsSnapshot) {
           return StreamBuilder<int?>(
-            stream: getBotEstimatedRssStream(),
-            initialData: getBotEstimatedRssBytes(),
+            stream: getBotEstimatedRssStreamForBot(selectedBotId),
+            initialData: getBotEstimatedRssBytesForBot(selectedBotId),
             builder: (context, estimatedSnapshot) {
               final memoryText = _formatMemory(metricsSnapshot.data);
               final estimatedText = _formatMemory(estimatedSnapshot.data);
               return Column(
                 children: [
+                  if (canSelectBot)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: selectedBotId,
+                        decoration: const InputDecoration(
+                          labelText: 'Bot',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: [
+                          for (final botId in knownBotIds)
+                            DropdownMenuItem<String>(
+                              value: botId,
+                              child: Text(botId),
+                            ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null || value == _selectedBotId) {
+                            return;
+                          }
+                          setState(() {
+                            _selectedBotId = value;
+                            _lastKnownRemoteLogs = const [];
+                            _expandedLogs.clear();
+                          });
+                        },
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                     child: Container(
@@ -276,8 +320,8 @@ class _BotLogsPageState extends State<BotLogsPage> {
                   ),
                   Expanded(
                     child: StreamBuilder<List<String>>(
-                      stream: getBotLogsStream(),
-                      initialData: getBotLogsSnapshot(),
+                      stream: getBotLogsStreamForBot(selectedBotId),
+                      initialData: getBotLogsSnapshotForBot(selectedBotId),
                       builder: (context, snapshot) {
                         final allLogs = snapshot.data ?? const <String>[];
                         if (allLogs.isEmpty) {

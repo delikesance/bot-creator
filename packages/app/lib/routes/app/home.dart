@@ -142,14 +142,28 @@ class _AppHomePageState extends State<AppHomePage>
     if (runnerUrl != null && runnerUrl.isNotEmpty) {
       try {
         final status = await RunnerClient(baseUrl: runnerUrl).getStatus();
-        isRunning = status.running && status.activeBotId == botId;
+        isRunning = status.isBotRunning(botId);
       } catch (_) {
         isRunning = false;
       }
     } else {
       if (_supportsForegroundTask) {
         try {
-          isRunning = await FlutterForegroundTask.isRunningService;
+          final serviceRunning = await FlutterForegroundTask.isRunningService;
+          if (serviceRunning) {
+            final runningId =
+                mobileRunningBotId ??
+                await FlutterForegroundTask.getData<String>(
+                  key: 'running_bot_id',
+                );
+            if (runningId != null && runningId.isNotEmpty) {
+              isRunning = runningId == botId;
+            } else {
+              isRunning = serviceRunning;
+            }
+          } else {
+            isRunning = false;
+          }
         } on MissingPluginException {
           isRunning = false;
         }
@@ -382,7 +396,7 @@ class _AppHomePageState extends State<AppHomePage>
                                   AppStrings.t('bot_home_log_stop'),
                                   botId: botId,
                                 );
-                                await remoteClient.stopBot();
+                                await remoteClient.stopBot(botId);
                                 setBotRuntimeActive(false);
                                 if (mounted) {
                                   setState(() => _botLaunched = false);
@@ -428,18 +442,11 @@ class _AppHomePageState extends State<AppHomePage>
                                   AppStrings.t('bot_home_log_stop'),
                                   botId: botId,
                                 );
-                                await FlutterForegroundTask.stopService();
-                                await FlutterForegroundTask.removeData(
-                                  key: "token",
+                                await stopMobileBotSession(botId: botId);
+                                setBotRuntimeActive(
+                                  isDesktopBotRunning ||
+                                      mobileRunningBotIds.isNotEmpty,
                                 );
-                                try {
-                                  await FlutterForegroundTask.removeData(
-                                    key: 'running_bot_id',
-                                  );
-                                } catch (_) {}
-                                setMobileRunningBotId(null);
-                                setBotRuntimeActive(false);
-                                clearBotBaselineRss();
                                 if (mounted) {
                                   setState(() {
                                     _botLaunched = false;
@@ -451,20 +458,14 @@ class _AppHomePageState extends State<AppHomePage>
                               await _requestPermissions();
                               await _initService();
 
-                              await FlutterForegroundTask.saveData(
-                                key: "token",
-                                value: token,
+                              await startMobileBotSession(
+                                botId: botId,
+                                token: token,
                               );
-                              await FlutterForegroundTask.saveData(
-                                key: 'running_bot_id',
-                                value: botId,
-                              );
-                              setMobileRunningBotId(botId);
                               developer.log(
                                 'Token saved, starting foreground service',
                                 name: 'AppHomePage',
                               );
-                              await startService();
 
                               final running =
                                   await FlutterForegroundTask.isRunningService;
@@ -539,10 +540,11 @@ class _AppHomePageState extends State<AppHomePage>
                           minimumSize: const Size.fromHeight(44),
                         ),
                         onPressed: () {
+                          final botId = widget.client.user.id.toString();
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const BotLogsPage(),
+                              builder: (_) => BotLogsPage(botId: botId),
                             ),
                           );
                         },
@@ -561,10 +563,11 @@ class _AppHomePageState extends State<AppHomePage>
                           minimumSize: const Size.fromHeight(44),
                         ),
                         onPressed: () {
+                          final botId = widget.client.user.id.toString();
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const BotStatsPage(),
+                              builder: (_) => BotStatsPage(botId: botId),
                             ),
                           );
                         },
