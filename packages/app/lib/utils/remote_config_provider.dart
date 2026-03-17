@@ -13,19 +13,28 @@ class RemoteRuntimeConfig {
   const RemoteRuntimeConfig({
     required this.maxActiveBots,
     required this.syncIntervalMs,
-    required this.apiTimeoutSeconds,
+    required this.runnerGetTimeoutSeconds,
+    required this.runnerPostTimeoutSeconds,
+    required this.botRuntimeEnabled,
+    required this.rewardedAdsEnabled,
     required this.loadedFromRemote,
   });
 
   final int maxActiveBots;
   final int syncIntervalMs;
-  final int apiTimeoutSeconds;
+  final int runnerGetTimeoutSeconds;
+  final int runnerPostTimeoutSeconds;
+  final bool botRuntimeEnabled;
+  final bool rewardedAdsEnabled;
   final bool loadedFromRemote;
 
   static const RemoteRuntimeConfig defaults = RemoteRuntimeConfig(
     maxActiveBots: 5,
     syncIntervalMs: 5000,
-    apiTimeoutSeconds: 30,
+    runnerGetTimeoutSeconds: 30,
+    runnerPostTimeoutSeconds: 90,
+    botRuntimeEnabled: true,
+    rewardedAdsEnabled: true,
     loadedFromRemote: false,
   );
 }
@@ -42,7 +51,15 @@ class RemoteConfigProvider extends ChangeNotifier {
   RemoteRuntimeConfig get config => _config;
   int get maxActiveBots => _config.maxActiveBots;
   int get syncIntervalMs => _config.syncIntervalMs;
-  int get apiTimeoutSeconds => _config.apiTimeoutSeconds;
+  int get runnerGetTimeoutSeconds => _config.runnerGetTimeoutSeconds;
+  int get runnerPostTimeoutSeconds => _config.runnerPostTimeoutSeconds;
+  Duration get runnerGetTimeout =>
+      Duration(seconds: _config.runnerGetTimeoutSeconds);
+  Duration get runnerPostTimeout =>
+      Duration(seconds: _config.runnerPostTimeoutSeconds);
+  bool get isBotRuntimeEnabled => _config.botRuntimeEnabled;
+  bool get rewardedAdsEnabled => _config.rewardedAdsEnabled;
+  int get apiTimeoutSeconds => _config.runnerGetTimeoutSeconds;
   Map<String, bool> get actionFlagsByName => _actionFlagsByName;
   Map<String, int> get actionRolloutByName => _actionRolloutByName;
 
@@ -111,7 +128,13 @@ class RemoteConfigProvider extends ChangeNotifier {
       await remoteConfig.setDefaults(<String, dynamic>{
         'max_active_bots': RemoteRuntimeConfig.defaults.maxActiveBots,
         'sync_interval_ms': RemoteRuntimeConfig.defaults.syncIntervalMs,
-        'api_timeout_seconds': RemoteRuntimeConfig.defaults.apiTimeoutSeconds,
+        'api_timeout_seconds':
+            RemoteRuntimeConfig.defaults.runnerGetTimeoutSeconds,
+        'runner_get_timeout_seconds': 0,
+        'runner_post_timeout_seconds': 0,
+        'feature_bot_runtime_enabled':
+            RemoteRuntimeConfig.defaults.botRuntimeEnabled,
+        'rewarded_ads_enabled': RemoteRuntimeConfig.defaults.rewardedAdsEnabled,
         'feature_action_flags_json': '{}',
         'feature_action_rollout_json': '{}',
       });
@@ -128,7 +151,10 @@ class RemoteConfigProvider extends ChangeNotifier {
           'loadedFromRemote': loadedFromRemote,
           'maxActiveBots': _config.maxActiveBots,
           'syncIntervalMs': _config.syncIntervalMs,
-          'apiTimeoutSeconds': _config.apiTimeoutSeconds,
+          'runnerGetTimeoutSeconds': _config.runnerGetTimeoutSeconds,
+          'runnerPostTimeoutSeconds': _config.runnerPostTimeoutSeconds,
+          'botRuntimeEnabled': _config.botRuntimeEnabled,
+          'rewardedAdsEnabled': _config.rewardedAdsEnabled,
           'dynamicActionFlagsCount': _actionFlagsByName.length,
           'dynamicActionRolloutsCount': _actionRolloutByName.length,
         },
@@ -224,6 +250,25 @@ class RemoteConfigProvider extends ChangeNotifier {
     final rawMaxBots = remoteConfig.getInt('max_active_bots');
     final rawSyncIntervalMs = remoteConfig.getInt('sync_interval_ms');
     final rawApiTimeout = remoteConfig.getInt('api_timeout_seconds');
+    final rawRunnerGetTimeout = remoteConfig.getInt(
+      'runner_get_timeout_seconds',
+    );
+    final rawRunnerPostTimeout = remoteConfig.getInt(
+      'runner_post_timeout_seconds',
+    );
+
+    final legacyRunnerGetTimeout = _clampInt(
+      rawApiTimeout,
+      fallback: RemoteRuntimeConfig.defaults.runnerGetTimeoutSeconds,
+      min: 3,
+      max: 120,
+    );
+    final legacyRunnerPostTimeout = _clampInt(
+      rawApiTimeout > 0 ? rawApiTimeout * 3 : 0,
+      fallback: RemoteRuntimeConfig.defaults.runnerPostTimeoutSeconds,
+      min: 5,
+      max: 180,
+    );
 
     return RemoteRuntimeConfig(
       maxActiveBots: _clampInt(
@@ -238,12 +283,20 @@ class RemoteConfigProvider extends ChangeNotifier {
         min: 1000,
         max: 60000,
       ),
-      apiTimeoutSeconds: _clampInt(
-        rawApiTimeout,
-        fallback: RemoteRuntimeConfig.defaults.apiTimeoutSeconds,
+      runnerGetTimeoutSeconds: _clampInt(
+        rawRunnerGetTimeout,
+        fallback: legacyRunnerGetTimeout,
         min: 3,
         max: 120,
       ),
+      runnerPostTimeoutSeconds: _clampInt(
+        rawRunnerPostTimeout,
+        fallback: legacyRunnerPostTimeout,
+        min: 5,
+        max: 180,
+      ),
+      botRuntimeEnabled: remoteConfig.getBool('feature_bot_runtime_enabled'),
+      rewardedAdsEnabled: remoteConfig.getBool('rewarded_ads_enabled'),
       loadedFromRemote: loadedFromRemote,
     );
   }

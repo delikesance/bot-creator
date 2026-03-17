@@ -44,13 +44,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
 
   Duration _runnerGetTimeout(RemoteConfigProvider remoteConfig) {
-    final timeoutSeconds = remoteConfig.apiTimeoutSeconds.clamp(3, 120);
-    return Duration(seconds: timeoutSeconds);
+    return remoteConfig.runnerGetTimeout;
   }
 
   Duration _runnerPostTimeout(RemoteConfigProvider remoteConfig) {
-    final timeoutSeconds = (remoteConfig.apiTimeoutSeconds * 3).clamp(5, 180);
-    return Duration(seconds: timeoutSeconds);
+    return remoteConfig.runnerPostTimeout;
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -178,6 +176,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     try {
       final isRunning = _runningBotIds.contains(botId);
       final remoteConfig = context.read<RemoteConfigProvider>();
+
+      if (!isRunning && !remoteConfig.isBotRuntimeEnabled) {
+        throw Exception('Bot runtime is temporarily disabled.');
+      }
 
       if (!isRunning && _runningBotIds.length >= remoteConfig.maxActiveBots) {
         throw Exception(
@@ -390,6 +392,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return;
     }
 
+    if (!context.read<RemoteConfigProvider>().rewardedAdsEnabled) {
+      return;
+    }
+
     if (!await AdRewardService.shouldOfferRewardedAd()) {
       return;
     }
@@ -469,6 +475,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final remoteConfig = context.watch<RemoteConfigProvider>();
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -601,12 +609,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         final avatar = app['avatar']?.toString();
                         final guildCount = app['guild_count'] as int?;
                         final isRunning = _runningBotIds.contains(id);
+                        final runtimeToggleAllowed =
+                            remoteConfig.isBotRuntimeEnabled || isRunning;
                         // En mode runner, plusieurs bots peuvent tourner en parallèle.
                         final canToggle =
-                            (_runnerModeEnabled || _supportsForegroundTask)
+                            runtimeToggleAllowed &&
+                            ((_runnerModeEnabled || _supportsForegroundTask)
                                 ? !_isTogglingBot
                                 : (!_isTogglingBot &&
-                                    (_runningBotIds.isEmpty || isRunning));
+                                    (_runningBotIds.isEmpty || isRunning)));
 
                         final pulseCtrl = _getOrCreatePulseController(id);
 
