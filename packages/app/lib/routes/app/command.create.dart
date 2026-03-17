@@ -582,9 +582,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         final hasFullLocalData = data != null;
         if (!mounted) return;
         setState(() {
-          if (localName.isNotEmpty) _commandName = localName;
-          if (localDescription.isNotEmpty)
+          if (localName.isNotEmpty) {
+            _commandName = localName;
+          }
+          if (localDescription.isNotEmpty) {
             _commandDescription = localDescription;
+          }
           _isLoading = false;
           _isDataIncomplete = !hasFullLocalData;
         });

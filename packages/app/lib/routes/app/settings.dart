@@ -135,6 +135,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       }
     }
 
+    if (!mounted) return;
     setState(() {
       app = fetchedApp;
       _savedToken = (persistedApp['token'] ?? '').toString().trim();

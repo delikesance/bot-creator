@@ -267,6 +267,8 @@ class AppManager implements BotDataStore {
     required List<Map<String, dynamic>> actions,
     String? entryPoint,
     List<Map<String, dynamic>>? arguments,
+    String? workflowType,
+    Map<String, dynamic>? eventTrigger,
   }) async {
     final app = Map<String, dynamic>.from(await getApp(id));
     final workflows = List<Map<String, dynamic>>.from(
@@ -292,6 +294,10 @@ class AppManager implements BotDataStore {
         entryPoint == null
             ? normalizeWorkflowEntryPoint(existing?['entryPoint'])
             : normalizeWorkflowEntryPoint(entryPoint);
+    final normalizedWorkflowType =
+        workflowType == null
+            ? normalizeWorkflowType(existing?['workflowType'])
+            : normalizeWorkflowType(workflowType);
     final normalizedArguments = serializeWorkflowArgumentDefinitions(
       parseWorkflowArgumentDefinitions(
         arguments ?? existing?['arguments'] ?? const [],
@@ -301,10 +307,17 @@ class AppManager implements BotDataStore {
     final payload = <String, dynamic>{
       'name': normalizedName,
       'actions': List<Map<String, dynamic>>.from(actions),
+      'workflowType': normalizedWorkflowType,
       'entryPoint': normalizedEntryPoint,
       'arguments': normalizedArguments,
       'updatedAt': DateTime.now().toIso8601String(),
     };
+
+    if (normalizedWorkflowType == workflowTypeEvent) {
+      payload['eventTrigger'] = normalizeWorkflowEventTrigger(
+        eventTrigger ?? existing?['eventTrigger'],
+      );
+    }
 
     if (index >= 0) {
       workflows[index] = payload;
@@ -351,21 +364,7 @@ class AppManager implements BotDataStore {
   }
 
   Map<String, dynamic> _normalizeStoredWorkflow(Map<String, dynamic> workflow) {
-    final normalized = Map<String, dynamic>.from(workflow);
-    normalized['name'] = (normalized['name'] ?? '').toString().trim();
-    normalized['entryPoint'] = normalizeWorkflowEntryPoint(
-      normalized['entryPoint'],
-    );
-    normalized['arguments'] = serializeWorkflowArgumentDefinitions(
-      parseWorkflowArgumentDefinitions(normalized['arguments']),
-    );
-    normalized['actions'] = List<Map<String, dynamic>>.from(
-      (normalized['actions'] as List?)?.whereType<Map>().map(
-            (item) => Map<String, dynamic>.from(item),
-          ) ??
-          const <Map<String, dynamic>>[],
-    );
-    return normalized;
+    return normalizeStoredWorkflowDefinition(workflow);
   }
 
   Future<Map<String, dynamic>> getAppCommand(

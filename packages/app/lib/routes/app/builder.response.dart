@@ -267,6 +267,9 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'HTTP & Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Workflows';
+      case BotCreatorActionType.stopUnless:
+      case BotCreatorActionType.ifBlock:
+        return 'Logic & Flow';
       // ── Interactions ──
       case BotCreatorActionType.respondWithMessage:
       case BotCreatorActionType.respondWithComponentV2:
@@ -349,6 +352,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return Colors.cyan;
       case 'Workflows':
         return Colors.deepPurple;
+      case 'Logic & Flow':
+        return Colors.pink;
       case 'Interactions':
         return Colors.amber.shade700;
       default:
@@ -440,6 +445,10 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Register a workflow to run when a button is clicked';
       case BotCreatorActionType.listenForModalSubmit:
         return 'Register a workflow to run when a modal is submitted';
+      case BotCreatorActionType.stopUnless:
+        return 'Stop the workflow if a condition is not met (guard/filter)';
+      case BotCreatorActionType.ifBlock:
+        return 'Conditional branching: run different actions based on a condition';
     }
   }
 
@@ -511,6 +520,21 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                           onParameterChanged:
                               (key, value) =>
                                   _updateActionParameter(action.id, key, value),
+                          onEditNestedActions: (current, suggestions) async {
+                            return await Navigator.push<
+                              List<Map<String, dynamic>>
+                            >(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (_) => ActionsBuilderPage(
+                                      initialActions: current,
+                                      variableSuggestions: suggestions,
+                                      botIdForConfig: widget.botIdForConfig,
+                                    ),
+                              ),
+                            );
+                          },
                         );
                       },
                     ),

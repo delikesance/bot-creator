@@ -228,8 +228,10 @@ class DiscordBotTaskHandler extends TaskHandler {
           appData['intents'] as Map? ?? {},
         );
         final intents = buildGatewayIntents(intentsMap);
-        await _emitTaskDebugLogToMain(
-          'Intents actifs: ${intentsMap.entries.where((e) => e.value).length}',
+        final enabledIntentNames = _enabledIntentNames(intentsMap);
+        await _emitTaskLogToMain(
+          'Intents runtime actifs (${enabledIntentNames.length}): '
+          '${enabledIntentNames.isEmpty ? 'aucun' : enabledIntentNames.join(', ')}',
           botId: _botId,
         );
 
@@ -248,12 +250,24 @@ class DiscordBotTaskHandler extends TaskHandler {
             'Bot mobile connecté et prêt',
             botId: _botId,
           );
-          _startMobileStatusRotation(gateway, appData);
+          final latestAppData = await _manager!.getApp(
+            _botId ?? botUser.id.toString(),
+          );
+          _startMobileStatusRotation(gateway, latestAppData);
           await _emitTaskMetricsToMain(botId: _botId);
           isReady = true;
           gateway.onInteractionCreate.listen((event) async {
             await handleLocalCommands(event, _manager!);
           });
+          _registerLocalEventWorkflowListeners(
+            gateway,
+            manager: _manager!,
+            botId: _botId ?? botUser.id.toString(),
+            appData: latestAppData,
+            onLog: (message) {
+              unawaited(_emitTaskLogToMain(message, botId: _botId));
+            },
+          );
         });
 
         client = gateway;

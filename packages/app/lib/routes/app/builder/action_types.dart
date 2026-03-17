@@ -21,6 +21,7 @@ enum ParameterType {
   normalComponents,
   componentV2,
   modalDefinition,
+  nestedActions,
 }
 
 // --- Variable Suggestions ---
