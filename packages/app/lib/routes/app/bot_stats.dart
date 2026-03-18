@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/remote_config_provider.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class BotStatsPage extends StatefulWidget {
   const BotStatsPage({super.key, this.botId});
@@ -39,6 +41,15 @@ class _BotStatsPageState extends State<BotStatsPage> {
   double? _cpuPercent;
   int? _storageBytes;
 
+  RunnerClient _createRunnerClient(String baseUrl) {
+    final remoteConfig = context.read<RemoteConfigProvider>();
+    return RunnerClient(
+      baseUrl: baseUrl,
+      getTimeout: remoteConfig.runnerGetTimeout,
+      postTimeout: remoteConfig.runnerPostTimeout,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -66,7 +77,7 @@ class _BotStatsPageState extends State<BotStatsPage> {
     }
 
     if (runnerUrl != null && runnerUrl.isNotEmpty) {
-      _runnerClient = RunnerClient(baseUrl: runnerUrl);
+      _runnerClient = _createRunnerClient(runnerUrl);
     } else {
       _setMetricsSource(isRemote: false);
     }

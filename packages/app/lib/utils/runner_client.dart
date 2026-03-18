@@ -139,15 +139,26 @@ class RunnerBotSummary {
 /// All methods throw a [RunnerClientException] if the server returns an error
 /// or if the request fails.
 class RunnerClient {
-  RunnerClient({required String baseUrl, http.Client? httpClient})
-    : _baseUrl =
-          baseUrl.trimRight().endsWith('/')
-              ? baseUrl.trimRight().substring(0, baseUrl.trimRight().length - 1)
-              : baseUrl.trimRight(),
-      _http = httpClient ?? http.Client();
+  RunnerClient({
+    required String baseUrl,
+    http.Client? httpClient,
+    Duration? getTimeout,
+    Duration? postTimeout,
+  }) : _getTimeout = getTimeout ?? const Duration(seconds: 10),
+       _postTimeout = postTimeout ?? const Duration(seconds: 30),
+       _baseUrl =
+           baseUrl.trimRight().endsWith('/')
+               ? baseUrl.trimRight().substring(
+                 0,
+                 baseUrl.trimRight().length - 1,
+               )
+               : baseUrl.trimRight(),
+       _http = httpClient ?? http.Client();
 
   final String _baseUrl;
   final http.Client _http;
+  final Duration _getTimeout;
+  final Duration _postTimeout;
 
   Uri _uri(String path, {Map<String, String?>? query}) {
     final uri = Uri.parse('$_baseUrl$path');
@@ -165,7 +176,7 @@ class RunnerClient {
   }) async {
     final response = await _http
         .get(_uri(path, query: query))
-        .timeout(const Duration(seconds: 10));
+        .timeout(_getTimeout);
     return _parseResponse(response);
   }
 
@@ -179,7 +190,7 @@ class RunnerClient {
           headers: {'content-type': 'application/json'},
           body: jsonEncode(body),
         )
-        .timeout(const Duration(seconds: 30));
+        .timeout(_postTimeout);
     return _parseResponse(response);
   }
 

@@ -188,7 +188,8 @@ Future<void> syncMobileBotSessionsWithService() async {
   });
 }
 
-Future<void> initForegroundService() async {
+Future<void> initForegroundService({int eventIntervalMs = 5000}) async {
+  final safeIntervalMs = eventIntervalMs.clamp(1000, 60000);
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
       channelId: 'foreground_service',
@@ -202,7 +203,7 @@ Future<void> initForegroundService() async {
       playSound: false,
     ),
     foregroundTaskOptions: ForegroundTaskOptions(
-      eventAction: ForegroundTaskEventAction.repeat(5000),
+      eventAction: ForegroundTaskEventAction.repeat(safeIntervalMs),
       autoRunOnBoot: false,
       autoRunOnMyPackageReplaced: false,
       allowWakeLock: true,

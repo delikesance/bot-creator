@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/remote_config_provider.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 class BotLogsPage extends StatefulWidget {
   const BotLogsPage({super.key, this.botId});
@@ -45,10 +47,19 @@ class _BotLogsPageState extends State<BotLogsPage> {
     super.dispose();
   }
 
+  RunnerClient _createRunnerClient(String baseUrl) {
+    final remoteConfig = context.read<RemoteConfigProvider>();
+    return RunnerClient(
+      baseUrl: baseUrl,
+      getTimeout: remoteConfig.runnerGetTimeout,
+      postTimeout: remoteConfig.runnerPostTimeout,
+    );
+  }
+
   Future<void> _initRunnerPolling() async {
     final url = await RunnerSettings.getUrl();
     if (!mounted || url == null || url.isEmpty) return;
-    final client = RunnerClient(baseUrl: url);
+    final client = _createRunnerClient(url);
     await _pollRunnerData(client);
     _runnerPollTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
       if (mounted) {
