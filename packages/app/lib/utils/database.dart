@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:bot_creator/stores/sqlite_variable_store.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
@@ -13,6 +14,7 @@ class AppManager implements BotDataStore {
   final StreamController<List<dynamic>> _appsStreamController =
       StreamController<List<dynamic>>.broadcast();
   List<dynamic> _apps = [];
+  late SqliteVariableStore _variableStore;
 
   AppManager._internal() {
     unawaited(_init());
@@ -33,6 +35,10 @@ class AppManager implements BotDataStore {
       if (!await appsDir.exists()) {
         await appsDir.create(recursive: true);
       }
+
+      // Initialize SQLite variable store
+      _variableStore = SqliteVariableStore();
+      await _variableStore.init();
 
       await getAllApps();
     } catch (_) {
@@ -84,6 +90,10 @@ class AppManager implements BotDataStore {
       "intents": intents ?? existingData?["intents"] ?? {},
       "globalVariables": Map<String, dynamic>.from(
         (existingData?["globalVariables"] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      ),
+      "scopedVariables": Map<String, dynamic>.from(
+        (existingData?["scopedVariables"] as Map?)?.cast<String, dynamic>() ??
             const {},
       ),
       "workflows": List<Map<String, dynamic>>.from(
@@ -210,42 +220,80 @@ class AppManager implements BotDataStore {
   }
 
   @override
-  Future<Map<String, String>> getGlobalVariables(String id) async {
-    final app = await getApp(id);
-    return Map<String, String>.from(
-      (app['globalVariables'] as Map?)?.map(
-            (key, value) => MapEntry(key.toString(), value?.toString() ?? ''),
-          ) ??
-          const <String, String>{},
-    );
+  @override
+  Future<Map<String, dynamic>> getGlobalVariables(String id) async {
+    return await _variableStore.getGlobalVariables(id);
   }
 
   @override
-  Future<void> setGlobalVariable(String id, String key, String value) async {
-    final app = Map<String, dynamic>.from(await getApp(id));
-    final vars = Map<String, dynamic>.from(
-      (app['globalVariables'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-    vars[key] = value;
-    app['globalVariables'] = vars;
-    await saveApp(id, app);
+  Future<void> setGlobalVariable(String id, String key, dynamic value) async {
+    await _variableStore.setGlobalVariable(id, key, value);
   }
 
   @override
-  Future<String?> getGlobalVariable(String id, String key) async {
-    final vars = await getGlobalVariables(id);
-    return vars[key];
+  Future<dynamic> getGlobalVariable(String id, String key) async {
+    return await _variableStore.getGlobalVariable(id, key);
+  }
+
+  @override
+  Future<void> renameGlobalVariable(String id, String oldKey, String newKey) async {
+    await _variableStore.renameGlobalVariable(id, oldKey, newKey);
   }
 
   @override
   Future<void> removeGlobalVariable(String id, String key) async {
-    final app = Map<String, dynamic>.from(await getApp(id));
-    final vars = Map<String, dynamic>.from(
-      (app['globalVariables'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-    vars.remove(key);
-    app['globalVariables'] = vars;
-    await saveApp(id, app);
+    await _variableStore.removeGlobalVariable(id, key);
+  }
+
+  @override
+  Future<Map<String, dynamic>> getScopedVariables(
+    String id,
+    String scope,
+    String contextId,
+  ) async {
+      return await _variableStore.getScopedVariables(id, scope, contextId);
+  }
+
+  @override
+  Future<dynamic> getScopedVariable(
+    String id,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+     return await _variableStore.getScopedVariable(id, scope, contextId, key);
+  }
+
+  @override
+  Future<void> setScopedVariable(
+    String id,
+    String scope,
+    String contextId,
+    String key,
+    dynamic value,
+  ) async {
+      await _variableStore.setScopedVariable(id, scope, contextId, key, value);
+  }
+
+  @override
+  Future<void> renameScopedVariable(
+    String id,
+    String scope,
+    String contextId,
+    String oldKey,
+    String newKey,
+  ) async {
+      await _variableStore.renameScopedVariable(id, scope, contextId, oldKey, newKey);
+  }
+
+  @override
+  Future<void> removeScopedVariable(
+    String id,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+      await _variableStore.removeScopedVariable(id, scope, contextId, key);
   }
 
   Future<List<Map<String, dynamic>>> getWorkflows(String id) async {
@@ -642,4 +690,6 @@ class AppManager implements BotDataStore {
       await deleteApp(app['id']);
     }
   }
+
+  dynamic _normalizeVariableValue(dynamic value) {
 }

@@ -1,6 +1,5 @@
 ﻿import 'package:bot_creator_shared/actions/create_channel.dart';
 import 'package:bot_creator_shared/actions/delete_message.dart';
-import 'package:bot_creator_shared/actions/list.dart';
 import 'package:bot_creator_shared/actions/remove_channel.dart';
 import 'package:bot_creator_shared/actions/send_message.dart';
 import 'package:bot_creator_shared/actions/update_channel.dart';
@@ -50,6 +49,68 @@ Snowflake? _toSnowflake(dynamic value) {
   }
 
   return Snowflake(parsed);
+}
+
+const _supportedVariableScopes = <String>{
+  'guild',
+  'user',
+  'channel',
+  'guildMember',
+  'message',
+};
+
+String? _resolveScopeContextId({
+  required String scope,
+  required Map<String, String> variables,
+  Snowflake? guildId,
+  Snowflake? channelId,
+  Interaction? interaction,
+}) {
+  switch (scope) {
+    case 'guild':
+      return variables['guildId'] ?? guildId?.toString();
+    case 'channel':
+      return variables['channelId'] ?? channelId?.toString();
+    case 'user':
+      return
+          variables['userId'] ??
+          variables['author.id'] ??
+          (interaction as dynamic?)?.user?.id?.toString();
+    case 'guildMember':
+      return
+          variables['member.id'] ??
+          variables['userId'] ??
+          variables['author.id'] ??
+          (interaction as dynamic?)?.user?.id?.toString();
+    case 'message':
+      return
+          variables['message.id'] ??
+          variables['event.id'] ??
+          interaction?.id.toString();
+    default:
+      return null;
+  }
+}
+
+dynamic _resolveVariableValuePayload(
+  Map<String, dynamic> payload,
+  String Function(String input) resolveValue,
+) {
+  final valueType = (payload['valueType'] ?? '').toString().trim().toLowerCase();
+  if (valueType == 'number') {
+    final rawNumber = resolveValue((payload['numberValue'] ?? '').toString()).trim();
+    final number = num.tryParse(rawNumber);
+    if (number == null) {
+      throw Exception('numberValue is required and must be numeric when valueType=number');
+    }
+    return number;
+  }
+
+  if (payload.containsKey('value') && payload['value'] is num) {
+    return payload['value'] as num;
+  }
+
+  return resolveValue((payload['value'] ?? '').toString());
 }
 
 /// Evaluates a condition between [leftValue] (already resolved) and [rightValue]
@@ -810,12 +871,151 @@ Future<Map<String, String>> handleActions(
           }
           results[resultKey] = result['webhook'] ?? '';
           break;
-        case BotCreatorActionType.makeList:
-          final result = formatList(
-            action.payload['list'] ?? [],
-            action.payload['format']?.toString() ?? '',
+        case BotCreatorActionType.setScopedVariable:
+          final scope =
+              resolveValue((action.payload['scope'] ?? '').toString()).trim();
+          if (!_supportedVariableScopes.contains(scope)) {
+            throw Exception(
+              'scope is required for setScopedVariable and must be one of ${_supportedVariableScopes.join(', ')}',
+            );
+          }
+
+          final key =
+              resolveValue((action.payload['key'] ?? '').toString()).trim();
+          if (!key.startsWith('bc_')) {
+            throw Exception('key must start with bc_ for scoped variables');
+          }
+
+          final contextId = _resolveScopeContextId(
+            scope: scope,
+            variables: variables,
+            guildId: guildId,
+            channelId: resolvedFallbackChannelId,
+            interaction: interaction,
           );
-          results[resultKey] = result.toString();
+          if (contextId == null || contextId.trim().isEmpty) {
+            throw Exception('Unable to resolve context ID for scope "$scope"');
+          }
+
+          final value = _resolveVariableValuePayload(action.payload, resolveValue);
+          await store.setScopedVariable(botId, scope, contextId, key, value);
+          variables['$scope.$key'] = value.toString();
+          results[resultKey] = 'OK';
+          break;
+        case BotCreatorActionType.getScopedVariable:
+          final scope =
+              resolveValue((action.payload['scope'] ?? '').toString()).trim();
+          if (!_supportedVariableScopes.contains(scope)) {
+            throw Exception(
+              'scope is required for getScopedVariable and must be one of ${_supportedVariableScopes.join(', ')}',
+            );
+          }
+
+          final key =
+              resolveValue((action.payload['key'] ?? '').toString()).trim();
+          if (!key.startsWith('bc_')) {
+            throw Exception('key must start with bc_ for scoped variables');
+          }
+
+          final contextId = _resolveScopeContextId(
+            scope: scope,
+            variables: variables,
+            guildId: guildId,
+            channelId: resolvedFallbackChannelId,
+            interaction: interaction,
+          );
+          if (contextId == null || contextId.trim().isEmpty) {
+            throw Exception('Unable to resolve context ID for scope "$scope"');
+          }
+
+          final value =
+              await store.getScopedVariable(botId, scope, contextId, key) ?? '';
+          final storeAs =
+              resolveValue(
+                (action.payload['storeAs'] ?? '$scope.$key').toString(),
+              ).trim();
+          if (storeAs.isNotEmpty) {
+            variables[storeAs] = value.toString();
+          }
+          variables['$scope.$key'] = value.toString();
+          results[resultKey] = value.toString();
+          break;
+        case BotCreatorActionType.removeScopedVariable:
+          final scope =
+              resolveValue((action.payload['scope'] ?? '').toString()).trim();
+          if (!_supportedVariableScopes.contains(scope)) {
+            throw Exception(
+              'scope is required for removeScopedVariable and must be one of ${_supportedVariableScopes.join(', ')}',
+            );
+          }
+
+          final key =
+              resolveValue((action.payload['key'] ?? '').toString()).trim();
+          if (!key.startsWith('bc_')) {
+            throw Exception('key must start with bc_ for scoped variables');
+          }
+
+          final contextId = _resolveScopeContextId(
+            scope: scope,
+            variables: variables,
+            guildId: guildId,
+            channelId: resolvedFallbackChannelId,
+            interaction: interaction,
+          );
+          if (contextId == null || contextId.trim().isEmpty) {
+            throw Exception('Unable to resolve context ID for scope "$scope"');
+          }
+
+          await store.removeScopedVariable(botId, scope, contextId, key);
+          variables.remove('$scope.$key');
+          results[resultKey] = 'REMOVED';
+          break;
+        case BotCreatorActionType.renameScopedVariable:
+          final scope =
+              resolveValue((action.payload['scope'] ?? '').toString()).trim();
+          if (!_supportedVariableScopes.contains(scope)) {
+            throw Exception(
+              'scope is required for renameScopedVariable and must be one of ${_supportedVariableScopes.join(', ')}',
+            );
+          }
+
+          final oldKey =
+              resolveValue((action.payload['oldKey'] ?? '').toString()).trim();
+          final newKey =
+              resolveValue((action.payload['newKey'] ?? '').toString()).trim();
+          if (!oldKey.startsWith('bc_') || !newKey.startsWith('bc_')) {
+            throw Exception(
+              'oldKey and newKey must start with bc_ for scoped variables',
+            );
+          }
+
+          final contextId = _resolveScopeContextId(
+            scope: scope,
+            variables: variables,
+            guildId: guildId,
+            channelId: resolvedFallbackChannelId,
+            interaction: interaction,
+          );
+          if (contextId == null || contextId.trim().isEmpty) {
+            throw Exception('Unable to resolve context ID for scope "$scope"');
+          }
+
+          await store.renameScopedVariable(
+            botId,
+            scope,
+            contextId,
+            oldKey,
+            newKey,
+          );
+          final oldRuntimeKey = '$scope.$oldKey';
+          final newRuntimeKey = '$scope.$newKey';
+          if (variables.containsKey(oldRuntimeKey)) {
+            final runtimeValue = variables.remove(oldRuntimeKey);
+            if (runtimeValue != null) {
+              variables[newRuntimeKey] = runtimeValue;
+            }
+          }
+          results[resultKey] = 'RENAMED';
           break;
         case BotCreatorActionType.httpRequest:
           final resolvedUrl =
@@ -955,11 +1155,9 @@ Future<Map<String, String>> handleActions(
           if (key.isEmpty) {
             throw Exception('key is required for setGlobalVariable');
           }
-          final value = resolveValue(
-            (action.payload['value'] ?? '').toString(),
-          );
+          final value = _resolveVariableValuePayload(action.payload, resolveValue);
           await store.setGlobalVariable(botId, key, value);
-          variables['global.$key'] = value;
+          variables['global.$key'] = value.toString();
           results[resultKey] = 'OK';
           break;
         case BotCreatorActionType.getGlobalVariable:
@@ -969,15 +1167,16 @@ Future<Map<String, String>> handleActions(
             throw Exception('key is required for getGlobalVariable');
           }
           final value = await store.getGlobalVariable(botId, key) ?? '';
+          final valueAsString = value.toString();
           final storeAs =
               resolveValue(
                 (action.payload['storeAs'] ?? 'global.$key').toString(),
               ).trim();
           if (storeAs.isNotEmpty) {
-            variables[storeAs] = value;
+            variables[storeAs] = valueAsString;
           }
-          variables['global.$key'] = value;
-          results[resultKey] = value;
+          variables['global.$key'] = valueAsString;
+          results[resultKey] = valueAsString;
           break;
         case BotCreatorActionType.removeGlobalVariable:
           final key =
@@ -989,18 +1188,7 @@ Future<Map<String, String>> handleActions(
           variables.remove('global.$key');
           results[resultKey] = 'REMOVED';
           break;
-        case BotCreatorActionType.listGlobalVariables:
-          final globals = await store.getGlobalVariables(botId);
-          final asJson = jsonEncode(globals);
-          final storeAs =
-              resolveValue(
-                (action.payload['storeAs'] ?? 'global.list').toString(),
-              ).trim();
-          if (storeAs.isNotEmpty) {
-            variables[storeAs] = asJson;
-          }
-          results[resultKey] = asJson;
-          break;
+
         case BotCreatorActionType.runWorkflow:
           final workflowName =
               resolveValue(

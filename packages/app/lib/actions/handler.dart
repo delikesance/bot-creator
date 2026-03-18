@@ -1,6 +1,5 @@
 import 'package:bot_creator/actions/create_channel.dart';
 import 'package:bot_creator/actions/delete_message.dart';
-import 'package:bot_creator/actions/list.dart';
 import 'package:bot_creator/actions/remove_channel.dart';
 import 'package:bot_creator/actions/send_message.dart';
 import 'package:bot_creator/actions/update_channel.dart';
