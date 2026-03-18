@@ -1,7 +1,8 @@
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
-import 'variable_database.dart';
+import 'package:flutter/foundation.dart';
+import 'package:bot_creator_shared/bot/variable_database.dart';
 
 /// SQLite implementation of [VariableDatabase] using sqflite (Flutter apps).
 /// Supports Windows, Mac, Linux, iOS, Android.
@@ -20,13 +21,14 @@ import 'variable_database.dart';
 ///   created_at INTEGER NOT NULL,
 ///   updated_at INTEGER NOT NULL,
 ///   UNIQUE(bot_id, scope, context_id_1, context_id_2, key),
-///   CHECK(scope IN ('guild', 'user', 'channel', 'guildMember', 'message'))
+///   CHECK(scope IN ('_global_', 'guild', 'user', 'channel', 'guildMember', 'message'))
 /// );
 /// CREATE INDEX idx_bot_lookup ON variables(bot_id, scope, context_id_1, context_id_2);
 /// ```
 class SqliteVariableStore implements VariableDatabase {
   late Database _db;
   bool _initialized = false;
+  static bool _ffiInitialized = false;
 
   SqliteVariableStore();
 
@@ -34,37 +36,92 @@ class SqliteVariableStore implements VariableDatabase {
   Future<void> init() async {
     if (_initialized) return;
 
+    // sqflite on desktop requires explicit FFI initialization.
+    if (!kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.windows ||
+            defaultTargetPlatform == TargetPlatform.linux)) {
+      if (!_ffiInitialized) {
+        sqfliteFfiInit();
+        databaseFactory = databaseFactoryFfi;
+        _ffiInitialized = true;
+      }
+    }
+
     // Determine database path
     final docsDir = await getApplicationDocumentsDirectory();
     final dbPath = join(docsDir.path, 'databases', 'variables.db');
 
     _db = await openDatabase(
       dbPath,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE variables (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            bot_id TEXT NOT NULL,
-            scope TEXT NOT NULL,
-            context_id_1 TEXT NOT NULL,
-            context_id_2 TEXT,
-            key TEXT NOT NULL,
-            value_raw TEXT NOT NULL,
-            value_type TEXT NOT NULL,
-            created_at INTEGER NOT NULL,
-            updated_at INTEGER NOT NULL,
-            UNIQUE(bot_id, scope, context_id_1, context_id_2, key),
-            CHECK(scope IN ('guild', 'user', 'channel', 'guildMember', 'message'))
-          )
-        ''');
-        await db.execute(
-          'CREATE INDEX idx_bot_lookup ON variables(bot_id, scope, context_id_1, context_id_2)'
-        );
+        await _createSchema(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _migrateSchemaToV2(db);
+        }
       },
     );
 
     _initialized = true;
+  }
+
+  Future<void> _createSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE variables (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bot_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        context_id_1 TEXT NOT NULL,
+        context_id_2 TEXT,
+        key TEXT NOT NULL,
+        value_raw TEXT NOT NULL,
+        value_type TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(bot_id, scope, context_id_1, context_id_2, key),
+        CHECK(scope IN ('_global_', 'guild', 'user', 'channel', 'guildMember', 'message'))
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_bot_lookup ON variables(bot_id, scope, context_id_1, context_id_2)',
+    );
+  }
+
+  Future<void> _migrateSchemaToV2(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE variables_v2 (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bot_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        context_id_1 TEXT NOT NULL,
+        context_id_2 TEXT,
+        key TEXT NOT NULL,
+        value_raw TEXT NOT NULL,
+        value_type TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(bot_id, scope, context_id_1, context_id_2, key),
+        CHECK(scope IN ('_global_', 'guild', 'user', 'channel', 'guildMember', 'message'))
+      )
+    ''');
+
+    await db.execute('''
+      INSERT INTO variables_v2 (
+        id, bot_id, scope, context_id_1, context_id_2, key, value_raw, value_type, created_at, updated_at
+      )
+      SELECT
+        id, bot_id, scope, context_id_1, context_id_2, key, value_raw, value_type, created_at, updated_at
+      FROM variables
+      WHERE scope IN ('_global_', 'guild', 'user', 'channel', 'guildMember', 'message')
+    ''');
+
+    await db.execute('DROP TABLE variables');
+    await db.execute('ALTER TABLE variables_v2 RENAME TO variables');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_bot_lookup ON variables(bot_id, scope, context_id_1, context_id_2)',
+    );
   }
 
   @override
@@ -106,30 +163,34 @@ class SqliteVariableStore implements VariableDatabase {
   }
 
   @override
-  Future<void> setGlobalVariable(String botId, String key, dynamic value) async {
+  Future<void> setGlobalVariable(
+    String botId,
+    String key,
+    dynamic value,
+  ) async {
     await init();
     final (valueRaw, valueType) = _serializeValue(value);
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    await _db.insert(
-      'variables',
-      {
-        'bot_id': botId,
-        'scope': '_global_',
-        'context_id_1': '',
-        'context_id_2': null,
-        'key': key,
-        'value_raw': valueRaw,
-        'value_type': valueType,
-        'created_at': now,
-        'updated_at': now,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _db.insert('variables', {
+      'bot_id': botId,
+      'scope': '_global_',
+      'context_id_1': '',
+      'context_id_2': null,
+      'key': key,
+      'value_raw': valueRaw,
+      'value_type': valueType,
+      'created_at': now,
+      'updated_at': now,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   @override
-  Future<void> renameGlobalVariable(String botId, String oldKey, String newKey) async {
+  Future<void> renameGlobalVariable(
+    String botId,
+    String oldKey,
+    String newKey,
+  ) async {
     await init();
     final row = await _db.query(
       'variables',
@@ -143,10 +204,7 @@ class SqliteVariableStore implements VariableDatabase {
     final now = DateTime.now().millisecondsSinceEpoch;
     await _db.update(
       'variables',
-      {
-        'key': newKey,
-        'updated_at': now,
-      },
+      {'key': newKey, 'updated_at': now},
       where: 'bot_id = ? AND scope = ? AND key = ?',
       whereArgs: [botId, '_global_', oldKey],
     );
@@ -173,7 +231,8 @@ class SqliteVariableStore implements VariableDatabase {
 
     final rows = await _db.query(
       'variables',
-      where: 'bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ?',
+      where:
+          'bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ?',
       whereArgs: [botId, scope, ctx1, ctx2],
     );
 
@@ -201,7 +260,8 @@ class SqliteVariableStore implements VariableDatabase {
 
     final rows = await _db.query(
       'variables',
-      where: 'bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
+      where:
+          'bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
       whereArgs: [botId, scope, ctx1, ctx2, key],
       limit: 1,
     );
@@ -226,21 +286,17 @@ class SqliteVariableStore implements VariableDatabase {
     final (valueRaw, valueType) = _serializeValue(value);
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    await _db.insert(
-      'variables',
-      {
-        'bot_id': botId,
-        'scope': scope,
-        'context_id_1': ctx1,
-        'context_id_2': ctx2,
-        'key': key,
-        'value_raw': valueRaw,
-        'value_type': valueType,
-        'created_at': now,
-        'updated_at': now,
-      },
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    await _db.insert('variables', {
+      'bot_id': botId,
+      'scope': scope,
+      'context_id_1': ctx1,
+      'context_id_2': ctx2,
+      'key': key,
+      'value_raw': valueRaw,
+      'value_type': valueType,
+      'created_at': now,
+      'updated_at': now,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   @override
@@ -257,11 +313,9 @@ class SqliteVariableStore implements VariableDatabase {
 
     await _db.update(
       'variables',
-      {
-        'key': newKey,
-        'updated_at': now,
-      },
-      where: 'bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
+      {'key': newKey, 'updated_at': now},
+      where:
+          'bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
       whereArgs: [botId, scope, ctx1, ctx2, oldKey],
     );
   }
@@ -278,24 +332,55 @@ class SqliteVariableStore implements VariableDatabase {
 
     await _db.delete(
       'variables',
-      where: 'bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
+      where:
+          'bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
       whereArgs: [botId, scope, ctx1, ctx2, key],
     );
   }
 
   @override
-  Future<List<String>> listContextIds(String botId, String scope, {String? searchKey}) async {
+  Future<List<String>> listContextIds(
+    String botId,
+    String scope, {
+    String? searchKey,
+  }) async {
     await init();
-    final query = 'SELECT DISTINCT context_id_1 FROM variables WHERE bot_id = ? AND scope = ?';
-    final args = [botId, scope];
+    final whereClauses = <String>['bot_id = ?', 'scope = ?'];
+    final args = <Object?>[botId, scope];
 
-    final rows = await _db.rawQuery(query, args);
-    final contextIds = rows
-        .map((row) => (row['context_id_1'] ?? '') as String)
+    final trimmedSearchKey = searchKey?.trim() ?? '';
+    if (trimmedSearchKey.isNotEmpty) {
+      whereClauses.add('key = ?');
+      args.add(trimmedSearchKey);
+    }
+
+    final where = whereClauses.join(' AND ');
+    if (scope == 'guildMember') {
+      final rows = await _db.rawQuery(
+        'SELECT DISTINCT context_id_1, context_id_2 FROM variables WHERE $where',
+        args,
+      );
+      return rows
+          .map((row) {
+            final ctx1 = (row['context_id_1'] ?? '').toString();
+            final ctx2 = (row['context_id_2'] ?? '').toString();
+            if (ctx1.isEmpty) {
+              return '';
+            }
+            return ctx2.isEmpty ? ctx1 : '$ctx1:$ctx2';
+          })
+          .where((id) => id.isNotEmpty)
+          .toList(growable: false);
+    }
+
+    final rows = await _db.rawQuery(
+      'SELECT DISTINCT context_id_1 FROM variables WHERE $where',
+      args,
+    );
+    return rows
+        .map((row) => (row['context_id_1'] ?? '').toString())
         .where((id) => id.isNotEmpty)
-        .toList();
-
-    return contextIds;
+        .toList(growable: false);
   }
 
   @override

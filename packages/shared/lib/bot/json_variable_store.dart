@@ -37,12 +37,20 @@ class JsonVariableStore implements VariableDatabase {
       _globalVariables[key];
 
   @override
-  Future<void> setGlobalVariable(String botId, String key, dynamic value) async {
+  Future<void> setGlobalVariable(
+    String botId,
+    String key,
+    dynamic value,
+  ) async {
     _globalVariables[key] = _normalizeVariableValue(value);
   }
 
   @override
-  Future<void> renameGlobalVariable(String botId, String oldKey, String newKey) async {
+  Future<void> renameGlobalVariable(
+    String botId,
+    String oldKey,
+    String newKey,
+  ) async {
     if (!_globalVariables.containsKey(oldKey)) {
       return;
     }
@@ -61,7 +69,8 @@ class JsonVariableStore implements VariableDatabase {
     String scope,
     String contextId,
   ) async {
-    final byScope = _scopedVariables[scope] ?? const <String, Map<String, dynamic>>{};
+    final byScope =
+        _scopedVariables[scope] ?? const <String, Map<String, dynamic>>{};
     final values = byScope[contextId] ?? const <String, dynamic>{};
     return Map<String, dynamic>.from(values);
   }
@@ -85,7 +94,10 @@ class JsonVariableStore implements VariableDatabase {
     String key,
     dynamic value,
   ) async {
-    final byScope = _scopedVariables.putIfAbsent(scope, () => <String, Map<String, dynamic>>{});
+    final byScope = _scopedVariables.putIfAbsent(
+      scope,
+      () => <String, Map<String, dynamic>>{},
+    );
     final byId = byScope.putIfAbsent(contextId, () => <String, dynamic>{});
     byId[key] = _normalizeVariableValue(value);
   }
@@ -123,15 +135,23 @@ class JsonVariableStore implements VariableDatabase {
   }
 
   @override
-  Future<List<String>> listContextIds(String botId, String scope, {String? searchKey}) async {
+  Future<List<String>> listContextIds(
+    String botId,
+    String scope, {
+    String? searchKey,
+  }) async {
     final byScope = _scopedVariables[scope];
     if (byScope == null) return [];
 
-    final contextIds = byScope.entries.where((entry) {
-      if (searchKey == null) return true;
-      // Check if any key in this context starts with searchKey
-      return entry.value.keys.any((k) => k.startsWith(searchKey));
-    }).map((e) => e.key).toList();
+    final contextIds =
+        byScope.entries
+            .where((entry) {
+              if (searchKey == null) return true;
+              // Check if any key in this context starts with searchKey
+              return entry.value.keys.any((k) => k.startsWith(searchKey));
+            })
+            .map((e) => e.key)
+            .toList();
 
     return contextIds;
   }

@@ -187,7 +187,7 @@ class _VariableTextFieldState extends State<VariableTextField> {
     final start = currentValue.lastIndexOf('((', safeCursor);
     final inFallbackMode =
         start != -1 &&
-        start + 2 <= safeCursor &&
+        safeCursor >= start + 2 &&
         currentValue.substring(start + 2, safeCursor).contains('|');
 
     final normalizedQuery = query.trim().toLowerCase();
@@ -252,6 +252,10 @@ class _VariableTextFieldState extends State<VariableTextField> {
     final safeCursor = _safeCursor(input, cursor);
     final start = input.lastIndexOf('((', safeCursor);
     if (start == -1) return null;
+    if (safeCursor < start + 2) {
+      // Cursor is before the placeholder body: do not attempt substring.
+      return '';
+    }
 
     final closing = input.indexOf('))', start + 2);
     if (closing != -1 && closing < safeCursor) {

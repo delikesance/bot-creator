@@ -66,7 +66,11 @@ abstract class VariableDatabase {
 
   /// Lists all context IDs for a given [scope] (e.g. all guild IDs that have guild-scoped vars).
   /// Optionally filter by a [searchKey] prefix (e.g. "bc_" to find only bc_* variables).
-  Future<List<String>> listContextIds(String botId, String scope, {String? searchKey});
+  Future<List<String>> listContextIds(
+    String botId,
+    String scope, {
+    String? searchKey,
+  });
 
   /// Delete all variables for a bot.
   Future<void> deleteAllForBot(String botId);

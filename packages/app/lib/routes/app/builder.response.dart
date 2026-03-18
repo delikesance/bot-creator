@@ -63,6 +63,21 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
     });
   }
 
+  void _moveAction(int fromIndex, int toIndex) {
+    if (fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= _actions.length ||
+        toIndex >= _actions.length ||
+        fromIndex == toIndex) {
+      return;
+    }
+
+    setState(() {
+      final action = _actions.removeAt(fromIndex);
+      _actions.insert(toIndex, action);
+    });
+  }
+
   void _updateActionParameter(
     String actionId,
     String key,
@@ -509,12 +524,23 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                                 .toString()
                                 .trim();
                         return ActionCard(
+                          key: ValueKey('action-card-${action.id}-$index'),
                           action: action,
+                          index: index,
+                          totalCount: _actions.length,
                           actionKey:
                               computedActionKey.isNotEmpty
                                   ? computedActionKey
                                   : action.type.name,
                           onRemove: () => _removeAction(action.id),
+                          onMoveUp:
+                              index > 0
+                                  ? () => _moveAction(index, index - 1)
+                                  : null,
+                          onMoveDown:
+                              index < _actions.length - 1
+                                  ? () => _moveAction(index, index + 1)
+                                  : null,
                           variableSuggestions: widget.variableSuggestions,
                           botIdForConfig: widget.botIdForConfig,
                           fieldRefreshVersionOf:

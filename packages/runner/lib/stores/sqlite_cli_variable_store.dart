@@ -20,7 +20,7 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 ///   created_at INTEGER NOT NULL,
 ///   updated_at INTEGER NOT NULL,
 ///   UNIQUE(bot_id, scope, context_id_1, context_id_2, key),
-///   CHECK(scope IN ('guild', 'user', 'channel', 'guildMember', 'message'))
+///   CHECK(scope IN ('_global_', 'guild', 'user', 'channel', 'guildMember', 'message'))
 /// );
 /// ```
 class SqliteCliVariableStore implements VariableDatabase {
@@ -29,7 +29,7 @@ class SqliteCliVariableStore implements VariableDatabase {
   bool _initialized = false;
 
   SqliteCliVariableStore(String workDir)
-      : _dbPath = join(workDir, 'variables.db');
+    : _dbPath = join(workDir, 'variables.db');
 
   /// Initialize database connection and create schema if needed.
   Future<void> init() async {
@@ -59,7 +59,7 @@ class SqliteCliVariableStore implements VariableDatabase {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         UNIQUE(bot_id, scope, context_id_1, context_id_2, key),
-        CHECK(scope IN ('guild', 'user', 'channel', 'guildMember', 'message'))
+        CHECK(scope IN ('_global_', 'guild', 'user', 'channel', 'guildMember', 'message'))
       )
     ''');
 
@@ -69,7 +69,68 @@ class SqliteCliVariableStore implements VariableDatabase {
       ON variables(bot_id, scope, context_id_1, context_id_2)
     ''');
 
+    await _migrateScopeConstraintIfNeeded();
+
     _initialized = true;
+  }
+
+  Future<void> _migrateScopeConstraintIfNeeded() async {
+    final stmt = _db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'variables' LIMIT 1",
+    );
+    final rows = stmt.select();
+    stmt.dispose();
+
+    if (rows.isEmpty) {
+      return;
+    }
+
+    final sql = (rows.first['sql'] as String?) ?? '';
+    if (sql.contains("'_global_'") || sql.contains('"_global_"')) {
+      return;
+    }
+
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      _db.execute('''
+        CREATE TABLE variables_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          bot_id TEXT NOT NULL,
+          scope TEXT NOT NULL,
+          context_id_1 TEXT NOT NULL,
+          context_id_2 TEXT,
+          key TEXT NOT NULL,
+          value_raw TEXT NOT NULL,
+          value_type TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          UNIQUE(bot_id, scope, context_id_1, context_id_2, key),
+          CHECK(scope IN ('_global_', 'guild', 'user', 'channel', 'guildMember', 'message'))
+        )
+      ''');
+
+      _db.execute('''
+        INSERT INTO variables_v2 (
+          id, bot_id, scope, context_id_1, context_id_2, key, value_raw, value_type, created_at, updated_at
+        )
+        SELECT
+          id, bot_id, scope, context_id_1, context_id_2, key, value_raw, value_type, created_at, updated_at
+        FROM variables
+        WHERE scope IN ('_global_', 'guild', 'user', 'channel', 'guildMember', 'message')
+      ''');
+
+      _db.execute('DROP TABLE variables');
+      _db.execute('ALTER TABLE variables_v2 RENAME TO variables');
+      _db.execute('''
+        CREATE INDEX IF NOT EXISTS idx_bot_lookup
+        ON variables(bot_id, scope, context_id_1, context_id_2)
+      ''');
+
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
   }
 
   @override
@@ -77,7 +138,9 @@ class SqliteCliVariableStore implements VariableDatabase {
     await init();
     final result = <String, dynamic>{};
 
-    final stmt = _db.prepare('SELECT key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ?');
+    final stmt = _db.prepare(
+      'SELECT key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ?',
+    );
     final rows = stmt.select([botId, '_global_']);
 
     for (final row in rows) {
@@ -97,7 +160,9 @@ class SqliteCliVariableStore implements VariableDatabase {
   Future<dynamic> getGlobalVariable(String botId, String key) async {
     await init();
 
-    final stmt = _db.prepare('SELECT value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND key = ? LIMIT 1');
+    final stmt = _db.prepare(
+      'SELECT value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND key = ? LIMIT 1',
+    );
     final rows = stmt.select([botId, '_global_', '', key]);
 
     if (rows.isEmpty) {
@@ -116,7 +181,11 @@ class SqliteCliVariableStore implements VariableDatabase {
   }
 
   @override
-  Future<void> setGlobalVariable(String botId, String key, dynamic value) async {
+  Future<void> setGlobalVariable(
+    String botId,
+    String key,
+    dynamic value,
+  ) async {
     await init();
     final (valueRaw, valueType) = _serializeValue(value);
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -129,16 +198,32 @@ class SqliteCliVariableStore implements VariableDatabase {
         value_type = excluded.value_type,
         updated_at = excluded.updated_at
     ''');
-    stmt.execute([botId, '_global_', '', null, key, valueRaw, valueType, now, now]);
+    stmt.execute([
+      botId,
+      '_global_',
+      '',
+      null,
+      key,
+      valueRaw,
+      valueType,
+      now,
+      now,
+    ]);
     stmt.dispose();
   }
 
   @override
-  Future<void> renameGlobalVariable(String botId, String oldKey, String newKey) async {
+  Future<void> renameGlobalVariable(
+    String botId,
+    String oldKey,
+    String newKey,
+  ) async {
     await init();
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    final stmt = _db.prepare('UPDATE variables SET key = ?, updated_at = ? WHERE bot_id = ? AND scope = ? AND key = ?');
+    final stmt = _db.prepare(
+      'UPDATE variables SET key = ?, updated_at = ? WHERE bot_id = ? AND scope = ? AND key = ?',
+    );
     stmt.execute([newKey, now, botId, '_global_', oldKey]);
     stmt.dispose();
   }
@@ -147,7 +232,9 @@ class SqliteCliVariableStore implements VariableDatabase {
   Future<void> removeGlobalVariable(String botId, String key) async {
     await init();
 
-    final stmt = _db.prepare('DELETE FROM variables WHERE bot_id = ? AND scope = ? AND key = ?');
+    final stmt = _db.prepare(
+      'DELETE FROM variables WHERE bot_id = ? AND scope = ? AND key = ?',
+    );
     stmt.execute([botId, '_global_', key]);
     stmt.dispose();
   }
@@ -162,7 +249,9 @@ class SqliteCliVariableStore implements VariableDatabase {
     final (ctx1, ctx2) = _parseContextId(scope, contextId);
     final result = <String, dynamic>{};
 
-    final stmt = _db.prepare('SELECT key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ?');
+    final stmt = _db.prepare(
+      'SELECT key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ?',
+    );
     final rows = stmt.select([botId, scope, ctx1, ctx2]);
 
     for (final row in rows) {
@@ -188,7 +277,9 @@ class SqliteCliVariableStore implements VariableDatabase {
     await init();
     final (ctx1, ctx2) = _parseContextId(scope, contextId);
 
-    final stmt = _db.prepare('SELECT value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ? LIMIT 1');
+    final stmt = _db.prepare(
+      'SELECT value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ? LIMIT 1',
+    );
     final rows = stmt.select([botId, scope, ctx1, ctx2, key]);
 
     if (rows.isEmpty) {
@@ -227,7 +318,17 @@ class SqliteCliVariableStore implements VariableDatabase {
         value_type = excluded.value_type,
         updated_at = excluded.updated_at
     ''');
-    stmt.execute([botId, scope, ctx1, ctx2, key, valueRaw, valueType, now, now]);
+    stmt.execute([
+      botId,
+      scope,
+      ctx1,
+      ctx2,
+      key,
+      valueRaw,
+      valueType,
+      now,
+      now,
+    ]);
     stmt.dispose();
   }
 
@@ -243,7 +344,9 @@ class SqliteCliVariableStore implements VariableDatabase {
     final (ctx1, ctx2) = _parseContextId(scope, contextId);
     final now = DateTime.now().millisecondsSinceEpoch;
 
-    final stmt = _db.prepare('UPDATE variables SET key = ?, updated_at = ? WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?');
+    final stmt = _db.prepare(
+      'UPDATE variables SET key = ?, updated_at = ? WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
+    );
     stmt.execute([newKey, now, botId, scope, ctx1, ctx2, oldKey]);
     stmt.dispose();
   }
@@ -258,22 +361,59 @@ class SqliteCliVariableStore implements VariableDatabase {
     await init();
     final (ctx1, ctx2) = _parseContextId(scope, contextId);
 
-    final stmt = _db.prepare('DELETE FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?');
+    final stmt = _db.prepare(
+      'DELETE FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
+    );
     stmt.execute([botId, scope, ctx1, ctx2, key]);
     stmt.dispose();
   }
 
   @override
-  Future<List<String>> listContextIds(String botId, String scope, {String? searchKey}) async {
+  Future<List<String>> listContextIds(
+    String botId,
+    String scope, {
+    String? searchKey,
+  }) async {
     await init();
+    final whereClauses = <String>['bot_id = ?', 'scope = ?'];
+    final args = <Object?>[botId, scope];
 
-    final stmt = _db.prepare('SELECT DISTINCT context_id_1 FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 != \'\'');
-    final rows = stmt.select([botId, scope]);
+    final trimmedSearchKey = searchKey?.trim() ?? '';
+    if (trimmedSearchKey.isNotEmpty) {
+      whereClauses.add('key = ?');
+      args.add(trimmedSearchKey);
+    }
+
+    final where = whereClauses.join(' AND ');
+    if (scope == 'guildMember') {
+      final stmt = _db.prepare(
+        'SELECT DISTINCT context_id_1, context_id_2 FROM variables WHERE $where',
+      );
+      final rows = stmt.select(args);
+      final contextIds = rows
+          .map((row) {
+            final ctx1 = (row['context_id_1'] ?? '').toString();
+            final ctx2 = (row['context_id_2'] ?? '').toString();
+            if (ctx1.isEmpty) {
+              return '';
+            }
+            return ctx2.isEmpty ? ctx1 : '$ctx1:$ctx2';
+          })
+          .where((id) => id.isNotEmpty)
+          .toList(growable: false);
+      stmt.dispose();
+      return contextIds;
+    }
+
+    final stmt = _db.prepare(
+      'SELECT DISTINCT context_id_1 FROM variables WHERE $where AND context_id_1 != \'\'',
+    );
+    final rows = stmt.select(args);
 
     final contextIds = rows
-        .map((row) => (row['context_id_1'] ?? '') as String)
+        .map((row) => (row['context_id_1'] ?? '').toString())
         .where((id) => id.isNotEmpty)
-        .toList();
+        .toList(growable: false);
 
     stmt.dispose();
 

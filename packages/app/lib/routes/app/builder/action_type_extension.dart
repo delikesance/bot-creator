@@ -1058,7 +1058,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
           ),
           ParameterDefinition(
             key: 'valueType',
-            type: ParameterType.string,
+            type: ParameterType.multiSelect,
             defaultValue: 'string',
             hint: 'Value type: string or number',
             options: ['string', 'number'],
@@ -1106,7 +1106,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return [
           ParameterDefinition(
             key: 'scope',
-            type: ParameterType.string,
+            type: ParameterType.multiSelect,
             defaultValue: 'guild',
             hint: 'Scope: guild, user, channel, guildMember, message',
             options: ['guild', 'user', 'channel', 'guildMember', 'message'],
@@ -1121,7 +1121,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
           ),
           ParameterDefinition(
             key: 'valueType',
-            type: ParameterType.string,
+            type: ParameterType.multiSelect,
             defaultValue: 'string',
             hint: 'Value type: string or number',
             options: ['string', 'number'],
@@ -1143,7 +1143,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return [
           ParameterDefinition(
             key: 'scope',
-            type: ParameterType.string,
+            type: ParameterType.multiSelect,
             defaultValue: 'guild',
             hint: 'Scope: guild, user, channel, guildMember, message',
             options: ['guild', 'user', 'channel', 'guildMember', 'message'],
@@ -1167,7 +1167,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return [
           ParameterDefinition(
             key: 'scope',
-            type: ParameterType.string,
+            type: ParameterType.multiSelect,
             defaultValue: 'guild',
             hint: 'Scope: guild, user, channel, guildMember, message',
             options: ['guild', 'user', 'channel', 'guildMember', 'message'],
@@ -1185,7 +1185,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return [
           ParameterDefinition(
             key: 'scope',
-            type: ParameterType.string,
+            type: ParameterType.multiSelect,
             defaultValue: 'guild',
             hint: 'Scope: guild, user, channel, guildMember, message',
             options: ['guild', 'user', 'channel', 'guildMember', 'message'],

@@ -520,15 +520,23 @@ class DiscordRunner {
       runtimeVariables['global.${entry.key}'] = entry.value.toString();
     }
 
-    final guildContextId = context.variables['guildId'] ?? context.guildId?.toString();
+    final guildContextId =
+        context.variables['guildId'] ?? context.guildId?.toString();
     final channelContextId =
         context.variables['channelId'] ?? context.channelId?.toString();
     final userContextId =
         context.variables['userId'] ?? context.variables['author.id'];
     final guildMemberContextId =
-        context.variables['member.id'] ?? userContextId;
+        (guildContextId != null &&
+                guildContextId.trim().isNotEmpty &&
+                userContextId != null &&
+                userContextId.trim().isNotEmpty)
+            ? '${guildContextId.trim()}:${userContextId.trim()}'
+            : null;
     final messageContextId =
-        context.variables['message.id'] ?? context.variables['event.id'];
+        context.variables['messageId'] ??
+        context.variables['message.id'] ??
+        context.variables['event.id'];
 
     await _injectScopedVariables(
       runtimeVariables: runtimeVariables,
@@ -615,7 +623,18 @@ class DiscordRunner {
       normalizedContextId,
     );
     for (final entry in values.entries) {
-      runtimeVariables['$scope.${entry.key}'] = entry.value.toString();
+      final rawKey = entry.key.toString().trim();
+      if (rawKey.isEmpty) {
+        continue;
+      }
+
+      final canonicalKey = rawKey.startsWith('bc_') ? rawKey : 'bc_$rawKey';
+      final value = entry.value.toString();
+
+      // Canonical reference form for scoped placeholders.
+      runtimeVariables['$scope.$canonicalKey'] = value;
+      // Backward-compat alias for older payloads still using raw keys.
+      runtimeVariables['$scope.$rawKey'] = value;
     }
   }
 
@@ -651,8 +670,15 @@ class DiscordRunner {
     final guildContextId = runtimeVariables['guildId'];
     final channelContextId = runtimeVariables['channelId'];
     final userContextId = runtimeVariables['userId'];
-    final guildMemberContextId = runtimeVariables['member.id'] ?? userContextId;
-    final messageContextId = runtimeVariables['message.id'];
+    final guildMemberContextId =
+        (guildContextId != null &&
+                guildContextId.trim().isNotEmpty &&
+                userContextId != null &&
+                userContextId.trim().isNotEmpty)
+            ? '${guildContextId.trim()}:${userContextId.trim()}'
+            : null;
+    final messageContextId =
+        runtimeVariables['messageId'] ?? runtimeVariables['message.id'];
 
     await _injectScopedVariables(
       runtimeVariables: runtimeVariables,

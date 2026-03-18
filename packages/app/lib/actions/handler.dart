@@ -178,9 +178,18 @@ String? _resolveScopeContextId({
     case 'channel':
       return fromVariables('channelId') ?? fromSnowflake(channelId);
     case 'guildMember':
-      return fromVariables('member.id') ?? fromVariables('userId') ?? interactionUserId();
+      {
+        final guild = fromVariables('guildId') ?? fromSnowflake(guildId);
+        final user = fromVariables('userId') ?? interactionUserId();
+        if (guild == null || user == null) {
+          return null;
+        }
+        return '$guild:$user';
+      }
     case 'message':
-      return fromVariables('message.id') ?? interactionMessageId();
+      return fromVariables('messageId') ??
+          fromVariables('message.id') ??
+          interactionMessageId();
     default:
       return null;
   }
@@ -191,9 +200,12 @@ dynamic _resolveVariableValuePayload(
   String Function(String) resolveValue,
 ) {
   final valueType =
-      resolveValue((payload['valueType'] ?? 'string').toString()).trim().toLowerCase();
+      resolveValue(
+        (payload['valueType'] ?? 'string').toString(),
+      ).trim().toLowerCase();
   if (valueType == 'number') {
-    final numberRaw = resolveValue((payload['numberValue'] ?? '').toString()).trim();
+    final numberRaw =
+        resolveValue((payload['numberValue'] ?? '').toString()).trim();
     final parsed = num.tryParse(numberRaw);
     if (parsed != null) {
       return parsed;
@@ -201,6 +213,28 @@ dynamic _resolveVariableValuePayload(
   }
 
   return resolveValue((payload['value'] ?? '').toString());
+}
+
+String _scopedStorageKey(String rawKey) {
+  final key = rawKey.trim();
+  if (key.isEmpty) {
+    throw Exception('key is required for scoped variables');
+  }
+  if (key.startsWith('bc_')) {
+    if (key.length <= 3) {
+      throw Exception('key is required for scoped variables');
+    }
+    return key.substring(3);
+  }
+  return key;
+}
+
+String _scopedReferenceKey(String rawKey) {
+  final key = rawKey.trim();
+  if (key.isEmpty) {
+    throw Exception('key is required for scoped variables');
+  }
+  return key.startsWith('bc_') ? key : 'bc_$key';
 }
 
 // Helper functions for common action patterns
@@ -896,11 +930,10 @@ Future<Map<String, String>> handleActions(
             );
           }
 
-          final key =
+          final rawKey =
               resolveValue((action.payload['key'] ?? '').toString()).trim();
-          if (!key.startsWith('bc_')) {
-            throw Exception('key must start with bc_ for scoped variables');
-          }
+          final storageKey = _scopedStorageKey(rawKey);
+          final referenceKey = _scopedReferenceKey(rawKey);
 
           final contextId = _resolveScopeContextId(
             scope: scope,
@@ -913,9 +946,21 @@ Future<Map<String, String>> handleActions(
             throw Exception('Unable to resolve context ID for scope "$scope"');
           }
 
-          final value = _resolveVariableValuePayload(action.payload, resolveValue);
-          await manager.setScopedVariable(botId, scope, contextId, key, value);
-          variables['$scope.$key'] = value.toString();
+          final value = _resolveVariableValuePayload(
+            action.payload,
+            resolveValue,
+          );
+          await manager.setScopedVariable(
+            botId,
+            scope,
+            contextId,
+            storageKey,
+            value,
+          );
+          variables['$scope.$referenceKey'] = value.toString();
+          if (rawKey.isNotEmpty && rawKey != referenceKey) {
+            variables['$scope.$rawKey'] = value.toString();
+          }
           results[resultKey] = 'OK';
           break;
         case BotCreatorActionType.getScopedVariable:
@@ -927,11 +972,10 @@ Future<Map<String, String>> handleActions(
             );
           }
 
-          final key =
+          final rawKey =
               resolveValue((action.payload['key'] ?? '').toString()).trim();
-          if (!key.startsWith('bc_')) {
-            throw Exception('key must start with bc_ for scoped variables');
-          }
+          final storageKey = _scopedStorageKey(rawKey);
+          final referenceKey = _scopedReferenceKey(rawKey);
 
           final contextId = _resolveScopeContextId(
             scope: scope,
@@ -944,14 +988,33 @@ Future<Map<String, String>> handleActions(
             throw Exception('Unable to resolve context ID for scope "$scope"');
           }
 
-          final value =
-              await manager.getScopedVariable(botId, scope, contextId, key) ?? '';
+          var value = await manager.getScopedVariable(
+            botId,
+            scope,
+            contextId,
+            storageKey,
+          );
+          if (value == null && referenceKey != storageKey) {
+            value = await manager.getScopedVariable(
+              botId,
+              scope,
+              contextId,
+              referenceKey,
+            );
+          }
+          value ??= '';
           final storeAs =
-              resolveValue((action.payload['storeAs'] ?? '$scope.$key').toString()).trim();
+              resolveValue(
+                (action.payload['storeAs'] ?? '$scope.$referenceKey')
+                    .toString(),
+              ).trim();
           if (storeAs.isNotEmpty) {
             variables[storeAs] = value.toString();
           }
-          variables['$scope.$key'] = value.toString();
+          variables['$scope.$referenceKey'] = value.toString();
+          if (rawKey.isNotEmpty && rawKey != referenceKey) {
+            variables['$scope.$rawKey'] = value.toString();
+          }
           results[resultKey] = value.toString();
           break;
         case BotCreatorActionType.removeScopedVariable:
@@ -963,11 +1026,10 @@ Future<Map<String, String>> handleActions(
             );
           }
 
-          final key =
+          final rawKey =
               resolveValue((action.payload['key'] ?? '').toString()).trim();
-          if (!key.startsWith('bc_')) {
-            throw Exception('key must start with bc_ for scoped variables');
-          }
+          final storageKey = _scopedStorageKey(rawKey);
+          final referenceKey = _scopedReferenceKey(rawKey);
 
           final contextId = _resolveScopeContextId(
             scope: scope,
@@ -980,8 +1042,24 @@ Future<Map<String, String>> handleActions(
             throw Exception('Unable to resolve context ID for scope "$scope"');
           }
 
-          await manager.removeScopedVariable(botId, scope, contextId, key);
-          variables.remove('$scope.$key');
+          await manager.removeScopedVariable(
+            botId,
+            scope,
+            contextId,
+            storageKey,
+          );
+          if (referenceKey != storageKey) {
+            await manager.removeScopedVariable(
+              botId,
+              scope,
+              contextId,
+              referenceKey,
+            );
+          }
+          variables.remove('$scope.$referenceKey');
+          if (rawKey.isNotEmpty && rawKey != referenceKey) {
+            variables.remove('$scope.$rawKey');
+          }
           results[resultKey] = 'REMOVED';
           break;
         case BotCreatorActionType.renameScopedVariable:
@@ -993,15 +1071,14 @@ Future<Map<String, String>> handleActions(
             );
           }
 
-          final oldKey =
+          final oldRawKey =
               resolveValue((action.payload['oldKey'] ?? '').toString()).trim();
-          final newKey =
+          final newRawKey =
               resolveValue((action.payload['newKey'] ?? '').toString()).trim();
-          if (!oldKey.startsWith('bc_') || !newKey.startsWith('bc_')) {
-            throw Exception(
-              'oldKey and newKey must start with bc_ for scoped variables',
-            );
-          }
+          final oldStorageKey = _scopedStorageKey(oldRawKey);
+          final newStorageKey = _scopedStorageKey(newRawKey);
+          final oldReferenceKey = _scopedReferenceKey(oldRawKey);
+          final newReferenceKey = _scopedReferenceKey(newRawKey);
 
           final contextId = _resolveScopeContextId(
             scope: scope,
@@ -1018,15 +1095,44 @@ Future<Map<String, String>> handleActions(
             botId,
             scope,
             contextId,
-            oldKey,
-            newKey,
+            oldStorageKey,
+            newStorageKey,
           );
-          final oldRuntimeKey = '$scope.$oldKey';
-          final newRuntimeKey = '$scope.$newKey';
+          if (oldReferenceKey != oldStorageKey) {
+            final legacyValue = await manager.getScopedVariable(
+              botId,
+              scope,
+              contextId,
+              oldReferenceKey,
+            );
+            if (legacyValue != null) {
+              await manager.setScopedVariable(
+                botId,
+                scope,
+                contextId,
+                newStorageKey,
+                legacyValue,
+              );
+              await manager.removeScopedVariable(
+                botId,
+                scope,
+                contextId,
+                oldReferenceKey,
+              );
+            }
+          }
+          final oldRuntimeKey = '$scope.$oldReferenceKey';
+          final newRuntimeKey = '$scope.$newReferenceKey';
           if (variables.containsKey(oldRuntimeKey)) {
             final runtimeValue = variables.remove(oldRuntimeKey);
             if (runtimeValue != null) {
               variables[newRuntimeKey] = runtimeValue;
+              if (oldRawKey.isNotEmpty && oldRawKey != oldReferenceKey) {
+                variables.remove('$scope.$oldRawKey');
+              }
+              if (newRawKey.isNotEmpty && newRawKey != newReferenceKey) {
+                variables['$scope.$newRawKey'] = runtimeValue;
+              }
             }
           }
           results[resultKey] = 'RENAMED';
@@ -1169,7 +1275,10 @@ Future<Map<String, String>> handleActions(
           if (key.isEmpty) {
             throw Exception('key is required for setGlobalVariable');
           }
-          final value = _resolveVariableValuePayload(action.payload, resolveValue);
+          final value = _resolveVariableValuePayload(
+            action.payload,
+            resolveValue,
+          );
           await manager.setGlobalVariable(botId, key, value);
           variables['global.$key'] = value.toString();
           results[resultKey] = 'OK';
