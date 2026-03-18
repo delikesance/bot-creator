@@ -41,6 +41,7 @@ class AppManager implements BotDataStore {
       await _variableStore.init();
 
       await getAllApps();
+      await _migrateLegacyVariablesToSqlite();
     } catch (_) {
       // Keep app startup resilient even if persisted data is missing/corrupt.
       _apps = [];
@@ -54,6 +55,71 @@ class AppManager implements BotDataStore {
     while (true) {
       await Future.delayed(const Duration(seconds: 2));
       _appsStreamController.add(_apps);
+    }
+  }
+
+  Future<void> _migrateLegacyVariablesToSqlite() async {
+    final apps = List<dynamic>.from(_apps);
+    for (final appMeta in apps) {
+      final botId = (appMeta['id'] ?? '').toString().trim();
+      if (botId.isEmpty) {
+        continue;
+      }
+
+      final appData = Map<String, dynamic>.from(await getApp(botId));
+      if (appData.isEmpty) {
+        continue;
+      }
+
+      if (appData['variablesMigratedToSqlite'] == true) {
+        continue;
+      }
+
+      final globals = Map<String, dynamic>.from(
+        (appData['globalVariables'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      );
+      for (final entry in globals.entries) {
+        await _variableStore.setGlobalVariable(botId, entry.key, entry.value);
+      }
+
+      final scopedRoot = Map<String, dynamic>.from(
+        (appData['scopedVariables'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      );
+      for (final scopeEntry in scopedRoot.entries) {
+        final scope = scopeEntry.key.toString().trim();
+        if (scope.isEmpty) {
+          continue;
+        }
+
+        final byContext = Map<String, dynamic>.from(
+          (scopeEntry.value as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        for (final contextEntry in byContext.entries) {
+          final contextId = contextEntry.key.toString().trim();
+          if (contextId.isEmpty) {
+            continue;
+          }
+
+          final variables = Map<String, dynamic>.from(
+            (contextEntry.value as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          for (final variableEntry in variables.entries) {
+            await _variableStore.setScopedVariable(
+              botId,
+              scope,
+              contextId,
+              variableEntry.key,
+              variableEntry.value,
+            );
+          }
+        }
+      }
+
+      // Keep legacy JSON fields for compatibility, but mark migration done.
+      appData['variablesMigratedToSqlite'] = true;
+      await saveApp(botId, appData);
     }
   }
 
@@ -219,7 +285,6 @@ class AppManager implements BotDataStore {
     }
   }
 
-  @override
   @override
   Future<Map<String, dynamic>> getGlobalVariables(String id) async {
     return await _variableStore.getGlobalVariables(id);
