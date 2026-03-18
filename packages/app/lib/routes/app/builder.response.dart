@@ -263,13 +263,14 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.listMembers:
       case BotCreatorActionType.getMember:
         return 'Guild & Members';
-      case BotCreatorActionType.makeList:
-        return 'Utilities';
       case BotCreatorActionType.httpRequest:
       case BotCreatorActionType.setGlobalVariable:
       case BotCreatorActionType.getGlobalVariable:
       case BotCreatorActionType.removeGlobalVariable:
-      case BotCreatorActionType.listGlobalVariables:
+      case BotCreatorActionType.setScopedVariable:
+      case BotCreatorActionType.getScopedVariable:
+      case BotCreatorActionType.removeScopedVariable:
+      case BotCreatorActionType.renameScopedVariable:
         return 'HTTP & Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Workflows';
@@ -425,8 +426,6 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'List server members';
       case BotCreatorActionType.getMember:
         return 'Get member information';
-      case BotCreatorActionType.makeList:
-        return 'Create formatted lists';
       case BotCreatorActionType.httpRequest:
         return 'Send HTTP request with dynamic URL, method, headers and body';
       case BotCreatorActionType.setGlobalVariable:
@@ -435,8 +434,14 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Read a global variable and inject into runtime variables';
       case BotCreatorActionType.removeGlobalVariable:
         return 'Delete a global variable';
-      case BotCreatorActionType.listGlobalVariables:
-        return 'List all global variables as JSON';
+      case BotCreatorActionType.setScopedVariable:
+        return 'Create or update a scoped variable (guild/user/channel/guildMember/message)';
+      case BotCreatorActionType.getScopedVariable:
+        return 'Read a scoped variable and inject into runtime variables';
+      case BotCreatorActionType.removeScopedVariable:
+        return 'Delete a scoped variable';
+      case BotCreatorActionType.renameScopedVariable:
+        return 'Rename a scoped variable key';
       case BotCreatorActionType.runWorkflow:
         return 'Execute a saved workflow (supports entry point + arguments)';
       case BotCreatorActionType.respondWithMessage:

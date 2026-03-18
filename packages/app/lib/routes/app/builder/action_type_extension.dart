@@ -62,8 +62,6 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return 'List Webhooks';
       case BotCreatorActionType.getWebhook:
         return 'Get Webhook';
-      case BotCreatorActionType.makeList:
-        return 'Make List';
       case BotCreatorActionType.httpRequest:
         return 'HTTP Request';
       case BotCreatorActionType.setGlobalVariable:
@@ -72,8 +70,14 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return 'Get Global Variable';
       case BotCreatorActionType.removeGlobalVariable:
         return 'Remove Global Variable';
-      case BotCreatorActionType.listGlobalVariables:
-        return 'List Global Variables';
+      case BotCreatorActionType.setScopedVariable:
+        return 'Set Scoped Variable';
+      case BotCreatorActionType.getScopedVariable:
+        return 'Get Scoped Variable';
+      case BotCreatorActionType.removeScopedVariable:
+        return 'Remove Scoped Variable';
+      case BotCreatorActionType.renameScopedVariable:
+        return 'Rename Scoped Variable';
       case BotCreatorActionType.runWorkflow:
         return 'Run Workflow';
       case BotCreatorActionType.respondWithMessage:
@@ -153,8 +157,6 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.list;
       case BotCreatorActionType.getWebhook:
         return Icons.search;
-      case BotCreatorActionType.makeList:
-        return Icons.format_list_bulleted;
       case BotCreatorActionType.httpRequest:
         return Icons.http;
       case BotCreatorActionType.setGlobalVariable:
@@ -163,7 +165,10 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.key;
       case BotCreatorActionType.removeGlobalVariable:
         return Icons.key_off;
-      case BotCreatorActionType.listGlobalVariables:
+      case BotCreatorActionType.setScopedVariable:
+      case BotCreatorActionType.getScopedVariable:
+      case BotCreatorActionType.removeScopedVariable:
+      case BotCreatorActionType.renameScopedVariable:
         return Icons.inventory_2;
       case BotCreatorActionType.runWorkflow:
         return Icons.account_tree;
@@ -577,34 +582,6 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'Audit log reason',
-          ),
-        ];
-      case BotCreatorActionType.makeList:
-        return [
-          ParameterDefinition(
-            key: 'title',
-            type: ParameterType.string,
-            defaultValue: '',
-            hint: 'List title',
-          ),
-          ParameterDefinition(
-            key: 'items',
-            type: ParameterType.list,
-            defaultValue: <String>[],
-            hint: 'List items',
-            required: true,
-          ),
-          ParameterDefinition(
-            key: 'numbered',
-            type: ParameterType.boolean,
-            defaultValue: false,
-            hint: 'Use numbered list',
-          ),
-          ParameterDefinition(
-            key: 'separator',
-            type: ParameterType.string,
-            defaultValue: ', ',
-            hint: 'Item separator',
           ),
         ];
       case BotCreatorActionType.addReaction:
@@ -1080,10 +1057,23 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             required: true,
           ),
           ParameterDefinition(
+            key: 'valueType',
+            type: ParameterType.string,
+            defaultValue: 'string',
+            hint: 'Value type: string or number',
+            options: ['string', 'number'],
+          ),
+          ParameterDefinition(
             key: 'value',
             type: ParameterType.string,
             defaultValue: '',
             hint: 'Value (supports placeholders ((...)))',
+          ),
+          ParameterDefinition(
+            key: 'numberValue',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Numeric value when valueType=number',
           ),
         ];
       case BotCreatorActionType.getGlobalVariable:
@@ -1112,13 +1102,108 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             required: true,
           ),
         ];
-      case BotCreatorActionType.listGlobalVariables:
+      case BotCreatorActionType.setScopedVariable:
         return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.string,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped variable key (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'valueType',
+            type: ParameterType.string,
+            defaultValue: 'string',
+            hint: 'Value type: string or number',
+            options: ['string', 'number'],
+          ),
+          ParameterDefinition(
+            key: 'value',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'String value (supports placeholders ((...)))',
+          ),
+          ParameterDefinition(
+            key: 'numberValue',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Numeric value when valueType=number',
+          ),
+        ];
+      case BotCreatorActionType.getScopedVariable:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.string,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped variable key (must start with bc_)',
+            required: true,
+          ),
           ParameterDefinition(
             key: 'storeAs',
             type: ParameterType.string,
-            defaultValue: 'global.list',
-            hint: 'Runtime variable key that stores JSON list',
+            defaultValue: '',
+            hint: 'Runtime variable alias (ex: guild.bc_score)',
+          ),
+        ];
+      case BotCreatorActionType.removeScopedVariable:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.string,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped variable key (must start with bc_)',
+            required: true,
+          ),
+        ];
+      case BotCreatorActionType.renameScopedVariable:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.string,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'oldKey',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Current key (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'newKey',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'New key (must start with bc_)',
+            required: true,
           ),
         ];
       case BotCreatorActionType.runWorkflow:

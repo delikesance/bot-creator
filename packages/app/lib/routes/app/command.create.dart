@@ -42,6 +42,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   Map<String, dynamic> _responseModal = {};
   List<Map<String, dynamic>> _actions = [];
   Map<String, dynamic> _responseWorkflow = _defaultWorkflow();
+  Set<String> _persistedGlobalVariableNames = <String>{};
+  Set<String> _scopedVariableSuggestionNames = {
+    'guild.bc_key',
+    'user.bc_key',
+    'channel.bc_key',
+    'guildMember.bc_key',
+    'message.bc_key',
+  };
   bool _isLoading = true;
 
   /// True when editing an existing command that couldn't be fully loaded
@@ -441,6 +449,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         "client_id": widget.client?.user.id.toString() ?? "unknown",
       },
     );
+
+    await _refreshPersistedVariableNames();
+
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
       ApplicationCommand? command;
@@ -1210,6 +1221,24 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     return Permissions(parsed);
   }
 
+  Future<void> _refreshPersistedVariableNames() async {
+    final botId = _botIdForConfig;
+    if (botId == null || botId.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      final globals = await appManager.getGlobalVariables(botId);
+      _persistedGlobalVariableNames = globals.keys
+          .map((key) => 'global.$key')
+          .where((name) => name.trim().isNotEmpty)
+          .toSet();
+    } catch (_) {
+      // Keep editor resilient if local persistence is temporarily unavailable.
+      _persistedGlobalVariableNames = <String>{};
+    }
+  }
+
   List<String> get _variableNames {
     final base = _argsList
         .map((e) => e['name'])
@@ -1241,6 +1270,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     }
 
     base.addAll(_actionOutputVariableNames());
+    base.addAll(_persistedGlobalVariableNames);
+    base.addAll(_scopedVariableSuggestionNames);
 
     return base.toSet().toList(growable: false)..sort();
   }
@@ -1425,6 +1456,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     addSuggestion('workflow.args', kind: VariableSuggestionKind.nonNumeric);
     addSuggestion('arg.yourArg', kind: VariableSuggestionKind.unknown);
     addSuggestion('workflow.arg.yourArg', kind: VariableSuggestionKind.unknown);
+
+    for (final name in _persistedGlobalVariableNames) {
+      addSuggestion(name, kind: VariableSuggestionKind.unknown);
+    }
+
+    for (final name in _scopedVariableSuggestionNames) {
+      addSuggestion(name, kind: VariableSuggestionKind.unknown);
+    }
 
     final suggestions = suggestionsByName.values.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
