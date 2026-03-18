@@ -78,6 +78,7 @@ class DiscordRunner {
     _statusRotationTimer = null;
     await _gateway?.close();
     _gateway = null;
+    await store.dispose();
     _log.info('Runner stopped.');
   }
 

@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:bot_creator_shared/bot/bot_config.dart';
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
+import 'package:bot_creator_shared/bot/variable_database.dart';
 import 'package:bot_creator_shared/utils/workflow_call.dart';
 
 import 'package:bot_creator_shared/bot/json_variable_store.dart';
+import 'package:bot_creator_runner/stores/sqlite_cli_variable_store.dart';
 
 /// In-memory implementation of [BotDataStore] backed by a [BotConfig].
 ///
@@ -11,29 +15,105 @@ import 'package:bot_creator_shared/bot/json_variable_store.dart';
 class RunnerDataStore implements BotDataStore {
   final String botId;
   final List<Map<String, dynamic>> _workflows;
-  late JsonVariableStore _variableStore;
+  late JsonVariableStore _jsonFallbackStore;
+  SqliteCliVariableStore? _sqliteStore;
+  Future<void>? _initStoreFuture;
+  final Set<String> _seededBotIds = <String>{};
 
   RunnerDataStore(BotConfig config)
     : botId = 'runner',
       _workflows = List<Map<String, dynamic>>.from(config.workflows) {
-    // Initialize variable store from config
-    _variableStore = JsonVariableStore.fromMaps(
+    // JSON fallback remains available if SQLite fails to initialize.
+    _jsonFallbackStore = JsonVariableStore.fromMaps(
       globalVariables: config.globalVariables,
       scopedVariables: config.scopedVariables,
     );
+
+    _initStoreFuture = _initializePrimaryStore();
+  }
+
+  Future<void> _initializePrimaryStore() async {
+    try {
+      _sqliteStore = SqliteCliVariableStore(_resolveRunnerVariablesDir());
+      await _sqliteStore!.init();
+    } catch (_) {
+      _sqliteStore = null;
+    }
+  }
+
+  String _resolveRunnerVariablesDir() {
+    final configured =
+        (Platform.environment['BOT_CREATOR_DATA_DIR'] ?? '').trim();
+    if (configured.isNotEmpty) {
+      return '$configured/variables';
+    }
+    return './data/variables';
+  }
+
+  Future<VariableDatabase> _storeForBot(String botId) async {
+    if (_initStoreFuture != null) {
+      await _initStoreFuture;
+    }
+
+    final sqlite = _sqliteStore;
+    if (sqlite == null) {
+      return _jsonFallbackStore;
+    }
+
+    await _seedSqliteForBotIfNeeded(botId, sqlite);
+    return sqlite;
+  }
+
+  Future<void> _seedSqliteForBotIfNeeded(
+    String botId,
+    SqliteCliVariableStore sqlite,
+  ) async {
+    if (_seededBotIds.contains(botId)) {
+      return;
+    }
+
+    final fallbackGlobals = _jsonFallbackStore.exportGlobalVariables();
+    for (final entry in fallbackGlobals.entries) {
+      await sqlite.setGlobalVariable(botId, entry.key, entry.value);
+    }
+
+    final fallbackScoped = _jsonFallbackStore.exportScopedVariables();
+    for (final scopeEntry in fallbackScoped.entries) {
+      final scope = scopeEntry.key;
+      for (final contextEntry in scopeEntry.value.entries) {
+        final contextId = contextEntry.key;
+        for (final variableEntry in contextEntry.value.entries) {
+          await sqlite.setScopedVariable(
+            botId,
+            scope,
+            contextId,
+            variableEntry.key,
+            variableEntry.value,
+          );
+        }
+      }
+    }
+
+    _seededBotIds.add(botId);
+  }
+
+  Future<void> dispose() async {
+    _sqliteStore?.close();
+    _sqliteStore = null;
+    _seededBotIds.clear();
   }
 
   @override
   Future<Map<String, dynamic>> getGlobalVariables(String botId) async =>
-     await _variableStore.getGlobalVariables(botId);
+      await (await _storeForBot(botId)).getGlobalVariables(botId);
 
   @override
   Future<dynamic> getGlobalVariable(String botId, String key) async =>
-     await _variableStore.getGlobalVariable(botId, key);
+      await (await _storeForBot(botId)).getGlobalVariable(botId, key);
 
   @override
   Future<void> setGlobalVariable(String botId, String key, dynamic value) async {
-     await _variableStore.setGlobalVariable(botId, key, value);
+    await (await _storeForBot(botId)).setGlobalVariable(botId, key, value);
   }
 
   @override
@@ -41,13 +121,17 @@ class RunnerDataStore implements BotDataStore {
     String botId,
     String oldKey,
     String newKey,
-    ) async {
-      await _variableStore.renameGlobalVariable(botId, oldKey, newKey);
-    }
+  ) async {
+    await (await _storeForBot(botId)).renameGlobalVariable(
+      botId,
+      oldKey,
+      newKey,
+    );
+  }
 
   @override
   Future<void> removeGlobalVariable(String botId, String key) async {
-     await _variableStore.removeGlobalVariable(botId, key);
+    await (await _storeForBot(botId)).removeGlobalVariable(botId, key);
   }
 
   @override
@@ -55,8 +139,12 @@ class RunnerDataStore implements BotDataStore {
     String botId,
     String scope,
     String contextId,
-    ) async {
-      return await _variableStore.getScopedVariables(botId, scope, contextId);
+  ) async {
+    return await (await _storeForBot(botId)).getScopedVariables(
+      botId,
+      scope,
+      contextId,
+    );
   }
 
   @override
@@ -65,8 +153,13 @@ class RunnerDataStore implements BotDataStore {
     String scope,
     String contextId,
     String key,
-    ) async {
-      return await _variableStore.getScopedVariable(botId, scope, contextId, key);
+  ) async {
+    return await (await _storeForBot(botId)).getScopedVariable(
+      botId,
+      scope,
+      contextId,
+      key,
+    );
   }
 
   @override
@@ -76,8 +169,14 @@ class RunnerDataStore implements BotDataStore {
     String contextId,
     String key,
     dynamic value,
-    ) async {
-      await _variableStore.setScopedVariable(botId, scope, contextId, key, value);
+  ) async {
+    await (await _storeForBot(botId)).setScopedVariable(
+      botId,
+      scope,
+      contextId,
+      key,
+      value,
+    );
   }
 
   @override
@@ -87,8 +186,14 @@ class RunnerDataStore implements BotDataStore {
     String contextId,
     String oldKey,
     String newKey,
-    ) async {
-      await _variableStore.renameScopedVariable(botId, scope, contextId, oldKey, newKey);
+  ) async {
+    await (await _storeForBot(botId)).renameScopedVariable(
+      botId,
+      scope,
+      contextId,
+      oldKey,
+      newKey,
+    );
   }
 
   @override
@@ -97,8 +202,13 @@ class RunnerDataStore implements BotDataStore {
     String scope,
     String contextId,
     String key,
-    ) async {
-      await _variableStore.removeScopedVariable(botId, scope, contextId, key);
+  ) async {
+    await (await _storeForBot(botId)).removeScopedVariable(
+      botId,
+      scope,
+      contextId,
+      key,
+    );
   }
 
   @override
