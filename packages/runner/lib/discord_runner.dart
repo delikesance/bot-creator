@@ -78,6 +78,7 @@ class DiscordRunner {
     _statusRotationTimer = null;
     await _gateway?.close();
     _gateway = null;
+    await store.dispose();
     _log.info('Runner stopped.');
   }
 
@@ -516,8 +517,57 @@ class DiscordRunner {
     };
     final globalVars = await store.getGlobalVariables(botId);
     for (final entry in globalVars.entries) {
-      runtimeVariables['global.${entry.key}'] = entry.value;
+      runtimeVariables['global.${entry.key}'] = entry.value.toString();
     }
+
+    final guildContextId =
+        context.variables['guildId'] ?? context.guildId?.toString();
+    final channelContextId =
+        context.variables['channelId'] ?? context.channelId?.toString();
+    final userContextId =
+        context.variables['userId'] ?? context.variables['author.id'];
+    final guildMemberContextId =
+        (guildContextId != null &&
+                guildContextId.trim().isNotEmpty &&
+                userContextId != null &&
+                userContextId.trim().isNotEmpty)
+            ? '${guildContextId.trim()}:${userContextId.trim()}'
+            : null;
+    final messageContextId =
+        context.variables['messageId'] ??
+        context.variables['message.id'] ??
+        context.variables['event.id'];
+
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'guild',
+      contextId: guildContextId,
+    );
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'channel',
+      contextId: channelContextId,
+    );
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'user',
+      contextId: userContextId,
+    );
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'guildMember',
+      contextId: guildMemberContextId,
+    );
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'message',
+      contextId: messageContextId,
+    );
 
     applyWorkflowInvocationContext(
       variables: runtimeVariables,
@@ -556,6 +606,38 @@ class DiscordRunner {
     }
   }
 
+  Future<void> _injectScopedVariables({
+    required Map<String, String> runtimeVariables,
+    required String botId,
+    required String scope,
+    required String? contextId,
+  }) async {
+    final normalizedContextId = (contextId ?? '').trim();
+    if (normalizedContextId.isEmpty) {
+      return;
+    }
+
+    final values = await store.getScopedVariables(
+      botId,
+      scope,
+      normalizedContextId,
+    );
+    for (final entry in values.entries) {
+      final rawKey = entry.key.toString().trim();
+      if (rawKey.isEmpty) {
+        continue;
+      }
+
+      final canonicalKey = rawKey.startsWith('bc_') ? rawKey : 'bc_$rawKey';
+      final value = entry.value.toString();
+
+      // Canonical reference form for scoped placeholders.
+      runtimeVariables['$scope.$canonicalKey'] = value;
+      // Backward-compat alias for older payloads still using raw keys.
+      runtimeVariables['$scope.$rawKey'] = value;
+    }
+  }
+
   Future<void> _executeCommand({
     required NyxxGateway client,
     required String botId,
@@ -582,8 +664,52 @@ class DiscordRunner {
     final runtimeVariables = await generateKeyValues(interaction);
     final globalVars = await store.getGlobalVariables(botId);
     for (final entry in globalVars.entries) {
-      runtimeVariables['global.${entry.key}'] = entry.value;
+      runtimeVariables['global.${entry.key}'] = entry.value.toString();
     }
+
+    final guildContextId = runtimeVariables['guildId'];
+    final channelContextId = runtimeVariables['channelId'];
+    final userContextId = runtimeVariables['userId'];
+    final guildMemberContextId =
+        (guildContextId != null &&
+                guildContextId.trim().isNotEmpty &&
+                userContextId != null &&
+                userContextId.trim().isNotEmpty)
+            ? '${guildContextId.trim()}:${userContextId.trim()}'
+            : null;
+    final messageContextId =
+        runtimeVariables['messageId'] ?? runtimeVariables['message.id'];
+
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'guild',
+      contextId: guildContextId,
+    );
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'channel',
+      contextId: channelContextId,
+    );
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'user',
+      contextId: userContextId,
+    );
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'guildMember',
+      contextId: guildMemberContextId,
+    );
+    await _injectScopedVariables(
+      runtimeVariables: runtimeVariables,
+      botId: botId,
+      scope: 'message',
+      contextId: messageContextId,
+    );
 
     // Collect actions
     var actionsJson = List<Map<String, dynamic>>.from(

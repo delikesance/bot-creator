@@ -2,6 +2,8 @@ import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 
+enum _VariableMode { global, scoped }
+
 class GlobalVariablesPage extends StatefulWidget {
   const GlobalVariablesPage({super.key, required this.botId});
 
@@ -12,7 +14,17 @@ class GlobalVariablesPage extends StatefulWidget {
 }
 
 class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
-  Map<String, String> _variables = <String, String>{};
+  static const List<String> _scopes = <String>[
+    'guild',
+    'user',
+    'channel',
+    'guildMember',
+    'message',
+  ];
+
+  Map<String, dynamic> _globalVariables = <String, dynamic>{};
+  List<Map<String, dynamic>> _scopedDefinitions = <Map<String, dynamic>>[];
+  _VariableMode _mode = _VariableMode.global;
   bool _loading = true;
 
   @override
@@ -21,89 +33,414 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
     _load();
   }
 
-  Future<void> _load() async {
-    final values = await appManager.getGlobalVariables(widget.botId);
-    if (!mounted) {
-      return;
+  bool get _isScopedMode => _mode == _VariableMode.scoped;
+
+  String _toScopedReferenceKey(String rawKey) {
+    final key = rawKey.trim();
+    if (key.isEmpty) {
+      return key;
     }
-    setState(() {
-      _variables = Map<String, String>.from(values);
-      _loading = false;
-    });
+    return key.startsWith('bc_') ? key : 'bc_$key';
   }
 
-  Future<void> _editVariable({String? key}) async {
-    final keyController = TextEditingController(text: key ?? '');
-    final valueController = TextEditingController(
-      text: key != null ? (_variables[key] ?? '') : '',
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    if (_isScopedMode) {
+      final defs = await appManager.getScopedVariableDefinitions(widget.botId);
+      if (!mounted) return;
+      setState(() {
+        _scopedDefinitions = defs;
+        _loading = false;
+      });
+    } else {
+      final vars = await appManager.getGlobalVariables(widget.botId);
+      if (!mounted) return;
+      setState(() {
+        _globalVariables = Map<String, dynamic>.from(vars);
+        _loading = false;
+      });
+    }
+  }
+
+  // ─── Global variable add / edit ───────────────────────────────────────────
+
+  Future<void> _editGlobalVariable({String? key}) async {
+    final keyCtrl = TextEditingController(text: key ?? '');
+    final valueCtrl = TextEditingController(
+      text: key != null ? (_globalVariables[key]?.toString() ?? '') : '',
     );
 
     final save = await showDialog<bool>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(
-            key == null
-                ? AppStrings.t('globals_add')
-                : AppStrings.t('globals_edit'),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: keyController,
-                decoration: InputDecoration(
-                  labelText: AppStrings.t('globals_key'),
-                  border: const OutlineInputBorder(),
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(
+              key == null
+                  ? AppStrings.t('globals_add')
+                  : AppStrings.t('globals_edit'),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: keyCtrl,
+                  enabled: key == null,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.t('globals_key'),
+                    border: const OutlineInputBorder(),
+                  ),
                 ),
-                enabled: key == null,
+                const SizedBox(height: 8),
+                TextField(
+                  controller: valueCtrl,
+                  maxLines: 4,
+                  minLines: 1,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.t('globals_value'),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(AppStrings.t('cancel')),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: valueController,
-                maxLines: 4,
-                minLines: 1,
-                decoration: InputDecoration(
-                  labelText: AppStrings.t('globals_value'),
-                  border: const OutlineInputBorder(),
-                ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(AppStrings.t('app_save')),
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(AppStrings.t('cancel')),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(AppStrings.t('app_save')),
-            ),
-          ],
-        );
-      },
     );
 
-    if (save != true) {
-      return;
+    if (save != true) return;
+    final nextKey = keyCtrl.text.trim();
+    if (nextKey.isEmpty) return;
+
+    await appManager.setGlobalVariable(widget.botId, nextKey, valueCtrl.text);
+    await _load();
+  }
+
+  Future<void> _deleteGlobalVariable(String key) async {
+    await appManager.removeGlobalVariable(widget.botId, key);
+    await _load();
+  }
+
+  // ─── Scoped variable definition add / edit ────────────────────────────────
+  // Only key + scope + defaultValue — NO contextId (that's runtime/SQLite).
+
+  Future<void> _editScopedDefinition({Map<String, dynamic>? existing}) async {
+    final oldKey = existing?['key']?.toString();
+    final keyCtrl = TextEditingController(text: oldKey ?? '');
+    final valueCtrl = TextEditingController(
+      text: (existing?['defaultValue'] ?? '').toString(),
+    );
+    String scope =
+        (existing?['scope']?.toString().isNotEmpty == true
+            ? existing!['scope'].toString()
+            : null) ??
+        _scopes.first;
+
+    final save = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => StatefulBuilder(
+            builder:
+                (ctx, setInner) => AlertDialog(
+                  title: Text(
+                    existing == null
+                        ? AppStrings.t('globals_add')
+                        : AppStrings.t('globals_edit'),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        initialValue: scope,
+                        decoration: const InputDecoration(
+                          labelText: 'Scope',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _scopes
+                            .map(
+                              (s) => DropdownMenuItem<String>(
+                                value: s,
+                                child: Text(s),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (v) {
+                          if (v != null) setInner(() => scope = v);
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: keyCtrl,
+                        decoration: InputDecoration(
+                          labelText: AppStrings.t('globals_key'),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: valueCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Valeur par défaut',
+                          hintText: 'Optionnel',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(AppStrings.t('cancel')),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: Text(AppStrings.t('app_save')),
+                    ),
+                  ],
+                ),
+          ),
+    );
+
+    if (save != true) return;
+    final newKey = keyCtrl.text.trim();
+    if (newKey.isEmpty) return;
+
+    // If the key was renamed, delete the old entry first.
+    if (oldKey != null && oldKey != newKey) {
+      await appManager.removeScopedVariableDefinition(widget.botId, oldKey);
     }
 
-    final nextKey = keyController.text.trim();
-    if (nextKey.isEmpty) {
-      return;
-    }
-
-    await appManager.setGlobalVariable(
+    await appManager.setScopedVariableDefinition(
       widget.botId,
-      nextKey,
-      valueController.text,
+      newKey,
+      scope,
+      valueCtrl.text,
     );
     await _load();
   }
 
-  Future<void> _deleteVariable(String key) async {
-    await appManager.removeGlobalVariable(widget.botId, key);
+  Future<void> _deleteScopedDefinition(String key) async {
+    await appManager.removeScopedVariableDefinition(widget.botId, key);
     await _load();
+  }
+
+  // ─── Explorer: shows SQLite runtime data for a given scoped key ───────────
+
+  Future<void> _exploreScopedKey(String key, String scope) async {
+    final values = await appManager.listScopedValuesForKey(
+      widget.botId,
+      scope,
+      key,
+    );
+
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder:
+          (ctx) => DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.55,
+            minChildSize: 0.35,
+            maxChildSize: 0.9,
+            builder:
+                (ctx, scrollCtrl) => SafeArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ListTile(
+                        title: Text('Données runtime — "$key"'),
+                        subtitle: Text(
+                          'Scope: $scope · ${values.length} contexte(s) trouvé(s)',
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      Expanded(
+                        child:
+                            values.isEmpty
+                                ? const Center(
+                                  child: Text(
+                                    'Aucune donnée runtime.\nCette clé sera peuplée par le bot à l\'exécution.',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                )
+                                : ListView.separated(
+                                  controller: scrollCtrl,
+                                  itemCount: values.length,
+                                  separatorBuilder:
+                                      (_, _) => const Divider(height: 1),
+                                  itemBuilder: (ctx, i) {
+                                    final entry = values.entries.elementAt(i);
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(
+                                        entry.key,
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        entry.value?.toString() ?? '',
+                                      ),
+                                    );
+                                  },
+                                ),
+                      ),
+                    ],
+                  ),
+                ),
+          ),
+    );
+  }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
+
+  Widget _buildModeToggle() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Row(
+        children: [
+          const Text('Mode', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 12),
+          SegmentedButton<_VariableMode>(
+            segments: const [
+              ButtonSegment<_VariableMode>(
+                value: _VariableMode.global,
+                label: Text('Global'),
+              ),
+              ButtonSegment<_VariableMode>(
+                value: _VariableMode.scoped,
+                label: Text('Scoped'),
+              ),
+            ],
+            selected: <_VariableMode>{_mode},
+            onSelectionChanged: (selection) async {
+              final next = selection.first;
+              if (next == _mode) return;
+              setState(() => _mode = next);
+              await _load();
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlobalList() {
+    if (_globalVariables.isEmpty) {
+      return Center(child: Text(AppStrings.t('globals_empty')));
+    }
+    return ListView.separated(
+      itemCount: _globalVariables.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (ctx, i) {
+        final entry = _globalVariables.entries.elementAt(i);
+        return ListTile(
+          title: Text(entry.key),
+          subtitle: Text(
+            entry.value?.toString() ?? '',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Wrap(
+            spacing: 4,
+            children: [
+              IconButton(
+                onPressed: () => _editGlobalVariable(key: entry.key),
+                icon: const Icon(Icons.edit_outlined),
+              ),
+              IconButton(
+                onPressed: () => _deleteGlobalVariable(entry.key),
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildScopedList() {
+    if (_scopedDefinitions.isEmpty) {
+      return const Center(
+        child: Text(
+          'Aucune variable scoped définie.\nAppuyez sur + pour en ajouter une.',
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+    return ListView.separated(
+      itemCount: _scopedDefinitions.length,
+      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemBuilder: (ctx, i) {
+        final def = _scopedDefinitions[i];
+        final key = def['key']?.toString() ?? '';
+        final scope = def['scope']?.toString() ?? '';
+        final defaultValue = def['defaultValue']?.toString() ?? '';
+        final refKey = _toScopedReferenceKey(key);
+
+        return ListTile(
+          title: Text(key),
+          subtitle: Row(
+            children: [
+              Chip(
+                label: Text(scope, style: const TextStyle(fontSize: 11)),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'ref: $scope.$refKey',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ),
+              if (defaultValue.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    '= $defaultValue',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          trailing: Wrap(
+            spacing: 0,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.travel_explore, size: 20),
+                tooltip: 'Explorer les données runtime',
+                onPressed: () => _exploreScopedKey(key, scope),
+              ),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 20),
+                onPressed: () => _editScopedDefinition(existing: def),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                onPressed: () => _deleteScopedDefinition(key),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -111,43 +448,22 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.t('globals_title'))),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _editVariable(),
+        onPressed:
+            () =>
+                _isScopedMode ? _editScopedDefinition() : _editGlobalVariable(),
         child: const Icon(Icons.add),
       ),
       body:
           _loading
               ? const Center(child: CircularProgressIndicator())
-              : _variables.isEmpty
-              ? Center(child: Text(AppStrings.t('globals_empty')))
-              : ListView.separated(
-                itemCount: _variables.length,
-                separatorBuilder:
-                    (BuildContext context, int index) =>
-                        const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final entry = _variables.entries.elementAt(index);
-                  return ListTile(
-                    title: Text(entry.key),
-                    subtitle: Text(
-                      entry.value,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Wrap(
-                      spacing: 4,
-                      children: [
-                        IconButton(
-                          onPressed: () => _editVariable(key: entry.key),
-                          icon: const Icon(Icons.edit_outlined),
-                        ),
-                        IconButton(
-                          onPressed: () => _deleteVariable(entry.key),
-                          icon: const Icon(Icons.delete_outline),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+              : Column(
+                children: [
+                  _buildModeToggle(),
+                  Expanded(
+                    child:
+                        _isScopedMode ? _buildScopedList() : _buildGlobalList(),
+                  ),
+                ],
               ),
     );
   }

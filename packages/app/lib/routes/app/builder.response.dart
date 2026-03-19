@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../types/action.dart' show BotCreatorActionType;
+import '../../types/app_emoji.dart';
 import '../../utils/remote_config_provider.dart';
 import 'builder/action_types.dart';
 import 'builder/action_type_extension.dart';
@@ -14,12 +15,14 @@ export 'builder/action_card.dart';
 class ActionsBuilderPage extends StatefulWidget {
   final List<Map<String, dynamic>> initialActions;
   final List<VariableSuggestion> variableSuggestions;
+  final List<AppEmoji>? emojiSuggestions;
   final String? botIdForConfig;
 
   const ActionsBuilderPage({
     super.key,
     this.initialActions = const [],
     this.variableSuggestions = const [],
+    this.emojiSuggestions,
     this.botIdForConfig,
   });
 
@@ -60,6 +63,21 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       _fieldRefreshVersions.removeWhere(
         (compositeKey, _) => compositeKey.startsWith('$actionId::'),
       );
+    });
+  }
+
+  void _moveAction(int fromIndex, int toIndex) {
+    if (fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= _actions.length ||
+        toIndex >= _actions.length ||
+        fromIndex == toIndex) {
+      return;
+    }
+
+    setState(() {
+      final action = _actions.removeAt(fromIndex);
+      _actions.insert(toIndex, action);
     });
   }
 
@@ -263,13 +281,14 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.listMembers:
       case BotCreatorActionType.getMember:
         return 'Guild & Members';
-      case BotCreatorActionType.makeList:
-        return 'Utilities';
       case BotCreatorActionType.httpRequest:
       case BotCreatorActionType.setGlobalVariable:
       case BotCreatorActionType.getGlobalVariable:
       case BotCreatorActionType.removeGlobalVariable:
-      case BotCreatorActionType.listGlobalVariables:
+      case BotCreatorActionType.setScopedVariable:
+      case BotCreatorActionType.getScopedVariable:
+      case BotCreatorActionType.removeScopedVariable:
+      case BotCreatorActionType.renameScopedVariable:
         return 'HTTP & Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Workflows';
@@ -425,8 +444,6 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'List server members';
       case BotCreatorActionType.getMember:
         return 'Get member information';
-      case BotCreatorActionType.makeList:
-        return 'Create formatted lists';
       case BotCreatorActionType.httpRequest:
         return 'Send HTTP request with dynamic URL, method, headers and body';
       case BotCreatorActionType.setGlobalVariable:
@@ -435,8 +452,14 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Read a global variable and inject into runtime variables';
       case BotCreatorActionType.removeGlobalVariable:
         return 'Delete a global variable';
-      case BotCreatorActionType.listGlobalVariables:
-        return 'List all global variables as JSON';
+      case BotCreatorActionType.setScopedVariable:
+        return 'Create or update a scoped variable (guild/user/channel/guildMember/message)';
+      case BotCreatorActionType.getScopedVariable:
+        return 'Read a scoped variable and inject into runtime variables';
+      case BotCreatorActionType.removeScopedVariable:
+        return 'Delete a scoped variable';
+      case BotCreatorActionType.renameScopedVariable:
+        return 'Rename a scoped variable key';
       case BotCreatorActionType.runWorkflow:
         return 'Execute a saved workflow (supports entry point + arguments)';
       case BotCreatorActionType.respondWithMessage:
@@ -504,13 +527,25 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                                 .toString()
                                 .trim();
                         return ActionCard(
+                          key: ValueKey('action-card-${action.id}-$index'),
                           action: action,
+                          index: index,
+                          totalCount: _actions.length,
                           actionKey:
                               computedActionKey.isNotEmpty
                                   ? computedActionKey
                                   : action.type.name,
                           onRemove: () => _removeAction(action.id),
+                          onMoveUp:
+                              index > 0
+                                  ? () => _moveAction(index, index - 1)
+                                  : null,
+                          onMoveDown:
+                              index < _actions.length - 1
+                                  ? () => _moveAction(index, index + 1)
+                                  : null,
                           variableSuggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           botIdForConfig: widget.botIdForConfig,
                           fieldRefreshVersionOf:
                               (paramKey) =>

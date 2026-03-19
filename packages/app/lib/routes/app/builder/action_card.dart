@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import '../../../types/action.dart' show BotCreatorActionType;
 import '../../../types/component.dart';
 import '../../../routes/app/workflows.page.dart';
+import '../../../routes/app/global.variables.dart';
 import '../../../main.dart';
 import '../../../widgets/component_v2_builder/component_v2_editor.dart';
 import '../../../widgets/component_v2_builder/modal_builder.dart';
 import '../../../widgets/component_v2_builder/normal_component_editor.dart';
+import '../../../types/app_emoji.dart';
 import '../../../widgets/response_embeds_editor.dart';
 import 'action_types.dart';
 import 'action_type_extension.dart';
@@ -17,11 +19,16 @@ import 'package:http/http.dart' as http;
 
 class ActionCard extends StatelessWidget {
   final ActionItem action;
+  final int index;
+  final int totalCount;
   final String actionKey;
   final List<VariableSuggestion> variableSuggestions;
+  final List<AppEmoji>? emojiSuggestions;
   final int Function(String paramKey) fieldRefreshVersionOf;
   final Function(String key, dynamic value) onSuggestionSelected;
   final VoidCallback onRemove;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
   final Function(String key, dynamic value) onParameterChanged;
   final String? botIdForConfig;
 
@@ -36,12 +43,17 @@ class ActionCard extends StatelessWidget {
   const ActionCard({
     super.key,
     required this.action,
+    required this.index,
+    required this.totalCount,
     required this.onRemove,
+    this.onMoveUp,
+    this.onMoveDown,
     required this.onParameterChanged,
     required this.onSuggestionSelected,
     required this.fieldRefreshVersionOf,
     required this.actionKey,
     required this.variableSuggestions,
+    this.emojiSuggestions,
     this.botIdForConfig,
     this.onEditNestedActions,
   });
@@ -65,21 +77,51 @@ class ActionCard extends StatelessWidget {
                 Icon(action.type.icon, color: Colors.blue),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    action.type.displayName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        action.type.displayName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Action ${index + 1}/$totalCount',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(
+                  onPressed: onMoveUp,
+                  tooltip: 'Move up',
+                  icon: const Icon(Icons.arrow_upward),
+                ),
+                IconButton(
+                  onPressed: onMoveDown,
+                  tooltip: 'Move down',
+                  icon: const Icon(Icons.arrow_downward),
+                ),
+                IconButton(
                   onPressed: onRemove,
+                  tooltip: 'Remove action',
                   icon: const Icon(Icons.delete, color: Colors.red),
                 ),
               ],
             ),
             const SizedBox(height: 8),
+            if (index > 0 || index < totalCount - 1)
+              Text(
+                'Tip: use arrows to change action order.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              ),
+            if (index > 0 || index < totalCount - 1) const SizedBox(height: 8),
             TextFormField(
               key: ValueKey('action-key-${action.id}'),
               initialValue: actionKey,
@@ -860,6 +902,7 @@ class ActionCard extends StatelessWidget {
             ResponseEmbedsEditor(
               embeds: embeds,
               variableSuggestions: variableSuggestions,
+              emojiSuggestions: emojiSuggestions,
               onChanged: (updated) {
                 onParameterChanged(paramDef.key, updated);
               },
@@ -1077,6 +1120,29 @@ class ActionCard extends StatelessWidget {
             botId: botIdForConfig!,
             onChanged: (value) {
               onParameterChanged(paramDef.key, value);
+            },
+          );
+        }
+
+        if (botIdForConfig != null &&
+            botIdForConfig!.trim().isNotEmpty &&
+            _isVariableKeyParameter(action.type, paramDef.key)) {
+          final currentScope = (action.parameters['scope'] ?? '').toString();
+          final usesScopedKeys =
+              action.type == BotCreatorActionType.setScopedVariable ||
+              action.type == BotCreatorActionType.getScopedVariable ||
+              action.type == BotCreatorActionType.removeScopedVariable ||
+              action.type == BotCreatorActionType.renameScopedVariable;
+
+          return _VariableKeyParameterField(
+            label: _formatParameterName(paramDef.key),
+            currentValue: (currentValue ?? paramDef.defaultValue).toString(),
+            hint: paramDef.hint ?? 'Select variable key',
+            botId: botIdForConfig!,
+            scope: currentScope,
+            scoped: usesScopedKeys,
+            onChanged: (value) {
+              onParameterChanged(paramDef.key, value.trim());
             },
           );
         }
@@ -2052,6 +2118,214 @@ class ActionCard extends StatelessWidget {
         .split(' ')
         .map((word) => word[0].toUpperCase() + word.substring(1))
         .join(' ');
+  }
+
+  bool _isVariableKeyParameter(BotCreatorActionType type, String paramKey) {
+    switch (type) {
+      case BotCreatorActionType.setGlobalVariable:
+      case BotCreatorActionType.getGlobalVariable:
+      case BotCreatorActionType.removeGlobalVariable:
+        return paramKey == 'key';
+      case BotCreatorActionType.setScopedVariable:
+      case BotCreatorActionType.getScopedVariable:
+      case BotCreatorActionType.removeScopedVariable:
+        return paramKey == 'key';
+      case BotCreatorActionType.renameScopedVariable:
+        return paramKey == 'oldKey' || paramKey == 'newKey';
+      default:
+        return false;
+    }
+  }
+}
+
+class _VariableKeyParameterField extends StatefulWidget {
+  final String label;
+  final String currentValue;
+  final String hint;
+  final String botId;
+  final String scope;
+  final bool scoped;
+  final ValueChanged<String> onChanged;
+
+  const _VariableKeyParameterField({
+    required this.label,
+    required this.currentValue,
+    required this.hint,
+    required this.botId,
+    required this.scope,
+    required this.scoped,
+    required this.onChanged,
+  });
+
+  @override
+  State<_VariableKeyParameterField> createState() =>
+      _VariableKeyParameterFieldState();
+}
+
+class _VariableKeyParameterFieldState
+    extends State<_VariableKeyParameterField> {
+  List<String> _keys = const [];
+  bool _loading = false;
+
+  String _toScopedReferenceKey(String rawKey) {
+    final key = rawKey.trim();
+    if (key.isEmpty) {
+      return key;
+    }
+    return key.startsWith('bc_') ? key : 'bc_$key';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadKeys();
+  }
+
+  @override
+  void didUpdateWidget(covariant _VariableKeyParameterField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.botId != widget.botId ||
+        oldWidget.scoped != widget.scoped ||
+        oldWidget.scope != widget.scope) {
+      _loadKeys();
+    }
+  }
+
+  Future<void> _loadKeys() async {
+    setState(() {
+      _loading = true;
+    });
+
+    List<String> keys;
+    if (widget.scoped) {
+      final defs = await appManager.getScopedVariableDefinitions(widget.botId);
+      final scope = widget.scope.trim();
+      keys = defs
+          .where(
+            (def) =>
+                scope.isEmpty ||
+                (def['scope'] ?? '').toString().trim() == scope,
+          )
+          .map((def) => (def['key'] ?? '').toString().trim())
+          .where((k) => k.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+    } else {
+      final globals = await appManager.getGlobalVariables(widget.botId);
+      keys = globals.keys
+          .map((k) => k.toString().trim())
+          .where((k) => k.isNotEmpty)
+          .toSet()
+          .toList(growable: false);
+    }
+
+    keys.sort();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _keys = keys;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmedCurrent = widget.currentValue.trim();
+    final items = <String>{
+      ..._keys,
+      if (trimmedCurrent.isNotEmpty) trimmedCurrent,
+    }.toList(growable: false)..sort();
+
+    final selectedValue =
+        trimmedCurrent.isNotEmpty && items.contains(trimmedCurrent)
+            ? trimmedCurrent
+            : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              widget.label,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(width: 6),
+            const Text(
+              '(static)',
+              style: TextStyle(fontSize: 11, color: Colors.orangeAccent),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                key: ValueKey(
+                  'variableKeyDropdown_${widget.scoped}_${widget.scope}_${widget.currentValue}_${items.length}',
+                ),
+                initialValue: selectedValue,
+                isExpanded: true,
+                items: items
+                    .map(
+                      (key) => DropdownMenuItem<String>(
+                        value: key,
+                        child: Text(
+                          widget.scoped
+                              ? '$key  (ref: ${_toScopedReferenceKey(key)})'
+                              : key,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged:
+                    _loading
+                        ? null
+                        : (value) {
+                          widget.onChanged((value ?? '').trim());
+                        },
+                decoration: InputDecoration(
+                  hintText: widget.hint,
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  helperText:
+                      _loading
+                          ? 'Loading keys...'
+                          : (items.isEmpty
+                              ? 'No saved keys found. Create keys in Global Variables.'
+                              : (widget.scoped
+                                  ? 'Select stored key (auto-complete uses bc_ prefix)'
+                                  : 'Select a saved key')),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Refresh keys',
+              onPressed: _loading ? null : _loadKeys,
+              icon: const Icon(Icons.refresh),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        OutlinedButton.icon(
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => GlobalVariablesPage(botId: widget.botId),
+              ),
+            );
+            await _loadKeys();
+          },
+          icon: const Icon(Icons.storage),
+          label: const Text('Manage Variable Keys'),
+        ),
+      ],
+    );
   }
 }
 

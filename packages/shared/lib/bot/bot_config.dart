@@ -74,7 +74,8 @@ class BotConfig {
   final String? username;
   final String? avatarPath;
   final Map<String, bool> intents;
-  final Map<String, String> globalVariables;
+  final Map<String, dynamic> globalVariables;
+  final Map<String, Map<String, Map<String, dynamic>>> scopedVariables;
   final List<Map<String, dynamic>> workflows;
   final List<BotStatusConfig> statuses;
 
@@ -88,6 +89,7 @@ class BotConfig {
     this.avatarPath,
     this.intents = const {},
     this.globalVariables = const {},
+    this.scopedVariables = const {},
     this.workflows = const [],
     this.statuses = const [],
     this.commands = const [],
@@ -104,12 +106,8 @@ class BotConfig {
             ) ??
             const {},
       ),
-      globalVariables: Map<String, String>.from(
-        (json['globalVariables'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
-            ) ??
-            const {},
-      ),
+      globalVariables: _normalizeVariableMap(json['globalVariables']),
+      scopedVariables: _normalizeScopedVariables(json['scopedVariables']),
       workflows: List<Map<String, dynamic>>.from(
         (json['workflows'] as List?)?.whereType<Map>().map(
               (w) => normalizeStoredWorkflowDefinition(
@@ -139,6 +137,7 @@ class BotConfig {
     if (avatarPath != null) 'avatarPath': avatarPath,
     'intents': intents,
     'globalVariables': globalVariables,
+    'scopedVariables': scopedVariables,
     'workflows': workflows,
     'statuses': statuses.map((s) => s.toJson()).toList(growable: false),
     'commands': commands,
@@ -171,6 +170,59 @@ class BotConfig {
 String? _optionalString(dynamic value) {
   final text = (value ?? '').toString().trim();
   return text.isEmpty ? null : text;
+}
+
+Map<String, dynamic> _normalizeVariableMap(dynamic raw) {
+  final source =
+      (raw is Map)
+          ? Map<String, dynamic>.from(raw.cast<String, dynamic>())
+          : const <String, dynamic>{};
+
+  final normalized = <String, dynamic>{};
+  for (final entry in source.entries) {
+    normalized[entry.key] = _normalizeVariableValue(entry.value);
+  }
+  return normalized;
+}
+
+Map<String, Map<String, Map<String, dynamic>>> _normalizeScopedVariables(
+  dynamic raw,
+) {
+  final scopes =
+      (raw is Map)
+          ? Map<String, dynamic>.from(raw.cast<String, dynamic>())
+          : const <String, dynamic>{};
+
+  final normalized = <String, Map<String, Map<String, dynamic>>>{};
+  for (final scopeEntry in scopes.entries) {
+    final ids =
+        (scopeEntry.value is Map)
+            ? Map<String, dynamic>.from(
+              (scopeEntry.value as Map).cast<String, dynamic>(),
+            )
+            : const <String, dynamic>{};
+
+    final scopeValues = <String, Map<String, dynamic>>{};
+    for (final idEntry in ids.entries) {
+      scopeValues[idEntry.key] = _normalizeVariableMap(idEntry.value);
+    }
+
+    normalized[scopeEntry.key] = scopeValues;
+  }
+  return normalized;
+}
+
+dynamic _normalizeVariableValue(dynamic value) {
+  if (value is num || value is String) {
+    return value;
+  }
+
+  final text = (value ?? '').toString();
+  final asNum = num.tryParse(text);
+  if (asNum != null) {
+    return asNum;
+  }
+  return text;
 }
 
 /// Parses a [BotConfig] from raw JSON bytes or a JSON string.

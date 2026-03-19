@@ -2,6 +2,7 @@ import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/routes/app/global.variables.dart';
 import 'package:bot_creator/routes/app/workflows.page.dart';
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/types/app_emoji.dart';
 import 'package:flutter/material.dart';
 
 class ActionsCard extends StatelessWidget {
@@ -9,6 +10,7 @@ class ActionsCard extends StatelessWidget {
   final ValueChanged<List<Map<String, dynamic>>> onActionsChanged;
   final List<dynamic>
   actionVariableSuggestions; // Defined as dynamic to avoid import issues if not public
+  final List<AppEmoji>? emojiSuggestions;
   final String? botIdForConfig;
 
   const ActionsCard({
@@ -16,6 +18,7 @@ class ActionsCard extends StatelessWidget {
     required this.actions,
     required this.onActionsChanged,
     required this.actionVariableSuggestions,
+    this.emojiSuggestions,
     this.botIdForConfig,
   });
 
@@ -52,6 +55,7 @@ class ActionsCard extends StatelessWidget {
                               initialActions: actions,
                               variableSuggestions:
                                   actionVariableSuggestions as dynamic,
+                              emojiSuggestions: emojiSuggestions,
                               botIdForConfig: botIdForConfig,
                             ),
                       ),

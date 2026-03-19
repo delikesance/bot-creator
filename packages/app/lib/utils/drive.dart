@@ -25,6 +25,11 @@ const List<String> _desktopDriveScopes = <String>[DriveApi.driveAppdataScope];
 const String _backupRootFolderName = 'backups_v2';
 const String _backupMetaFileName = '__meta__.json';
 const String _snapshotArchiveFileName = 'apps_snapshot.zip';
+const List<String> _runtimeDbArtifactNames = <String>[
+  'variables.db',
+  'variables.db-wal',
+  'variables.db-shm',
+];
 const String _desktopClientId = String.fromEnvironment(
   'GOOGLE_DESKTOP_CLIENT_ID',
   defaultValue:
@@ -716,6 +721,18 @@ Future<BackupSnapshotSummary> createBackupSnapshot(
     await _deleteFileWithRetry(tempArchive);
   }
 
+  final runtimeDbArtifacts = await _uploadRuntimeDbArtifacts(
+    drive,
+    parentId: snapshotFolder.id!,
+    localRootPath: localRootPath,
+  );
+  final runtimeDbBytes = runtimeDbArtifacts.fold<int>(
+    0,
+    (sum, entry) => sum + ((entry['size'] as int?) ?? 0),
+  );
+  fileCount += runtimeDbArtifacts.length;
+  totalBytes += runtimeDbBytes;
+
   final apps = await appm.getAllApps();
   final appsPreview = apps
       .whereType<Map>()
@@ -740,6 +757,7 @@ Future<BackupSnapshotSummary> createBackupSnapshot(
     'apps': appsPreview,
     'format': 'zip-v1',
     'archiveFile': _snapshotArchiveFileName,
+    'runtimeDbArtifacts': runtimeDbArtifacts,
   };
   await _uploadJsonToParent(
     drive,
@@ -832,7 +850,16 @@ Future<String> restoreBackupSnapshot(
       await _deleteFileWithRetry(archiveLocal);
     }
 
+    final restoredRuntimeDb = await _restoreRuntimeDbArtifacts(
+      drive,
+      parentId: snapshotFolderId,
+      localRootPath: localRootPath,
+    );
+
     await appm.refreshApps();
+    if (restoredRuntimeDb) {
+      return 'Recuperation terminee (SQLite runtime restauree, redemarrage recommande)';
+    }
     return 'Recuperation terminee';
   }
 
@@ -876,7 +903,15 @@ Future<String> restoreBackupSnapshot(
   }
 
   await restoreFolder(snapshotFolderId, '');
+  final restoredRuntimeDb = await _restoreRuntimeDbArtifacts(
+    drive,
+    parentId: snapshotFolderId,
+    localRootPath: localRootPath,
+  );
   await appm.refreshApps();
+  if (restoredRuntimeDb) {
+    return 'Recuperation terminee (SQLite runtime restauree, redemarrage recommande)';
+  }
   return 'Recuperation terminee';
 }
 
@@ -1038,6 +1073,67 @@ Future<void> _uploadJsonToParent(
       await tempFile.delete();
     }
   }
+}
+
+Future<List<Map<String, dynamic>>> _uploadRuntimeDbArtifacts(
+  DriveApi drive, {
+  required String parentId,
+  required String localRootPath,
+}) async {
+  final artifacts = <Map<String, dynamic>>[];
+  final dbDir = manager.Directory(path.join(localRootPath, 'databases'));
+  if (!await dbDir.exists()) {
+    return artifacts;
+  }
+
+  for (final fileName in _runtimeDbArtifactNames) {
+    final localFile = manager.File(path.join(dbDir.path, fileName));
+    if (!await localFile.exists()) {
+      continue;
+    }
+
+    final size = await localFile.length();
+    await uploadFile(
+      drive,
+      filePath: localFile.path,
+      fileName: fileName,
+      mimeType: 'application/octet-stream',
+      parentId: parentId,
+    );
+
+    artifacts.add({'name': fileName, 'size': size});
+  }
+
+  return artifacts;
+}
+
+Future<bool> _restoreRuntimeDbArtifacts(
+  DriveApi drive, {
+  required String parentId,
+  required String localRootPath,
+}) async {
+  var restoredAny = false;
+  final dbDir = manager.Directory(path.join(localRootPath, 'databases'));
+  if (!await dbDir.exists()) {
+    await dbDir.create(recursive: true);
+  }
+
+  for (final fileName in _runtimeDbArtifactNames) {
+    final remote = await _findNamedChild(
+      drive,
+      parentId: parentId,
+      name: fileName,
+    );
+    if (remote?.id == null) {
+      continue;
+    }
+
+    final targetPath = path.join(dbDir.path, fileName);
+    await downloadFile(drive, fileId: remote!.id!, filePath: targetPath);
+    restoredAny = true;
+  }
+
+  return restoredAny;
 }
 
 String _normalizeZipEntryPath(String input) {

@@ -1,6 +1,12 @@
+import 'dart:io';
+
 import 'package:bot_creator_shared/bot/bot_config.dart';
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
+import 'package:bot_creator_shared/bot/variable_database.dart';
 import 'package:bot_creator_shared/utils/workflow_call.dart';
+
+import 'package:bot_creator_shared/bot/json_variable_store.dart';
+import 'package:bot_creator_runner/stores/sqlite_cli_variable_store.dart';
 
 /// In-memory implementation of [BotDataStore] backed by a [BotConfig].
 ///
@@ -8,30 +14,165 @@ import 'package:bot_creator_shared/utils/workflow_call.dart';
 /// Workflows are read from the config.
 class RunnerDataStore implements BotDataStore {
   final String botId;
-  final Map<String, String> _globalVariables;
   final List<Map<String, dynamic>> _workflows;
+  late JsonVariableStore _jsonFallbackStore;
+  SqliteCliVariableStore? _sqliteStore;
+  Future<void>? _initStoreFuture;
+  final Set<String> _seededBotIds = <String>{};
 
   RunnerDataStore(BotConfig config)
     : botId = 'runner',
-      _globalVariables = Map<String, String>.from(config.globalVariables),
-      _workflows = List<Map<String, dynamic>>.from(config.workflows);
+      _workflows = List<Map<String, dynamic>>.from(config.workflows) {
+    // JSON fallback remains available if SQLite fails to initialize.
+    // Scoped runtime values must NOT be preloaded from config: they are
+    // created by bot execution and then persisted in SQLite.
+    _jsonFallbackStore = JsonVariableStore.fromMaps(
+      globalVariables: config.globalVariables,
+      scopedVariables: const <String, Map<String, Map<String, dynamic>>>{},
+    );
+
+    _initStoreFuture = _initializePrimaryStore();
+  }
+
+  Future<void> _initializePrimaryStore() async {
+    try {
+      _sqliteStore = SqliteCliVariableStore(_resolveRunnerVariablesDir());
+      await _sqliteStore!.init();
+    } catch (_) {
+      _sqliteStore = null;
+    }
+  }
+
+  String _resolveRunnerVariablesDir() {
+    final configured =
+        (Platform.environment['BOT_CREATOR_DATA_DIR'] ?? '').trim();
+    if (configured.isNotEmpty) {
+      return '$configured/variables';
+    }
+    return './data/variables';
+  }
+
+  Future<VariableDatabase> _storeForBot(String botId) async {
+    if (_initStoreFuture != null) {
+      await _initStoreFuture;
+    }
+
+    final sqlite = _sqliteStore;
+    if (sqlite == null) {
+      return _jsonFallbackStore;
+    }
+
+    await _seedSqliteForBotIfNeeded(botId, sqlite);
+    return sqlite;
+  }
+
+  Future<void> _seedSqliteForBotIfNeeded(
+    String botId,
+    SqliteCliVariableStore sqlite,
+  ) async {
+    if (_seededBotIds.contains(botId)) {
+      return;
+    }
+
+    _seededBotIds.add(botId);
+  }
+
+  Future<void> dispose() async {
+    _sqliteStore?.close();
+    _sqliteStore = null;
+    _seededBotIds.clear();
+  }
 
   @override
-  Future<Map<String, String>> getGlobalVariables(String botId) async =>
-      Map<String, String>.from(_globalVariables);
+  Future<Map<String, dynamic>> getGlobalVariables(String botId) async =>
+      await _jsonFallbackStore.getGlobalVariables(botId);
 
   @override
-  Future<String?> getGlobalVariable(String botId, String key) async =>
-      _globalVariables[key];
+  Future<dynamic> getGlobalVariable(String botId, String key) async =>
+      await _jsonFallbackStore.getGlobalVariable(botId, key);
 
   @override
-  Future<void> setGlobalVariable(String botId, String key, String value) async {
-    _globalVariables[key] = value;
+  Future<void> setGlobalVariable(
+    String botId,
+    String key,
+    dynamic value,
+  ) async {
+    await _jsonFallbackStore.setGlobalVariable(botId, key, value);
+  }
+
+  @override
+  Future<void> renameGlobalVariable(
+    String botId,
+    String oldKey,
+    String newKey,
+  ) async {
+    await _jsonFallbackStore.renameGlobalVariable(botId, oldKey, newKey);
   }
 
   @override
   Future<void> removeGlobalVariable(String botId, String key) async {
-    _globalVariables.remove(key);
+    await _jsonFallbackStore.removeGlobalVariable(botId, key);
+  }
+
+  @override
+  Future<Map<String, dynamic>> getScopedVariables(
+    String botId,
+    String scope,
+    String contextId,
+  ) async {
+    return await (await _storeForBot(
+      botId,
+    )).getScopedVariables(botId, scope, contextId);
+  }
+
+  @override
+  Future<dynamic> getScopedVariable(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    return await (await _storeForBot(
+      botId,
+    )).getScopedVariable(botId, scope, contextId, key);
+  }
+
+  @override
+  Future<void> setScopedVariable(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    dynamic value,
+  ) async {
+    await (await _storeForBot(
+      botId,
+    )).setScopedVariable(botId, scope, contextId, key, value);
+  }
+
+  @override
+  Future<void> renameScopedVariable(
+    String botId,
+    String scope,
+    String contextId,
+    String oldKey,
+    String newKey,
+  ) async {
+    await (await _storeForBot(
+      botId,
+    )).renameScopedVariable(botId, scope, contextId, oldKey, newKey);
+  }
+
+  @override
+  Future<void> removeScopedVariable(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    await (await _storeForBot(
+      botId,
+    )).removeScopedVariable(botId, scope, contextId, key);
   }
 
   @override

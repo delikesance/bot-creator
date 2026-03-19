@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/widgets/response_embeds_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/component_v2_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/normal_component_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/modal_builder.dart';
+import 'package:bot_creator/widgets/variable_text_field.dart';
 import 'package:bot_creator/types/component.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 
@@ -12,11 +14,13 @@ class CommandResponseWorkflowPage extends StatefulWidget {
     required this.initialWorkflow,
     required this.variableSuggestions,
     this.botIdForConfig,
+    this.emojiSuggestions,
   });
 
   final Map<String, dynamic> initialWorkflow;
   final List<VariableSuggestion> variableSuggestions;
   final String? botIdForConfig;
+  final List<AppEmoji>? emojiSuggestions;
 
   @override
   State<CommandResponseWorkflowPage> createState() =>
@@ -147,6 +151,70 @@ class _CommandResponseWorkflowPageState
         'whenFalseModal': _whenFalseModal,
       },
     };
+  }
+
+  List<VariableSuggestion> _queryVariableSuggestions(String query) {
+    final normalized = query.trim().toLowerCase();
+    final all = widget.variableSuggestions;
+    if (all.isEmpty) {
+      return const <VariableSuggestion>[];
+    }
+
+    final filtered = all
+      .where((suggestion) {
+        if (normalized.isEmpty) {
+          return true;
+        }
+        return suggestion.name.toLowerCase().contains(normalized);
+      })
+      .toList(growable: false)..sort((a, b) => a.name.compareTo(b.name));
+
+    return filtered.take(12).toList(growable: false);
+  }
+
+  Widget _buildConditionVariableSuggestions() {
+    if (widget.variableSuggestions.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _variableController,
+      builder: (context, value, _) {
+        final query = value.text;
+        final suggestions = _queryVariableSuggestions(query);
+        if (suggestions.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Dynamic variable suggestions',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: suggestions
+                  .map((suggestion) {
+                    return ActionChip(
+                      label: Text(suggestion.name),
+                      onPressed: () {
+                        _variableController.text = suggestion.name;
+                        _variableController.selection = TextSelection.collapsed(
+                          offset: _variableController.text.length,
+                        );
+                      },
+                    );
+                  })
+                  .toList(growable: false),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildResponseTypeSelector({
@@ -294,20 +362,7 @@ class _CommandResponseWorkflowPageState
                     ),
                   ),
                   const SizedBox(height: 8),
-                  if (widget.variableSuggestions.isNotEmpty)
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children:
-                          widget.variableSuggestions.take(10).map((suggestion) {
-                            return ActionChip(
-                              label: Text(suggestion.name),
-                              onPressed: () {
-                                _variableController.text = suggestion.name;
-                              },
-                            );
-                          }).toList(),
-                    ),
+                  _buildConditionVariableSuggestions(),
                   const SizedBox(height: 16),
                   const Text(
                     'THEN Response',
@@ -324,19 +379,23 @@ class _CommandResponseWorkflowPageState
                   ),
                   const SizedBox(height: 12),
                   if (_whenTrueType == 'normal') ...[
-                    TextFormField(
+                    VariableTextField(
+                      label: 'THEN response text (optional)',
                       controller: _whenTrueController,
                       maxLines: 3,
-                      minLines: 1,
-                      decoration: const InputDecoration(
-                        labelText: 'THEN response text (optional)',
-                        border: OutlineInputBorder(),
-                      ),
+                      suggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
+                      onChanged: (_) {
+                        if (mounted) {
+                          setState(() {});
+                        }
+                      },
                     ),
                     const SizedBox(height: 8),
                     ResponseEmbedsEditor(
                       embeds: _whenTrueEmbeds,
                       variableSuggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged: (embeds) {
                         setState(() {
                           _whenTrueEmbeds = embeds;
@@ -399,19 +458,23 @@ class _CommandResponseWorkflowPageState
                   ),
                   const SizedBox(height: 12),
                   if (_whenFalseType == 'normal') ...[
-                    TextFormField(
+                    VariableTextField(
+                      label: 'ELSE response text (optional)',
                       controller: _whenFalseController,
                       maxLines: 3,
-                      minLines: 1,
-                      decoration: const InputDecoration(
-                        labelText: 'ELSE response text (optional)',
-                        border: OutlineInputBorder(),
-                      ),
+                      suggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
+                      onChanged: (_) {
+                        if (mounted) {
+                          setState(() {});
+                        }
+                      },
                     ),
                     const SizedBox(height: 8),
                     ResponseEmbedsEditor(
                       embeds: _whenFalseEmbeds,
                       variableSuggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged: (embeds) {
                         setState(() {
                           _whenFalseEmbeds = embeds;

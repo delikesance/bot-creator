@@ -7,10 +7,10 @@ EventExecutionContext buildInviteCreateEventContext(InviteCreateEvent event) {
     guildId: invite.guild?.id,
     channelId: invite.channel.id,
     userId: invite.inviter?.id,
-    extra: <String, String>{
-      'invite.code': invite.code,
-      'invite.channelId': invite.channel.id.toString(),
-      'invite.inviterId': invite.inviter?.id.toString() ?? '',
-    },
+    extra: _inviteExtra(
+      code: invite.code,
+      channelId: invite.channel.id.toString(),
+      inviterId: invite.inviter?.id.toString() ?? '',
+    ),
   );
 }

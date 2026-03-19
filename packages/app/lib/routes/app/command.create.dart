@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
+import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/app_emoji_api.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
@@ -10,6 +14,7 @@ import 'package:bot_creator/widgets/command_create_cards/actions_card.dart';
 import 'package:bot_creator/widgets/response_embeds_editor.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nyxx/nyxx.dart';
 
 class CommandCreatePage extends StatefulWidget {
@@ -42,7 +47,16 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   Map<String, dynamic> _responseModal = {};
   List<Map<String, dynamic>> _actions = [];
   Map<String, dynamic> _responseWorkflow = _defaultWorkflow();
+  Set<String> _persistedGlobalVariableNames = <String>{};
+  Set<String> _scopedVariableSuggestionNames = {
+    'guild.bc_key',
+    'user.bc_key',
+    'channel.bc_key',
+    'guildMember.bc_key',
+    'message.bc_key',
+  };
   bool _isLoading = true;
+  List<AppEmoji> _appEmojis = [];
 
   /// True when editing an existing command that couldn't be fully loaded
   /// (client offline AND no local `data` block). Disables editing UI.
@@ -407,8 +421,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     // Add more options as needed
   ];
 
-  final _formKey = GlobalKey<FormState>();
-
   @override
   void initState() {
     super.initState();
@@ -441,6 +453,21 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         "client_id": widget.client?.user.id.toString() ?? "unknown",
       },
     );
+
+    await _refreshPersistedVariableNames();
+
+    // Load application emojis silently for autocomplete
+    try {
+      final bid = _botIdForConfig;
+      if (bid != null) {
+        final token = (await appManager.getApp(bid))['token'] as String?;
+        if (token != null && token.isNotEmpty) {
+          final emojis = await AppEmojiApi.listEmojis(token, bid);
+          if (mounted) setState(() => _appEmojis = emojis);
+        }
+      }
+    } catch (_) {}
+
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
       ApplicationCommand? command;
@@ -976,6 +1003,515 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     );
   }
 
+  Map<String, dynamic> _buildCommandDataPayload({
+    required List<Map<String, dynamic>> effectiveActions,
+  }) {
+    return {
+      "version": 1,
+      "editorMode": _editorMode,
+      "simpleConfig": _currentSimpleConfig(),
+      "defaultMemberPermissions": _defaultMemberPermissions.trim(),
+      "response": {
+        "mode": _responseEmbeds.isNotEmpty ? "embed" : "text",
+        "type": _responseType,
+        "text": _responseController.text,
+        "embed":
+            _responseEmbeds.isNotEmpty
+                ? _responseEmbeds.first
+                : {"title": "", "description": "", "url": ""},
+        "embeds": _responseEmbeds.take(10).toList(),
+        "components": _responseComponents,
+        "modal": _responseModal,
+        "workflow": _normalizeWorkflow(_responseWorkflow),
+      },
+      "actions": effectiveActions,
+    };
+  }
+
+  Map<String, dynamic> _serializeOption(CommandOptionBuilder option) {
+    return <String, dynamic>{
+      'type': _commandOptionTypeToText(option.type),
+      'name': option.name,
+      'description': option.description,
+      'required': option.isRequired,
+      if (option.minValue != null) 'minValue': option.minValue,
+      if (option.maxValue != null) 'maxValue': option.maxValue,
+      if (option.choices?.isNotEmpty == true)
+        'choices': option.choices!
+            .map((choice) => {'name': choice.name, 'value': choice.value})
+            .toList(growable: false),
+    };
+  }
+
+  List<Map<String, dynamic>> _serializeOptions(
+    List<CommandOptionBuilder> options,
+  ) {
+    return options.map(_serializeOption).toList(growable: false);
+  }
+
+  CommandOptionBuilder _deserializeOption(Map<String, dynamic> raw) {
+    final typeName = (raw['type'] ?? '').toString();
+    final type = _commandOptionTypeFromText(typeName);
+
+    final option = CommandOptionBuilder(
+      type: type,
+      name: (raw['name'] ?? '').toString(),
+      description: (raw['description'] ?? '').toString(),
+      isRequired: raw['required'] == true,
+      minValue: raw['minValue'] as num?,
+      maxValue: raw['maxValue'] as num?,
+    );
+
+    final choicesRaw = raw['choices'];
+    if (choicesRaw is List) {
+      option.choices = choicesRaw
+          .whereType<Map>()
+          .map(
+            (choice) => CommandOptionChoiceBuilder(
+              name: (choice['name'] ?? '').toString(),
+              value: (choice['value'] ?? '').toString(),
+            ),
+          )
+          .toList(growable: false);
+    }
+
+    return option;
+  }
+
+  String _normalizeScopedKeyForImport(String rawKey) {
+    final key = rawKey.trim();
+    if (key.isEmpty) {
+      return key;
+    }
+    if (key.startsWith('bc_') && key.length > 3) {
+      return key.substring(3);
+    }
+    return key;
+  }
+
+  String _toScopedReferenceName(String rawKey) {
+    final key = rawKey.trim();
+    if (key.isEmpty) {
+      return key;
+    }
+    return key.startsWith('bc_') ? key : 'bc_$key';
+  }
+
+  List<Map<String, dynamic>> _normalizeImportedScopedActionKeys(
+    List<Map<String, dynamic>> actions,
+  ) {
+    return actions
+        .map((raw) {
+          final action = Map<String, dynamic>.from(raw);
+          final type = (action['type'] ?? '').toString().trim();
+          if (type != 'setScopedVariable' &&
+              type != 'getScopedVariable' &&
+              type != 'removeScopedVariable' &&
+              type != 'renameScopedVariable') {
+            return action;
+          }
+
+          final payload = Map<String, dynamic>.from(
+            (action['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+          );
+          if (type == 'renameScopedVariable') {
+            payload['oldKey'] = _normalizeScopedKeyForImport(
+              (payload['oldKey'] ?? '').toString(),
+            );
+            payload['newKey'] = _normalizeScopedKeyForImport(
+              (payload['newKey'] ?? '').toString(),
+            );
+          } else {
+            payload['key'] = _normalizeScopedKeyForImport(
+              (payload['key'] ?? '').toString(),
+            );
+          }
+
+          action['payload'] = payload;
+          return action;
+        })
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic> _buildCommandSharePayload() {
+    final effectiveOptions = _effectiveOptions;
+    final effectiveActions = _effectiveActions;
+    final commandData = _buildCommandDataPayload(
+      effectiveActions: effectiveActions,
+    );
+
+    return <String, dynamic>{
+      'version': 1,
+      'type': 'bot_creator_command',
+      'command': <String, dynamic>{
+        'name': _commandName,
+        'description': _commandDescription,
+        'integrationTypes': _integrationTypes
+            .map(_integrationTypeToText)
+            .toList(growable: false),
+        'contexts': _contexts.map(_contextTypeToText).toList(growable: false),
+        'options': _serializeOptions(effectiveOptions),
+        'data': commandData,
+      },
+    };
+  }
+
+  String _commandOptionTypeToText(CommandOptionType type) {
+    if (type == CommandOptionType.subCommand) return 'subCommand';
+    if (type == CommandOptionType.subCommandGroup) return 'subCommandGroup';
+    if (type == CommandOptionType.string) return 'string';
+    if (type == CommandOptionType.integer) return 'integer';
+    if (type == CommandOptionType.boolean) return 'boolean';
+    if (type == CommandOptionType.user) return 'user';
+    if (type == CommandOptionType.channel) return 'channel';
+    if (type == CommandOptionType.role) return 'role';
+    if (type == CommandOptionType.mentionable) return 'mentionable';
+    if (type == CommandOptionType.number) return 'number';
+    if (type == CommandOptionType.attachment) return 'attachment';
+    return 'string';
+  }
+
+  CommandOptionType _commandOptionTypeFromText(String text) {
+    final normalized = text.trim().toLowerCase();
+    switch (normalized) {
+      case 'subcommand':
+        return CommandOptionType.subCommand;
+      case 'subcommandgroup':
+        return CommandOptionType.subCommandGroup;
+      case 'integer':
+        return CommandOptionType.integer;
+      case 'boolean':
+        return CommandOptionType.boolean;
+      case 'user':
+        return CommandOptionType.user;
+      case 'channel':
+        return CommandOptionType.channel;
+      case 'role':
+        return CommandOptionType.role;
+      case 'mentionable':
+        return CommandOptionType.mentionable;
+      case 'number':
+        return CommandOptionType.number;
+      case 'attachment':
+        return CommandOptionType.attachment;
+      case 'string':
+      default:
+        return CommandOptionType.string;
+    }
+  }
+
+  String _integrationTypeToText(ApplicationIntegrationType type) {
+    if (type == ApplicationIntegrationType.guildInstall) {
+      return 'guildInstall';
+    }
+    if (type == ApplicationIntegrationType.userInstall) {
+      return 'userInstall';
+    }
+    return 'guildInstall';
+  }
+
+  ApplicationIntegrationType? _integrationTypeFromText(String text) {
+    final normalized = text.trim().toLowerCase();
+    switch (normalized) {
+      case 'guildinstall':
+        return ApplicationIntegrationType.guildInstall;
+      case 'userinstall':
+        return ApplicationIntegrationType.userInstall;
+      default:
+        return null;
+    }
+  }
+
+  String _contextTypeToText(InteractionContextType type) {
+    if (type == InteractionContextType.guild) {
+      return 'guild';
+    }
+    if (type == InteractionContextType.botDm) {
+      return 'botDm';
+    }
+    if (type == InteractionContextType.privateChannel) {
+      return 'privateChannel';
+    }
+    return 'guild';
+  }
+
+  InteractionContextType? _contextTypeFromText(String text) {
+    final normalized = text.trim().toLowerCase();
+    switch (normalized) {
+      case 'guild':
+        return InteractionContextType.guild;
+      case 'botdm':
+        return InteractionContextType.botDm;
+      case 'privatechannel':
+        return InteractionContextType.privateChannel;
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _copyCommandPayload({required bool asBase64}) async {
+    final payload = _buildCommandSharePayload();
+    final jsonText = const JsonEncoder.withIndent('  ').convert(payload);
+    final text = asBase64 ? base64Encode(utf8.encode(jsonText)) : jsonText;
+    await Clipboard.setData(ClipboardData(text: text));
+
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          asBase64 ? 'Command copied as Base64.' : 'Command copied as JSON.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showCommandExportOptions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.data_object_outlined),
+                title: const Text('Export command as JSON'),
+                subtitle: const Text('Copy readable JSON to clipboard'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _copyCommandPayload(asBase64: false);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.key_outlined),
+                title: const Text('Export command as Base64'),
+                subtitle: const Text(
+                  'Copy compact Base64 payload to clipboard',
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _copyCommandPayload(asBase64: true);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _importCommandPayload() async {
+    final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+    final initialText = (clipboard?.text ?? '').trim();
+    final controller = TextEditingController(text: initialText);
+
+    final shouldImport = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Import command'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Paste a command payload (JSON or Base64).'),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: controller,
+                  minLines: 6,
+                  maxLines: 12,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    hintText: 'Command payload',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(AppStrings.t('cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Import'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldImport != true) {
+      return;
+    }
+
+    final rawInput = controller.text.trim();
+    if (rawInput.isEmpty) {
+      return;
+    }
+
+    dynamic decoded;
+    try {
+      if (rawInput.startsWith('{') || rawInput.startsWith('[')) {
+        decoded = jsonDecode(rawInput);
+      } else {
+        final jsonText = utf8.decode(base64Decode(rawInput));
+        decoded = jsonDecode(jsonText);
+      }
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid command payload format.')),
+      );
+      return;
+    }
+
+    if (decoded is! Map) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid command payload structure.')),
+      );
+      return;
+    }
+
+    final map = Map<String, dynamic>.from(decoded);
+    final commandRoot =
+        map['command'] is Map
+            ? Map<String, dynamic>.from(
+              (map['command'] as Map).cast<String, dynamic>(),
+            )
+            : map;
+
+    final commandDataRaw =
+        commandRoot['data'] is Map
+            ? Map<String, dynamic>.from(
+              (commandRoot['data'] as Map).cast<String, dynamic>(),
+            )
+            : commandRoot;
+
+    final normalizedData = appManager.normalizeCommandData(<String, dynamic>{
+      'data': commandDataRaw,
+    });
+    final normalizedPayload = Map<String, dynamic>.from(
+      normalizedData['data'] as Map? ?? const {},
+    );
+
+    final response = Map<String, dynamic>.from(
+      (normalizedPayload['response'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+
+    final optionsRaw =
+        (commandRoot['options'] as List?) ??
+        (commandDataRaw['options'] as List?) ??
+        const [];
+    final importedOptions = optionsRaw
+        .whereType<Map>()
+        .map((entry) => _deserializeOption(Map<String, dynamic>.from(entry)))
+        .toList(growable: false);
+
+    final integrationTypeNames =
+        ((commandRoot['integrationTypes'] as List?) ?? const [])
+            .map((entry) => entry.toString())
+            .toSet();
+    final importedIntegrationTypes = integrationTypeNames
+        .map(_integrationTypeFromText)
+        .whereType<ApplicationIntegrationType>()
+        .toList(growable: false);
+
+    final contextNames =
+        ((commandRoot['contexts'] as List?) ?? const [])
+            .map((entry) => entry.toString())
+            .toSet();
+    final importedContexts = contextNames
+        .map(_contextTypeFromText)
+        .whereType<InteractionContextType>()
+        .toList(growable: false);
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _commandName = (commandRoot['name'] ?? '').toString();
+      _commandDescription = (commandRoot['description'] ?? '').toString();
+
+      final persistedEditorMode =
+          (normalizedPayload['editorMode'] ?? _editorModeAdvanced)
+              .toString()
+              .toLowerCase();
+      _editorMode =
+          persistedEditorMode == _editorModeSimple
+              ? _editorModeSimple
+              : _editorModeAdvanced;
+      _simpleModeLocked = _editorMode == _editorModeAdvanced;
+
+      final simpleConfig = _normalizeSimpleConfig(
+        Map<String, dynamic>.from(
+          (normalizedPayload['simpleConfig'] as Map?)
+                  ?.cast<String, dynamic>() ??
+              const {},
+        ),
+      );
+      _applySimpleConfig(simpleConfig);
+
+      _defaultMemberPermissions =
+          (normalizedPayload['defaultMemberPermissions'] ?? '')
+              .toString()
+              .trim();
+
+      _responseType = (response['type'] ?? 'normal').toString();
+      _response = (response['text'] ?? '').toString();
+      _responseController.text = _response;
+      _responseEmbeds = _normalizeEmbedsPayload(response['embeds']);
+      _responseComponents = Map<String, dynamic>.from(
+        (response['components'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      _responseModal = Map<String, dynamic>.from(
+        (response['modal'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      _responseWorkflow = _normalizeWorkflow(
+        Map<String, dynamic>.from(
+          (response['workflow'] as Map?)?.cast<String, dynamic>() ??
+              _defaultWorkflow(),
+        ),
+      );
+
+      _actions = _normalizeImportedScopedActionKeys(
+        List<Map<String, dynamic>>.from(
+          (normalizedPayload['actions'] as List?)?.whereType<Map>().map(
+                (entry) => Map<String, dynamic>.from(entry),
+              ) ??
+              const <Map<String, dynamic>>[],
+        ),
+      );
+
+      if (importedOptions.isNotEmpty) {
+        _options = importedOptions;
+      }
+      if (importedIntegrationTypes.isNotEmpty) {
+        _integrationTypes = importedIntegrationTypes;
+      }
+      if (importedContexts.isNotEmpty) {
+        _contexts = importedContexts;
+      }
+
+      _isDataIncomplete = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Command imported into editor.')),
+    );
+  }
+
   Future<void> _updateOrCreate() async {
     // check if any field is empty
     if (_commandName.isEmpty || _commandDescription.isEmpty) {
@@ -1017,26 +1553,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     final effectiveOptions = _effectiveOptions;
     final effectiveActions = _effectiveActions;
 
-    final commandData = {
-      "version": 1,
-      "editorMode": _editorMode,
-      "simpleConfig": _currentSimpleConfig(),
-      "defaultMemberPermissions": _defaultMemberPermissions.trim(),
-      "response": {
-        "mode": _responseEmbeds.isNotEmpty ? "embed" : "text",
-        "type": _responseType,
-        "text": _responseController.text,
-        "embed":
-            _responseEmbeds.isNotEmpty
-                ? _responseEmbeds.first
-                : {"title": "", "description": "", "url": ""},
-        "embeds": _responseEmbeds.take(10).toList(),
-        "components": _responseComponents,
-        "modal": _responseModal,
-        "workflow": _normalizeWorkflow(_responseWorkflow),
-      },
-      "actions": effectiveActions,
-    };
+    final commandData = _buildCommandDataPayload(
+      effectiveActions: effectiveActions,
+    );
 
     final client = widget.client;
     final botId = _botIdForConfig;
@@ -1196,6 +1715,29 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     return null; // No error
   }
 
+  bool _validateCommandInputs() {
+    final nameError = _validateName(_commandName);
+    if (nameError != null) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: Text(AppStrings.t('error')),
+              content: Text(nameError),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(AppStrings.t('ok')),
+                ),
+              ],
+            ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   Permissions? _parseDefaultMemberPermissions(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) {
@@ -1208,6 +1750,55 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       );
     }
     return Permissions(parsed);
+  }
+
+  Future<void> _refreshPersistedVariableNames() async {
+    final botId = _botIdForConfig;
+    if (botId == null || botId.trim().isEmpty) {
+      return;
+    }
+
+    try {
+      final globals = await appManager.getGlobalVariables(botId);
+      _persistedGlobalVariableNames =
+          globals.keys
+              .map((key) => 'global.$key')
+              .where((name) => name.trim().isNotEmpty)
+              .toSet();
+
+      final scopedDefinitions = await appManager.getScopedVariableDefinitions(
+        botId,
+      );
+      final scopedNames = <String>{};
+      for (final definition in scopedDefinitions) {
+        final scope = (definition['scope'] ?? '').toString().trim();
+        final storageKey = (definition['key'] ?? '').toString().trim();
+        if (scope.isEmpty || storageKey.isEmpty) {
+          continue;
+        }
+        scopedNames.add('$scope.${_toScopedReferenceName(storageKey)}');
+      }
+      _scopedVariableSuggestionNames =
+          scopedNames.isEmpty
+              ? <String>{
+                'guild.bc_key',
+                'user.bc_key',
+                'channel.bc_key',
+                'guildMember.bc_key',
+                'message.bc_key',
+              }
+              : scopedNames;
+    } catch (_) {
+      // Keep editor resilient if local persistence is temporarily unavailable.
+      _persistedGlobalVariableNames = <String>{};
+      _scopedVariableSuggestionNames = <String>{
+        'guild.bc_key',
+        'user.bc_key',
+        'channel.bc_key',
+        'guildMember.bc_key',
+        'message.bc_key',
+      };
+    }
   }
 
   List<String> get _variableNames {
@@ -1241,6 +1832,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     }
 
     base.addAll(_actionOutputVariableNames());
+    base.addAll(_persistedGlobalVariableNames);
+    base.addAll(_scopedVariableSuggestionNames);
 
     return base.toSet().toList(growable: false)..sort();
   }
@@ -1270,10 +1863,99 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     return 'action_$index';
   }
 
+  String _readActionStringParameter(Map<String, dynamic> action, String key) {
+    final rootValue = (action[key] ?? '').toString().trim();
+    if (rootValue.isNotEmpty) {
+      return rootValue;
+    }
+
+    final parameters = Map<String, dynamic>.from(
+      (action['parameters'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final parametersValue = (parameters[key] ?? '').toString().trim();
+    if (parametersValue.isNotEmpty) {
+      return parametersValue;
+    }
+
+    final payload = Map<String, dynamic>.from(
+      (action['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    return (payload[key] ?? '').toString().trim();
+  }
+
+  bool _looksLikeTemplateValue(String value) {
+    return value.contains('((') || value.contains('))');
+  }
+
+  String _resolveActionStoreAlias(Map<String, dynamic> action) {
+    final type = (action['type'] ?? '').toString().trim();
+    final explicitStoreAs = _readActionStringParameter(action, 'storeAs');
+    if (explicitStoreAs.isNotEmpty &&
+        !_looksLikeTemplateValue(explicitStoreAs)) {
+      return explicitStoreAs;
+    }
+
+    if (type == 'getGlobalVariable') {
+      final key = _readActionStringParameter(action, 'key');
+      if (key.isNotEmpty && !_looksLikeTemplateValue(key)) {
+        return 'global.$key';
+      }
+    }
+
+    if (type == 'getScopedVariable') {
+      final scope = _readActionStringParameter(action, 'scope');
+      final key = _readActionStringParameter(action, 'key');
+      if (scope.isNotEmpty && key.isNotEmpty) {
+        if (!_looksLikeTemplateValue(scope) && !_looksLikeTemplateValue(key)) {
+          return '$scope.${_toScopedReferenceName(key)}';
+        }
+      }
+    }
+
+    return '';
+  }
+
+  List<Map<String, dynamic>> _flattenActionTree(
+    List<Map<String, dynamic>> actions,
+  ) {
+    final flattened = <Map<String, dynamic>>[];
+
+    void visit(List<Map<String, dynamic>> current) {
+      for (final rawAction in current) {
+        final action = Map<String, dynamic>.from(rawAction);
+        flattened.add(action);
+
+        final payload = Map<String, dynamic>.from(
+          (action['payload'] as Map?)?.cast<String, dynamic>() ??
+              (action['parameters'] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        );
+
+        for (final branchKey in const ['thenActions', 'elseActions']) {
+          final nestedRaw = payload[branchKey];
+          if (nestedRaw is! List) {
+            continue;
+          }
+
+          final nested = nestedRaw
+              .whereType<Map>()
+              .map((entry) => Map<String, dynamic>.from(entry))
+              .toList(growable: false);
+          if (nested.isNotEmpty) {
+            visit(nested);
+          }
+        }
+      }
+    }
+
+    visit(actions);
+    return flattened;
+  }
+
   List<String> _actionOutputVariableNames() {
     final outputVariables = <String>{};
 
-    final actions = _effectiveActions;
+    final actions = _flattenActionTree(_effectiveActions);
     for (var i = 0; i < actions.length; i++) {
       final action = actions[i];
       final actionKey = _resolveActionKey(action, i);
@@ -1302,6 +1984,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           '$actionKey.body',
           '$actionKey.jsonPath',
         ]);
+      }
+
+      final storeAlias = _resolveActionStoreAlias(action);
+      if (storeAlias.isNotEmpty) {
+        outputVariables.add(storeAlias);
       }
     }
 
@@ -1391,7 +2078,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       }
     }
 
-    final actions = _effectiveActions;
+    final actions = _flattenActionTree(_effectiveActions);
     for (var i = 0; i < actions.length; i++) {
       final action = actions[i];
       final actionKey = _resolveActionKey(action, i);
@@ -1415,6 +2102,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           kind: VariableSuggestionKind.nonNumeric,
         );
       }
+
+      final storeAlias = _resolveActionStoreAlias(action);
+      if (storeAlias.isNotEmpty) {
+        addSuggestion(storeAlias, kind: VariableSuggestionKind.unknown);
+      }
     }
 
     addSuggestion('workflow.name', kind: VariableSuggestionKind.nonNumeric);
@@ -1425,6 +2117,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     addSuggestion('workflow.args', kind: VariableSuggestionKind.nonNumeric);
     addSuggestion('arg.yourArg', kind: VariableSuggestionKind.unknown);
     addSuggestion('workflow.arg.yourArg', kind: VariableSuggestionKind.unknown);
+
+    for (final name in _persistedGlobalVariableNames) {
+      addSuggestion(name, kind: VariableSuggestionKind.unknown);
+    }
+
+    for (final name in _scopedVariableSuggestionNames) {
+      addSuggestion(name, kind: VariableSuggestionKind.unknown);
+    }
 
     final suggestions = suggestionsByName.values.toList(growable: false)
       ..sort((a, b) => a.name.compareTo(b.name));
@@ -1568,6 +2268,16 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
         actions: [
           IconButton(
+            tooltip: 'Import command payload',
+            onPressed: _importCommandPayload,
+            icon: const Icon(Icons.content_paste_go_outlined),
+          ),
+          IconButton(
+            tooltip: 'Export command payload',
+            onPressed: _showCommandExportOptions,
+            icon: const Icon(Icons.copy_all_outlined),
+          ),
+          IconButton(
             onPressed: () {
               final dialogFullscren = Dialog.fullscreen(
                 child: Scaffold(
@@ -1630,27 +2340,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               icon: const Icon(Icons.add),
               tooltip: AppStrings.t('cmd_create_tooltip'),
               onPressed: () {
-                if (_formKey.currentState!.validate()) {
+                if (_validateCommandInputs()) {
                   _updateOrCreate();
-                  // Form is valid, proceed with command creation
-                } else {
-                  // Form is invalid, show error message
-                  final dialog = AlertDialog(
-                    title: Text(AppStrings.t('error')),
-                    content: Text(AppStrings.t('cmd_error_fill_fields')),
-                    actions: [
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).pop();
-                        },
-                        child: Text(AppStrings.t('ok')),
-                      ),
-                    ],
-                  );
-                  showDialog(context: context, builder: (context) => dialog);
                 }
-                // Handle add action
-                // You can implement the logic to add a new command here
               },
             ),
           if (!_isDataIncomplete)
@@ -1664,7 +2356,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 if (widget.id.isZero) {
                   Navigator.pop(context);
                 } else {
-                  if (_formKey.currentState!.validate()) {
+                  if (_validateCommandInputs()) {
                     _updateOrCreate();
                     AppAnalytics.logEvent(
                       name: "update_command",
@@ -1673,20 +2365,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                         "command_id": widget.id.toString(),
                       },
                     );
-                  } else {
-                    final dialog = AlertDialog(
-                      title: Text(AppStrings.t('error')),
-                      content: Text(AppStrings.t('cmd_error_fill_fields')),
-                      actions: [
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: Text(AppStrings.t('ok')),
-                        ),
-                      ],
-                    );
-                    showDialog(context: context, builder: (context) => dialog);
                   }
                 }
               },
@@ -1807,7 +2485,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                       ),
                     ] else
                       Form(
-                        key: _formKey,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
@@ -1886,6 +2563,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 responseWorkflow: _responseWorkflow,
                                 normalizeWorkflow: _normalizeWorkflow,
                                 variableSuggestions: _actionVariableSuggestions,
+                                emojiSuggestions: _appEmojis,
                                 botIdForConfig: _botIdForConfig,
                                 onWorkflowChanged: (workflow) {
                                   setState(() {
@@ -1940,6 +2618,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 },
                                 actionVariableSuggestions:
                                     _actionVariableSuggestions,
+                                emojiSuggestions: _appEmojis,
                                 botIdForConfig: _botIdForConfig,
                               ),
                             ],

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/routes/app/workflow_docs.page.dart';
+import 'package:bot_creator/types/app_emoji.dart';
+import 'package:bot_creator/utils/app_emoji_api.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +22,15 @@ class WorkflowsPage extends StatefulWidget {
 class _WorkflowsPageState extends State<WorkflowsPage> {
   List<Map<String, dynamic>> _workflows = <Map<String, dynamic>>[];
   bool _loading = true;
+  List<AppEmoji> _appEmojis = [];
+
+  String _toScopedReferenceName(String rawKey) {
+    final key = rawKey.trim();
+    if (key.isEmpty) {
+      return key;
+    }
+    return key.startsWith('bc_') ? key : 'bc_$key';
+  }
 
   @override
   void initState() {
@@ -32,8 +43,20 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
     if (!mounted) {
       return;
     }
+
+    // Load application emojis silently for autocomplete
+    List<AppEmoji> emojis = [];
+    try {
+      final token = (await appManager.getApp(widget.botId))['token'] as String?;
+      if (token != null && token.isNotEmpty) {
+        emojis = await AppEmojiApi.listEmojis(token, widget.botId);
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
     setState(() {
       _workflows = workflows;
+      _appEmojis = emojis;
       _loading = false;
     });
   }
@@ -564,11 +587,11 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
         : AppStrings.t('workflows_type_badge_general');
   }
 
-  List<VariableSuggestion> _buildWorkflowVariableSuggestions({
+  Future<List<VariableSuggestion>> _buildWorkflowVariableSuggestions({
     required String workflowType,
     required List<WorkflowArgumentDefinition> argumentDefinitions,
     required Map<String, dynamic> eventTrigger,
-  }) {
+  }) async {
     final suggestions = <VariableSuggestion>[
       const VariableSuggestion(
         name: 'workflow.name',
@@ -1016,7 +1039,52 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
       }
     }
 
-    return suggestions;
+    try {
+      final globals = await appManager.getGlobalVariables(widget.botId);
+      for (final entry in globals.entries) {
+        final key = entry.key.toString().trim();
+        if (key.isEmpty) {
+          continue;
+        }
+        suggestions.add(
+          VariableSuggestion(
+            name: 'global.$key',
+            kind:
+                entry.value is num
+                    ? VariableSuggestionKind.numeric
+                    : VariableSuggestionKind.unknown,
+          ),
+        );
+      }
+
+      final scopedDefinitions = await appManager.getScopedVariableDefinitions(
+        widget.botId,
+      );
+      for (final definition in scopedDefinitions) {
+        final scope = (definition['scope'] ?? '').toString().trim();
+        final storageKey = (definition['key'] ?? '').toString().trim();
+        if (scope.isEmpty || storageKey.isEmpty) {
+          continue;
+        }
+        suggestions.add(
+          VariableSuggestion(
+            name: '$scope.${_toScopedReferenceName(storageKey)}',
+            kind:
+                definition['defaultValue'] is num
+                    ? VariableSuggestionKind.numeric
+                    : VariableSuggestionKind.unknown,
+          ),
+        );
+      }
+    } catch (_) {
+      // Keep editor resilient when local persistence is temporarily unavailable.
+    }
+
+    final uniqueByName = <String, VariableSuggestion>{};
+    for (final suggestion in suggestions) {
+      uniqueByName[suggestion.name] = suggestion;
+    }
+    return uniqueByName.values.toList(growable: false);
   }
 
   List<String> _eventVariablePreview(String eventName) {
@@ -1557,7 +1625,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
           ),
         )
         .toList(growable: false);
-    final workflowVariableSuggestions = _buildWorkflowVariableSuggestions(
+    final workflowVariableSuggestions = await _buildWorkflowVariableSuggestions(
       workflowType: selectedWorkflowType,
       argumentDefinitions: argumentDefinitions,
       eventTrigger: selectedEventTrigger,
@@ -1578,6 +1646,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
               initialActions: initialActions,
               botIdForConfig: widget.botId,
               variableSuggestions: workflowVariableSuggestions,
+              emojiSuggestions: _appEmojis,
             ),
       ),
     );

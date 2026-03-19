@@ -1,6 +1,7 @@
-/// Abstract interface over bot data storage.
-/// Both [AppManager] (Flutter app) and [RunnerDataStore] (CLI runner) implement this.
-abstract class BotDataStore {
+/// Abstract interface for variable storage (scoped + global).
+/// Implementations: JsonVariableStore, SqliteVariableStore, SqliteCliVariableStore
+abstract class VariableDatabase {
+  // ===== GLOBAL VARIABLES =====
   /// Returns all global variables for [botId] with typed values (string|number).
   Future<Map<String, dynamic>> getGlobalVariables(String botId);
 
@@ -16,14 +17,17 @@ abstract class BotDataStore {
   /// Removes a global variable.
   Future<void> removeGlobalVariable(String botId, String key);
 
-  /// Returns scoped variables for [scope] and [contextId].
+  // ===== SCOPED VARIABLES =====
+  /// Returns all scoped variables for [botId]+[scope]+[contextId].
+  /// For guildMember scope, [contextId] is "{guildId}:{userId}" format.
   Future<Map<String, dynamic>> getScopedVariables(
     String botId,
     String scope,
     String contextId,
   );
 
-  /// Returns a single scoped variable.
+  /// Returns a single scoped variable, or null if not set.
+  /// For guildMember scope, [contextId] is "{guildId}:{userId}" format.
   Future<dynamic> getScopedVariable(
     String botId,
     String scope,
@@ -32,6 +36,7 @@ abstract class BotDataStore {
   );
 
   /// Persists or updates a scoped variable.
+  /// For guildMember scope, [contextId] is "{guildId}:{userId}" format.
   Future<void> setScopedVariable(
     String botId,
     String scope,
@@ -41,6 +46,7 @@ abstract class BotDataStore {
   );
 
   /// Renames a scoped variable key.
+  /// For guildMember scope, [contextId] is "{guildId}:{userId}" format.
   Future<void> renameScopedVariable(
     String botId,
     String scope,
@@ -50,6 +56,7 @@ abstract class BotDataStore {
   );
 
   /// Removes a scoped variable.
+  /// For guildMember scope, [contextId] is "{guildId}:{userId}" format.
   Future<void> removeScopedVariable(
     String botId,
     String scope,
@@ -57,6 +64,14 @@ abstract class BotDataStore {
     String key,
   );
 
-  /// Finds a workflow by name (case-insensitive), or null if not found.
-  Future<Map<String, dynamic>?> getWorkflowByName(String botId, String name);
+  /// Lists all context IDs for a given [scope] (e.g. all guild IDs that have guild-scoped vars).
+  /// Optionally filter by a [searchKey] prefix (e.g. "bc_" to find only bc_* variables).
+  Future<List<String>> listContextIds(
+    String botId,
+    String scope, {
+    String? searchKey,
+  });
+
+  /// Delete all variables for a bot.
+  Future<void> deleteAllForBot(String botId);
 }

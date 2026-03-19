@@ -1,5 +1,35 @@
 part of 'bot.dart';
 
+Future<void> _injectScopedCommandVariables({
+  required AppManager manager,
+  required String botId,
+  required String scope,
+  required String? contextId,
+  required Map<String, String> runtimeVariables,
+}) async {
+  final normalizedContextId = (contextId ?? '').trim();
+  if (normalizedContextId.isEmpty) {
+    return;
+  }
+
+  final values = await manager.getScopedVariables(
+    botId,
+    scope,
+    normalizedContextId,
+  );
+  for (final entry in values.entries) {
+    final rawKey = entry.key.toString().trim();
+    if (rawKey.isEmpty) {
+      continue;
+    }
+
+    final canonicalKey = rawKey.startsWith('bc_') ? rawKey : 'bc_$rawKey';
+    final value = entry.value.toString();
+    runtimeVariables['$scope.$canonicalKey'] = value;
+    runtimeVariables['$scope.$rawKey'] = value;
+  }
+}
+
 @pragma('vm:entry-point')
 Future<void> handleLocalCommands(
   InteractionCreateEvent event,
@@ -27,6 +57,65 @@ Future<void> handleLocalCommands(
       for (final entry in globalVars.entries) {
         runtimeVariables['global.${entry.key}'] = entry.value;
       }
+
+      final dynamic rawInteraction = interaction;
+      final guildContextId =
+          runtimeVariables['guildId'] ?? rawInteraction.guildId?.toString();
+      final channelContextId =
+          runtimeVariables['channelId'] ??
+          rawInteraction.channel?.id?.toString();
+      final userContextId =
+          runtimeVariables['userId'] ??
+          rawInteraction.user?.id?.toString() ??
+          rawInteraction.author?.id?.toString();
+      final guildMemberContextId =
+          (guildContextId != null &&
+                  guildContextId.trim().isNotEmpty &&
+                  userContextId != null &&
+                  userContextId.trim().isNotEmpty)
+              ? '${guildContextId.trim()}:${userContextId.trim()}'
+              : null;
+      final messageContextId =
+          runtimeVariables['messageId'] ??
+          runtimeVariables['message.id'] ??
+          rawInteraction.message?.id?.toString();
+
+      await _injectScopedCommandVariables(
+        manager: manager,
+        botId: clientId,
+        scope: 'guild',
+        contextId: guildContextId,
+        runtimeVariables: runtimeVariables,
+      );
+      await _injectScopedCommandVariables(
+        manager: manager,
+        botId: clientId,
+        scope: 'channel',
+        contextId: channelContextId,
+        runtimeVariables: runtimeVariables,
+      );
+      await _injectScopedCommandVariables(
+        manager: manager,
+        botId: clientId,
+        scope: 'user',
+        contextId: userContextId,
+        runtimeVariables: runtimeVariables,
+      );
+      await _injectScopedCommandVariables(
+        manager: manager,
+        botId: clientId,
+        scope: 'guildMember',
+        contextId: guildMemberContextId,
+        runtimeVariables: runtimeVariables,
+      );
+      await _injectScopedCommandVariables(
+        manager: manager,
+        botId: clientId,
+        scope: 'message',
+        contextId: messageContextId,
+        runtimeVariables: runtimeVariables,
+      );
+
       appendBotDebugLog(
         'Arguments générés: ${runtimeVariables.length}',
         botId: clientId,
