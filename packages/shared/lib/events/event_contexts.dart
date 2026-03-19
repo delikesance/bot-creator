@@ -60,6 +60,86 @@ Map<String, String> _threadExtra(dynamic thread) {
   };
 }
 
+Map<String, String> _roleExtra(dynamic role) => <String, String>{
+  'role.id': _idString(role?.id),
+  'role.name': (role?.name ?? '').toString(),
+  'role.color': (role?.colorValue ?? role?.color ?? '').toString(),
+  'role.permissions': (role?.permissions?.value ?? '').toString(),
+  'role.position': (role?.position ?? '').toString(),
+  'role.mentionable': ((role?.isMentionable ?? false) == true).toString(),
+  'role.hoist': ((role?.isHoisted ?? false) == true).toString(),
+};
+
+Map<String, String> _reactionEmojiExtra(
+  dynamic raw,
+  dynamic emoji,
+) => <String, String>{
+  'message.id': _idString(raw.messageId),
+  'reaction.emoji.name': (emoji?.name ?? '').toString(),
+  'reaction.emoji.id': _idString(emoji?.id),
+  'reaction.emoji.animated': ((emoji?.animated ?? false) == true).toString(),
+};
+
+Map<String, String> _memberBasicExtra(
+  String memberId,
+  String? username,
+  String? discriminator,
+) => <String, String>{
+  'member.id': memberId,
+  'member.name': username ?? '',
+  'member.username': username ?? '',
+  'member.tag': discriminator ?? '',
+};
+
+Map<String, String> _inviteExtra({
+  required String code,
+  required String channelId,
+  required String inviterId,
+}) => <String, String>{
+  'invite.code': code,
+  'invite.channelId': channelId,
+  'invite.inviterId': inviterId,
+};
+
+Map<String, String> _pollVoteExtra(dynamic raw) => <String, String>{
+  'message.id': _idString(raw.messageId),
+  'poll.answer.id': (raw.answerId ?? '').toString(),
+  'poll.question': (raw.question ?? '').toString(),
+};
+
+Map<String, String> _messageContentExtra(Message message) {
+  final author = message.author;
+  final content = message.content;
+  final words = content.trim().split(RegExp(r'\s+'));
+  final mentionIds = message.mentions.map((u) => u.id.toString()).toList();
+  final isBot = author is User ? author.isBot : false;
+  final extra = <String, String>{
+    'message.id': message.id.toString(),
+    'message.content': content,
+    'message.word.count': words.length.toString(),
+    'message.isBot': isBot.toString(),
+    'message.channelId': message.channelId.toString(),
+    'message.isDM': (message.channel is DmChannel).toString(),
+    'message.isSystem': (message.type != MessageType.normal).toString(),
+    'message.type': message.type.value.toString(),
+    'message.mentions': mentionIds.join(','),
+    'message.mention.count': mentionIds.length.toString(),
+    'author.id': author.id.toString(),
+    'author.name': author.username,
+    'author.username': author.username,
+    'author.tag': author is User ? author.discriminator : '',
+    'author.isBot': isBot.toString(),
+    'author.avatar': author is User ? (author.avatar.url.toString()) : '',
+  };
+  for (var idx = 0; idx < words.length && idx < 10; idx++) {
+    extra['message.content[$idx]'] = words[idx];
+  }
+  for (var idx = 0; idx < mentionIds.length && idx < 10; idx++) {
+    extra['message.mentions[$idx]'] = mentionIds[idx];
+  }
+  return extra;
+}
+
 Snowflake? _asSnowflake(dynamic value) {
   if (value == null) {
     return null;

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:bot_creator/widgets/variable_text_field.dart';
 import 'package:bot_creator/routes/app/command.response_workflow.dart';
@@ -22,6 +23,7 @@ class ReplyCard extends StatelessWidget {
   final Map<String, dynamic> responseWorkflow;
   final Map<String, dynamic> Function(Map<String, dynamic>) normalizeWorkflow;
   final List<VariableSuggestion> variableSuggestions;
+  final List<AppEmoji>? emojiSuggestions;
   final String? botIdForConfig;
   final ValueChanged<Map<String, dynamic>> onWorkflowChanged;
   final String workflowSummary;
@@ -41,6 +43,7 @@ class ReplyCard extends StatelessWidget {
     required this.responseWorkflow,
     required this.normalizeWorkflow,
     required this.variableSuggestions,
+    this.emojiSuggestions,
     this.botIdForConfig,
     required this.onWorkflowChanged,
     required this.workflowSummary,
@@ -92,6 +95,7 @@ class ReplyCard extends StatelessWidget {
                 controller: responseController,
                 maxLines: 4,
                 suggestions: variableSuggestions,
+                emojiSuggestions: emojiSuggestions,
                 onChanged: (_) {},
                 helperText:
                     "Used as slash-command reply text. Supports ((variable)) syntax.",
@@ -102,6 +106,7 @@ class ReplyCard extends StatelessWidget {
               ResponseEmbedsEditor(
                 embeds: responseEmbeds,
                 variableSuggestions: variableSuggestions,
+                emojiSuggestions: emojiSuggestions,
                 onChanged: onEmbedsChanged,
               ),
               const SizedBox(height: 12),
@@ -153,6 +158,7 @@ class ReplyCard extends StatelessWidget {
                         (context) => CommandResponseWorkflowPage(
                           initialWorkflow: normalizeWorkflow(responseWorkflow),
                           variableSuggestions: variableSuggestions,
+                          emojiSuggestions: emojiSuggestions,
                           botIdForConfig: botIdForConfig,
                         ),
                   ),

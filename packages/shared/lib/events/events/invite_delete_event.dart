@@ -8,10 +8,10 @@ EventExecutionContext buildInviteDeleteEventContext(InviteDeleteEvent event) {
     guildId: _asSnowflake(invite?.guild?.id ?? raw.guildId),
     channelId: _asSnowflake(invite?.channel?.id ?? raw.channelId),
     userId: _asSnowflake(invite?.inviter?.id),
-    extra: <String, String>{
-      'invite.code': (invite?.code ?? raw.code ?? '').toString(),
-      'invite.channelId': _idString(invite?.channel?.id ?? raw.channelId),
-      'invite.inviterId': _idString(invite?.inviter?.id),
-    },
+    extra: _inviteExtra(
+      code: (invite?.code ?? raw.code ?? '').toString(),
+      channelId: _idString(invite?.channel?.id ?? raw.channelId),
+      inviterId: _idString(invite?.inviter?.id),
+    ),
   );
 }

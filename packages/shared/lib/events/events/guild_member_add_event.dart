@@ -10,11 +10,12 @@ EventExecutionContext buildGuildMemberAddEventContext(
     guildId: event.guildId,
     channelId: null,
     userId: member.id,
-    extra: <String, String>{
-      'member.id': member.id.toString(),
-      'member.name': user?.username ?? '',
-      'member.username': user?.username ?? '',
-      'member.tag': user?.discriminator ?? '',
+    extra: {
+      ..._memberBasicExtra(
+        member.id.toString(),
+        user?.username,
+        user?.discriminator,
+      ),
       'member.joinedAt': member.joinedAt.toIso8601String(),
     },
   );

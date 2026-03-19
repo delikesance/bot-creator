@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/routes/app/workflow_docs.page.dart';
+import 'package:bot_creator/types/app_emoji.dart';
+import 'package:bot_creator/utils/app_emoji_api.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +22,7 @@ class WorkflowsPage extends StatefulWidget {
 class _WorkflowsPageState extends State<WorkflowsPage> {
   List<Map<String, dynamic>> _workflows = <Map<String, dynamic>>[];
   bool _loading = true;
+  List<AppEmoji> _appEmojis = [];
 
   String _toScopedReferenceName(String rawKey) {
     final key = rawKey.trim();
@@ -40,8 +43,20 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
     if (!mounted) {
       return;
     }
+
+    // Load application emojis silently for autocomplete
+    List<AppEmoji> emojis = [];
+    try {
+      final token = (await appManager.getApp(widget.botId))['token'] as String?;
+      if (token != null && token.isNotEmpty) {
+        emojis = await AppEmojiApi.listEmojis(token, widget.botId);
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
     setState(() {
       _workflows = workflows;
+      _appEmojis = emojis;
       _loading = false;
     });
   }
@@ -1631,6 +1646,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
               initialActions: initialActions,
               botIdForConfig: widget.botId,
               variableSuggestions: workflowVariableSuggestions,
+              emojiSuggestions: _appEmojis,
             ),
       ),
     );

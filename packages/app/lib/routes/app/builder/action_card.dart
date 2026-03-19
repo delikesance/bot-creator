@@ -11,6 +11,7 @@ import '../../../main.dart';
 import '../../../widgets/component_v2_builder/component_v2_editor.dart';
 import '../../../widgets/component_v2_builder/modal_builder.dart';
 import '../../../widgets/component_v2_builder/normal_component_editor.dart';
+import '../../../types/app_emoji.dart';
 import '../../../widgets/response_embeds_editor.dart';
 import 'action_types.dart';
 import 'action_type_extension.dart';
@@ -22,6 +23,7 @@ class ActionCard extends StatelessWidget {
   final int totalCount;
   final String actionKey;
   final List<VariableSuggestion> variableSuggestions;
+  final List<AppEmoji>? emojiSuggestions;
   final int Function(String paramKey) fieldRefreshVersionOf;
   final Function(String key, dynamic value) onSuggestionSelected;
   final VoidCallback onRemove;
@@ -51,6 +53,7 @@ class ActionCard extends StatelessWidget {
     required this.fieldRefreshVersionOf,
     required this.actionKey,
     required this.variableSuggestions,
+    this.emojiSuggestions,
     this.botIdForConfig,
     this.onEditNestedActions,
   });
@@ -899,6 +902,7 @@ class ActionCard extends StatelessWidget {
             ResponseEmbedsEditor(
               embeds: embeds,
               variableSuggestions: variableSuggestions,
+              emojiSuggestions: emojiSuggestions,
               onChanged: (updated) {
                 onParameterChanged(paramDef.key, updated);
               },

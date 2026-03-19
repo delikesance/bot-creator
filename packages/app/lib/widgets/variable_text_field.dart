@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../types/app_emoji.dart';
 import '../types/variable_suggestion.dart';
 
 class VariableTextField extends StatefulWidget {
@@ -15,6 +16,7 @@ class VariableTextField extends StatefulWidget {
   final String? helperText;
   final String? Function(String?)? validator;
   final List<String>? options; // For autocomplete if needed
+  final List<AppEmoji>? emojiSuggestions;
 
   const VariableTextField({
     super.key,
@@ -31,6 +33,7 @@ class VariableTextField extends StatefulWidget {
     this.helperText,
     this.validator,
     this.options,
+    this.emojiSuggestions,
   });
 
   @override
@@ -180,6 +183,55 @@ class _VariableTextFieldState extends State<VariableTextField> {
   }
 
   List<Widget> _buildSuggestions(String currentValue, int cursor) {
+    // Emoji suggestions — shown when user types `<`
+    if (widget.emojiSuggestions != null &&
+        widget.emojiSuggestions!.isNotEmpty) {
+      final emojiQuery = _extractEmojiQuery(currentValue, cursor);
+      if (emojiQuery != null) {
+        final q = emojiQuery.toLowerCase();
+        final filteredEmojis =
+            widget.emojiSuggestions!
+                .where((e) => q.isEmpty || e.name.toLowerCase().contains(q))
+                .take(12)
+                .toList();
+        if (filteredEmojis.isNotEmpty) {
+          return [
+            const SizedBox(height: 8),
+            Text(
+              'Emoji suggestions',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children:
+                  filteredEmojis.map((emoji) {
+                    return ActionChip(
+                      avatar: Image.network(
+                        emoji.imageUrl,
+                        width: 20,
+                        height: 20,
+                        errorBuilder:
+                            (context, error, stackTrace) =>
+                                const Icon(Icons.emoji_emotions, size: 16),
+                      ),
+                      label: Text(
+                        ':${emoji.name}:',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      padding: EdgeInsets.zero,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onPressed: () => _insertEmoji(emoji),
+                    );
+                  }).toList(),
+            ),
+          ];
+        }
+      }
+    }
+
+    // Variable suggestions — shown when user types `((`
     final query = _extractPlaceholderQuery(currentValue, cursor);
     if (query == null) return [];
 
@@ -246,6 +298,34 @@ class _VariableTextFieldState extends State<VariableTextField> {
             }).toList(),
       ),
     ];
+  }
+
+  String? _extractEmojiQuery(String input, int cursor) {
+    final safeCursor = _safeCursor(input, cursor);
+    if (safeCursor == 0) return null;
+    final start = input.lastIndexOf('<', safeCursor - 1);
+    if (start == -1) return null;
+    final between = input.substring(start + 1, safeCursor);
+    // Cancel if the bracket is already closed or contains whitespace
+    if (between.contains('>') || between.contains(' ')) return null;
+    return between;
+  }
+
+  void _insertEmoji(AppEmoji emoji) {
+    final input = _effectiveController.text;
+    final cursor = _safeCursor(
+      input,
+      _effectiveController.selection.baseOffset,
+    );
+    final start = cursor > 0 ? input.lastIndexOf('<', cursor - 1) : -1;
+    if (start == -1) return;
+    final mention = emoji.mention;
+    final nextText = input.replaceRange(start, cursor, mention);
+    final nextCursor = start + mention.length;
+    _effectiveController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextCursor),
+    );
   }
 
   String? _extractPlaceholderQuery(String input, int cursor) {

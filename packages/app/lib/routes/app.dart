@@ -1,5 +1,6 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/commands.list.dart';
+import 'package:bot_creator/routes/app/emojis.page.dart';
 import 'package:bot_creator/routes/app/global.variables.dart';
 import 'package:bot_creator/routes/app/home.dart';
 import 'package:bot_creator/routes/app/settings.dart';
@@ -181,6 +182,12 @@ class _AppEditPageState extends State<AppEditPage>
         label: AppStrings.t('workflows_tab'),
         compactLabel: AppStrings.t('workflows_tab_short'),
         page: WorkflowsPage(botId: _botId),
+      ),
+      _AppPageEntry(
+        icon: Icons.emoji_emotions_outlined,
+        label: AppStrings.t('emojis_tab'),
+        compactLabel: AppStrings.t('emojis_tab_short'),
+        page: EmojisPage(botId: _botId),
       ),
       _AppPageEntry(
         icon: Icons.settings,

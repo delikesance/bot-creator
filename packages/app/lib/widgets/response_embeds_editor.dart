@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:bot_creator/widgets/variable_text_field.dart';
 
@@ -7,6 +8,7 @@ class ResponseEmbedsEditor extends StatefulWidget {
   final ValueChanged<List<Map<String, dynamic>>> onChanged;
   final int maxEmbeds;
   final List<VariableSuggestion> variableSuggestions;
+  final List<AppEmoji>? emojiSuggestions;
 
   const ResponseEmbedsEditor({
     super.key,
@@ -14,6 +16,7 @@ class ResponseEmbedsEditor extends StatefulWidget {
     required this.onChanged,
     this.maxEmbeds = 10,
     this.variableSuggestions = const [],
+    this.emojiSuggestions,
   });
 
   @override
@@ -215,6 +218,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                       initialValue: embed['title']?.toString() ?? '',
                       maxLength: 256,
                       suggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged:
                           (value) => _setEmbedValue(index, 'title', value),
                     ),
@@ -225,6 +229,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                       maxLength: 2000,
                       maxLines: 4,
                       suggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged:
                           (value) =>
                               _setEmbedValue(index, 'description', value),
@@ -234,6 +239,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                       label: 'URL',
                       initialValue: embed['url']?.toString() ?? '',
                       suggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged: (value) => _setEmbedValue(index, 'url', value),
                     ),
                     const SizedBox(height: 8),
@@ -247,6 +253,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                             label: 'Timestamp (ISO8601)',
                             initialValue: embed['timestamp']?.toString() ?? '',
                             suggestions: widget.variableSuggestions,
+                            emojiSuggestions: widget.emojiSuggestions,
                             onChanged:
                                 (value) =>
                                     _setEmbedValue(index, 'timestamp', value),
@@ -258,6 +265,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                             label: 'Color (int or #hex)',
                             initialValue: embed['color']?.toString() ?? '',
                             suggestions: widget.variableSuggestions,
+                            emojiSuggestions: widget.emojiSuggestions,
                             onChanged:
                                 (value) =>
                                     _setEmbedValue(index, 'color', value),
@@ -274,6 +282,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                           label: 'Footer Text',
                           initialValue: footer['text']?.toString() ?? '',
                           suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -287,6 +296,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                           label: 'Footer Icon URL',
                           initialValue: footer['icon_url']?.toString() ?? '',
                           suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -306,6 +316,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                           label: 'Author Name',
                           initialValue: author['name']?.toString() ?? '',
                           suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -319,6 +330,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                           label: 'Author URL',
                           initialValue: author['url']?.toString() ?? '',
                           suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -332,6 +344,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                           label: 'Author Icon URL',
                           initialValue: author['icon_url']?.toString() ?? '',
                           suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -351,6 +364,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                           label: 'Image URL',
                           initialValue: image['url']?.toString() ?? '',
                           suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           onChanged:
                               (value) =>
                                   _setNestedValue(index, 'image', 'url', value),
@@ -360,6 +374,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                           label: 'Thumbnail URL',
                           initialValue: thumbnail['url']?.toString() ?? '',
                           suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           onChanged:
                               (value) => _setNestedValue(
                                 index,
@@ -417,6 +432,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                                       initialValue:
                                           field['name']?.toString() ?? '',
                                       suggestions: widget.variableSuggestions,
+                                      emojiSuggestions: widget.emojiSuggestions,
                                       onChanged:
                                           (value) => _setFieldValue(
                                             index,
@@ -432,6 +448,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                                           field['value']?.toString() ?? '',
                                       maxLines: 3,
                                       suggestions: widget.variableSuggestions,
+                                      emojiSuggestions: widget.emojiSuggestions,
                                       onChanged:
                                           (value) => _setFieldValue(
                                             index,

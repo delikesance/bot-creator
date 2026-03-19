@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/widgets/response_embeds_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/component_v2_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/normal_component_editor.dart';
@@ -13,11 +14,13 @@ class CommandResponseWorkflowPage extends StatefulWidget {
     required this.initialWorkflow,
     required this.variableSuggestions,
     this.botIdForConfig,
+    this.emojiSuggestions,
   });
 
   final Map<String, dynamic> initialWorkflow;
   final List<VariableSuggestion> variableSuggestions;
   final String? botIdForConfig;
+  final List<AppEmoji>? emojiSuggestions;
 
   @override
   State<CommandResponseWorkflowPage> createState() =>
@@ -381,6 +384,7 @@ class _CommandResponseWorkflowPageState
                       controller: _whenTrueController,
                       maxLines: 3,
                       suggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged: (_) {
                         if (mounted) {
                           setState(() {});
@@ -391,6 +395,7 @@ class _CommandResponseWorkflowPageState
                     ResponseEmbedsEditor(
                       embeds: _whenTrueEmbeds,
                       variableSuggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged: (embeds) {
                         setState(() {
                           _whenTrueEmbeds = embeds;
@@ -458,6 +463,7 @@ class _CommandResponseWorkflowPageState
                       controller: _whenFalseController,
                       maxLines: 3,
                       suggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged: (_) {
                         if (mounted) {
                           setState(() {});
@@ -468,6 +474,7 @@ class _CommandResponseWorkflowPageState
                     ResponseEmbedsEditor(
                       embeds: _whenFalseEmbeds,
                       variableSuggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
                       onChanged: (embeds) {
                         setState(() {
                           _whenFalseEmbeds = embeds;

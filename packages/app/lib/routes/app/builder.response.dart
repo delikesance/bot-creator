@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../types/action.dart' show BotCreatorActionType;
+import '../../types/app_emoji.dart';
 import '../../utils/remote_config_provider.dart';
 import 'builder/action_types.dart';
 import 'builder/action_type_extension.dart';
@@ -14,12 +15,14 @@ export 'builder/action_card.dart';
 class ActionsBuilderPage extends StatefulWidget {
   final List<Map<String, dynamic>> initialActions;
   final List<VariableSuggestion> variableSuggestions;
+  final List<AppEmoji>? emojiSuggestions;
   final String? botIdForConfig;
 
   const ActionsBuilderPage({
     super.key,
     this.initialActions = const [],
     this.variableSuggestions = const [],
+    this.emojiSuggestions,
     this.botIdForConfig,
   });
 
@@ -542,6 +545,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
                                   ? () => _moveAction(index, index + 1)
                                   : null,
                           variableSuggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
                           botIdForConfig: widget.botIdForConfig,
                           fieldRefreshVersionOf:
                               (paramKey) =>

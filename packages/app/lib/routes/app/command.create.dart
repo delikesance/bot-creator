@@ -2,7 +2,9 @@ import 'dart:convert';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
+import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/app_emoji_api.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
@@ -54,6 +56,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     'message.bc_key',
   };
   bool _isLoading = true;
+  List<AppEmoji> _appEmojis = [];
 
   /// True when editing an existing command that couldn't be fully loaded
   /// (client offline AND no local `data` block). Disables editing UI.
@@ -452,6 +455,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     );
 
     await _refreshPersistedVariableNames();
+
+    // Load application emojis silently for autocomplete
+    try {
+      final bid = _botIdForConfig;
+      if (bid != null) {
+        final token = (await appManager.getApp(bid))['token'] as String?;
+        if (token != null && token.isNotEmpty) {
+          final emojis = await AppEmojiApi.listEmojis(token, bid);
+          if (mounted) setState(() => _appEmojis = emojis);
+        }
+      }
+    } catch (_) {}
 
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
@@ -2548,6 +2563,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 responseWorkflow: _responseWorkflow,
                                 normalizeWorkflow: _normalizeWorkflow,
                                 variableSuggestions: _actionVariableSuggestions,
+                                emojiSuggestions: _appEmojis,
                                 botIdForConfig: _botIdForConfig,
                                 onWorkflowChanged: (workflow) {
                                   setState(() {
@@ -2602,6 +2618,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 },
                                 actionVariableSuggestions:
                                     _actionVariableSuggestions,
+                                emojiSuggestions: _appEmojis,
                                 botIdForConfig: _botIdForConfig,
                               ),
                             ],
