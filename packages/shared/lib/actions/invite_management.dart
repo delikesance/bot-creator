@@ -38,8 +38,7 @@ Future<Map<String, String>> createInviteAction(
 
     final temporaryRaw =
         resolve((payload['temporary'] ?? 'false').toString()).toLowerCase();
-    final temporary =
-        temporaryRaw == 'true' || temporaryRaw == '1';
+    final temporary = temporaryRaw == 'true' || temporaryRaw == '1';
 
     final uniqueRaw =
         resolve((payload['unique'] ?? 'false').toString()).toLowerCase();
@@ -86,15 +85,17 @@ Future<Map<String, String>> deleteInviteAction(
   required String Function(String) resolve,
 }) async {
   try {
-    final code =
-        resolve((payload['inviteCode'] ?? '').toString()).trim();
+    final code = resolve((payload['inviteCode'] ?? '').toString()).trim();
     if (code.isEmpty) {
       return {'error': 'inviteCode is required for deleteInvite'};
     }
 
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    await client.invites.delete(code, auditLogReason: reason.isNotEmpty ? reason : null);
+    await client.invites.delete(
+      code,
+      auditLogReason: reason.isNotEmpty ? reason : null,
+    );
     return {'inviteCode': code, 'status': 'deleted'};
   } catch (e) {
     return {'error': 'Failed to delete invite: $e'};
@@ -113,8 +114,7 @@ Future<Map<String, String>> getInviteAction(
   required String Function(String) resolve,
 }) async {
   try {
-    final code =
-        resolve((payload['inviteCode'] ?? '').toString()).trim();
+    final code = resolve((payload['inviteCode'] ?? '').toString()).trim();
     if (code.isEmpty) {
       return {'error': 'inviteCode is required for getInvite'};
     }

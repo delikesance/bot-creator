@@ -40,28 +40,31 @@ Future<Map<String, String>> createPollAction(
     List<String> answers = [];
     final rawAnswers = payload['answers'];
     if (rawAnswers is List) {
-      answers = rawAnswers
-          .map((e) => resolve(e.toString()).trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
+      answers =
+          rawAnswers
+              .map((e) => resolve(e.toString()).trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
     } else {
       final resolved = resolve((rawAnswers ?? '').toString()).trim();
       if (resolved.isNotEmpty) {
         try {
           final decoded = jsonDecode(resolved);
           if (decoded is List) {
-            answers = decoded
-                .map((e) => e.toString().trim())
-                .where((s) => s.isNotEmpty)
-                .toList();
+            answers =
+                decoded
+                    .map((e) => e.toString().trim())
+                    .where((s) => s.isNotEmpty)
+                    .toList();
           }
         } catch (_) {
           // Treat as comma-separated
-          answers = resolved
-              .split(',')
-              .map((s) => s.trim())
-              .where((s) => s.isNotEmpty)
-              .toList();
+          answers =
+              resolved
+                  .split(',')
+                  .map((s) => s.trim())
+                  .where((s) => s.isNotEmpty)
+                  .toList();
         }
       }
     }
@@ -79,8 +82,9 @@ Future<Map<String, String>> createPollAction(
     final durationHours = rawDuration.clamp(1, 168);
 
     final allowMultiselectRaw =
-        resolve((payload['allowMultiselect'] ?? 'false').toString())
-            .toLowerCase();
+        resolve(
+          (payload['allowMultiselect'] ?? 'false').toString(),
+        ).toLowerCase();
     final allowMultiselect =
         allowMultiselectRaw == 'true' || allowMultiselectRaw == '1';
 
@@ -89,13 +93,13 @@ Future<Map<String, String>> createPollAction(
       return {'error': 'Channel is not a text channel'};
     }
 
-    final pollAnswers = answers
-        .map(
-          (text) => PollAnswerBuilder(
-            pollMedia: PollMediaBuilder(text: text),
-          ),
-        )
-        .toList();
+    final pollAnswers =
+        answers
+            .map(
+              (text) =>
+                  PollAnswerBuilder(pollMedia: PollMediaBuilder(text: text)),
+            )
+            .toList();
 
     final message = await channel.sendMessage(
       MessageBuilder(
@@ -130,8 +134,7 @@ Future<Map<String, String>> endPollAction(
   Snowflake? fallbackChannelId,
 }) async {
   try {
-    final channelId =
-        _toSnowflake(payload['channelId']) ?? fallbackChannelId;
+    final channelId = _toSnowflake(payload['channelId']) ?? fallbackChannelId;
     if (channelId == null) {
       return {'error': 'channelId is required for endPoll'};
     }

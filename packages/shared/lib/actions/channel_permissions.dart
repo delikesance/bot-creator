@@ -39,20 +39,15 @@ Future<Map<String, String>> editChannelPermissionsAction(
     }
 
     final targetTypeRaw =
-        resolve((payload['targetType'] ?? 'member').toString())
-            .trim()
-            .toLowerCase();
-    final isMember =
-        targetTypeRaw == 'member' || targetTypeRaw == 'user';
+        resolve(
+          (payload['targetType'] ?? 'member').toString(),
+        ).trim().toLowerCase();
+    final isMember = targetTypeRaw == 'member' || targetTypeRaw == 'user';
 
-    final allowRaw = int.tryParse(
-          resolve((payload['allow'] ?? '0').toString()),
-        ) ??
-        0;
-    final denyRaw = int.tryParse(
-          resolve((payload['deny'] ?? '0').toString()),
-        ) ??
-        0;
+    final allowRaw =
+        int.tryParse(resolve((payload['allow'] ?? '0').toString())) ?? 0;
+    final denyRaw =
+        int.tryParse(resolve((payload['deny'] ?? '0').toString())) ?? 0;
 
     final allow = Permissions(allowRaw);
     final deny = Permissions(denyRaw);
@@ -65,9 +60,10 @@ Future<Map<String, String>> editChannelPermissionsAction(
     await channel.updatePermissionOverwrite(
       PermissionOverwriteBuilder(
         id: targetId,
-        type: isMember
-            ? PermissionOverwriteType.member
-            : PermissionOverwriteType.role,
+        type:
+            isMember
+                ? PermissionOverwriteType.member
+                : PermissionOverwriteType.role,
         allow: allow,
         deny: deny,
       ),

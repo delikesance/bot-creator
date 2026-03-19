@@ -67,8 +67,7 @@ Future<Map<String, String>> createThreadAction(
         ThreadFromMessageBuilder(
           name: name,
           autoArchiveDuration: archiveDuration,
-          rateLimitPerUser:
-              slowmode > 0 ? Duration(seconds: slowmode) : null,
+          rateLimitPerUser: slowmode > 0 ? Duration(seconds: slowmode) : null,
         ),
         auditLogReason: reason.isNotEmpty ? reason : null,
       );
@@ -79,17 +78,17 @@ Future<Map<String, String>> createThreadAction(
       thread = await channel.createThread(
         isPrivate
             ? ThreadBuilder.privateThread(
-                name: name,
-                autoArchiveDuration: archiveDuration,
-                rateLimitPerUser:
-                    slowmode > 0 ? Duration(seconds: slowmode) : null,
-              )
+              name: name,
+              autoArchiveDuration: archiveDuration,
+              rateLimitPerUser:
+                  slowmode > 0 ? Duration(seconds: slowmode) : null,
+            )
             : ThreadBuilder.publicThread(
-                name: name,
-                autoArchiveDuration: archiveDuration,
-                rateLimitPerUser:
-                    slowmode > 0 ? Duration(seconds: slowmode) : null,
-              ),
+              name: name,
+              autoArchiveDuration: archiveDuration,
+              rateLimitPerUser:
+                  slowmode > 0 ? Duration(seconds: slowmode) : null,
+            ),
         auditLogReason: reason.isNotEmpty ? reason : null,
       );
     } else {

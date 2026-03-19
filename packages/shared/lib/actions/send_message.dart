@@ -39,7 +39,8 @@ Future<Map<String, String>> sendMessageToChannel(
 
     if (targetChannelId == null) {
       return {
-        'error': 'channelId is required for sendMessage (or use targetType=user with userId)',
+        'error':
+            'channelId is required for sendMessage (or use targetType=user with userId)',
         'messageId': '',
       };
     }

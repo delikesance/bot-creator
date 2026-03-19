@@ -75,7 +75,10 @@ Future<ImageBuilder?> _imageFromUrl(String url) async {
     final response = await http.get(Uri.parse(url));
     if (response.statusCode != 200) return null;
     final contentType = response.headers['content-type'] ?? 'image/png';
-    return ImageBuilder(data: response.bodyBytes, format: _mimeToFormat(contentType));
+    return ImageBuilder(
+      data: response.bodyBytes,
+      format: _mimeToFormat(contentType),
+    );
   } catch (_) {
     return null;
   }

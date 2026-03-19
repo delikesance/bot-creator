@@ -27,10 +27,7 @@ List<Snowflake> _toSnowflakeList(dynamic value) {
       raw = s.split(',').map((e) => e.trim()).toList();
     }
   }
-  return raw
-      .map(_toSnowflake)
-      .whereType<Snowflake>()
-      .toList();
+  return raw.map(_toSnowflake).whereType<Snowflake>().toList();
 }
 
 /// Downloads image bytes from [url] and encodes as a data URI (base64).
@@ -110,7 +107,10 @@ Future<Map<String, String>> createEmojiAction(
     }
 
     if (image == null) {
-      return {'error': 'Either imageBase64 or imageUrl must be provided for createEmoji'};
+      return {
+        'error':
+            'Either imageBase64 or imageUrl must be provided for createEmoji',
+      };
     }
 
     final roles = _toSnowflakeList(payload['roles']);
@@ -152,7 +152,9 @@ Future<Map<String, String>> updateEmojiAction(
       return {'error': 'updateEmoji requires a guild context'};
     }
 
-    final emojiId = _toSnowflake(resolve((payload['emojiId'] ?? '').toString()));
+    final emojiId = _toSnowflake(
+      resolve((payload['emojiId'] ?? '').toString()),
+    );
     if (emojiId == null) {
       return {'error': 'emojiId is required for updateEmoji'};
     }
@@ -167,7 +169,8 @@ Future<Map<String, String>> updateEmojiAction(
       roles: roles.isEmpty ? null : roles,
     );
     final emoji = await guild.emojis.update(
-      emojiId, builder,
+      emojiId,
+      builder,
       auditLogReason: reason.isNotEmpty ? reason : null,
     );
 
@@ -199,7 +202,9 @@ Future<Map<String, String>> deleteEmojiAction(
       return {'error': 'deleteEmoji requires a guild context'};
     }
 
-    final emojiId = _toSnowflake(resolve((payload['emojiId'] ?? '').toString()));
+    final emojiId = _toSnowflake(
+      resolve((payload['emojiId'] ?? '').toString()),
+    );
     if (emojiId == null) {
       return {'error': 'emojiId is required for deleteEmoji'};
     }

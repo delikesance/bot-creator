@@ -67,7 +67,11 @@ Future<Map<String, String>> calculateAction({
     // Binary operations — need operandB
     final b = double.tryParse(rawB);
     if (b == null) {
-      return {'error': 'operandB "$rawB" is not a valid number for operation "$operation"', 'result': ''};
+      return {
+        'error':
+            'operandB "$rawB" is not a valid number for operation "$operation"',
+        'result': '',
+      };
     }
 
     switch (operation) {
@@ -112,7 +116,8 @@ Future<Map<String, String>> calculateAction({
         return {'result': _format(math.log(a) / math.log(base))};
       default:
         return {
-          'error': 'Unknown operation: "$operation". Supported: add, subtract, multiply, divide, modulo, power, sqrt, abs, floor, ceil, round, min, max, log, negate, random, randomFloat',
+          'error':
+              'Unknown operation: "$operation". Supported: add, subtract, multiply, divide, modulo, power, sqrt, abs, floor, ceil, round, min, max, log, negate, random, randomFloat',
           'result': '',
         };
     }

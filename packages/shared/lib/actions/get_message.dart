@@ -16,8 +16,7 @@ Future<Map<String, String>> getMessageAction(
   Snowflake? fallbackChannelId,
 }) async {
   try {
-    final channelId =
-        _toSnowflake(payload['channelId']) ?? fallbackChannelId;
+    final channelId = _toSnowflake(payload['channelId']) ?? fallbackChannelId;
     if (channelId == null) {
       return {'error': 'channelId is required for getMessage'};
     }

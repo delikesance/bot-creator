@@ -466,7 +466,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'channelId',
             type: ParameterType.channelId,
             defaultValue: '',
-            hint: 'Target channel (required when targetType=channel; leave empty for current channel)',
+            hint:
+                'Target channel (required when targetType=channel; leave empty for current channel)',
           ),
           ParameterDefinition(
             key: 'userId',
@@ -1970,7 +1971,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'keywordPresets',
             type: ParameterType.list,
             defaultValue: <String>[],
-            hint: 'Presets: profanity, sexualContent, slurs (for keywordPreset trigger)',
+            hint:
+                'Presets: profanity, sexualContent, slurs (for keywordPreset trigger)',
           ),
           ParameterDefinition(
             key: 'mentionTotalLimit',
@@ -2103,7 +2105,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'type',
             type: ParameterType.multiSelect,
             defaultValue: 'public',
-            hint: 'Thread type (ignored when creating from an existing message)',
+            hint:
+                'Thread type (ignored when creating from an existing message)',
             options: ['public', 'private'],
           ),
           ParameterDefinition(

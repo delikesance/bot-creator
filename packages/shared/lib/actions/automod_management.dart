@@ -88,9 +88,9 @@ Future<Map<String, String>> createAutoModRuleAction(
     }
 
     final triggerTypeRaw =
-        resolve((payload['triggerType'] ?? 'keyword').toString())
-            .trim()
-            .toLowerCase();
+        resolve(
+          (payload['triggerType'] ?? 'keyword').toString(),
+        ).trim().toLowerCase();
 
     TriggerType triggerType;
     switch (triggerTypeRaw) {
@@ -113,7 +113,9 @@ Future<Map<String, String>> createAutoModRuleAction(
     final exemptChannels = _toSnowflakeList(payload['exemptChannels']);
 
     final mentionTotalLimit =
-        int.tryParse(resolve((payload['mentionTotalLimit'] ?? '5').toString())) ??
+        int.tryParse(
+          resolve((payload['mentionTotalLimit'] ?? '5').toString()),
+        ) ??
         5;
 
     final enabledRaw =
@@ -124,9 +126,9 @@ Future<Map<String, String>> createAutoModRuleAction(
 
     // Build action
     final actionTypeRaw =
-        resolve((payload['actionType'] ?? 'block_message').toString())
-            .trim()
-            .toLowerCase();
+        resolve(
+          (payload['actionType'] ?? 'block_message').toString(),
+        ).trim().toLowerCase();
 
     final List<AutoModerationActionBuilder> actions = [];
     switch (actionTypeRaw) {
@@ -137,7 +139,9 @@ Future<Map<String, String>> createAutoModRuleAction(
         );
         if (alertChannelId != null) {
           actions.add(
-            AutoModerationActionBuilder.sendAlertMessage(channelId: alertChannelId),
+            AutoModerationActionBuilder.sendAlertMessage(
+              channelId: alertChannelId,
+            ),
           );
         }
       case 'timeout':

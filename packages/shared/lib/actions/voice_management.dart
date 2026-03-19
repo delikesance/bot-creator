@@ -44,9 +44,11 @@ Future<Map<String, String>> moveToVoiceChannelAction(
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
     final guild = await client.guilds.get(guildId);
-    await guild.members
-        .update(userId, MemberUpdateBuilder(voiceChannelId: targetChannelId),
-          auditLogReason: reason.isNotEmpty ? reason : null);
+    await guild.members.update(
+      userId,
+      MemberUpdateBuilder(voiceChannelId: targetChannelId),
+      auditLogReason: reason.isNotEmpty ? reason : null,
+    );
 
     return {
       'userId': userId.toString(),
@@ -126,10 +128,7 @@ Future<Map<String, String>> serverMuteMemberAction(
       auditLogReason: reason.isNotEmpty ? reason : null,
     );
 
-    return {
-      'userId': userId.toString(),
-      'status': mute ? 'muted' : 'unmuted',
-    };
+    return {'userId': userId.toString(), 'status': mute ? 'muted' : 'unmuted'};
   } catch (e) {
     return {'error': 'Failed to server-mute member: $e'};
   }
