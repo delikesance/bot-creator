@@ -285,10 +285,10 @@ packages:
     dependency: transitive
     description:
       name: firebase_remote_config
-      sha256: d059ea9813eb7146a485462bd10ec05584da35a98af7518327a8ccebec5fca8b
+      sha256: "50cbbef2acf135fa94ed17b585a49d38248951892044ceedd7a26269eff3447b"
       url: "https://pub.dev"
     source: hosted
-    version: "6.2.0"
+    version: "6.1.3"
   firebase_remote_config_platform_interface:
     dependency: transitive
     description:

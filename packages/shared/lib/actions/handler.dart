@@ -29,6 +29,18 @@ import 'package:bot_creator_shared/actions/edit_webhook.dart';
 import 'package:bot_creator_shared/actions/delete_webhook.dart';
 import 'package:bot_creator_shared/actions/list_webhooks.dart';
 import 'package:bot_creator_shared/actions/get_webhook.dart';
+import 'package:bot_creator_shared/actions/calculate.dart';
+import 'package:bot_creator_shared/actions/get_message.dart';
+import 'package:bot_creator_shared/actions/unpin_message.dart';
+import 'package:bot_creator_shared/actions/poll_management.dart';
+import 'package:bot_creator_shared/actions/invite_management.dart';
+import 'package:bot_creator_shared/actions/voice_management.dart';
+import 'package:bot_creator_shared/actions/emoji_management.dart';
+import 'package:bot_creator_shared/actions/automod_management.dart';
+import 'package:bot_creator_shared/actions/guild_onboarding.dart';
+import 'package:bot_creator_shared/actions/update_self_user.dart';
+import 'package:bot_creator_shared/actions/thread_management.dart';
+import 'package:bot_creator_shared/actions/channel_permissions.dart';
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
 import 'package:bot_creator_shared/utils/interaction_listener_registry.dart';
 import 'package:bot_creator_shared/utils/workflow_call.dart';
@@ -524,9 +536,15 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = result['channelId'] ?? '';
           break;
         case BotCreatorActionType.sendMessage:
+          final targetType =
+              (action.payload['targetType'] ?? 'channel')
+                  .toString()
+                  .trim()
+                  .toLowerCase();
           final channelId =
               _toSnowflake(action.payload['channelId']) ?? fallbackChannelId;
-          if (channelId == null) {
+
+          if (targetType != 'user' && channelId == null) {
             throw Exception('Missing or invalid channelId for sendMessage');
           }
 
@@ -537,17 +555,25 @@ Future<Map<String, String>> handleActions(
             throw Exception('content is required for sendMessage');
           }
 
+          final resolvedSendPayload = Map<String, dynamic>.from(action.payload);
+          if (targetType == 'user') {
+            resolvedSendPayload['userId'] = resolveValue(
+              (action.payload['userId'] ?? '').toString(),
+            );
+          }
+
           final result = await sendMessageToChannel(
             client,
             channelId,
             content: content,
-            payload: action.payload,
+            payload: resolvedSendPayload,
             resolve: resolveValue,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
           }
           results[resultKey] = result['messageId'] ?? '';
+          variables['$resultKey.messageId'] = result['messageId'] ?? '';
           break;
         case BotCreatorActionType.editMessage:
           final content = resolveValue(
@@ -1458,6 +1484,341 @@ Future<Map<String, String>> handleActions(
             }
           }
           results[resultKey] = ifPassed ? 'then' : 'else';
+          break;
+
+        // ─── Math & Calculation ───────────────────────────────────────────
+        case BotCreatorActionType.calculate:
+          final calcResult = await calculateAction(
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (calcResult['error'] != null) {
+            throw Exception(calcResult['error']);
+          }
+          final calcValue = calcResult['result'] ?? '';
+          results[resultKey] = calcValue;
+          variables['$resultKey.result'] = calcValue;
+          break;
+
+        // ─── Message management ───────────────────────────────────────────
+        case BotCreatorActionType.getMessage:
+          final gmResult = await getMessageAction(
+            client,
+            payload: action.payload,
+            fallbackChannelId: resolvedFallbackChannelId,
+          );
+          if (gmResult['error'] != null) {
+            throw Exception(gmResult['error']);
+          }
+          results[resultKey] = gmResult['messageId'] ?? '';
+          for (final entry in gmResult.entries) {
+            variables['$resultKey.${entry.key}'] = entry.value;
+          }
+          break;
+
+        case BotCreatorActionType.unpinMessage:
+          final unpinResult = await unpinMessageAction(
+            client,
+            payload: action.payload,
+            fallbackChannelId: resolvedFallbackChannelId,
+          );
+          if (unpinResult['error'] != null) {
+            throw Exception(unpinResult['error']);
+          }
+          results[resultKey] = unpinResult['status'] ?? 'unpinned';
+          break;
+
+        // ─── Polls ────────────────────────────────────────────────────────
+        case BotCreatorActionType.createPoll:
+          final pollResult = await createPollAction(
+            client,
+            payload: action.payload,
+            fallbackChannelId: resolvedFallbackChannelId,
+            resolve: resolveValue,
+          );
+          if (pollResult['error'] != null) {
+            throw Exception(pollResult['error']);
+          }
+          results[resultKey] = pollResult['messageId'] ?? '';
+          variables['$resultKey.messageId'] = pollResult['messageId'] ?? '';
+          variables['$resultKey.pollId'] = pollResult['pollId'] ?? '';
+          break;
+
+        case BotCreatorActionType.endPoll:
+          final endPollResult = await endPollAction(
+            client,
+            payload: action.payload,
+            fallbackChannelId: resolvedFallbackChannelId,
+          );
+          if (endPollResult['error'] != null) {
+            throw Exception(endPollResult['error']);
+          }
+          results[resultKey] = endPollResult['status'] ?? 'ended';
+          break;
+
+        // ─── Invitations ──────────────────────────────────────────────────
+        case BotCreatorActionType.createInvite:
+          final ciResult = await createInviteAction(
+            client,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (ciResult['error'] != null) {
+            throw Exception(ciResult['error']);
+          }
+          results[resultKey] = ciResult['inviteCode'] ?? '';
+          for (final entry in ciResult.entries) {
+            variables['$resultKey.${entry.key}'] = entry.value;
+          }
+          break;
+
+        case BotCreatorActionType.deleteInvite:
+          final diResult = await deleteInviteAction(
+            client,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (diResult['error'] != null) {
+            throw Exception(diResult['error']);
+          }
+          results[resultKey] = diResult['status'] ?? 'deleted';
+          break;
+
+        case BotCreatorActionType.getInvite:
+          final giResult = await getInviteAction(
+            client,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (giResult['error'] != null) {
+            throw Exception(giResult['error']);
+          }
+          results[resultKey] = giResult['inviteCode'] ?? '';
+          for (final entry in giResult.entries) {
+            variables['$resultKey.${entry.key}'] = entry.value;
+          }
+          break;
+
+        // ─── Voice management ─────────────────────────────────────────────
+        case BotCreatorActionType.moveToVoiceChannel:
+          final mvResult = await moveToVoiceChannelAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (mvResult['error'] != null) {
+            throw Exception(mvResult['error']);
+          }
+          results[resultKey] = mvResult['status'] ?? 'moved';
+          variables['$resultKey.userId'] = mvResult['userId'] ?? '';
+          break;
+
+        case BotCreatorActionType.disconnectFromVoice:
+          final dvResult = await disconnectFromVoiceAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (dvResult['error'] != null) {
+            throw Exception(dvResult['error']);
+          }
+          results[resultKey] = dvResult['status'] ?? 'disconnected';
+          break;
+
+        case BotCreatorActionType.serverMuteMember:
+          final smResult = await serverMuteMemberAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (smResult['error'] != null) {
+            throw Exception(smResult['error']);
+          }
+          results[resultKey] = smResult['status'] ?? 'muted';
+          break;
+
+        case BotCreatorActionType.serverDeafenMember:
+          final sdResult = await serverDeafenMemberAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (sdResult['error'] != null) {
+            throw Exception(sdResult['error']);
+          }
+          results[resultKey] = sdResult['status'] ?? 'deafened';
+          break;
+
+        // ─── Emoji management ─────────────────────────────────────────────
+        case BotCreatorActionType.createEmoji:
+          final ceResult = await createEmojiAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (ceResult['error'] != null) {
+            throw Exception(ceResult['error']);
+          }
+          results[resultKey] = ceResult['emojiId'] ?? '';
+          for (final entry in ceResult.entries) {
+            variables['$resultKey.${entry.key}'] = entry.value;
+          }
+          break;
+
+        case BotCreatorActionType.updateEmoji:
+          final ueResult = await updateEmojiAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (ueResult['error'] != null) {
+            throw Exception(ueResult['error']);
+          }
+          results[resultKey] = ueResult['emojiId'] ?? '';
+          for (final entry in ueResult.entries) {
+            variables['$resultKey.${entry.key}'] = entry.value;
+          }
+          break;
+
+        case BotCreatorActionType.deleteEmoji:
+          final deResult = await deleteEmojiAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (deResult['error'] != null) {
+            throw Exception(deResult['error']);
+          }
+          results[resultKey] = deResult['status'] ?? 'deleted';
+          break;
+
+        // ─── AutoMod management ───────────────────────────────────────────
+        case BotCreatorActionType.createAutoModRule:
+          final camResult = await createAutoModRuleAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (camResult['error'] != null) {
+            throw Exception(camResult['error']);
+          }
+          results[resultKey] = camResult['ruleId'] ?? '';
+          variables['$resultKey.ruleId'] = camResult['ruleId'] ?? '';
+          variables['$resultKey.name'] = camResult['name'] ?? '';
+          break;
+
+        case BotCreatorActionType.deleteAutoModRule:
+          final damResult = await deleteAutoModRuleAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (damResult['error'] != null) {
+            throw Exception(damResult['error']);
+          }
+          results[resultKey] = damResult['status'] ?? 'deleted';
+          break;
+
+        case BotCreatorActionType.listAutoModRules:
+          final lamResult = await listAutoModRulesAction(
+            client,
+            guildId: guildId,
+          );
+          if (lamResult['error'] != null) {
+            throw Exception(lamResult['error']);
+          }
+          results[resultKey] = lamResult['rulesJson'] ?? '[]';
+          variables['$resultKey.rulesJson'] = lamResult['rulesJson'] ?? '[]';
+          variables['$resultKey.count'] = lamResult['count'] ?? '0';
+          break;
+
+        // ─── Guild Onboarding ─────────────────────────────────────────────
+        case BotCreatorActionType.getGuildOnboarding:
+          final goResult = await getGuildOnboardingAction(
+            client,
+            guildId: guildId,
+          );
+          if (goResult['error'] != null) {
+            throw Exception(goResult['error']);
+          }
+          results[resultKey] = goResult['onboardingJson'] ?? '{}';
+          variables['$resultKey.onboardingJson'] =
+              goResult['onboardingJson'] ?? '{}';
+          variables['$resultKey.enabled'] = goResult['enabled'] ?? 'false';
+          break;
+
+        case BotCreatorActionType.updateGuildOnboarding:
+          // Guild onboarding update requires complex payload not yet supported
+          // by nyxx directly. Placeholder for future implementation.
+          results[resultKey] = 'not_implemented';
+          break;
+
+        // ─── Self user ────────────────────────────────────────────────────
+        case BotCreatorActionType.updateSelfUser:
+          final suResult = await updateSelfUserAction(
+            client,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (suResult['error'] != null) {
+            throw Exception(suResult['error']);
+          }
+          results[resultKey] = suResult['status'] ?? 'updated';
+          variables['$resultKey.username'] = suResult['username'] ?? '';
+          variables['$resultKey.userId'] = suResult['userId'] ?? '';
+          break;
+
+        // ─── Thread management ────────────────────────────────────────────
+        case BotCreatorActionType.createThread:
+          final ctResult = await createThreadAction(
+            client,
+            payload: action.payload,
+            fallbackChannelId: resolvedFallbackChannelId,
+            resolve: resolveValue,
+          );
+          if (ctResult['error'] != null) {
+            throw Exception(ctResult['error']);
+          }
+          results[resultKey] = ctResult['threadId'] ?? '';
+          variables['$resultKey.threadId'] = ctResult['threadId'] ?? '';
+          variables['$resultKey.name'] = ctResult['name'] ?? '';
+          variables['$resultKey.parentId'] = ctResult['parentId'] ?? '';
+          break;
+
+        // ─── Channel permissions ──────────────────────────────────────────
+        case BotCreatorActionType.editChannelPermissions:
+          final ecpResult = await editChannelPermissionsAction(
+            client,
+            payload: action.payload,
+            fallbackChannelId: resolvedFallbackChannelId,
+            resolve: resolveValue,
+          );
+          if (ecpResult['error'] != null) {
+            throw Exception(ecpResult['error']);
+          }
+          results[resultKey] = ecpResult['status'] ?? 'updated';
+          break;
+
+        case BotCreatorActionType.deleteChannelPermission:
+          final dcpResult = await deleteChannelPermissionAction(
+            client,
+            payload: action.payload,
+            fallbackChannelId: resolvedFallbackChannelId,
+            resolve: resolveValue,
+          );
+          if (dcpResult['error'] != null) {
+            throw Exception(dcpResult['error']);
+          }
+          results[resultKey] = dcpResult['status'] ?? 'deleted';
           break;
       }
     } catch (e) {
