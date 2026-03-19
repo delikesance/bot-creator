@@ -1472,6 +1472,33 @@ Future<Map<String, String>> handleActions(
             return results;
           }
           break;
+        case BotCreatorActionType.calculate:
+        case BotCreatorActionType.getMessage:
+        case BotCreatorActionType.unpinMessage:
+        case BotCreatorActionType.createPoll:
+        case BotCreatorActionType.endPoll:
+        case BotCreatorActionType.createInvite:
+        case BotCreatorActionType.deleteInvite:
+        case BotCreatorActionType.getInvite:
+        case BotCreatorActionType.moveToVoiceChannel:
+        case BotCreatorActionType.disconnectFromVoice:
+        case BotCreatorActionType.serverMuteMember:
+        case BotCreatorActionType.serverDeafenMember:
+        case BotCreatorActionType.createEmoji:
+        case BotCreatorActionType.updateEmoji:
+        case BotCreatorActionType.deleteEmoji:
+        case BotCreatorActionType.createAutoModRule:
+        case BotCreatorActionType.deleteAutoModRule:
+        case BotCreatorActionType.listAutoModRules:
+        case BotCreatorActionType.getGuildOnboarding:
+        case BotCreatorActionType.updateGuildOnboarding:
+        case BotCreatorActionType.updateSelfUser:
+        case BotCreatorActionType.createThread:
+        case BotCreatorActionType.editChannelPermissions:
+        case BotCreatorActionType.deleteChannelPermission:
+          results[resultKey] =
+              'Action type ${action.type.name} is not implemented in app handler';
+          break;
       }
     } catch (e) {
       results[resultKey] = 'Error: $e';

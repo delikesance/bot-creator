@@ -96,6 +96,54 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return 'Stop Unless Condition';
       case BotCreatorActionType.ifBlock:
         return 'IF / ELSE Block';
+      case BotCreatorActionType.calculate:
+        return 'Calculate';
+      case BotCreatorActionType.getMessage:
+        return 'Get Message';
+      case BotCreatorActionType.unpinMessage:
+        return 'Unpin Message';
+      case BotCreatorActionType.createPoll:
+        return 'Create Poll';
+      case BotCreatorActionType.endPoll:
+        return 'End Poll';
+      case BotCreatorActionType.createInvite:
+        return 'Create Invite';
+      case BotCreatorActionType.deleteInvite:
+        return 'Delete Invite';
+      case BotCreatorActionType.getInvite:
+        return 'Get Invite';
+      case BotCreatorActionType.moveToVoiceChannel:
+        return 'Move to Voice Channel';
+      case BotCreatorActionType.disconnectFromVoice:
+        return 'Disconnect from Voice';
+      case BotCreatorActionType.serverMuteMember:
+        return 'Server Mute Member';
+      case BotCreatorActionType.serverDeafenMember:
+        return 'Server Deafen Member';
+      case BotCreatorActionType.createEmoji:
+        return 'Create Emoji';
+      case BotCreatorActionType.updateEmoji:
+        return 'Update Emoji';
+      case BotCreatorActionType.deleteEmoji:
+        return 'Delete Emoji';
+      case BotCreatorActionType.createAutoModRule:
+        return 'Create AutoMod Rule';
+      case BotCreatorActionType.deleteAutoModRule:
+        return 'Delete AutoMod Rule';
+      case BotCreatorActionType.listAutoModRules:
+        return 'List AutoMod Rules';
+      case BotCreatorActionType.getGuildOnboarding:
+        return 'Get Guild Onboarding';
+      case BotCreatorActionType.updateGuildOnboarding:
+        return 'Update Guild Onboarding';
+      case BotCreatorActionType.updateSelfUser:
+        return 'Update Self User (Bot Profile)';
+      case BotCreatorActionType.createThread:
+        return 'Create Thread';
+      case BotCreatorActionType.editChannelPermissions:
+        return 'Edit Channel Permissions';
+      case BotCreatorActionType.deleteChannelPermission:
+        return 'Delete Channel Permission';
     }
   }
 
@@ -188,6 +236,54 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.filter_alt;
       case BotCreatorActionType.ifBlock:
         return Icons.account_tree;
+      case BotCreatorActionType.calculate:
+        return Icons.calculate;
+      case BotCreatorActionType.getMessage:
+        return Icons.message;
+      case BotCreatorActionType.unpinMessage:
+        return Icons.push_pin_outlined;
+      case BotCreatorActionType.createPoll:
+        return Icons.poll;
+      case BotCreatorActionType.endPoll:
+        return Icons.stop_circle;
+      case BotCreatorActionType.createInvite:
+        return Icons.link;
+      case BotCreatorActionType.deleteInvite:
+        return Icons.link_off;
+      case BotCreatorActionType.getInvite:
+        return Icons.manage_search;
+      case BotCreatorActionType.moveToVoiceChannel:
+        return Icons.headset;
+      case BotCreatorActionType.disconnectFromVoice:
+        return Icons.headset_off;
+      case BotCreatorActionType.serverMuteMember:
+        return Icons.mic_off;
+      case BotCreatorActionType.serverDeafenMember:
+        return Icons.hearing_disabled;
+      case BotCreatorActionType.createEmoji:
+        return Icons.add_reaction;
+      case BotCreatorActionType.updateEmoji:
+        return Icons.edit_notifications;
+      case BotCreatorActionType.deleteEmoji:
+        return Icons.no_photography;
+      case BotCreatorActionType.createAutoModRule:
+        return Icons.security;
+      case BotCreatorActionType.deleteAutoModRule:
+        return Icons.gpp_bad;
+      case BotCreatorActionType.listAutoModRules:
+        return Icons.verified_user;
+      case BotCreatorActionType.getGuildOnboarding:
+        return Icons.waving_hand;
+      case BotCreatorActionType.updateGuildOnboarding:
+        return Icons.manage_accounts;
+      case BotCreatorActionType.updateSelfUser:
+        return Icons.account_circle;
+      case BotCreatorActionType.createThread:
+        return Icons.forum;
+      case BotCreatorActionType.editChannelPermissions:
+        return Icons.lock_open;
+      case BotCreatorActionType.deleteChannelPermission:
+        return Icons.lock_reset;
     }
   }
 
@@ -360,10 +456,23 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
       case BotCreatorActionType.sendMessage:
         return [
           ParameterDefinition(
+            key: 'targetType',
+            type: ParameterType.multiSelect,
+            defaultValue: 'channel',
+            hint: 'Send to a channel or directly to a user (DM)',
+            options: ['channel', 'user'],
+          ),
+          ParameterDefinition(
             key: 'channelId',
             type: ParameterType.channelId,
             defaultValue: '',
-            hint: 'Target channel (optional: current command channel if empty)',
+            hint: 'Target channel (required when targetType=channel; leave empty for current channel)',
+          ),
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User to DM (required when targetType=user)',
           ),
           ParameterDefinition(
             key: 'content',
@@ -379,22 +488,10 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'Users/roles to mention',
           ),
           ParameterDefinition(
-            key: 'embeds',
-            type: ParameterType.boolean,
-            defaultValue: false,
-            hint: 'Include embeds',
-          ),
-          ParameterDefinition(
             key: 'tts',
             type: ParameterType.boolean,
             defaultValue: false,
             hint: 'Text-to-speech',
-          ),
-          ParameterDefinition(
-            key: 'ephemeral',
-            type: ParameterType.boolean,
-            defaultValue: false,
-            hint: 'Only visible to user',
           ),
           ParameterDefinition(
             key: 'componentV2',
@@ -1446,6 +1543,663 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.nestedActions,
             defaultValue: <Map<String, dynamic>>[],
             hint: 'ELSE — actions to run when condition is FALSE',
+          ),
+        ];
+
+      // ─── Math & Calculation ─────────────────────────────────────────────
+      case BotCreatorActionType.calculate:
+        return [
+          ParameterDefinition(
+            key: 'operation',
+            type: ParameterType.multiSelect,
+            defaultValue: 'add',
+            hint: 'Math operation to perform',
+            options: [
+              'add',
+              'subtract',
+              'multiply',
+              'divide',
+              'modulo',
+              'power',
+              'sqrt',
+              'abs',
+              'floor',
+              'ceil',
+              'round',
+              'negate',
+              'min',
+              'max',
+              'log',
+              'random',
+              'randomFloat',
+            ],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'operandA',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'First operand (supports ((variables)))',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'operandB',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint:
+                'Second operand (required for binary ops; for random = max; for log = base)',
+          ),
+        ];
+
+      // ─── Message management ───────────────────────────────────────────────
+      case BotCreatorActionType.getMessage:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel containing the message (optional: current channel)',
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Message ID to fetch',
+            required: true,
+          ),
+        ];
+
+      case BotCreatorActionType.unpinMessage:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel containing the message (optional: current channel)',
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Message to unpin',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      // ─── Polls ────────────────────────────────────────────────────────────
+      case BotCreatorActionType.createPoll:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel to send the poll in (optional: current channel)',
+          ),
+          ParameterDefinition(
+            key: 'question',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Poll question',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'answers',
+            type: ParameterType.list,
+            defaultValue: <String>['Yes', 'No'],
+            hint: 'Poll answers (max 10)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'durationHours',
+            type: ParameterType.number,
+            defaultValue: 24,
+            hint: 'Poll duration in hours (1–168)',
+            minValue: 1,
+            maxValue: 168,
+          ),
+          ParameterDefinition(
+            key: 'allowMultiselect',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Allow multiple answers to be selected',
+          ),
+        ];
+
+      case BotCreatorActionType.endPoll:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel containing the poll (optional: current channel)',
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Message ID of the poll to end',
+            required: true,
+          ),
+        ];
+
+      // ─── Invitations ──────────────────────────────────────────────────────
+      case BotCreatorActionType.createInvite:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel to create invite for',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'maxAge',
+            type: ParameterType.number,
+            defaultValue: 86400,
+            hint: 'Expiry in seconds (0 = never)',
+            minValue: 0,
+          ),
+          ParameterDefinition(
+            key: 'maxUses',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Max uses (0 = unlimited)',
+            minValue: 0,
+          ),
+          ParameterDefinition(
+            key: 'temporary',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Kick member if they leave before getting a role',
+          ),
+          ParameterDefinition(
+            key: 'unique',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Guarantee a unique invite code',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.deleteInvite:
+        return [
+          ParameterDefinition(
+            key: 'inviteCode',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Invite code to delete (e.g. abc123)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.getInvite:
+        return [
+          ParameterDefinition(
+            key: 'inviteCode',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Invite code to look up (e.g. abc123)',
+            required: true,
+          ),
+        ];
+
+      // ─── Voice management ─────────────────────────────────────────────────
+      case BotCreatorActionType.moveToVoiceChannel:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'Member to move',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'targetChannelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Destination voice channel',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.disconnectFromVoice:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'Member to disconnect from voice',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.serverMuteMember:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'Member to server-mute or unmute',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'mute',
+            type: ParameterType.boolean,
+            defaultValue: true,
+            hint: 'true = mute, false = unmute',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.serverDeafenMember:
+        return [
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'Member to server-deafen or undeafen',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'deaf',
+            type: ParameterType.boolean,
+            defaultValue: true,
+            hint: 'true = deafen, false = undeafen',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      // ─── Emoji management ─────────────────────────────────────────────────
+      case BotCreatorActionType.createEmoji:
+        return [
+          ParameterDefinition(
+            key: 'name',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Emoji name (alphanumeric + underscores)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'imageUrl',
+            type: ParameterType.url,
+            defaultValue: '',
+            hint: 'URL of the image to use as emoji (PNG/JPEG/GIF, max 256KB)',
+          ),
+          ParameterDefinition(
+            key: 'imageBase64',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Base64-encoded image data (alternative to imageUrl)',
+          ),
+          ParameterDefinition(
+            key: 'roles',
+            type: ParameterType.list,
+            defaultValue: <String>[],
+            hint: 'Role IDs that can use this emoji (empty = everyone)',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.updateEmoji:
+        return [
+          ParameterDefinition(
+            key: 'emojiId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Emoji ID to update',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'name',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'New emoji name',
+          ),
+          ParameterDefinition(
+            key: 'roles',
+            type: ParameterType.list,
+            defaultValue: <String>[],
+            hint: 'New list of role IDs (empty = no change)',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.deleteEmoji:
+        return [
+          ParameterDefinition(
+            key: 'emojiId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Emoji ID to delete',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      // ─── AutoMod management ───────────────────────────────────────────────
+      case BotCreatorActionType.createAutoModRule:
+        return [
+          ParameterDefinition(
+            key: 'name',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Rule name',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'triggerType',
+            type: ParameterType.multiSelect,
+            defaultValue: 'keyword',
+            hint: 'What triggers the rule',
+            options: ['keyword', 'spam', 'keywordPreset', 'mentionSpam'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'keywords',
+            type: ParameterType.list,
+            defaultValue: <String>[],
+            hint: 'Blocked keywords (for keyword trigger)',
+          ),
+          ParameterDefinition(
+            key: 'regexPatterns',
+            type: ParameterType.list,
+            defaultValue: <String>[],
+            hint: 'Regex patterns to match (for keyword trigger)',
+          ),
+          ParameterDefinition(
+            key: 'allowedWords',
+            type: ParameterType.list,
+            defaultValue: <String>[],
+            hint: 'Words exempt from filtering',
+          ),
+          ParameterDefinition(
+            key: 'keywordPresets',
+            type: ParameterType.list,
+            defaultValue: <String>[],
+            hint: 'Presets: profanity, sexualContent, slurs (for keywordPreset trigger)',
+          ),
+          ParameterDefinition(
+            key: 'mentionTotalLimit',
+            type: ParameterType.number,
+            defaultValue: 5,
+            hint: 'Max mentions per message (for mentionSpam trigger)',
+            minValue: 1,
+            maxValue: 50,
+          ),
+          ParameterDefinition(
+            key: 'actionType',
+            type: ParameterType.multiSelect,
+            defaultValue: 'block_message',
+            hint: 'Action to take when rule is triggered',
+            options: ['block_message', 'send_alert_message', 'timeout'],
+          ),
+          ParameterDefinition(
+            key: 'alertChannelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel for alert messages (for send_alert_message action)',
+          ),
+          ParameterDefinition(
+            key: 'timeoutDuration',
+            type: ParameterType.number,
+            defaultValue: 60,
+            hint: 'Timeout duration in seconds (for timeout action)',
+            minValue: 1,
+          ),
+          ParameterDefinition(
+            key: 'exemptRoles',
+            type: ParameterType.list,
+            defaultValue: <String>[],
+            hint: 'Role IDs exempt from this rule',
+          ),
+          ParameterDefinition(
+            key: 'exemptChannels',
+            type: ParameterType.list,
+            defaultValue: <String>[],
+            hint: 'Channel IDs exempt from this rule',
+          ),
+          ParameterDefinition(
+            key: 'enabled',
+            type: ParameterType.boolean,
+            defaultValue: true,
+            hint: 'Enable the rule immediately',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.deleteAutoModRule:
+        return [
+          ParameterDefinition(
+            key: 'ruleId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'AutoMod rule ID to delete',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.listAutoModRules:
+        return [];
+
+      // ─── Guild Onboarding ─────────────────────────────────────────────────
+      case BotCreatorActionType.getGuildOnboarding:
+        return [];
+
+      case BotCreatorActionType.updateGuildOnboarding:
+        return [
+          ParameterDefinition(
+            key: 'enabled',
+            type: ParameterType.boolean,
+            defaultValue: true,
+            hint: 'Enable or disable guild onboarding',
+          ),
+        ];
+
+      // ─── Self user ────────────────────────────────────────────────────────
+      case BotCreatorActionType.updateSelfUser:
+        return [
+          ParameterDefinition(
+            key: 'username',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'New bot username (leave empty to keep current)',
+          ),
+          ParameterDefinition(
+            key: 'avatarUrl',
+            type: ParameterType.url,
+            defaultValue: '',
+            hint: 'URL of new avatar image (PNG/JPEG/GIF)',
+          ),
+          ParameterDefinition(
+            key: 'avatarBase64',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Base64-encoded avatar image (alternative to avatarUrl)',
+          ),
+        ];
+
+      // ─── Thread management ────────────────────────────────────────────────
+      case BotCreatorActionType.createThread:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Parent channel (optional: current channel)',
+          ),
+          ParameterDefinition(
+            key: 'name',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Thread name',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'type',
+            type: ParameterType.multiSelect,
+            defaultValue: 'public',
+            hint: 'Thread type (ignored when creating from an existing message)',
+            options: ['public', 'private'],
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Create thread on this message (optional)',
+          ),
+          ParameterDefinition(
+            key: 'autoArchiveDuration',
+            type: ParameterType.multiSelect,
+            defaultValue: '1440',
+            hint: 'Auto-archive after inactivity (minutes)',
+            options: ['60', '1440', '4320', '10080'],
+          ),
+          ParameterDefinition(
+            key: 'slowmode',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Slowmode in seconds (0 = off)',
+            minValue: 0,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      // ─── Channel permissions ──────────────────────────────────────────────
+      case BotCreatorActionType.editChannelPermissions:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel to edit permissions for',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'targetId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'User or Role ID to set overwrite for',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'targetType',
+            type: ParameterType.multiSelect,
+            defaultValue: 'member',
+            hint: 'Whether targetId is a member or role',
+            options: ['member', 'role'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'allow',
+            type: ParameterType.string,
+            defaultValue: '0',
+            hint: 'Permissions bitmask to allow (integer as string)',
+          ),
+          ParameterDefinition(
+            key: 'deny',
+            type: ParameterType.string,
+            defaultValue: '0',
+            hint: 'Permissions bitmask to deny (integer as string)',
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.deleteChannelPermission:
+        return [
+          ParameterDefinition(
+            key: 'channelId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Channel to delete permission overwrite from',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'targetId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'User or Role ID whose overwrite to delete',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'reason',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Audit log reason',
           ),
         ];
     }

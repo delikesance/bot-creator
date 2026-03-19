@@ -304,6 +304,35 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.listenForButtonClick:
       case BotCreatorActionType.listenForModalSubmit:
         return 'Interactions';
+      case BotCreatorActionType.calculate:
+        return 'Logic & Flow';
+      case BotCreatorActionType.getMessage:
+      case BotCreatorActionType.unpinMessage:
+      case BotCreatorActionType.createPoll:
+      case BotCreatorActionType.endPoll:
+        return 'Messages';
+      case BotCreatorActionType.createInvite:
+      case BotCreatorActionType.deleteInvite:
+      case BotCreatorActionType.getInvite:
+      case BotCreatorActionType.createThread:
+      case BotCreatorActionType.editChannelPermissions:
+      case BotCreatorActionType.deleteChannelPermission:
+        return 'Channels';
+      case BotCreatorActionType.moveToVoiceChannel:
+      case BotCreatorActionType.disconnectFromVoice:
+      case BotCreatorActionType.serverMuteMember:
+      case BotCreatorActionType.serverDeafenMember:
+      case BotCreatorActionType.createAutoModRule:
+      case BotCreatorActionType.deleteAutoModRule:
+      case BotCreatorActionType.listAutoModRules:
+        return 'Moderation';
+      case BotCreatorActionType.createEmoji:
+      case BotCreatorActionType.updateEmoji:
+      case BotCreatorActionType.deleteEmoji:
+      case BotCreatorActionType.getGuildOnboarding:
+      case BotCreatorActionType.updateGuildOnboarding:
+      case BotCreatorActionType.updateSelfUser:
+        return 'Guild & Members';
     }
   }
 
@@ -478,6 +507,54 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Stop the workflow if a condition is not met (guard/filter)';
       case BotCreatorActionType.ifBlock:
         return 'Conditional branching: run different actions based on a condition';
+      case BotCreatorActionType.calculate:
+        return 'Perform math operations and store result';
+      case BotCreatorActionType.getMessage:
+        return 'Fetch a message and expose its fields';
+      case BotCreatorActionType.unpinMessage:
+        return 'Unpin a message in a channel';
+      case BotCreatorActionType.createPoll:
+        return 'Create a poll message in a channel';
+      case BotCreatorActionType.endPoll:
+        return 'End an active poll message immediately';
+      case BotCreatorActionType.createInvite:
+        return 'Create a new invite link for a channel';
+      case BotCreatorActionType.deleteInvite:
+        return 'Delete an existing invite by code';
+      case BotCreatorActionType.getInvite:
+        return 'Fetch invite information by code';
+      case BotCreatorActionType.moveToVoiceChannel:
+        return 'Move a member to a specific voice channel';
+      case BotCreatorActionType.disconnectFromVoice:
+        return 'Disconnect a member from voice';
+      case BotCreatorActionType.serverMuteMember:
+        return 'Server-mute or unmute a member';
+      case BotCreatorActionType.serverDeafenMember:
+        return 'Server-deafen or undeafen a member';
+      case BotCreatorActionType.createEmoji:
+        return 'Create a guild emoji from image data';
+      case BotCreatorActionType.updateEmoji:
+        return 'Update guild emoji name or role access';
+      case BotCreatorActionType.deleteEmoji:
+        return 'Delete a guild emoji';
+      case BotCreatorActionType.createAutoModRule:
+        return 'Create a guild auto-moderation rule';
+      case BotCreatorActionType.deleteAutoModRule:
+        return 'Delete an auto-moderation rule';
+      case BotCreatorActionType.listAutoModRules:
+        return 'List all auto-moderation rules in guild';
+      case BotCreatorActionType.getGuildOnboarding:
+        return 'Fetch current guild onboarding configuration';
+      case BotCreatorActionType.updateGuildOnboarding:
+        return 'Update guild onboarding configuration';
+      case BotCreatorActionType.updateSelfUser:
+        return 'Update current bot user profile (username/avatar)';
+      case BotCreatorActionType.createThread:
+        return 'Create a thread in a supported text channel';
+      case BotCreatorActionType.editChannelPermissions:
+        return 'Create or update channel permission overwrites';
+      case BotCreatorActionType.deleteChannelPermission:
+        return 'Delete a channel permission overwrite';
     }
   }
 

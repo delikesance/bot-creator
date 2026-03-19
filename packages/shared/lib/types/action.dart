@@ -46,6 +46,40 @@ enum BotCreatorActionType {
   editInteractionMessage,
   listenForButtonClick,
   listenForModalSubmit,
+  // Math & Calculation
+  calculate,
+  // Message management
+  getMessage,
+  unpinMessage,
+  // Poll
+  createPoll,
+  endPoll,
+  // Invitations
+  createInvite,
+  deleteInvite,
+  getInvite,
+  // Voice management
+  moveToVoiceChannel,
+  disconnectFromVoice,
+  serverMuteMember,
+  serverDeafenMember,
+  // Emoji management
+  createEmoji,
+  updateEmoji,
+  deleteEmoji,
+  // AutoMod management
+  createAutoModRule,
+  deleteAutoModRule,
+  listAutoModRules,
+  // Guild Onboarding
+  getGuildOnboarding,
+  updateGuildOnboarding,
+  // Self user
+  updateSelfUser,
+  // Thread & Channel permissions
+  createThread,
+  editChannelPermissions,
+  deleteChannelPermission,
 }
 
 enum ActionOnErrorMode { stop, continueMode }
