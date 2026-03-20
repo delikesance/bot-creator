@@ -30,21 +30,24 @@ class AppManager implements BotDataStore {
       (await getApplicationDocumentsDirectory()).path;
 
   Future<void> _init() async {
-    try {
-      final path = await _path();
-      final appsDir = Directory("$path/apps");
-      if (!await appsDir.exists()) {
-        await appsDir.create(recursive: true);
-      }
+    final path = await _path();
+    final appsDir = Directory("$path/apps");
+    if (!await appsDir.exists()) {
+      await appsDir.create(recursive: true);
+    }
 
-      // Initialize SQLite variable store
+    try {
       _variableStore = SqliteVariableStore();
       await _variableStore.init();
+    } catch (error) {
+      debugPrint('[AppManager._init] SQLite init failed: $error');
+    }
 
+    try {
       await getAllApps();
       await _writeWorkflowCompatibilityReportIfDebug();
-    } catch (_) {
-      // Keep app startup resilient even if persisted data is missing/corrupt.
+    } catch (error) {
+      debugPrint('[AppManager._init] App list load failed: $error');
       _apps = [];
     }
 
@@ -148,22 +151,85 @@ class AppManager implements BotDataStore {
     _appsStreamController.add(appsList);
   }
 
+  Future<List<dynamic>> _rebuildAppsIndexFromFiles(String path) async {
+    final appsDir = Directory("$path/apps");
+    if (!await appsDir.exists()) {
+      return const <dynamic>[];
+    }
+
+    final appsList = <Map<String, dynamic>>[];
+    await for (final entity in appsDir.list()) {
+      if (entity is! File ||
+          !entity.path.endsWith('.json') ||
+          entity.path.endsWith('all_apps.json')) {
+        continue;
+      }
+
+      try {
+        final content = await entity.readAsString();
+        if (content.isEmpty) {
+          continue;
+        }
+
+        final decoded = jsonDecode(content);
+        if (decoded is! Map || decoded['id'] == null) {
+          continue;
+        }
+
+        final app = Map<String, dynamic>.from(decoded);
+        appsList.add(<String, dynamic>{
+          'id': app['id'].toString(),
+          'name': (app['name'] ?? 'Unknown').toString(),
+          'avatar': (app['avatar'] ?? '').toString(),
+          if (app['guild_count'] != null) 'guild_count': app['guild_count'],
+        });
+      } catch (_) {}
+    }
+
+    final allAppsFile = File("$path/apps/all_apps.json");
+    await allAppsFile.writeAsString(jsonEncode(appsList));
+    return appsList;
+  }
+
   Future<List<dynamic>> getAllApps() async {
     final path = await _path();
-    final file = File("$path/apps/all_apps.json");
-    if (!await file.exists()) return [];
+    final allAppsFile = File("$path/apps/all_apps.json");
 
-    final content = await file.readAsString();
-    final appsList = content.isNotEmpty ? jsonDecode(content) : [];
-    _apps = appsList;
-    return appsList;
+    if (await allAppsFile.exists()) {
+      try {
+        final content = await allAppsFile.readAsString();
+        final decoded = content.isNotEmpty ? jsonDecode(content) : const [];
+        if (decoded is List) {
+          final appsList = decoded
+              .whereType<Map>()
+              .map((raw) => Map<String, dynamic>.from(raw))
+              .toList(growable: false);
+          if (appsList.isNotEmpty) {
+            _apps = appsList;
+            return appsList;
+          }
+        }
+      } catch (_) {}
+    }
+
+    final rebuilt = await _rebuildAppsIndexFromFiles(path);
+    _apps = rebuilt;
+    return rebuilt;
   }
 
   Stream<List<dynamic>> getAppStream() => _appsStreamController.stream;
 
   Future<void> refreshApps() async {
-    await getAllApps();
-    _appsStreamController.add(_apps);
+    debugPrint('[AppManager] Rafraîchissement de la liste des apps...');
+    final apps = await getAllApps();
+    debugPrint(
+      '[AppManager] Apps chargées depuis le disque: ${apps.length} app(s)',
+    );
+    for (final app in apps) {
+      debugPrint('[AppManager]   - ${app['name'] ?? 'Unknown'} (${app['id']})');
+    }
+    _appsStreamController.add(apps);
+    debugPrint('[AppManager] Stream actualisé avec ${apps.length} app(s)');
   }
 
   Future<void> clearLogs(String id) async {

@@ -429,8 +429,8 @@ class SqliteCliVariableStore implements VariableDatabase {
     stmt.dispose();
   }
 
-  /// Close database connection (call on runner shutdown).
-  void close() {
+  /// dispose database connection (call on runner shutdown).
+  void dispose() {
     if (_initialized) {
       _db.dispose();
       _initialized = false;

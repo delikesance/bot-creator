@@ -643,15 +643,32 @@ Future<String> uploadAppData(DriveApi drive, AppManager appm) async {
 
 Future<String> downloadAppData(DriveApi drive, AppManager appm) async {
   try {
+    debugPrint('[DownloadAppData] Démarrage du téléchargement des données...');
+
     final latest = await getLatestBackupSnapshot(drive);
+    debugPrint(
+      '[DownloadAppData] Dernier snapshot trouvé: ${latest?.snapshotId}',
+    );
+
     if (latest != null) {
+      debugPrint(
+        '[DownloadAppData] Restauration du snapshot: ${latest.snapshotId}',
+      );
       await restoreBackupSnapshot(drive, appm, snapshotId: latest.snapshotId);
+      debugPrint('[DownloadAppData] Snapshot restauré avec succès');
       return 'Recuperation terminee (${latest.snapshotId})';
     }
 
     // Legacy fallback for old flat backups stored at appDataFolder root.
-    return await _downloadLegacyFlatBackup(drive, appm);
-  } catch (e) {
+    debugPrint(
+      '[DownloadAppData] Aucun snapshot trouvé, tentative import legacy...',
+    );
+    final legacyResult = await _downloadLegacyFlatBackup(drive, appm);
+    debugPrint('[DownloadAppData] Import legacy: $legacyResult');
+    return legacyResult;
+  } catch (e, st) {
+    debugPrint('[DownloadAppData] ERREUR: $e');
+    debugPrintStack(stackTrace: st);
     return 'Echec de la recuperation : $e';
   }
 }
@@ -810,10 +827,13 @@ Future<String> restoreBackupSnapshot(
   AppManager appm, {
   required String snapshotId,
 }) async {
+  debugPrint('[RestoreSnapshot] Restauration du snapshot: $snapshotId');
+
   final root = await _findBackupsRootFolder(drive);
   if (root == null || root.id == null) {
     throw Exception('No backups folder found.');
   }
+  debugPrint('[RestoreSnapshot] Dossier de sauvegarde trouvé: ${root.id}');
 
   final snapshotFolder = await _findNamedChild(
     drive,
@@ -825,6 +845,7 @@ Future<String> restoreBackupSnapshot(
     throw Exception('Snapshot not found: $snapshotId');
   }
   final snapshotFolderId = snapshotFolder!.id!;
+  debugPrint('[RestoreSnapshot] Dossier snapshot trouvé: $snapshotFolderId');
 
   final archiveFile = await _findNamedChild(
     drive,
@@ -837,14 +858,25 @@ Future<String> restoreBackupSnapshot(
       tempDir.path,
       'bot_creator_restore_${DateTime.now().microsecondsSinceEpoch}.zip',
     );
-    await downloadFile(drive, fileId: archiveFile!.id!, filePath: archivePath);
+    debugPrint(
+      '[RestoreSnapshot] Téléchargement de l\'archive: ${archiveFile!.id}',
+    );
+    await downloadFile(drive, fileId: archiveFile.id!, filePath: archivePath);
+    debugPrint('[RestoreSnapshot] Archive téléchargée: $archivePath');
 
     final localRootPath = await appm.path;
     final localAppsDir = manager.Directory('$localRootPath/apps');
+    debugPrint(
+      '[RestoreSnapshot] Création du répertoire: ${localAppsDir.path}',
+    );
     await _recreateDirectoryWithRetry(localAppsDir);
 
     try {
+      debugPrint(
+        '[RestoreSnapshot] Extraction du ZIP vers: ${localAppsDir.path}',
+      );
       extractFileToDisk(archivePath, localAppsDir.path);
+      debugPrint('[RestoreSnapshot] ZIP extrait avec succès');
     } finally {
       final archiveLocal = manager.File(archivePath);
       await _deleteFileWithRetry(archiveLocal);

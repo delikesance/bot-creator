@@ -31,6 +31,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
   final TextEditingController _usernameController = TextEditingController();
   String? _selectedAvatarPath;
   final List<_StatusDraft> _statusDrafts = <_StatusDraft>[];
+  String _presenceStatus = 'online'; // Nouveau: statut de présence
 
   static const List<String> _statusTypes = <String>[
     'playing',
@@ -38,6 +39,13 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     'listening',
     'watching',
     'competing',
+  ];
+
+  static const List<String> _presenceStatuses = <String>[
+    'online',
+    'idle',
+    'dnd',
+    'invisible',
   ];
 
   String _statusTypeLabel(String type) {
@@ -53,6 +61,20 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       case 'playing':
       default:
         return AppStrings.t('bot_settings_status_type_playing');
+    }
+  }
+
+  String _presenceStatusLabel(String status) {
+    switch (status) {
+      case 'idle':
+        return AppStrings.t('bot_settings_presence_idle');
+      case 'dnd':
+        return AppStrings.t('bot_settings_presence_dnd');
+      case 'invisible':
+        return AppStrings.t('bot_settings_presence_invisible');
+      case 'online':
+      default:
+        return AppStrings.t('bot_settings_presence_online');
     }
   }
 
@@ -121,6 +143,13 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
           ) ??
           const <Map<String, dynamic>>[],
     );
+
+    // Charger le statut de présence sauvegardé
+    final presenceStatus =
+        (persistedApp['presenceStatus'] as String?) ?? 'online';
+    if (_presenceStatuses.contains(presenceStatus)) {
+      _presenceStatus = presenceStatus;
+    }
 
     for (final status in _statusDrafts) {
       status.dispose();
@@ -343,6 +372,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
         await appManager.getApp(discordUser.id.toString()),
       );
       latestAppData['statuses'] = statuses;
+      latestAppData['presenceStatus'] = _presenceStatus;
       latestAppData.remove('username');
       latestAppData.remove('avatarPath');
 
@@ -792,6 +822,46 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                         ),
                       ),
                     ],
+
+                    const SizedBox(height: 30),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        AppStrings.t('bot_settings_presence_status_title'),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _presenceStatus,
+                        decoration: InputDecoration(
+                          labelText: AppStrings.t(
+                            'bot_settings_presence_status_label',
+                          ),
+                          border: const OutlineInputBorder(),
+                        ),
+                        items: _presenceStatuses
+                            .map(
+                              (status) => DropdownMenuItem<String>(
+                                value: status,
+                                child: Text(_presenceStatusLabel(status)),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _presenceStatus = value;
+                          });
+                        },
+                      ),
+                    ),
 
                     const SizedBox(height: 30),
                     Padding(

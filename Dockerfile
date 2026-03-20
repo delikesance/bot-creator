@@ -11,10 +11,11 @@ COPY packages/runner packages/runner
 RUN printf "name: bot_creator_runner_workspace\ndescription: Docker build workspace for runner\npublish_to: none\nenvironment:\n  sdk: ^3.7.2\nworkspace:\n  - packages/shared\n  - packages/runner\n" > /workspace/pubspec.yaml
 
 # Resolve dependencies for the runner (workspace-aware)
-WORKDIR /workspace/packages/runner
+# Run from workspace root to ensure proper workspace initialization
 RUN dart pub get
 
 # Compile to a native executable (AOT)
+WORKDIR /workspace/packages/runner
 RUN mkdir -p /out && dart compile exe bin/runner.dart -o /out/runner
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────

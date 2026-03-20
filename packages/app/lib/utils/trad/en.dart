@@ -316,6 +316,12 @@ const Map<String, String> appStringsEn = {
   'bot_settings_avatar_unsupported_format':
       'Unsupported avatar format: {ext}. Supported formats: {formats}.',
   'bot_settings_avatar_clear_selection': 'Clear selection',
+  'bot_settings_presence_status_title': 'Bot Presence Status',
+  'bot_settings_presence_status_label': 'Status',
+  'bot_settings_presence_online': 'Online',
+  'bot_settings_presence_idle': 'Idle (Away)',
+  'bot_settings_presence_dnd': 'Do Not Disturb',
+  'bot_settings_presence_invisible': 'Invisible',
   'bot_settings_status_rotation_title': 'Status Rotation',
   'bot_settings_status_rotation_desc':
       'Add one or more statuses. Each status needs a type, text, and min/max interval (seconds).',

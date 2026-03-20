@@ -307,23 +307,27 @@ void _startDesktopStatusRotation(
     return;
   }
 
-  unawaited(_applyDesktopInitialStatusThenRotate(gateway, statuses));
+  final presenceStatus = (appData['presenceStatus'] as String?) ?? 'online';
+  unawaited(
+    _applyDesktopInitialStatusThenRotate(gateway, statuses, presenceStatus),
+  );
 }
 
 Future<void> _applyDesktopInitialStatusThenRotate(
   NyxxGateway gateway,
   List<Map<String, dynamic>> statuses,
+  String presenceStatus,
 ) async {
   if (statuses.isEmpty) {
     return;
   }
 
   final firstStatus = statuses.first;
-  await _applyDesktopStatus(gateway, firstStatus);
+  await _applyDesktopStatus(gateway, firstStatus, presenceStatus);
 
   // Re-send once after READY to avoid occasional dropped first presence frame.
   Timer(const Duration(seconds: 3), () {
-    unawaited(_applyDesktopStatus(gateway, firstStatus));
+    unawaited(_applyDesktopStatus(gateway, firstStatus, presenceStatus));
   });
 
   final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
@@ -333,13 +337,25 @@ Future<void> _applyDesktopInitialStatusThenRotate(
 
   _desktopStatusRotationTimer?.cancel();
   _desktopStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
-    unawaited(_applyDesktopRandomStatus(gateway, statuses));
+    unawaited(_applyDesktopRandomStatus(gateway, statuses, presenceStatus));
   });
+}
+
+CurrentUserStatus _mapPresenceStatus(String statusString) {
+  switch (statusString) {
+    case 'idle':
+      return CurrentUserStatus.idle;
+    case 'dnd':
+      return CurrentUserStatus.dnd;
+    default:
+      return CurrentUserStatus.online;
+  }
 }
 
 Future<void> _applyDesktopStatus(
   NyxxGateway gateway,
   Map<String, dynamic> status,
+  String presenceStatus,
 ) async {
   final type = (status['type'] ?? 'playing').toString();
   final text = _sanitizeDesktopActivityText((status['text'] ?? '').toString());
@@ -351,7 +367,7 @@ Future<void> _applyDesktopStatus(
   try {
     gateway.updatePresence(
       PresenceBuilder(
-        status: CurrentUserStatus.online,
+        status: _mapPresenceStatus(presenceStatus),
         isAfk: false,
         activities: <ActivityBuilder>[
           ActivityBuilder(name: text, type: _mapDesktopActivityType(type)),
@@ -370,6 +386,7 @@ Future<void> _applyDesktopStatus(
 Future<void> _applyDesktopRandomStatus(
   NyxxGateway gateway,
   List<Map<String, dynamic>> statuses,
+  String presenceStatus,
 ) async {
   if (statuses.isEmpty) {
     return;
@@ -379,13 +396,13 @@ Future<void> _applyDesktopRandomStatus(
   final min = (picked['minIntervalSeconds'] as int?) ?? 60;
   final max = (picked['maxIntervalSeconds'] as int?) ?? min;
 
-  await _applyDesktopStatus(gateway, picked);
+  await _applyDesktopStatus(gateway, picked, presenceStatus);
 
   final delaySeconds =
       max <= min ? min : min + _desktopStatusRandom.nextInt(max - min + 1);
   _desktopStatusRotationTimer?.cancel();
   _desktopStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
-    unawaited(_applyDesktopRandomStatus(gateway, statuses));
+    unawaited(_applyDesktopRandomStatus(gateway, statuses, presenceStatus));
   });
 }
 
