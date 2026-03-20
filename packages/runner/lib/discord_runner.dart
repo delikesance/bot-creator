@@ -987,8 +987,9 @@ class DiscordRunner {
   }
 
   Future<void> _applyStatus(NyxxGateway client, BotStatusConfig status) async {
-    final activityType = _mapActivityType(status.type);
-    final activityText = _sanitizeActivityText(status.text);
+    final streamUrl = _parseStreamingUrl(status.url);
+    final activityType = _mapActivityType(status.type, streamUrl: streamUrl);
+    final activityText = _sanitizeActivityText(status.name);
     if (activityText.isEmpty) {
       _log.warning('Skipped status update because activity text is empty.');
       return;
@@ -1000,7 +1001,11 @@ class DiscordRunner {
           status: CurrentUserStatus.online,
           isAfk: false,
           activities: <ActivityBuilder>[
-            ActivityBuilder(name: activityText, type: activityType),
+            ActivityBuilder(
+              name: activityText,
+              type: activityType,
+              url: streamUrl,
+            ),
           ],
         ),
       );
@@ -1035,12 +1040,10 @@ class DiscordRunner {
     return min + _random.nextInt(max - min + 1);
   }
 
-  ActivityType _mapActivityType(String rawType) {
+  ActivityType _mapActivityType(String rawType, {required Uri? streamUrl}) {
     switch (rawType.trim().toLowerCase()) {
       case 'streaming':
-        // Streaming activities require a valid stream URL; until URL is
-        // configurable we fallback to game so Discord reliably displays status.
-        return ActivityType.game;
+        return streamUrl != null ? ActivityType.streaming : ActivityType.game;
       case 'listening':
         return ActivityType.listening;
       case 'watching':
@@ -1065,5 +1068,21 @@ class DiscordRunner {
     }
 
     return trimmed;
+  }
+
+  Uri? _parseStreamingUrl(String? raw) {
+    final trimmed = (raw ?? '').trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final parsed = Uri.tryParse(trimmed);
+    if (parsed == null) {
+      return null;
+    }
+    if ((parsed.scheme != 'http' && parsed.scheme != 'https') ||
+        parsed.host.isEmpty) {
+      return null;
+    }
+    return parsed;
   }
 }

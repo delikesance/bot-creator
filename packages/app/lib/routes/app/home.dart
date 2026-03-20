@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:bot_creator/main.dart';
@@ -36,6 +37,7 @@ class _AppHomePageState extends State<AppHomePage>
   NyxxRest? client; // Changez en nullable
   String avatar = "";
   bool _botLaunched = false;
+  bool _isSyncingApp = false;
   void Function(Object)? _taskDataCallback;
 
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
@@ -205,6 +207,69 @@ class _AppHomePageState extends State<AppHomePage>
       _appName = app["name"];
       avatar = app["avatar"] ?? "";
     });
+
+    unawaited(_syncAppFromRemote(showSnack: false));
+  }
+
+  Future<void> _syncAppFromRemote({required bool showSnack}) async {
+    if (_isSyncingApp) {
+      return;
+    }
+
+    _isSyncingApp = true;
+    try {
+      final user = await widget.client.user.get();
+      final botId = user.id.toString();
+      final app = await appManager.getApp(botId);
+      final token = (app['token'] ?? '').toString().trim();
+      if (token.isEmpty) {
+        throw Exception('Token not found');
+      }
+
+      await appManager.createOrUpdateApp(user, token);
+
+      try {
+        final remoteCommands = await widget.client.commands.list(
+          withLocalizations: true,
+        );
+
+        for (final command in remoteCommands) {
+          final commandId = command.id.toString();
+          final local = await appManager.getAppCommand(botId, commandId);
+          final merged = <String, dynamic>{
+            ...local,
+            'id': commandId,
+            'name': command.name,
+            'description': command.description,
+          };
+          await appManager.saveAppCommand(botId, commandId, merged);
+        }
+      } catch (_) {
+        // Keep profile sync resilient even if remote command fetch fails.
+      }
+
+      final refreshed = await appManager.getApp(botId);
+      if (mounted) {
+        setState(() {
+          _appName = (refreshed['name'] ?? _appName).toString();
+          avatar = (refreshed['avatar'] ?? avatar).toString();
+        });
+      }
+
+      if (showSnack && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.t('bot_home_sync_success'))),
+        );
+      }
+    } catch (e) {
+      if (showSnack && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
+      }
+    } finally {
+      _isSyncingApp = false;
+    }
   }
 
   Future<void> _maybeOfferRewardedAd() async {
@@ -637,29 +702,24 @@ class _AppHomePageState extends State<AppHomePage>
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(44),
                         ),
-                        onPressed: () async {
-                          final user = await widget.client.user.get();
-                          final app = await appManager.getApp(
-                            user.id.toString(),
-                          );
-                          final token = app["token"];
-                          if (token == null) {
-                            throw Exception("Token not found");
-                          }
-                          // let's update the user
-                          await appManager.createOrUpdateApp(user, token);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                AppStrings.t('bot_home_sync_success'),
-                              ),
-                            ),
-                          );
-                        },
+                        onPressed:
+                            _isSyncingApp
+                                ? null
+                                : () async {
+                                  await _syncAppFromRemote(showSnack: true);
+                                },
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Icon(Icons.sync),
+                            _isSyncingApp
+                                ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Icon(Icons.sync),
                             const SizedBox(width: 8),
                             Text(AppStrings.t('bot_home_sync')),
                           ],

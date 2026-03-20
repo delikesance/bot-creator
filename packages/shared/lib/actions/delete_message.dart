@@ -8,6 +8,9 @@ Future<Map<String, String>> deleteMessage(
   Snowflake? beforeMessageId,
   bool deleteItself = false,
   Snowflake? commandMessageId,
+  bool filterBots = false,
+  bool filterUsers = false,
+  String reason = '',
 }) async {
   try {
     if (count <= 0) {
@@ -34,6 +37,16 @@ Future<Map<String, String>> deleteMessage(
     List<Snowflake> deletedMessages = [];
     int deletedOlderThan14Days = 0;
     for (final message in messages) {
+      final author = message.author;
+      final isBotAuthor = author is User ? author.isBot : false;
+      final filterOnlyBots = filterBots && !filterUsers;
+      final filterOnlyUsers = filterUsers && !filterBots;
+      if (filterOnlyBots && !isBotAuthor) {
+        continue;
+      }
+      if (filterOnlyUsers && isBotAuthor) {
+        continue;
+      }
       if (onlyThisUserID.isNotEmpty &&
           message.author.id.toString() != onlyThisUserID) {
         continue;

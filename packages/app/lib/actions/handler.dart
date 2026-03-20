@@ -29,6 +29,8 @@ import 'package:bot_creator/actions/edit_webhook.dart';
 import 'package:bot_creator/actions/delete_webhook.dart';
 import 'package:bot_creator/actions/list_webhooks.dart';
 import 'package:bot_creator/actions/get_webhook.dart';
+import 'package:bot_creator_shared/actions/handler.dart' as shared_handler;
+import 'package:bot_creator_shared/types/action.dart' as shared_types;
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/interaction_listener_registry.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
@@ -1496,8 +1498,29 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.createThread:
         case BotCreatorActionType.editChannelPermissions:
         case BotCreatorActionType.deleteChannelPermission:
-          results[resultKey] =
-              'Action type ${action.type.name} is not implemented in app handler';
+          final delegated = await shared_handler.handleActions(
+            client,
+            interaction,
+            actions: <shared_types.Action>[
+              shared_types.Action.fromJson(action.toJson()),
+            ],
+            store: manager,
+            botId: botId,
+            variables: variables,
+            resolveTemplate: resolveTemplate,
+            fallbackChannelId: resolvedFallbackChannelId,
+            fallbackGuildId: guildId,
+            workflowStack: activeWorkflowStack,
+            onLog: onLog,
+          );
+
+          final delegatedValue =
+              delegated[resultKey] ?? delegated['action_0'] ?? '';
+          if (delegatedValue.startsWith('Error:')) {
+            throw Exception(delegatedValue.substring('Error:'.length).trim());
+          }
+
+          results[resultKey] = delegatedValue;
           break;
       }
     } catch (e) {

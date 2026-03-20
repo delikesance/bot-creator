@@ -253,7 +253,9 @@ class DiscordBotTaskHandler extends TaskHandler {
     _mobileStatusRotationTimers[botId]?.cancel();
     _mobileStatusRotationTimers.remove(botId);
 
-    final statuses = _normalizeStatuses(appData['statuses']);
+    final statuses = _normalizeStatuses(
+      appData['activities'] ?? appData['statuses'],
+    );
     if (statuses.isEmpty) {
       unawaited(
         _emitTaskLogToMain(
@@ -347,8 +349,9 @@ class DiscordBotTaskHandler extends TaskHandler {
     String presenceStatus,
   ) async {
     final type = (status['type'] ?? 'playing').toString();
+    final streamUrl = _parseStreamingUrl((status['url'] ?? '').toString());
     final text = _sanitizeDesktopActivityText(
-      (status['text'] ?? '').toString(),
+      ((status['name'] ?? status['text']) ?? '').toString(),
     );
 
     if (text.isEmpty) {
@@ -361,7 +364,11 @@ class DiscordBotTaskHandler extends TaskHandler {
           status: _mapMobilePresenceStatus(presenceStatus),
           isAfk: false,
           activities: <ActivityBuilder>[
-            ActivityBuilder(name: text, type: _mapDesktopActivityType(type)),
+            ActivityBuilder(
+              name: text,
+              type: _mapDesktopActivityType(type, streamUrl: streamUrl),
+              url: streamUrl,
+            ),
           ],
         ),
       );

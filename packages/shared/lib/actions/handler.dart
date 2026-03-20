@@ -426,6 +426,19 @@ Future<Map<String, String>> handleActions(
           final onlyUserId = resolveValue(
             (action.payload['onlyUserId'] ?? '').toString(),
           );
+          final reason =
+              resolveValue((action.payload['reason'] ?? '').toString()).trim();
+
+          final filterBotsRaw =
+              resolveValue(
+                (action.payload['filterBots'] ?? '').toString(),
+              ).toLowerCase();
+          final filterUsersRaw =
+              resolveValue(
+                (action.payload['filterUsers'] ?? '').toString(),
+              ).toLowerCase();
+          final filterBots = filterBotsRaw == 'true' || filterBotsRaw == '1';
+          final filterUsers = filterUsersRaw == 'true' || filterUsersRaw == '1';
 
           // optional before message id for deleting messages above
           final beforeRaw = resolveValue(
@@ -473,6 +486,9 @@ Future<Map<String, String>> handleActions(
             beforeMessageId: beforeMessageId,
             deleteItself: deleteItself,
             commandMessageId: commandMessageId,
+            filterBots: filterBots,
+            filterUsers: filterUsers,
+            reason: reason,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -497,16 +513,11 @@ Future<Map<String, String>> handleActions(
             throw Exception('This action requires a guild context');
           }
 
-          final typeRaw = (action.payload['type'] ?? 'text').toString();
-          final channelType =
-              typeRaw == 'voice'
-                  ? ChannelType.guildVoice
-                  : ChannelType.guildText;
-          final result = await createChannel(
+          final result = await createChannelAction(
             client,
-            (action.payload['name'] ?? '').toString(),
             guildId: guildId,
-            type: channelType,
+            payload: action.payload,
+            resolve: resolveValue,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -1757,9 +1768,16 @@ Future<Map<String, String>> handleActions(
           break;
 
         case BotCreatorActionType.updateGuildOnboarding:
-          // Guild onboarding update requires complex payload not yet supported
-          // by nyxx directly. Placeholder for future implementation.
-          results[resultKey] = 'not_implemented';
+          final ugoResult = await updateGuildOnboardingAction(
+            client,
+            guildId: guildId,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (ugoResult['error'] != null) {
+            throw Exception(ugoResult['error']);
+          }
+          results[resultKey] = ugoResult['status'] ?? 'updated';
           break;
 
         // ─── Self user ────────────────────────────────────────────────────

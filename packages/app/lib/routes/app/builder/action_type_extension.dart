@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' show Icons, IconData;
 import '../../../types/action.dart' show BotCreatorActionType;
+import '../../../utils/i18n.dart';
 import 'action_types.dart';
 
 // Extension pour obtenir les détails des actions
@@ -7,143 +8,143 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
   String get displayName {
     switch (this) {
       case BotCreatorActionType.deleteMessages:
-        return 'Delete Messages';
+        return AppStrings.t('action_name_deleteMessages');
       case BotCreatorActionType.createChannel:
-        return 'Create Channel';
+        return AppStrings.t('action_name_createChannel');
       case BotCreatorActionType.updateChannel:
-        return 'Update Channel';
+        return AppStrings.t('action_name_updateChannel');
       case BotCreatorActionType.removeChannel:
-        return 'Remove Channel';
+        return AppStrings.t('action_name_removeChannel');
       case BotCreatorActionType.sendMessage:
-        return 'Send Message';
+        return AppStrings.t('action_name_sendMessage');
       case BotCreatorActionType.editMessage:
-        return 'Edit Message';
+        return AppStrings.t('action_name_editMessage');
       case BotCreatorActionType.addReaction:
-        return 'Add Reaction';
+        return AppStrings.t('action_name_addReaction');
       case BotCreatorActionType.removeReaction:
-        return 'Remove Reaction';
+        return AppStrings.t('action_name_removeReaction');
       case BotCreatorActionType.clearAllReactions:
-        return 'Clear All Reactions';
+        return AppStrings.t('action_name_clearAllReactions');
       case BotCreatorActionType.banUser:
-        return 'Ban User';
+        return AppStrings.t('action_name_banUser');
       case BotCreatorActionType.unbanUser:
-        return 'Unban User';
+        return AppStrings.t('action_name_unbanUser');
       case BotCreatorActionType.kickUser:
-        return 'Kick User';
+        return AppStrings.t('action_name_kickUser');
       case BotCreatorActionType.muteUser:
-        return 'Mute User';
+        return AppStrings.t('action_name_muteUser');
       case BotCreatorActionType.unmuteUser:
-        return 'Unmute User';
+        return AppStrings.t('action_name_unmuteUser');
       case BotCreatorActionType.addRole:
-        return 'Add Role';
+        return AppStrings.t('action_name_addRole');
       case BotCreatorActionType.removeRole:
-        return 'Remove Role';
+        return AppStrings.t('action_name_removeRole');
       case BotCreatorActionType.pinMessage:
-        return 'Pin Message';
+        return AppStrings.t('action_name_pinMessage');
       case BotCreatorActionType.updateAutoMod:
-        return 'Update AutoMod';
+        return AppStrings.t('action_name_updateAutoMod');
       case BotCreatorActionType.updateGuild:
-        return 'Update Guild';
+        return AppStrings.t('action_name_updateGuild');
       case BotCreatorActionType.listMembers:
-        return 'List Members';
+        return AppStrings.t('action_name_listMembers');
       case BotCreatorActionType.getMember:
-        return 'Get Member';
+        return AppStrings.t('action_name_getMember');
       case BotCreatorActionType.sendComponentV2:
-        return 'Send Component V2';
+        return AppStrings.t('action_name_sendComponentV2');
       case BotCreatorActionType.editComponentV2:
-        return 'Edit Component V2';
+        return AppStrings.t('action_name_editComponentV2');
       case BotCreatorActionType.sendWebhook:
-        return 'Send Webhook';
+        return AppStrings.t('action_name_sendWebhook');
       case BotCreatorActionType.editWebhook:
-        return 'Edit Webhook';
+        return AppStrings.t('action_name_editWebhook');
       case BotCreatorActionType.deleteWebhook:
-        return 'Delete Webhook';
+        return AppStrings.t('action_name_deleteWebhook');
       case BotCreatorActionType.listWebhooks:
-        return 'List Webhooks';
+        return AppStrings.t('action_name_listWebhooks');
       case BotCreatorActionType.getWebhook:
-        return 'Get Webhook';
+        return AppStrings.t('action_name_getWebhook');
       case BotCreatorActionType.httpRequest:
-        return 'HTTP Request';
+        return AppStrings.t('action_name_httpRequest');
       case BotCreatorActionType.setGlobalVariable:
-        return 'Set Global Variable';
+        return AppStrings.t('action_name_setGlobalVariable');
       case BotCreatorActionType.getGlobalVariable:
-        return 'Get Global Variable';
+        return AppStrings.t('action_name_getGlobalVariable');
       case BotCreatorActionType.removeGlobalVariable:
-        return 'Remove Global Variable';
+        return AppStrings.t('action_name_removeGlobalVariable');
       case BotCreatorActionType.setScopedVariable:
-        return 'Set Scoped Variable';
+        return AppStrings.t('action_name_setScopedVariable');
       case BotCreatorActionType.getScopedVariable:
-        return 'Get Scoped Variable';
+        return AppStrings.t('action_name_getScopedVariable');
       case BotCreatorActionType.removeScopedVariable:
-        return 'Remove Scoped Variable';
+        return AppStrings.t('action_name_removeScopedVariable');
       case BotCreatorActionType.renameScopedVariable:
-        return 'Rename Scoped Variable';
+        return AppStrings.t('action_name_renameScopedVariable');
       case BotCreatorActionType.runWorkflow:
-        return 'Run Workflow';
+        return AppStrings.t('action_name_runWorkflow');
       case BotCreatorActionType.respondWithMessage:
-        return 'Respond with Message';
+        return AppStrings.t('action_name_respondWithMessage');
       case BotCreatorActionType.respondWithComponentV2:
-        return 'Respond with ComponentV2';
+        return AppStrings.t('action_name_respondWithComponentV2');
       case BotCreatorActionType.respondWithModal:
-        return 'Respond with Modal';
+        return AppStrings.t('action_name_respondWithModal');
       case BotCreatorActionType.editInteractionMessage:
-        return 'Edit Interaction Message';
+        return AppStrings.t('action_name_editInteractionMessage');
       case BotCreatorActionType.listenForButtonClick:
-        return 'Listen for Button Click';
+        return AppStrings.t('action_name_listenForButtonClick');
       case BotCreatorActionType.listenForModalSubmit:
-        return 'Listen for Modal Submit';
+        return AppStrings.t('action_name_listenForModalSubmit');
       case BotCreatorActionType.stopUnless:
-        return 'Stop Unless Condition';
+        return AppStrings.t('action_name_stopUnless');
       case BotCreatorActionType.ifBlock:
-        return 'IF / ELSE Block';
+        return AppStrings.t('action_name_ifBlock');
       case BotCreatorActionType.calculate:
-        return 'Calculate';
+        return AppStrings.t('action_name_calculate');
       case BotCreatorActionType.getMessage:
-        return 'Get Message';
+        return AppStrings.t('action_name_getMessage');
       case BotCreatorActionType.unpinMessage:
-        return 'Unpin Message';
+        return AppStrings.t('action_name_unpinMessage');
       case BotCreatorActionType.createPoll:
-        return 'Create Poll';
+        return AppStrings.t('action_name_createPoll');
       case BotCreatorActionType.endPoll:
-        return 'End Poll';
+        return AppStrings.t('action_name_endPoll');
       case BotCreatorActionType.createInvite:
-        return 'Create Invite';
+        return AppStrings.t('action_name_createInvite');
       case BotCreatorActionType.deleteInvite:
-        return 'Delete Invite';
+        return AppStrings.t('action_name_deleteInvite');
       case BotCreatorActionType.getInvite:
-        return 'Get Invite';
+        return AppStrings.t('action_name_getInvite');
       case BotCreatorActionType.moveToVoiceChannel:
-        return 'Move to Voice Channel';
+        return AppStrings.t('action_name_moveToVoiceChannel');
       case BotCreatorActionType.disconnectFromVoice:
-        return 'Disconnect from Voice';
+        return AppStrings.t('action_name_disconnectFromVoice');
       case BotCreatorActionType.serverMuteMember:
-        return 'Server Mute Member';
+        return AppStrings.t('action_name_serverMuteMember');
       case BotCreatorActionType.serverDeafenMember:
-        return 'Server Deafen Member';
+        return AppStrings.t('action_name_serverDeafenMember');
       case BotCreatorActionType.createEmoji:
-        return 'Create Emoji';
+        return AppStrings.t('action_name_createEmoji');
       case BotCreatorActionType.updateEmoji:
-        return 'Update Emoji';
+        return AppStrings.t('action_name_updateEmoji');
       case BotCreatorActionType.deleteEmoji:
-        return 'Delete Emoji';
+        return AppStrings.t('action_name_deleteEmoji');
       case BotCreatorActionType.createAutoModRule:
-        return 'Create AutoMod Rule';
+        return AppStrings.t('action_name_createAutoModRule');
       case BotCreatorActionType.deleteAutoModRule:
-        return 'Delete AutoMod Rule';
+        return AppStrings.t('action_name_deleteAutoModRule');
       case BotCreatorActionType.listAutoModRules:
-        return 'List AutoMod Rules';
+        return AppStrings.t('action_name_listAutoModRules');
       case BotCreatorActionType.getGuildOnboarding:
-        return 'Get Guild Onboarding';
+        return AppStrings.t('action_name_getGuildOnboarding');
       case BotCreatorActionType.updateGuildOnboarding:
-        return 'Update Guild Onboarding';
+        return AppStrings.t('action_name_updateGuildOnboarding');
       case BotCreatorActionType.updateSelfUser:
-        return 'Update Self User (Bot Profile)';
+        return AppStrings.t('action_name_updateSelfUser');
       case BotCreatorActionType.createThread:
-        return 'Create Thread';
+        return AppStrings.t('action_name_createThread');
       case BotCreatorActionType.editChannelPermissions:
-        return 'Edit Channel Permissions';
+        return AppStrings.t('action_name_editChannelPermissions');
       case BotCreatorActionType.deleteChannelPermission:
-        return 'Delete Channel Permission';
+        return AppStrings.t('action_name_deleteChannelPermission');
     }
   }
 
@@ -1580,7 +1581,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'operandA',
             type: ParameterType.string,
             defaultValue: '',
-            hint: 'First operand (supports ((variables)))',
+            hint:
+                'First operand (supports ((variables))). For random/randomFloat: minimum value.',
             required: true,
           ),
           ParameterDefinition(
@@ -1588,7 +1590,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint:
-                'Second operand (required for binary ops; for random = max; for log = base)',
+                'Second operand (required for binary ops). For random/randomFloat: maximum value. For log: base.',
           ),
         ];
 

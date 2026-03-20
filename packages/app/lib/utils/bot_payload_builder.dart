@@ -45,7 +45,7 @@ Future<Map<String, dynamic>> buildBotPayload(String botId) async {
   );
 
   final statuses =
-      (appData['statuses'] as List?)
+      ((appData['activities'] ?? appData['statuses']) as List?)
           ?.whereType<Map>()
           .map((s) => BotStatusConfig.fromJson(Map<String, dynamic>.from(s)))
           .toList(growable: false) ??

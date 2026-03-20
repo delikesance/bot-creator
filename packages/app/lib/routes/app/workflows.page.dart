@@ -768,6 +768,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
             kind: VariableSuggestionKind.nonNumeric,
           ),
           VariableSuggestion(
+            name: 'presence.activity[0].typeName',
+            kind: VariableSuggestionKind.nonNumeric,
+          ),
+          VariableSuggestion(
             name: 'presence.activity[0].details',
             kind: VariableSuggestionKind.nonNumeric,
           ),
@@ -777,6 +781,30 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
           ),
           VariableSuggestion(
             name: 'presence.activity[0].url',
+            kind: VariableSuggestionKind.nonNumeric,
+          ),
+          VariableSuggestion(
+            name: 'presence.activity[1].name',
+            kind: VariableSuggestionKind.nonNumeric,
+          ),
+          VariableSuggestion(
+            name: 'presence.activity[1].type',
+            kind: VariableSuggestionKind.nonNumeric,
+          ),
+          VariableSuggestion(
+            name: 'presence.activity[1].typeName',
+            kind: VariableSuggestionKind.nonNumeric,
+          ),
+          VariableSuggestion(
+            name: 'presence.activity[1].details',
+            kind: VariableSuggestionKind.nonNumeric,
+          ),
+          VariableSuggestion(
+            name: 'presence.activity[1].state',
+            kind: VariableSuggestionKind.nonNumeric,
+          ),
+          VariableSuggestion(
+            name: 'presence.activity[1].url',
             kind: VariableSuggestionKind.nonNumeric,
           ),
           VariableSuggestion(
@@ -1147,9 +1175,16 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
         'presence.activity.count',
         'presence.activity[0].name',
         'presence.activity[0].type',
+        'presence.activity[0].typeName',
         'presence.activity[0].details',
         'presence.activity[0].state',
         'presence.activity[0].url',
+        'presence.activity[1].name',
+        'presence.activity[1].type',
+        'presence.activity[1].typeName',
+        'presence.activity[1].details',
+        'presence.activity[1].state',
+        'presence.activity[1].url',
         'presence.client.desktop',
         'presence.client.mobile',
         'presence.client.web',

@@ -258,7 +258,7 @@ Future<void> handleLocalCommands(
               event.gateway.client,
               interaction,
               actions: actions,
-              manager: manager,
+              store: manager,
               botId: clientId,
               variables: runtimeVariables,
               resolveTemplate:

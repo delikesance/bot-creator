@@ -137,10 +137,10 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       }
     }
 
-    final persistedStatuses = List<Map<String, dynamic>>.from(
-      (persistedApp['statuses'] as List?)?.whereType<Map>().map(
-            (item) => Map<String, dynamic>.from(item),
-          ) ??
+    final persistedActivities = List<Map<String, dynamic>>.from(
+      ((persistedApp['activities'] ?? persistedApp['statuses']) as List?)
+              ?.whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item)) ??
           const <Map<String, dynamic>>[],
     );
 
@@ -156,10 +156,10 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     }
     _statusDrafts.clear();
 
-    if (persistedStatuses.isEmpty) {
+    if (persistedActivities.isEmpty) {
       _statusDrafts.add(_StatusDraft.empty());
     } else {
-      for (final status in persistedStatuses) {
+      for (final status in persistedActivities) {
         _statusDrafts.add(_StatusDraft.fromMap(status));
       }
     }
@@ -318,7 +318,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     });
 
     try {
-      final statuses = _collectStatuses();
+      final activities = _collectActivities();
       final appData = Map<String, dynamic>.from(
         await appManager.getApp(widget.client.user.id.toString()),
       );
@@ -371,7 +371,17 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       final latestAppData = Map<String, dynamic>.from(
         await appManager.getApp(discordUser.id.toString()),
       );
-      latestAppData['statuses'] = statuses;
+      latestAppData['activities'] = activities;
+      latestAppData['statuses'] = activities
+          .map(
+            (activity) => {
+              'type': activity['type'],
+              'text': activity['name'],
+              'minIntervalSeconds': activity['minIntervalSeconds'],
+              'maxIntervalSeconds': activity['maxIntervalSeconds'],
+            },
+          )
+          .toList(growable: false);
       latestAppData['presenceStatus'] = _presenceStatus;
       latestAppData.remove('username');
       latestAppData.remove('avatarPath');
@@ -399,32 +409,54 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     }
   }
 
-  List<Map<String, dynamic>> _collectStatuses() {
+  List<Map<String, dynamic>> _collectActivities() {
     final normalized = <Map<String, dynamic>>[];
 
     for (var i = 0; i < _statusDrafts.length; i++) {
       final draft = _statusDrafts[i];
-      final text = draft.textController.text.trim();
+      final name = draft.textController.text.trim();
+      final state = draft.stateController.text.trim();
+      final url = draft.urlController.text.trim();
       final min = int.tryParse(draft.minController.text.trim()) ?? 60;
       final max = int.tryParse(draft.maxController.text.trim()) ?? min;
 
-      if (text.isEmpty) {
-        throw FormatException('Status #${i + 1}: text is required.');
+      if (name.isEmpty) {
+        throw FormatException('Activity #${i + 1}: name is required.');
       }
       if (min <= 0 || max <= 0) {
         throw FormatException(
-          'Status #${i + 1}: min/max interval must be > 0.',
+          'Activity #${i + 1}: min/max interval must be > 0.',
         );
       }
       if (max < min) {
         throw FormatException(
-          'Status #${i + 1}: max interval must be >= min interval.',
+          'Activity #${i + 1}: max interval must be >= min interval.',
         );
+      }
+      if (draft.type == 'streaming') {
+        if (url.isEmpty) {
+          throw FormatException(
+            'Activity #${i + 1}: stream URL is required for streaming type.',
+          );
+        }
+        final parsed = Uri.tryParse(url);
+        final isValid =
+            parsed != null &&
+            (parsed.scheme == 'http' || parsed.scheme == 'https') &&
+            (parsed.host.isNotEmpty);
+        if (!isValid) {
+          throw FormatException(
+            'Activity #${i + 1}: stream URL must be a valid http/https URL.',
+          );
+        }
       }
 
       normalized.add({
         'type': draft.type,
-        'text': text,
+        'name': name,
+        'text': name,
+        'state': state,
+        'url': url,
         'minIntervalSeconds': min,
         'maxIntervalSeconds': max,
       });
@@ -974,6 +1006,27 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                                 ),
                               ),
                               const SizedBox(height: 8),
+                              TextField(
+                                controller: draft.stateController,
+                                decoration: InputDecoration(
+                                  labelText: AppStrings.t(
+                                    'bot_settings_activity_state_label',
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: draft.urlController,
+                                decoration: InputDecoration(
+                                  labelText: AppStrings.t(
+                                    'bot_settings_activity_url_label',
+                                  ),
+                                  border: const OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.url,
+                              ),
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
                                   Expanded(
@@ -1185,12 +1238,16 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
 class _StatusDraft {
   String type;
   final TextEditingController textController;
+  final TextEditingController stateController;
+  final TextEditingController urlController;
   final TextEditingController minController;
   final TextEditingController maxController;
 
   _StatusDraft({
     required this.type,
     required this.textController,
+    required this.stateController,
+    required this.urlController,
     required this.minController,
     required this.maxController,
   });
@@ -1199,6 +1256,8 @@ class _StatusDraft {
     return _StatusDraft(
       type: 'playing',
       textController: TextEditingController(),
+      stateController: TextEditingController(),
+      urlController: TextEditingController(),
       minController: TextEditingController(text: '60'),
       maxController: TextEditingController(text: '60'),
     );
@@ -1216,8 +1275,12 @@ class _StatusDraft {
       type:
           _AppSettingsPageState._statusTypes.contains(type) ? type : 'playing',
       textController: TextEditingController(
-        text: (map['text'] ?? '').toString(),
+        text: ((map['name'] ?? map['text']) ?? '').toString(),
       ),
+      stateController: TextEditingController(
+        text: (map['state'] ?? '').toString(),
+      ),
+      urlController: TextEditingController(text: (map['url'] ?? '').toString()),
       minController: TextEditingController(text: '$min'),
       maxController: TextEditingController(text: '$max'),
     );
@@ -1225,6 +1288,8 @@ class _StatusDraft {
 
   void dispose() {
     textController.dispose();
+    stateController.dispose();
+    urlController.dispose();
     minController.dispose();
     maxController.dispose();
   }
