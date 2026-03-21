@@ -185,7 +185,7 @@ Future<void> _bootstrapAndRunApp() async {
     final prefs = await SharedPreferences.getInstance();
     final onboardingManager = OnboardingManager(prefs);
     final remoteConfigProvider = RemoteConfigProvider();
-    await remoteConfigProvider.initialize(firebaseReady: firebaseReady);
+    await remoteConfigProvider.initialize();
 
     runApp(
       MultiProvider(
