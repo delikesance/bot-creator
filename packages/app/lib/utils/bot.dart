@@ -6,12 +6,12 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
 
-import 'package:bot_creator/actions/handler.dart';
 import 'package:bot_creator/main.dart';
-import 'package:bot_creator/types/action.dart';
+import 'package:bot_creator_shared/actions/handler.dart';
 import 'package:bot_creator_shared/actions/handle_component_interaction.dart';
 import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator_shared/events/event_contexts.dart';
+import 'package:bot_creator_shared/types/action.dart';
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/mobile_sessions_orchestrator.dart';
@@ -302,28 +302,34 @@ void _startDesktopStatusRotation(
   _desktopStatusRotationTimer?.cancel();
   _desktopStatusRotationTimer = null;
 
-  final statuses = _normalizeStatuses(appData['statuses']);
+  final statuses = _normalizeStatuses(
+    appData['activities'] ?? appData['statuses'],
+  );
   if (statuses.isEmpty) {
     return;
   }
 
-  unawaited(_applyDesktopInitialStatusThenRotate(gateway, statuses));
+  final presenceStatus = (appData['presenceStatus'] as String?) ?? 'online';
+  unawaited(
+    _applyDesktopInitialStatusThenRotate(gateway, statuses, presenceStatus),
+  );
 }
 
 Future<void> _applyDesktopInitialStatusThenRotate(
   NyxxGateway gateway,
   List<Map<String, dynamic>> statuses,
+  String presenceStatus,
 ) async {
   if (statuses.isEmpty) {
     return;
   }
 
   final firstStatus = statuses.first;
-  await _applyDesktopStatus(gateway, firstStatus);
+  await _applyDesktopStatus(gateway, firstStatus, presenceStatus);
 
   // Re-send once after READY to avoid occasional dropped first presence frame.
   Timer(const Duration(seconds: 3), () {
-    unawaited(_applyDesktopStatus(gateway, firstStatus));
+    unawaited(_applyDesktopStatus(gateway, firstStatus, presenceStatus));
   });
 
   final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
@@ -333,16 +339,31 @@ Future<void> _applyDesktopInitialStatusThenRotate(
 
   _desktopStatusRotationTimer?.cancel();
   _desktopStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
-    unawaited(_applyDesktopRandomStatus(gateway, statuses));
+    unawaited(_applyDesktopRandomStatus(gateway, statuses, presenceStatus));
   });
+}
+
+CurrentUserStatus _mapPresenceStatus(String statusString) {
+  switch (statusString) {
+    case 'idle':
+      return CurrentUserStatus.idle;
+    case 'dnd':
+      return CurrentUserStatus.dnd;
+    default:
+      return CurrentUserStatus.online;
+  }
 }
 
 Future<void> _applyDesktopStatus(
   NyxxGateway gateway,
   Map<String, dynamic> status,
+  String presenceStatus,
 ) async {
   final type = (status['type'] ?? 'playing').toString();
-  final text = _sanitizeDesktopActivityText((status['text'] ?? '').toString());
+  final streamUrl = _parseStreamingUrl((status['url'] ?? '').toString());
+  final text = _sanitizeDesktopActivityText(
+    ((status['name'] ?? status['text']) ?? '').toString(),
+  );
 
   if (text.isEmpty) {
     return;
@@ -351,10 +372,14 @@ Future<void> _applyDesktopStatus(
   try {
     gateway.updatePresence(
       PresenceBuilder(
-        status: CurrentUserStatus.online,
+        status: _mapPresenceStatus(presenceStatus),
         isAfk: false,
         activities: <ActivityBuilder>[
-          ActivityBuilder(name: text, type: _mapDesktopActivityType(type)),
+          ActivityBuilder(
+            name: text,
+            type: _mapDesktopActivityType(type, streamUrl: streamUrl),
+            url: streamUrl,
+          ),
         ],
       ),
     );
@@ -370,6 +395,7 @@ Future<void> _applyDesktopStatus(
 Future<void> _applyDesktopRandomStatus(
   NyxxGateway gateway,
   List<Map<String, dynamic>> statuses,
+  String presenceStatus,
 ) async {
   if (statuses.isEmpty) {
     return;
@@ -379,13 +405,13 @@ Future<void> _applyDesktopRandomStatus(
   final min = (picked['minIntervalSeconds'] as int?) ?? 60;
   final max = (picked['maxIntervalSeconds'] as int?) ?? min;
 
-  await _applyDesktopStatus(gateway, picked);
+  await _applyDesktopStatus(gateway, picked, presenceStatus);
 
   final delaySeconds =
       max <= min ? min : min + _desktopStatusRandom.nextInt(max - min + 1);
   _desktopStatusRotationTimer?.cancel();
   _desktopStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
-    unawaited(_applyDesktopRandomStatus(gateway, statuses));
+    unawaited(_applyDesktopRandomStatus(gateway, statuses, presenceStatus));
   });
 }
 
@@ -397,7 +423,7 @@ List<Map<String, dynamic>> _normalizeStatuses(dynamic raw) {
   final normalized = <Map<String, dynamic>>[];
   for (final entry in raw.whereType<Map>()) {
     final map = Map<String, dynamic>.from(entry);
-    final text = (map['text'] ?? '').toString().trim();
+    final text = ((map['name'] ?? map['text']) ?? '').toString().trim();
     if (text.isEmpty) {
       continue;
     }
@@ -408,7 +434,10 @@ List<Map<String, dynamic>> _normalizeStatuses(dynamic raw) {
     final max = maxRaw < min ? min : maxRaw;
     normalized.add({
       'type': (map['type'] ?? 'playing').toString().trim().toLowerCase(),
+      'name': text,
       'text': text,
+      'state': (map['state'] ?? '').toString(),
+      'url': (map['url'] ?? '').toString(),
       'minIntervalSeconds': min > 0 ? min : 60,
       'maxIntervalSeconds': max > 0 ? max : 60,
     });
@@ -417,11 +446,13 @@ List<Map<String, dynamic>> _normalizeStatuses(dynamic raw) {
   return normalized;
 }
 
-ActivityType _mapDesktopActivityType(String rawType) {
+ActivityType _mapDesktopActivityType(
+  String rawType, {
+  required Uri? streamUrl,
+}) {
   switch (rawType.trim().toLowerCase()) {
     case 'streaming':
-      // Streaming requires URL support; fallback to game for reliable display.
-      return ActivityType.game;
+      return streamUrl != null ? ActivityType.streaming : ActivityType.game;
     case 'listening':
       return ActivityType.listening;
     case 'watching':
@@ -432,6 +463,22 @@ ActivityType _mapDesktopActivityType(String rawType) {
     default:
       return ActivityType.game;
   }
+}
+
+Uri? _parseStreamingUrl(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) {
+    return null;
+  }
+  final parsed = Uri.tryParse(trimmed);
+  if (parsed == null) {
+    return null;
+  }
+  if ((parsed.scheme != 'http' && parsed.scheme != 'https') ||
+      parsed.host.isEmpty) {
+    return null;
+  }
+  return parsed;
 }
 
 String _sanitizeDesktopActivityText(String raw) {

@@ -64,9 +64,8 @@ flutter run
 
 ## Runner Docker (Web bootstrap)
 
-The Docker image starts the runner in web mode by default. Displaying an API that can be consummed by the App.
-
-If needed, you can force the public origin with `BOT_CREATOR_WEB_PUBLIC_ORIGIN`.
+The Docker image starts the runner in API mode by default.
+The runner is API-only and is used by the app to sync/start/stop bots remotely.
 
 Use a persistent Docker volume to keep Bots Configs between restarts:
 
@@ -131,7 +130,6 @@ Desktop supports `--dart-define` overrides for OAuth values (e.g., client id/sec
 
 * No dedicated backend service; logic is local-first
 * Local persistence is JSON-file based (not relational DB)
-* Google Drive OAuth configuration is not bundled with the Docker image
 * Some UI/log messages are currently French/English mixed
 * Legacy internal naming may still appear in non-user-facing code paths
 

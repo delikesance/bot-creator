@@ -8,6 +8,7 @@ import '../../../types/component.dart';
 import '../../../routes/app/workflows.page.dart';
 import '../../../routes/app/global.variables.dart';
 import '../../../main.dart';
+import '../../../utils/i18n.dart';
 import '../../../widgets/component_v2_builder/component_v2_editor.dart';
 import '../../../widgets/component_v2_builder/modal_builder.dart';
 import '../../../widgets/component_v2_builder/normal_component_editor.dart';
@@ -169,31 +170,16 @@ class ActionCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            ...action.type.parameterDefinitions.map((paramDef) {
-              final currentValue = action.parameters[paramDef.key];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildParameterField(context, paramDef, currentValue),
-              );
-            }),
             if (action.type == BotCreatorActionType.httpRequest)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showTestRequestModal(context),
-                    icon: const Icon(Icons.send_rounded),
-                    label: const Text('Send Test Request & Auto-Detect Routes'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
-                      foregroundColor: Colors.blueAccent,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ),
+              ..._buildHttpRequestFields(context)
+            else
+              ...action.type.parameterDefinitions.map((paramDef) {
+                final currentValue = action.parameters[paramDef.key];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildParameterField(context, paramDef, currentValue),
+                );
+              }),
           ],
         ),
       ),
@@ -489,6 +475,69 @@ class ActionCard extends StatelessWidget {
     );
   }
 
+  List<Widget> _buildHttpRequestFields(BuildContext context) {
+    final defs = action.type.parameterDefinitions;
+    ParameterDefinition? defFor(String key) => defs
+        .cast<ParameterDefinition?>()
+        .firstWhere((d) => d?.key == key, orElse: () => null);
+
+    Widget fieldFor(String key) {
+      final pd = defFor(key);
+      if (pd == null) return const SizedBox.shrink();
+      final currentValue = action.parameters[pd.key];
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _buildParameterField(context, pd, currentValue),
+      );
+    }
+
+    final method =
+        (action.parameters['method']?.toString() ?? 'GET').toUpperCase();
+    final bodyMode =
+        (action.parameters['bodyMode']?.toString() ?? 'json').toLowerCase();
+    final showBody = method != 'GET' && method != 'HEAD';
+
+    return [
+      fieldFor('url'),
+      fieldFor('method'),
+      fieldFor('headers'),
+      if (showBody) ...[
+        fieldFor('bodyMode'),
+        if (bodyMode == 'text') fieldFor('bodyText') else fieldFor('bodyJson'),
+      ],
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: ExpansionTile(
+          title: const Text('Store results in global variables'),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(top: 4),
+          children: [
+            fieldFor('saveBodyToGlobalVar'),
+            fieldFor('saveStatusToGlobalVar'),
+          ],
+        ),
+      ),
+      fieldFor('extractJsonPath'),
+      Padding(
+        padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _showTestRequestModal(context),
+            icon: const Icon(Icons.send_rounded),
+            label: const Text('Send Test Request & Auto-Detect Routes'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
+              foregroundColor: Colors.blueAccent,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
   Widget _buildParameterField(
     BuildContext context,
     ParameterDefinition paramDef,
@@ -538,7 +587,7 @@ class ActionCard extends StatelessWidget {
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               keyboardType: TextInputType.text,
               decoration: InputDecoration(
-                hintText: paramDef.hint,
+                hintText: _localizeHint(paramDef.hint),
                 border: const OutlineInputBorder(),
                 isDense: true,
                 suffixText:
@@ -646,7 +695,7 @@ class ActionCard extends StatelessWidget {
               initialValue:
                   currentValue?.toString() ?? paramDef.defaultValue.toString(),
               decoration: InputDecoration(
-                hintText: paramDef.hint,
+                hintText: _localizeHint(paramDef.hint),
                 border: const OutlineInputBorder(),
                 isDense: true,
               ),
@@ -677,7 +726,7 @@ class ActionCard extends StatelessWidget {
               key: _parameterInputKey(paramDef.key),
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               decoration: InputDecoration(
-                hintText: paramDef.hint ?? 'e.g., 5m, 1h, 30s',
+                hintText: _localizeHint(paramDef.hint) ?? 'e.g., 5m, 1h, 30s',
                 border: const OutlineInputBorder(),
                 isDense: true,
                 suffixText: 's/m/h/d',
@@ -706,7 +755,7 @@ class ActionCard extends StatelessWidget {
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               keyboardType: TextInputType.url,
               decoration: InputDecoration(
-                hintText: paramDef.hint ?? 'https://example.com',
+                hintText: _localizeHint(paramDef.hint) ?? 'https://example.com',
                 border: const OutlineInputBorder(),
                 isDense: true,
                 prefixIcon: const Icon(Icons.link, size: 20),
@@ -737,7 +786,9 @@ class ActionCard extends StatelessWidget {
               key: _parameterInputKey(paramDef.key),
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               decoration: InputDecoration(
-                hintText: paramDef.hint ?? 'Enter ${paramDef.type.name}',
+                hintText:
+                    _localizeHint(paramDef.hint) ??
+                    'Enter ${paramDef.type.name}',
                 border: const OutlineInputBorder(),
                 isDense: true,
                 prefixIcon: Icon(_getIconForIdType(paramDef.type), size: 20),
@@ -765,7 +816,9 @@ class ActionCard extends StatelessWidget {
                     initialValue:
                         (currentValue ?? paramDef.defaultValue).toString(),
                     decoration: InputDecoration(
-                      hintText: paramDef.hint ?? 'Enter emoji or :name:',
+                      hintText:
+                          _localizeHint(paramDef.hint) ??
+                          'Enter emoji or :name:',
                       border: const OutlineInputBorder(),
                       isDense: true,
                       prefixIcon: const Icon(Icons.emoji_emotions, size: 20),
@@ -813,7 +866,9 @@ class ActionCard extends StatelessWidget {
                     initialValue:
                         (currentValue ?? paramDef.defaultValue).toString(),
                     decoration: InputDecoration(
-                      hintText: paramDef.hint ?? '#FFFFFF or rgb(255,255,255)',
+                      hintText:
+                          _localizeHint(paramDef.hint) ??
+                          '#FFFFFF or rgb(255,255,255)',
                       border: const OutlineInputBorder(),
                       isDense: true,
                       prefixIcon: const Icon(Icons.color_lens, size: 20),
@@ -918,7 +973,8 @@ class ActionCard extends StatelessWidget {
                     .map((m) => Map<String, dynamic>.from(m))
                     .toList()
                 : <Map<String, dynamic>>[];
-        final blockLabel = paramDef.hint ?? _formatParameterName(paramDef.key);
+        final blockLabel =
+            _localizeHint(paramDef.hint) ?? _formatParameterName(paramDef.key);
         final blockColor =
             paramDef.key == 'thenActions' ? Colors.green : Colors.orange;
         return Container(
@@ -1116,7 +1172,7 @@ class ActionCard extends StatelessWidget {
             label: _formatParameterName(paramDef.key),
             currentValue:
                 (currentValue ?? paramDef.defaultValue).toString().trim(),
-            hint: paramDef.hint ?? 'Saved workflow name',
+            hint: _localizeHint(paramDef.hint) ?? 'Saved workflow name',
             botId: botIdForConfig!,
             onChanged: (value) {
               onParameterChanged(paramDef.key, value);
@@ -1137,7 +1193,7 @@ class ActionCard extends StatelessWidget {
           return _VariableKeyParameterField(
             label: _formatParameterName(paramDef.key),
             currentValue: (currentValue ?? paramDef.defaultValue).toString(),
-            hint: paramDef.hint ?? 'Select variable key',
+            hint: _localizeHint(paramDef.hint) ?? 'Select variable key',
             botId: botIdForConfig!,
             scope: currentScope,
             scoped: usesScopedKeys,
@@ -1198,7 +1254,7 @@ class ActionCard extends StatelessWidget {
                     decoration: InputDecoration(
                       border: const OutlineInputBorder(),
                       isDense: true,
-                      hintText: paramDef.hint,
+                      hintText: _localizeHint(paramDef.hint),
                       suffixIcon:
                           stringPaths.isNotEmpty
                               ? const Icon(
@@ -1239,7 +1295,7 @@ class ActionCard extends StatelessWidget {
               initialValue: (currentValue ?? paramDef.defaultValue).toString(),
               maxLines: paramDef.key.toLowerCase().contains('content') ? 3 : 1,
               decoration: InputDecoration(
-                hintText: paramDef.hint,
+                hintText: _localizeHint(paramDef.hint),
                 border: const OutlineInputBorder(),
                 isDense: true,
               ),
@@ -2113,11 +2169,126 @@ class ActionCard extends StatelessWidget {
   }
 
   String _formatParameterName(String key) {
+    if (action.type == BotCreatorActionType.calculate) {
+      final operation =
+          (action.parameters['operation'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+      final isRandom = operation == 'random' || operation == 'randomfloat';
+      if (isRandom && key == 'operandA') {
+        return AppStrings.currentLocale == AppLocale.fr ? 'Minimum' : 'Minimum';
+      }
+      if (isRandom && key == 'operandB') {
+        return AppStrings.currentLocale == AppLocale.fr ? 'Maximum' : 'Maximum';
+      }
+    }
+
     return key
         .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(1)}')
         .split(' ')
         .map((word) => word[0].toUpperCase() + word.substring(1))
         .join(' ');
+  }
+
+  String? _localizeHint(String? hint) {
+    final raw = (hint ?? '').trim();
+    if (raw.isEmpty) {
+      return null;
+    }
+    if (AppStrings.currentLocale != AppLocale.fr) {
+      return raw;
+    }
+
+    const direct = <String, String>{
+      'Math operation to perform': 'Opération mathématique à effectuer',
+      'Comparison operator': 'Opérateur de comparaison',
+      'Message content': 'Contenu du message',
+      'Audit log reason': 'Raison du journal d\'audit',
+      'Global variable key': 'Clé de variable globale',
+      'Scoped variable key (must start with bc_)':
+          'Clé de variable scopée (doit commencer par bc_)',
+      'Saved workflow name to execute': 'Nom du workflow enregistré à exécuter',
+      'Optional entry point override (defaults to workflow entry)':
+          'Surcharge optionnelle du point d\'entrée (par défaut: entrée du workflow)',
+      'Optional key/value arguments for workflow call':
+          'Arguments clé/valeur optionnels pour l\'appel du workflow',
+      'Optional key/value arguments injected as ((arg.key))':
+          'Arguments clé/valeur optionnels injectés comme ((arg.key))',
+      'Only visible to command author':
+          'Visible uniquement pour l\'auteur de la commande',
+      'Modal dialog definition': 'Définition du modal',
+      'Body format': 'Format du body',
+      'Custom headers': 'En-têtes personnalisés',
+      'Raw text body': 'Body texte brut',
+      'JSON body builder map': 'Map du body JSON',
+      'Request URL (supports placeholders ((...)))':
+          'URL de requête (supporte les placeholders ((...)))',
+      'Value type: string or number': 'Type de valeur : string ou number',
+      'Numeric value when valueType=number':
+          'Valeur numérique quand valueType=number',
+      'String value (supports placeholders ((...)))':
+          'Valeur texte (supporte les placeholders ((...)))',
+      'Runtime variable alias (ex: token)':
+          'Alias de variable runtime (ex: token)',
+      'Runtime variable alias (ex: guild.bc_score)':
+          'Alias de variable runtime (ex: guild.bc_score)',
+      'Listener TTL in minutes (max 60)': 'TTL du listener en minutes (max 60)',
+      'Remove listener after first click':
+          'Supprimer le listener après le premier clic',
+      'Button customId to listen for (supports ((variables)))':
+          'customId du bouton à écouter (supporte ((variables)))',
+      'Modal customId to listen for': 'customId du modal à écouter',
+      'Workflow to run when button is clicked':
+          'Workflow à exécuter au clic sur le bouton',
+      'Workflow to run when modal is submitted':
+          'Workflow à exécuter à la soumission du modal',
+      'Optional text above the components':
+          'Texte optionnel au-dessus des composants',
+      'Component V2 layout builder': 'Constructeur de layout Component V2',
+      'Enable or disable guild onboarding':
+          'Activer ou désactiver l\'onboarding serveur',
+    };
+
+    final directValue = direct[raw];
+    if (directValue != null) {
+      return directValue;
+    }
+
+    var text = raw;
+    const replacements = <MapEntry<String, String>>[
+      MapEntry('Optional:', 'Optionnel :'),
+      MapEntry('required', 'requis'),
+      MapEntry('Channel', 'Salon'),
+      MapEntry('channel', 'salon'),
+      MapEntry('User', 'Utilisateur'),
+      MapEntry('user', 'utilisateur'),
+      MapEntry('Role', 'Rôle'),
+      MapEntry('role', 'rôle'),
+      MapEntry('reason', 'raison'),
+      MapEntry('Reason', 'Raison'),
+      MapEntry('Delete', 'Supprimer'),
+      MapEntry('delete', 'supprimer'),
+      MapEntry('Create', 'Créer'),
+      MapEntry('create', 'créer'),
+      MapEntry('Update', 'Mettre à jour'),
+      MapEntry('update', 'mettre à jour'),
+      MapEntry('New ', 'Nouveau '),
+      MapEntry('new ', 'nouveau '),
+      MapEntry('supports placeholders', 'supporte les placeholders'),
+      MapEntry('supports ((variables))', 'supporte ((variables))'),
+      MapEntry('leave empty', 'laisser vide'),
+      MapEntry('current channel', 'salon actuel'),
+      MapEntry('Max ', 'Max '),
+      MapEntry('max ', 'max '),
+      MapEntry('Min ', 'Min '),
+      MapEntry('min ', 'min '),
+    ];
+
+    for (final replacement in replacements) {
+      text = text.replaceAll(replacement.key, replacement.value);
+    }
+    return text;
   }
 
   bool _isVariableKeyParameter(BotCreatorActionType type, String paramKey) {

@@ -577,7 +577,7 @@ Future<void> _executeLocalEventWorkflow(
     gateway,
     null,
     actions: actions,
-    manager: manager,
+    store: manager,
     botId: botId,
     variables: runtimeVariables,
     resolveTemplate:

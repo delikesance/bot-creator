@@ -245,7 +245,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         if (!mounted) return;
       }
 
-      // ── Runner API (mode développeur) ─────────────────────────────────────
+      // ── Runner API (API only) ─────────────────────────────────────────────
       final runnerUrl = await RunnerSettings.getUrl();
       if (runnerUrl != null && runnerUrl.isNotEmpty) {
         final client = RunnerClient(

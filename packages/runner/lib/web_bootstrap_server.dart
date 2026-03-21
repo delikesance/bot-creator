@@ -145,13 +145,6 @@ class RunnerWebBootstrapServer {
           case '/bots/sync':
             await _handleBotsSync(request);
             return;
-          // Backward-compatible aliases.
-          case '/runner/start':
-            await _handleRunnerStart(request);
-            return;
-          case '/runner/stop':
-            await _handleRunnerStop(request);
-            return;
           default:
             _respondText(request, HttpStatus.notFound, 'Not found');
             return;
@@ -263,9 +256,9 @@ class RunnerWebBootstrapServer {
     final botId = (botIdFromPath ?? payload['botId'] ?? '').toString().trim();
 
     if (botId.isEmpty) {
-      // Backward-compatible alias semantics.
-      await _runtimeController.stopAllBots();
-      await _respondJson(request, _buildStatusPayload());
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing botId.',
+      }, statusCode: HttpStatus.badRequest);
       return;
     }
 

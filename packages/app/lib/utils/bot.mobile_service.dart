@@ -253,7 +253,9 @@ class DiscordBotTaskHandler extends TaskHandler {
     _mobileStatusRotationTimers[botId]?.cancel();
     _mobileStatusRotationTimers.remove(botId);
 
-    final statuses = _normalizeStatuses(appData['statuses']);
+    final statuses = _normalizeStatuses(
+      appData['activities'] ?? appData['statuses'],
+    );
     if (statuses.isEmpty) {
       unawaited(
         _emitTaskLogToMain(
@@ -264,24 +266,35 @@ class DiscordBotTaskHandler extends TaskHandler {
       return;
     }
 
-    unawaited(_applyMobileInitialStatusThenRotate(botId, gateway, statuses));
+    final presenceStatus = (appData['presenceStatus'] as String?) ?? 'online';
+    unawaited(
+      _applyMobileInitialStatusThenRotate(
+        botId,
+        gateway,
+        statuses,
+        presenceStatus,
+      ),
+    );
   }
 
   Future<void> _applyMobileInitialStatusThenRotate(
     String botId,
     NyxxGateway gateway,
     List<Map<String, dynamic>> statuses,
+    String presenceStatus,
   ) async {
     if (statuses.isEmpty) {
       return;
     }
 
     final firstStatus = statuses.first;
-    await _applyMobileStatus(botId, gateway, firstStatus);
+    await _applyMobileStatus(botId, gateway, firstStatus, presenceStatus);
 
     // Re-send once after READY to avoid occasional dropped first presence frame.
     Timer(const Duration(seconds: 3), () {
-      unawaited(_applyMobileStatus(botId, gateway, firstStatus));
+      unawaited(
+        _applyMobileStatus(botId, gateway, firstStatus, presenceStatus),
+      );
     });
 
     final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
@@ -293,7 +306,9 @@ class DiscordBotTaskHandler extends TaskHandler {
     _mobileStatusRotationTimers[botId] = Timer(
       Duration(seconds: delaySeconds),
       () {
-        unawaited(_applyMobileRandomStatus(botId, gateway, statuses));
+        unawaited(
+          _applyMobileRandomStatus(botId, gateway, statuses, presenceStatus),
+        );
       },
     );
   }
@@ -302,13 +317,14 @@ class DiscordBotTaskHandler extends TaskHandler {
     String botId,
     NyxxGateway gateway,
     List<Map<String, dynamic>> statuses,
+    String presenceStatus,
   ) async {
     if (statuses.isEmpty) {
       return;
     }
 
     final picked = statuses[_mobileStatusRandom.nextInt(statuses.length)];
-    await _applyMobileStatus(botId, gateway, picked);
+    await _applyMobileStatus(botId, gateway, picked, presenceStatus);
 
     final min = (picked['minIntervalSeconds'] as int?) ?? 60;
     final max = (picked['maxIntervalSeconds'] as int?) ?? min;
@@ -319,7 +335,9 @@ class DiscordBotTaskHandler extends TaskHandler {
     _mobileStatusRotationTimers[botId] = Timer(
       Duration(seconds: delaySeconds),
       () {
-        unawaited(_applyMobileRandomStatus(botId, gateway, statuses));
+        unawaited(
+          _applyMobileRandomStatus(botId, gateway, statuses, presenceStatus),
+        );
       },
     );
   }
@@ -328,10 +346,12 @@ class DiscordBotTaskHandler extends TaskHandler {
     String botId,
     NyxxGateway gateway,
     Map<String, dynamic> status,
+    String presenceStatus,
   ) async {
     final type = (status['type'] ?? 'playing').toString();
+    final streamUrl = _parseStreamingUrl((status['url'] ?? '').toString());
     final text = _sanitizeDesktopActivityText(
-      (status['text'] ?? '').toString(),
+      ((status['name'] ?? status['text']) ?? '').toString(),
     );
 
     if (text.isEmpty) {
@@ -341,10 +361,14 @@ class DiscordBotTaskHandler extends TaskHandler {
     try {
       gateway.updatePresence(
         PresenceBuilder(
-          status: CurrentUserStatus.online,
+          status: _mapMobilePresenceStatus(presenceStatus),
           isAfk: false,
           activities: <ActivityBuilder>[
-            ActivityBuilder(name: text, type: _mapDesktopActivityType(type)),
+            ActivityBuilder(
+              name: text,
+              type: _mapDesktopActivityType(type, streamUrl: streamUrl),
+              url: streamUrl,
+            ),
           ],
         ),
       );
@@ -357,6 +381,19 @@ class DiscordBotTaskHandler extends TaskHandler {
         'Echec update presence mobile: $error',
         botId: botId,
       );
+    }
+  }
+
+  CurrentUserStatus _mapMobilePresenceStatus(String statusString) {
+    switch (statusString) {
+      case 'idle':
+        return CurrentUserStatus.idle;
+      case 'dnd':
+        return CurrentUserStatus.dnd;
+      case 'invisible':
+        return CurrentUserStatus.invisible;
+      default:
+        return CurrentUserStatus.online;
     }
   }
 

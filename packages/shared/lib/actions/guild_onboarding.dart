@@ -58,3 +58,25 @@ Future<Map<String, String>> getGuildOnboardingAction(
     return {'error': 'Failed to get guild onboarding: $e'};
   }
 }
+
+/// Updates guild onboarding configuration.
+///
+/// Currently limited by nyxx support in this runtime.
+/// Returns `{'status': 'updated'}` on success or `{'error': '...'}`.
+Future<Map<String, String>> updateGuildOnboardingAction(
+  NyxxGateway client, {
+  required Snowflake? guildId,
+  required Map<String, dynamic> payload,
+  required String Function(String) resolve,
+}) async {
+  if (guildId == null) {
+    return {'error': 'updateGuildOnboarding requires a guild context'};
+  }
+
+  final _ = resolve((payload['enabled'] ?? '').toString());
+
+  return {
+    'error':
+        'updateGuildOnboarding is not supported by the current nyxx runtime yet',
+  };
+}

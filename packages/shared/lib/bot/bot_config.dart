@@ -4,13 +4,19 @@ import 'package:bot_creator_shared/utils/workflow_call.dart';
 
 class BotStatusConfig {
   final String type;
-  final String text;
+  final String name;
+  final String state;
+  final String? url;
   final int minIntervalSeconds;
   final int maxIntervalSeconds;
 
+  String get text => name;
+
   const BotStatusConfig({
     required this.type,
-    required this.text,
+    required this.name,
+    this.state = '',
+    this.url,
     required this.minIntervalSeconds,
     required this.maxIntervalSeconds,
   });
@@ -24,7 +30,9 @@ class BotStatusConfig {
 
     return BotStatusConfig(
       type: (json['type'] ?? 'playing').toString().trim().toLowerCase(),
-      text: (json['text'] ?? '').toString(),
+      name: ((json['name'] ?? json['text']) ?? '').toString(),
+      state: (json['state'] ?? '').toString(),
+      url: _optionalString(json['url']),
       minIntervalSeconds: min,
       maxIntervalSeconds: max,
     );
@@ -32,14 +40,17 @@ class BotStatusConfig {
 
   Map<String, dynamic> toJson() => {
     'type': type,
-    'text': text,
+    'name': name,
+    'text': name,
+    'state': state,
+    if (url != null) 'url': url,
     'minIntervalSeconds': minIntervalSeconds,
     'maxIntervalSeconds': maxIntervalSeconds,
   };
 
   void validate() {
-    if (text.trim().isEmpty) {
-      throw ArgumentError('BotStatusConfig: text cannot be empty');
+    if (name.trim().isEmpty) {
+      throw ArgumentError('BotStatusConfig: name cannot be empty');
     }
 
     const allowedTypes = <String>{
@@ -51,6 +62,17 @@ class BotStatusConfig {
     };
     if (!allowedTypes.contains(type)) {
       throw ArgumentError('BotStatusConfig: unsupported type "$type"');
+    }
+
+    if (type == 'streaming' && url != null) {
+      final parsed = Uri.tryParse(url!);
+      final valid =
+          parsed != null &&
+          (parsed.scheme == 'http' || parsed.scheme == 'https') &&
+          parsed.host.isNotEmpty;
+      if (!valid) {
+        throw ArgumentError('BotStatusConfig: streaming url must be valid');
+      }
     }
 
     if (minIntervalSeconds <= 0 || maxIntervalSeconds <= 0) {
