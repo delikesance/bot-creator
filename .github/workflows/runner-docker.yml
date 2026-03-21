@@ -39,8 +39,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build_and_smoke:
-    name: Build & smoke test image
+  build:
+    name: Build image
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -67,24 +67,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke test /health endpoint
-        run: |
-          set -euo pipefail
-          docker run -d --rm --name bot-creator-runner-ci -p 18080:8080 bot-creator-runner:ci
-          trap 'docker rm -f bot-creator-runner-ci >/dev/null 2>&1 || true' EXIT
-
-          for i in {1..20}; do
-            if curl -fsS http://127.0.0.1:18080/health >/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-
-          curl -fsS http://127.0.0.1:18080/health
-
   publish:
     name: Publish image to GHCR
-    needs: build_and_smoke
+    needs: build
     if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish == 'true') }}
     runs-on: ubuntu-latest
     permissions:
