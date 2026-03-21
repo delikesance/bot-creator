@@ -1,36 +1,8 @@
-﻿import 'package:bot_creator_shared/actions/create_channel.dart';
-import 'package:bot_creator_shared/actions/delete_message.dart';
-import 'package:bot_creator_shared/actions/remove_channel.dart';
-import 'package:bot_creator_shared/actions/send_message.dart';
-import 'package:bot_creator_shared/actions/update_channel.dart';
-import 'package:bot_creator_shared/actions/edit_message.dart';
-import 'package:bot_creator_shared/actions/add_reaction.dart';
-import 'package:bot_creator_shared/actions/remove_reaction.dart';
-import 'package:bot_creator_shared/actions/clear_all_reactions.dart';
-import 'package:bot_creator_shared/actions/ban_user.dart';
-import 'package:bot_creator_shared/actions/unban_user.dart';
-import 'package:bot_creator_shared/actions/kick_user.dart';
-import 'package:bot_creator_shared/actions/mute_user.dart';
-import 'package:bot_creator_shared/actions/unmute_user.dart';
-import 'package:bot_creator_shared/actions/add_role.dart';
-import 'package:bot_creator_shared/actions/remove_role.dart';
-import 'package:bot_creator_shared/actions/pin_message.dart';
+﻿import 'package:bot_creator_shared/actions/pin_message.dart';
 import 'package:bot_creator_shared/actions/update_automod.dart';
 import 'package:bot_creator_shared/actions/update_guild.dart';
 import 'package:bot_creator_shared/actions/list_members.dart';
 import 'package:bot_creator_shared/actions/get_member.dart';
-import 'package:bot_creator_shared/actions/send_component_v2.dart';
-import 'package:bot_creator_shared/actions/edit_component_v2.dart';
-import 'package:bot_creator_shared/actions/respond_modal.dart';
-import 'package:bot_creator_shared/actions/edit_interaction_response.dart';
-import 'package:bot_creator_shared/actions/respond_with_message.dart';
-import 'package:bot_creator_shared/actions/send_webhook.dart';
-import 'package:bot_creator_shared/actions/edit_webhook.dart';
-import 'package:bot_creator_shared/actions/delete_webhook.dart';
-import 'package:bot_creator_shared/actions/list_webhooks.dart';
-import 'package:bot_creator_shared/actions/get_webhook.dart';
-import 'package:bot_creator_shared/actions/calculate.dart';
-import 'package:bot_creator_shared/actions/get_message.dart';
 import 'package:bot_creator_shared/actions/unpin_message.dart';
 import 'package:bot_creator_shared/actions/poll_management.dart';
 import 'package:bot_creator_shared/actions/invite_management.dart';
@@ -41,281 +13,21 @@ import 'package:bot_creator_shared/actions/guild_onboarding.dart';
 import 'package:bot_creator_shared/actions/update_self_user.dart';
 import 'package:bot_creator_shared/actions/thread_management.dart';
 import 'package:bot_creator_shared/actions/channel_permissions.dart';
+import 'package:bot_creator_shared/actions/executors/messaging_executor.dart';
+import 'package:bot_creator_shared/actions/executors/moderation_roles_executor.dart';
+import 'package:bot_creator_shared/actions/executors/reactions_executor.dart';
+import 'package:bot_creator_shared/actions/executors/channels_executor.dart';
+import 'package:bot_creator_shared/actions/executors/calculate_executor.dart';
+import 'package:bot_creator_shared/actions/executors/components_interactions_executor.dart';
+import 'package:bot_creator_shared/actions/executors/control_flow_executor.dart';
+import 'package:bot_creator_shared/actions/executors/http_executor.dart';
+import 'package:bot_creator_shared/actions/executors/variables_executor.dart';
+import 'package:bot_creator_shared/actions/executors/webhooks_executor.dart';
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
-import 'package:bot_creator_shared/utils/interaction_listener_registry.dart';
-import 'package:bot_creator_shared/utils/workflow_call.dart';
-import 'package:http/http.dart' as http;
 import 'package:nyxx/nyxx.dart';
-import 'dart:convert';
 import '../types/action.dart';
-import 'handler_utils.dart';
-
-Snowflake? _toSnowflake(dynamic value) {
-  if (value == null) {
-    return null;
-  }
-
-  final parsed = int.tryParse(value.toString());
-  if (parsed == null) {
-    return null;
-  }
-
-  return Snowflake(parsed);
-}
-
-const _supportedVariableScopes = <String>{
-  'guild',
-  'user',
-  'channel',
-  'guildMember',
-  'message',
-};
-
-String? _resolveScopeContextId({
-  required String scope,
-  required Map<String, String> variables,
-  Snowflake? guildId,
-  Snowflake? channelId,
-  Interaction? interaction,
-}) {
-  String? fromVariables(String key) {
-    final value = variables[key]?.trim();
-    return (value == null || value.isEmpty) ? null : value;
-  }
-
-  String? fromSnowflake(Snowflake? value) {
-    if (value == null) {
-      return null;
-    }
-    final text = value.toString().trim();
-    return text.isEmpty ? null : text;
-  }
-
-  String? interactionUserId() {
-    final dynamic raw = interaction;
-    final value = (raw?.user?.id ?? raw?.author?.id)?.toString().trim();
-    return (value == null || value.isEmpty) ? null : value;
-  }
-
-  String? interactionMessageId() {
-    final dynamic raw = interaction;
-    final value = (raw?.message?.id ?? raw?.id)?.toString().trim();
-    return (value == null || value.isEmpty) ? null : value;
-  }
-
-  switch (scope) {
-    case 'guild':
-      return fromVariables('guildId') ?? fromSnowflake(guildId);
-    case 'channel':
-      return fromVariables('channelId') ?? fromSnowflake(channelId);
-    case 'user':
-      return fromVariables('userId') ?? interactionUserId();
-    case 'guildMember':
-      {
-        final guild = fromVariables('guildId') ?? fromSnowflake(guildId);
-        final user = fromVariables('userId') ?? interactionUserId();
-        if (guild == null || user == null) {
-          return null;
-        }
-        return '$guild:$user';
-      }
-    case 'message':
-      return fromVariables('messageId') ??
-          fromVariables('message.id') ??
-          interactionMessageId();
-    default:
-      return null;
-  }
-}
-
-dynamic _resolveVariableValuePayload(
-  Map<String, dynamic> payload,
-  String Function(String input) resolveValue,
-) {
-  final valueType =
-      (payload['valueType'] ?? '').toString().trim().toLowerCase();
-  if (valueType == 'number') {
-    final rawNumber =
-        resolveValue((payload['numberValue'] ?? '').toString()).trim();
-    final number = num.tryParse(rawNumber);
-    if (number == null) {
-      throw Exception(
-        'numberValue is required and must be numeric when valueType=number',
-      );
-    }
-    return number;
-  }
-
-  if (payload.containsKey('value') && payload['value'] is num) {
-    return payload['value'] as num;
-  }
-
-  return resolveValue((payload['value'] ?? '').toString());
-}
-
-String _scopedStorageKey(String rawKey) {
-  final key = rawKey.trim();
-  if (key.isEmpty) {
-    throw Exception('key is required for scoped variables');
-  }
-  if (key.startsWith('bc_')) {
-    if (key.length <= 3) {
-      throw Exception('key is required for scoped variables');
-    }
-    return key.substring(3);
-  }
-  return key;
-}
-
-String _scopedReferenceKey(String rawKey) {
-  final key = rawKey.trim();
-  if (key.isEmpty) {
-    throw Exception('key is required for scoped variables');
-  }
-  return key.startsWith('bc_') ? key : 'bc_$key';
-}
-
-/// Evaluates a condition between [leftValue] (already resolved) and [rightValue]
-/// (already resolved) using the given [operator] string.
-bool _evaluateCondition({
-  required String leftValue,
-  required String operator,
-  required String rightValue,
-}) {
-  final op = operator.toLowerCase().trim();
-  switch (op) {
-    case 'equals':
-    case '==':
-      return leftValue == rightValue;
-    case 'notequals':
-    case '!=':
-      return leftValue != rightValue;
-    case 'contains':
-      return leftValue.contains(rightValue);
-    case 'notcontains':
-      return !leftValue.contains(rightValue);
-    case 'startswith':
-      return leftValue.startsWith(rightValue);
-    case 'endswith':
-      return leftValue.endsWith(rightValue);
-    case 'greaterthan':
-    case '>':
-      return (num.tryParse(leftValue) ?? 0) > (num.tryParse(rightValue) ?? 0);
-    case 'lessthan':
-    case '<':
-      return (num.tryParse(leftValue) ?? 0) < (num.tryParse(rightValue) ?? 0);
-    case 'greaterorequal':
-    case '>=':
-      return (num.tryParse(leftValue) ?? 0) >= (num.tryParse(rightValue) ?? 0);
-    case 'lessorequal':
-    case '<=':
-      return (num.tryParse(leftValue) ?? 0) <= (num.tryParse(rightValue) ?? 0);
-    case 'isempty':
-      return leftValue.trim().isEmpty;
-    case 'isnotempty':
-      return leftValue.trim().isNotEmpty;
-    case 'matches':
-      try {
-        return RegExp(rightValue, caseSensitive: false).hasMatch(leftValue);
-      } catch (_) {
-        return false;
-      }
-    default:
-      return false;
-  }
-}
-
-dynamic _extractByJsonPath(dynamic data, String rawPath) {
-  var path = rawPath.trim();
-  if (path.isEmpty) {
-    return null;
-  }
-
-  if (path.startsWith(r'$.')) {
-    path = path.substring(2);
-  } else if (path.startsWith(r'$')) {
-    path = path.substring(1);
-  }
-
-  if (path.isEmpty) {
-    return data;
-  }
-
-  final segments = <Object>[];
-  final token = StringBuffer();
-
-  void flushToken() {
-    if (token.isNotEmpty) {
-      segments.add(token.toString());
-      token.clear();
-    }
-  }
-
-  for (var i = 0; i < path.length; i++) {
-    final char = path[i];
-    if (char == '.') {
-      flushToken();
-      continue;
-    }
-
-    if (char == '[') {
-      flushToken();
-      final closing = path.indexOf(']', i + 1);
-      if (closing == -1) {
-        return null;
-      }
-      final indexText = path.substring(i + 1, closing).trim();
-      final index = int.tryParse(indexText);
-      if (index == null) {
-        return null;
-      }
-      segments.add(index);
-      i = closing;
-      continue;
-    }
-
-    token.write(char);
-  }
-  flushToken();
-
-  dynamic current = data;
-  for (final segment in segments) {
-    if (segment is String) {
-      if (segment.isEmpty) {
-        continue;
-      }
-      if (current is Map && current.containsKey(segment)) {
-        current = current[segment];
-      } else {
-        return null;
-      }
-      continue;
-    }
-
-    if (segment is int) {
-      if (current is List && segment >= 0 && segment < current.length) {
-        current = current[segment];
-      } else {
-        return null;
-      }
-    }
-  }
-
-  return current;
-}
 
 // Helper functions for common action patterns
-
-Future<Map<String, String>> _executeUserAction(
-  Future<Map<String, String>> Function() action, {
-  required Snowflake? guildId,
-  String actionName = 'User action',
-}) async {
-  if (guildId == null) {
-    throw Exception('$actionName requires a guild context');
-  }
-  return action();
-}
 
 Future<Map<String, String>> handleActions(
   NyxxGateway client,
@@ -339,63 +51,6 @@ Future<Map<String, String>> handleActions(
 
   String resolveValue(String value) => resolveTemplate(value);
 
-  String normalizeMethod(dynamic rawMethod) {
-    final method =
-        resolveValue(rawMethod?.toString() ?? 'GET').trim().toUpperCase();
-    const supported = {'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'};
-    if (!supported.contains(method)) {
-      return 'GET';
-    }
-    return method;
-  }
-
-  bool supportsBody(String method) {
-    return method != 'GET' && method != 'HEAD';
-  }
-
-  dynamic resolveJsonLike(dynamic value) {
-    if (value is String) {
-      return resolveValue(value);
-    }
-    if (value is List) {
-      return value.map(resolveJsonLike).toList();
-    }
-    if (value is Map) {
-      return Map<String, dynamic>.fromEntries(
-        value.entries.map((entry) {
-          return MapEntry(entry.key.toString(), resolveJsonLike(entry.value));
-        }),
-      );
-    }
-    return value;
-  }
-
-  String resolveConditionLeftValue(String rawConditionVariable) {
-    final raw = rawConditionVariable.trim();
-    if (raw.isEmpty) {
-      return '';
-    }
-
-    if (variables.containsKey(raw)) {
-      return variables[raw] ?? '';
-    }
-
-    final wrappedMatch = RegExp(r'^\(\((.+)\)\)$').firstMatch(raw);
-    if (wrappedMatch != null) {
-      final wrappedKey = (wrappedMatch.group(1) ?? '').trim();
-      if (wrappedKey.isNotEmpty && variables.containsKey(wrappedKey)) {
-        return variables[wrappedKey] ?? '';
-      }
-    }
-
-    final resolved = resolveValue(raw).trim();
-    if (variables.containsKey(resolved)) {
-      return variables[resolved] ?? '';
-    }
-
-    return resolved;
-  }
-
   for (var i = 0; i < actions.length; i++) {
     final action = actions[i];
     final resultKey = action.key ?? 'action_$i';
@@ -403,238 +58,175 @@ Future<Map<String, String>> handleActions(
       continue;
     }
 
+    final handledByMessagingExecutor = await executeMessagingAction(
+      type: action.type,
+      client: client,
+      interaction: interaction,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+      variables: variables,
+      fallbackChannelId: resolvedFallbackChannelId,
+      resolveValue: resolveValue,
+    );
+    if (handledByMessagingExecutor) {
+      continue;
+    }
+
+    final handledByReactionsExecutor = await executeReactionsAction(
+      type: action.type,
+      client: client,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+      fallbackChannelId: resolvedFallbackChannelId,
+    );
+    if (handledByReactionsExecutor) {
+      continue;
+    }
+
+    final handledByModerationRolesExecutor = await executeModerationRolesAction(
+      type: action.type,
+      client: client,
+      guildId: guildId,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+    );
+    if (handledByModerationRolesExecutor) {
+      continue;
+    }
+
+    final handledByChannelsExecutor = await executeChannelsAction(
+      type: action.type,
+      client: client,
+      guildId: guildId,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+      resolveValue: resolveValue,
+    );
+    if (handledByChannelsExecutor) {
+      continue;
+    }
+
+    final handledByWebhooksExecutor = await executeWebhooksAction(
+      type: action.type,
+      client: client,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+      fallbackChannelId: fallbackChannelId,
+      fallbackGuildId: guildId,
+      resolveValue: resolveValue,
+    );
+    if (handledByWebhooksExecutor) {
+      continue;
+    }
+
+    final handledByComponentsInteractionsExecutor =
+        await executeComponentsInteractionsAction(
+          type: action.type,
+          client: client,
+          interaction: interaction,
+          payload: action.payload,
+          resultKey: resultKey,
+          results: results,
+          variables: variables,
+          botId: botId,
+          guildId: guildId,
+          fallbackChannelId: fallbackChannelId,
+          resolveValue: resolveValue,
+        );
+    if (handledByComponentsInteractionsExecutor) {
+      continue;
+    }
+
+    final handledByVariablesExecutor = await executeVariablesAction(
+      type: action.type,
+      store: store,
+      botId: botId,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+      variables: variables,
+      resolveValue: resolveValue,
+      guildId: guildId,
+      fallbackChannelId: fallbackChannelId,
+      interaction: interaction,
+    );
+    if (handledByVariablesExecutor) {
+      continue;
+    }
+
+    final handledByControlFlowExecutor = await executeControlFlowAction(
+      type: action.type,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+      variables: variables,
+      resolveValue: resolveValue,
+      onLog: onLog,
+      activeWorkflowStack: activeWorkflowStack,
+      getWorkflowByName:
+          (workflowName) => store.getWorkflowByName(botId, workflowName),
+      executeActions:
+          (nestedActions) => handleActions(
+            client,
+            interaction,
+            actions: nestedActions,
+            store: store,
+            botId: botId,
+            variables: variables,
+            resolveTemplate: resolveTemplate,
+            fallbackChannelId: resolvedFallbackChannelId,
+            fallbackGuildId: guildId,
+            workflowStack: activeWorkflowStack,
+            onLog: onLog,
+          ),
+    );
+    if (handledByControlFlowExecutor) {
+      if (results.containsKey('__stopped__')) {
+        return results;
+      }
+      continue;
+    }
+
+    final handledByHttpExecutor = await executeHttpAction(
+      type: action.type,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+      variables: variables,
+      resolveValue: resolveValue,
+      onLog: onLog,
+      setGlobalVariable:
+          (key, value) => store.setGlobalVariable(botId, key, value),
+    );
+    if (handledByHttpExecutor) continue;
+
+    final handledByCalculateExecutor = await executeCalculateAction(
+      type: action.type,
+      payload: action.payload,
+      resultKey: resultKey,
+      results: results,
+      variables: variables,
+      resolveValue: resolveValue,
+    );
+    if (handledByCalculateExecutor) continue;
+
     try {
       switch (action.type) {
         case BotCreatorActionType.deleteMessages:
-          final resolvedChannelIdRaw = resolveValue(
-            (action.payload['channelId'] ?? '').toString(),
-          );
-          final channelId =
-              _toSnowflake(resolvedChannelIdRaw) ?? resolvedFallbackChannelId;
-          if (channelId == null) {
-            throw Exception('Missing or invalid channelId for deleteMessages');
-          }
-
-          final rawCount = action.payload['messageCount'];
-          final resolvedCountRaw = resolveValue((rawCount ?? '').toString());
-          double? parsedCount = double.tryParse(resolvedCountRaw);
-          final count =
-              parsedCount != null
-                  ? parsedCount.round()
-                  : (rawCount is num ? rawCount.toInt() : 0);
-
-          final onlyUserId = resolveValue(
-            (action.payload['onlyUserId'] ?? '').toString(),
-          );
-          final reason =
-              resolveValue((action.payload['reason'] ?? '').toString()).trim();
-
-          final filterBotsRaw =
-              resolveValue(
-                (action.payload['filterBots'] ?? '').toString(),
-              ).toLowerCase();
-          final filterUsersRaw =
-              resolveValue(
-                (action.payload['filterUsers'] ?? '').toString(),
-              ).toLowerCase();
-          final filterBots = filterBotsRaw == 'true' || filterBotsRaw == '1';
-          final filterUsers = filterUsersRaw == 'true' || filterUsersRaw == '1';
-
-          // optional before message id for deleting messages above
-          final beforeRaw = resolveValue(
-            (action.payload['beforeMessageId'] ?? '').toString(),
-          );
-          Snowflake? beforeMessageId = _toSnowflake(beforeRaw);
-          // when beforeMessageId is null we will fetch recent messages (no
-          // restriction). this means count=1 will remove the last message in
-          // the channel. deleteItself only works when a specific message ID is
-          // supplied, since otherwise we have nothing to delete.
-
-          // optional flag to delete the command message itself
-          final deleteItselfRaw =
-              resolveValue(
-                (action.payload['deleteItself'] ?? '').toString(),
-              ).toLowerCase();
-          bool deleteItself = false;
-          if (deleteItselfRaw.isNotEmpty) {
-            if (deleteItselfRaw == 'true' ||
-                deleteItselfRaw == 'yes' ||
-                deleteItselfRaw == 'y' ||
-                deleteItselfRaw == '1') {
-              deleteItself = true;
-            } else {
-              final num? numVal = num.tryParse(deleteItselfRaw);
-              if (numVal != null && numVal > 0) {
-                deleteItself = true;
-              }
-            }
-          }
-
-          Snowflake? commandMessageId;
-          try {
-            if (interaction is ApplicationCommandInteraction) {
-              final resp = await interaction.fetchOriginalResponse();
-              commandMessageId = resp.id;
-            }
-          } catch (_) {}
-
-          final result = await deleteMessage(
-            client,
-            channelId,
-            count: count,
-            onlyThisUserID: onlyUserId,
-            beforeMessageId: beforeMessageId,
-            deleteItself: deleteItself,
-            commandMessageId: commandMessageId,
-            filterBots: filterBots,
-            filterUsers: filterUsers,
-            reason: reason,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          final deletedCount = result['count'] ?? '0';
-          results[resultKey] = deletedCount;
-          variables['action.$resultKey.count'] = deletedCount;
-          variables['$resultKey.count'] = deletedCount;
-          // propagate flag for external handling (e.g. deleting bot response)
-          if (deleteItself) {
-            // propagate both legacy flag and explicit response-deletion flag
-            variables['action.$resultKey.deleteItself'] =
-                deleteItself.toString();
-            variables['$resultKey.deleteItself'] = deleteItself.toString();
-            variables['action.$resultKey.deleteResponse'] =
-                deleteItself.toString();
-            variables['$resultKey.deleteResponse'] = deleteItself.toString();
-          }
-          break;
         case BotCreatorActionType.createChannel:
-          if (guildId == null) {
-            throw Exception('This action requires a guild context');
-          }
-
-          final result = await createChannelAction(
-            client,
-            guildId: guildId,
-            payload: action.payload,
-            resolve: resolveValue,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['channelId'] ?? '';
-          break;
         case BotCreatorActionType.updateChannel:
-          final result = await updateChannelAction(
-            client,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['channelId'] ?? '';
-          break;
         case BotCreatorActionType.removeChannel:
-          final channelId = _toSnowflake(action.payload['channelId']);
-          if (channelId == null) {
-            throw Exception('Missing or invalid channelId for removeChannel');
-          }
-
-          final result = await removeChannel(client, channelId);
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['channelId'] ?? '';
-          break;
         case BotCreatorActionType.sendMessage:
-          final targetType =
-              (action.payload['targetType'] ?? 'channel')
-                  .toString()
-                  .trim()
-                  .toLowerCase();
-          final channelId =
-              _toSnowflake(action.payload['channelId']) ?? fallbackChannelId;
-
-          if (targetType != 'user' && channelId == null) {
-            throw Exception('Missing or invalid channelId for sendMessage');
-          }
-
-          final content = resolveValue(
-            (action.payload['content'] ?? '').toString(),
-          );
-          if (content.trim().isEmpty) {
-            throw Exception('content is required for sendMessage');
-          }
-
-          final resolvedSendPayload = Map<String, dynamic>.from(action.payload);
-          if (targetType == 'user') {
-            resolvedSendPayload['userId'] = resolveValue(
-              (action.payload['userId'] ?? '').toString(),
-            );
-          }
-
-          final result = await sendMessageToChannel(
-            client,
-            channelId,
-            content: content,
-            payload: resolvedSendPayload,
-            resolve: resolveValue,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['messageId'] ?? '';
-          variables['$resultKey.messageId'] = result['messageId'] ?? '';
-          break;
         case BotCreatorActionType.editMessage:
-          final content = resolveValue(
-            (action.payload['content'] ?? '').toString(),
-          );
-          final result = await editMessageAction(
-            client,
-            payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
-            content: content,
-            resolve: resolveValue,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['messageId'] ?? '';
-          break;
+        case BotCreatorActionType.getMessage:
         case BotCreatorActionType.addReaction:
-          final result = await addReactionAction(
-            client,
-            payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['status'] ?? 'OK';
-          break;
         case BotCreatorActionType.removeReaction:
-          final result = await removeReactionAction(
-            client,
-            payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['status'] ?? 'OK';
-          break;
         case BotCreatorActionType.clearAllReactions:
-          final result = await clearAllReactionsAction(
-            client,
-            payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['status'] ?? 'OK';
-          break;
         case BotCreatorActionType.banUser:
         case BotCreatorActionType.unbanUser:
         case BotCreatorActionType.kickUser:
@@ -642,51 +234,34 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.unmuteUser:
         case BotCreatorActionType.addRole:
         case BotCreatorActionType.removeRole:
-          final result = await _executeUserAction(() async {
-            return switch (action.type) {
-              BotCreatorActionType.banUser => banUserAction(
-                client,
-                guildId: guildId,
-                payload: action.payload,
-              ),
-              BotCreatorActionType.unbanUser => unbanUserAction(
-                client,
-                guildId: guildId,
-                payload: action.payload,
-              ),
-              BotCreatorActionType.kickUser => kickUserAction(
-                client,
-                guildId: guildId,
-                payload: action.payload,
-              ),
-              BotCreatorActionType.muteUser => muteUserAction(
-                client,
-                guildId: guildId,
-                payload: action.payload,
-              ),
-              BotCreatorActionType.unmuteUser => unmuteUserAction(
-                client,
-                guildId: guildId,
-                payload: action.payload,
-              ),
-              BotCreatorActionType.addRole => addRoleAction(
-                client,
-                guildId: guildId,
-                payload: action.payload,
-              ),
-              BotCreatorActionType.removeRole => removeRoleAction(
-                client,
-                guildId: guildId,
-                payload: action.payload,
-              ),
-              _ => throw Exception('Unexpected action type'),
-            };
-          }, guildId: guildId);
-          if (result.hasError) {
-            throw Exception(result.error);
-          }
-          results[resultKey] = result.getOrEmpty('userId');
-          break;
+        case BotCreatorActionType.sendWebhook:
+        case BotCreatorActionType.editWebhook:
+        case BotCreatorActionType.deleteWebhook:
+        case BotCreatorActionType.listWebhooks:
+        case BotCreatorActionType.getWebhook:
+        case BotCreatorActionType.sendComponentV2:
+        case BotCreatorActionType.editComponentV2:
+        case BotCreatorActionType.respondWithComponentV2:
+        case BotCreatorActionType.respondWithMessage:
+        case BotCreatorActionType.respondWithModal:
+        case BotCreatorActionType.editInteractionMessage:
+        case BotCreatorActionType.listenForButtonClick:
+        case BotCreatorActionType.listenForModalSubmit:
+        case BotCreatorActionType.setScopedVariable:
+        case BotCreatorActionType.getScopedVariable:
+        case BotCreatorActionType.removeScopedVariable:
+        case BotCreatorActionType.renameScopedVariable:
+        case BotCreatorActionType.setGlobalVariable:
+        case BotCreatorActionType.getGlobalVariable:
+        case BotCreatorActionType.removeGlobalVariable:
+        case BotCreatorActionType.httpRequest:
+        case BotCreatorActionType.runWorkflow:
+        case BotCreatorActionType.stopUnless:
+        case BotCreatorActionType.ifBlock:
+        case BotCreatorActionType.calculate:
+          throw StateError(
+            'Action ${action.type.name} should have been handled by an executor before switch dispatch.',
+          );
         case BotCreatorActionType.pinMessage:
           final result = await pinMessageAction(
             client,
@@ -742,791 +317,6 @@ Future<Map<String, String>> handleActions(
           }
           results[resultKey] = result['member'] ?? '';
           break;
-        case BotCreatorActionType.sendComponentV2:
-          final result = await sendComponentV2Action(
-            client,
-            payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
-            resolve: resolveValue,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['messageId'] ?? '';
-          break;
-        case BotCreatorActionType.editComponentV2:
-          final result = await editComponentV2Action(
-            client,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['messageId'] ?? '';
-          break;
-        case BotCreatorActionType.respondWithComponentV2:
-          if (interaction == null) {
-            results[resultKey] =
-                'Error: respondWithComponentV2 requires an interaction context';
-            break;
-          }
-          final respResult = await respondWithComponentV2Action(
-            interaction,
-            payload: action.payload,
-            resolve: resolveValue,
-            botId: botId,
-          );
-          if (respResult['error'] != null) {
-            throw Exception(respResult['error']);
-          }
-          results[resultKey] = respResult['messageId'] ?? 'responded';
-          break;
-        case BotCreatorActionType.respondWithMessage:
-          if (interaction == null) {
-            results[resultKey] =
-                'Error: respondWithMessage requires an interaction context';
-            break;
-          }
-          final messageResult = await respondWithMessageAction(
-            interaction,
-            payload: action.payload,
-            resolve: resolveValue,
-            botId: botId,
-          );
-          if (messageResult['error'] != null) {
-            throw Exception(messageResult['error']);
-          }
-          results[resultKey] = messageResult['messageId'] ?? 'responded';
-          break;
-        case BotCreatorActionType.respondWithModal:
-          if (interaction == null) {
-            results[resultKey] =
-                'Error: respondWithModal requires a slash command interaction';
-            break;
-          }
-          final modalResult = await respondWithModalAction(
-            interaction,
-            payload: action.payload,
-            resolve: resolveValue,
-          );
-          if (modalResult['error'] != null) {
-            throw Exception(modalResult['error']);
-          }
-          final customId = modalResult['customId'] ?? 'modal_sent';
-          results[resultKey] = customId;
-
-          // Auto-register listener if onSubmitWorkflow is provided
-          final onSubmitWorkflow =
-              resolveValue(
-                (modalResult['onSubmitWorkflow'] ?? '').toString(),
-              ).trim();
-          if (onSubmitWorkflow.isNotEmpty) {
-            final onSubmitEntryPoint =
-                resolveValue(
-                  (modalResult['onSubmitEntryPoint'] ?? '').toString(),
-                ).trim();
-            final onSubmitArguments = resolveWorkflowCallArguments(
-              modalResult['onSubmitArguments'],
-              resolveValue,
-            );
-            InteractionListenerRegistry.instance.register(
-              customId,
-              ListenerEntry(
-                botId: botId,
-                workflowName: onSubmitWorkflow,
-                workflowEntryPoint: onSubmitEntryPoint,
-                workflowArguments: onSubmitArguments,
-                expiresAt: DateTime.now().add(const Duration(hours: 1)),
-                type: 'modal',
-                oneShot: true,
-                guildId: guildId?.toString(),
-                channelId: fallbackChannelId?.toString(),
-              ),
-            );
-          }
-          break;
-        case BotCreatorActionType.editInteractionMessage:
-          if (interaction == null) {
-            results[resultKey] =
-                'Error: editInteractionMessage requires an interaction context';
-            break;
-          }
-          final editResult = await editInteractionMessageAction(
-            interaction,
-            payload: action.payload,
-            resolve: resolveValue,
-          );
-          if (editResult['error'] != null) {
-            throw Exception(editResult['error']);
-          }
-          results[resultKey] = editResult['messageId'] ?? '';
-          break;
-        case BotCreatorActionType.listenForButtonClick:
-        case BotCreatorActionType.listenForModalSubmit:
-          final customId = resolveValue(
-            (action.payload['customId'] ?? '').toString(),
-          );
-          if (customId.isEmpty) {
-            throw Exception('customId is required for ${action.type.name}');
-          }
-          final workflowName = resolveValue(
-            (action.payload['workflowName'] ?? '').toString(),
-          );
-          if (workflowName.isEmpty) {
-            throw Exception('workflowName is required for ${action.type.name}');
-          }
-          final ttlRaw = action.payload['ttlMinutes'];
-          final ttlMinutes = (ttlRaw is num
-                  ? ttlRaw.toInt()
-                  : int.tryParse(ttlRaw?.toString() ?? '') ?? 60)
-              .clamp(1, 60);
-          final oneShot =
-              action.type == BotCreatorActionType.listenForModalSubmit
-                  ? true
-                  : (action.payload['oneShot'] != false);
-          final workflowEntryPoint =
-              resolveValue(
-                (action.payload['entryPoint'] ?? '').toString(),
-              ).trim();
-          final workflowArguments = resolveWorkflowCallArguments(
-            action.payload['arguments'],
-            resolveValue,
-          );
-
-          InteractionListenerRegistry.instance.register(
-            customId,
-            ListenerEntry(
-              botId: botId,
-              workflowName: workflowName,
-              workflowEntryPoint: workflowEntryPoint,
-              workflowArguments: workflowArguments,
-              expiresAt: DateTime.now().add(Duration(minutes: ttlMinutes)),
-              type:
-                  action.type == BotCreatorActionType.listenForButtonClick
-                      ? 'button'
-                      : 'modal',
-              oneShot: oneShot,
-              guildId: guildId?.toString(),
-              channelId: fallbackChannelId?.toString(),
-            ),
-          );
-          results[resultKey] = 'listening:$customId';
-          break;
-        case BotCreatorActionType.sendWebhook:
-        case BotCreatorActionType.editWebhook:
-        case BotCreatorActionType.deleteWebhook:
-          final result = await switch (action.type) {
-            BotCreatorActionType.sendWebhook => sendWebhookAction(
-              client,
-              payload: action.payload,
-              resolve: resolveValue,
-            ),
-            BotCreatorActionType.editWebhook => editWebhookAction(
-              client,
-              payload: action.payload,
-            ),
-            BotCreatorActionType.deleteWebhook => deleteWebhookAction(
-              client,
-              payload: action.payload,
-            ),
-            _ => throw Exception('Unexpected action type'),
-          };
-          if (result.hasError) {
-            throw Exception(result.error);
-          }
-          results[resultKey] = result.getOrEmpty('webhookId');
-          break;
-        case BotCreatorActionType.listWebhooks:
-          final result = await listWebhooksAction(
-            client,
-            payload: action.payload,
-            fallbackChannelId: fallbackChannelId,
-            fallbackGuildId: guildId,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['webhooks'] ?? '[]';
-          break;
-        case BotCreatorActionType.getWebhook:
-          final result = await getWebhookAction(
-            client,
-            payload: action.payload,
-          );
-          if (result['error'] != null) {
-            throw Exception(result['error']);
-          }
-          results[resultKey] = result['webhook'] ?? '';
-          break;
-        case BotCreatorActionType.setScopedVariable:
-          final scope =
-              resolveValue((action.payload['scope'] ?? '').toString()).trim();
-          if (!_supportedVariableScopes.contains(scope)) {
-            throw Exception(
-              'scope is required for setScopedVariable and must be one of ${_supportedVariableScopes.join(', ')}',
-            );
-          }
-
-          final rawKey =
-              resolveValue((action.payload['key'] ?? '').toString()).trim();
-          final storageKey = _scopedStorageKey(rawKey);
-          final referenceKey = _scopedReferenceKey(rawKey);
-
-          final contextId = _resolveScopeContextId(
-            scope: scope,
-            variables: variables,
-            guildId: guildId,
-            channelId: resolvedFallbackChannelId,
-            interaction: interaction,
-          );
-          if (contextId == null || contextId.trim().isEmpty) {
-            throw Exception('Unable to resolve context ID for scope "$scope"');
-          }
-
-          final value = _resolveVariableValuePayload(
-            action.payload,
-            resolveValue,
-          );
-          await store.setScopedVariable(
-            botId,
-            scope,
-            contextId,
-            storageKey,
-            value,
-          );
-          variables['$scope.$referenceKey'] = value.toString();
-          if (rawKey.isNotEmpty && rawKey != referenceKey) {
-            variables['$scope.$rawKey'] = value.toString();
-          }
-          results[resultKey] = 'OK';
-          break;
-        case BotCreatorActionType.getScopedVariable:
-          final scope =
-              resolveValue((action.payload['scope'] ?? '').toString()).trim();
-          if (!_supportedVariableScopes.contains(scope)) {
-            throw Exception(
-              'scope is required for getScopedVariable and must be one of ${_supportedVariableScopes.join(', ')}',
-            );
-          }
-
-          final rawKey =
-              resolveValue((action.payload['key'] ?? '').toString()).trim();
-          final storageKey = _scopedStorageKey(rawKey);
-          final referenceKey = _scopedReferenceKey(rawKey);
-
-          final contextId = _resolveScopeContextId(
-            scope: scope,
-            variables: variables,
-            guildId: guildId,
-            channelId: resolvedFallbackChannelId,
-            interaction: interaction,
-          );
-          if (contextId == null || contextId.trim().isEmpty) {
-            throw Exception('Unable to resolve context ID for scope "$scope"');
-          }
-
-          var value = await store.getScopedVariable(
-            botId,
-            scope,
-            contextId,
-            storageKey,
-          );
-          if (value == null && referenceKey != storageKey) {
-            value = await store.getScopedVariable(
-              botId,
-              scope,
-              contextId,
-              referenceKey,
-            );
-          }
-          value ??= '';
-          final storeAs =
-              resolveValue(
-                (action.payload['storeAs'] ?? '$scope.$referenceKey')
-                    .toString(),
-              ).trim();
-          if (storeAs.isNotEmpty) {
-            variables[storeAs] = value.toString();
-          }
-          variables['$scope.$referenceKey'] = value.toString();
-          if (rawKey.isNotEmpty && rawKey != referenceKey) {
-            variables['$scope.$rawKey'] = value.toString();
-          }
-          results[resultKey] = value.toString();
-          break;
-        case BotCreatorActionType.removeScopedVariable:
-          final scope =
-              resolveValue((action.payload['scope'] ?? '').toString()).trim();
-          if (!_supportedVariableScopes.contains(scope)) {
-            throw Exception(
-              'scope is required for removeScopedVariable and must be one of ${_supportedVariableScopes.join(', ')}',
-            );
-          }
-
-          final rawKey =
-              resolveValue((action.payload['key'] ?? '').toString()).trim();
-          final storageKey = _scopedStorageKey(rawKey);
-          final referenceKey = _scopedReferenceKey(rawKey);
-
-          final contextId = _resolveScopeContextId(
-            scope: scope,
-            variables: variables,
-            guildId: guildId,
-            channelId: resolvedFallbackChannelId,
-            interaction: interaction,
-          );
-          if (contextId == null || contextId.trim().isEmpty) {
-            throw Exception('Unable to resolve context ID for scope "$scope"');
-          }
-
-          await store.removeScopedVariable(botId, scope, contextId, storageKey);
-          if (referenceKey != storageKey) {
-            await store.removeScopedVariable(
-              botId,
-              scope,
-              contextId,
-              referenceKey,
-            );
-          }
-          variables.remove('$scope.$referenceKey');
-          if (rawKey.isNotEmpty && rawKey != referenceKey) {
-            variables.remove('$scope.$rawKey');
-          }
-          results[resultKey] = 'REMOVED';
-          break;
-        case BotCreatorActionType.renameScopedVariable:
-          final scope =
-              resolveValue((action.payload['scope'] ?? '').toString()).trim();
-          if (!_supportedVariableScopes.contains(scope)) {
-            throw Exception(
-              'scope is required for renameScopedVariable and must be one of ${_supportedVariableScopes.join(', ')}',
-            );
-          }
-
-          final oldRawKey =
-              resolveValue((action.payload['oldKey'] ?? '').toString()).trim();
-          final newRawKey =
-              resolveValue((action.payload['newKey'] ?? '').toString()).trim();
-          final oldStorageKey = _scopedStorageKey(oldRawKey);
-          final newStorageKey = _scopedStorageKey(newRawKey);
-          final oldReferenceKey = _scopedReferenceKey(oldRawKey);
-          final newReferenceKey = _scopedReferenceKey(newRawKey);
-
-          final contextId = _resolveScopeContextId(
-            scope: scope,
-            variables: variables,
-            guildId: guildId,
-            channelId: resolvedFallbackChannelId,
-            interaction: interaction,
-          );
-          if (contextId == null || contextId.trim().isEmpty) {
-            throw Exception('Unable to resolve context ID for scope "$scope"');
-          }
-
-          await store.renameScopedVariable(
-            botId,
-            scope,
-            contextId,
-            oldStorageKey,
-            newStorageKey,
-          );
-          if (oldReferenceKey != oldStorageKey) {
-            final legacyValue = await store.getScopedVariable(
-              botId,
-              scope,
-              contextId,
-              oldReferenceKey,
-            );
-            if (legacyValue != null) {
-              await store.setScopedVariable(
-                botId,
-                scope,
-                contextId,
-                newStorageKey,
-                legacyValue,
-              );
-              await store.removeScopedVariable(
-                botId,
-                scope,
-                contextId,
-                oldReferenceKey,
-              );
-            }
-          }
-          final oldRuntimeKey = '$scope.$oldReferenceKey';
-          final newRuntimeKey = '$scope.$newReferenceKey';
-          if (variables.containsKey(oldRuntimeKey)) {
-            final runtimeValue = variables.remove(oldRuntimeKey);
-            if (runtimeValue != null) {
-              variables[newRuntimeKey] = runtimeValue;
-              if (oldRawKey.isNotEmpty && oldRawKey != oldReferenceKey) {
-                variables.remove('$scope.$oldRawKey');
-              }
-              if (newRawKey.isNotEmpty && newRawKey != newReferenceKey) {
-                variables['$scope.$newRawKey'] = runtimeValue;
-              }
-            }
-          }
-          results[resultKey] = 'RENAMED';
-          break;
-        case BotCreatorActionType.httpRequest:
-          final resolvedUrl =
-              resolveValue((action.payload['url'] ?? '').toString()).trim();
-          if (resolvedUrl.isEmpty) {
-            throw Exception('url is required for httpRequest');
-          }
-
-          final method = normalizeMethod(action.payload['method']);
-          final bodyMode =
-              resolveValue(
-                (action.payload['bodyMode'] ?? 'json').toString(),
-              ).toLowerCase();
-
-          final headersRaw = Map<String, dynamic>.from(
-            (action.payload['headers'] as Map?)?.cast<String, dynamic>() ??
-                const {},
-          );
-          final headers = <String, String>{};
-          for (final entry in headersRaw.entries) {
-            final key = resolveValue(entry.key).trim();
-            if (key.isEmpty) {
-              continue;
-            }
-            headers[key] = resolveValue(entry.value?.toString() ?? '');
-          }
-
-          Object? requestBody;
-          if (supportsBody(method)) {
-            if (bodyMode == 'text') {
-              requestBody = resolveValue(
-                (action.payload['bodyText'] ?? '').toString(),
-              );
-            } else {
-              final bodyJsonRaw =
-                  (action.payload['bodyJson'] is Map)
-                      ? Map<String, dynamic>.from(
-                        (action.payload['bodyJson'] as Map)
-                            .cast<String, dynamic>(),
-                      )
-                      : <String, dynamic>{};
-              final resolvedJson = resolveJsonLike(bodyJsonRaw);
-              requestBody = jsonEncode(resolvedJson);
-              headers.putIfAbsent('Content-Type', () => 'application/json');
-            }
-          }
-
-          final uri = Uri.tryParse(resolvedUrl);
-          if (uri == null) {
-            throw Exception('Invalid URL for httpRequest: $resolvedUrl');
-          }
-
-          final request = http.Request(method, uri);
-          request.headers.addAll(headers);
-          if (requestBody != null && requestBody.toString().isNotEmpty) {
-            request.body = requestBody.toString();
-          }
-
-          onLog?.call('HTTP: $method $resolvedUrl');
-          if (request.body.isNotEmpty) {
-            onLog?.call('HTTP Payload envoyÃ©e: ${request.body}');
-          }
-
-          final streamed = await http.Client().send(request);
-          final responseBody = await streamed.stream.bytesToString();
-          final status = streamed.statusCode;
-
-          onLog?.call('HTTP RÃ©ponse: $status (${responseBody.length} bytes)');
-          if (responseBody.isNotEmpty) {
-            onLog?.call('HTTP Payload reÃ§ue: $responseBody');
-          }
-          results[resultKey] = 'HTTP $status';
-          variables['action.$resultKey.status'] = '$status';
-          variables['action.$resultKey.body'] = responseBody;
-          variables['$resultKey.status'] = '$status';
-          variables['$resultKey.body'] = responseBody;
-
-          final saveBodyTo =
-              resolveValue(
-                (action.payload['saveBodyToGlobalVar'] ?? '').toString(),
-              ).trim();
-          if (saveBodyTo.isNotEmpty) {
-            await store.setGlobalVariable(botId, saveBodyTo, responseBody);
-          }
-
-          final saveStatusTo =
-              resolveValue(
-                (action.payload['saveStatusToGlobalVar'] ?? '').toString(),
-              ).trim();
-          if (saveStatusTo.isNotEmpty) {
-            await store.setGlobalVariable(botId, saveStatusTo, '$status');
-          }
-
-          final extractPath =
-              resolveValue(
-                (action.payload['extractJsonPath'] ?? '').toString(),
-              ).trim();
-          if (extractPath.isNotEmpty) {
-            dynamic decoded;
-            try {
-              decoded = jsonDecode(responseBody);
-            } catch (_) {
-              decoded = null;
-            }
-
-            if (decoded != null) {
-              final extracted = _extractByJsonPath(decoded, extractPath);
-              if (extracted != null) {
-                final extractedAsString =
-                    extracted is String
-                        ? extracted
-                        : (extracted is num || extracted is bool)
-                        ? extracted.toString()
-                        : jsonEncode(extracted);
-                variables['action.$resultKey.jsonPath'] = extractedAsString;
-                variables['$resultKey.jsonPath'] = extractedAsString;
-
-                final saveExtractTo =
-                    resolveValue(
-                      (action.payload['saveJsonPathToGlobalVar'] ?? '')
-                          .toString(),
-                    ).trim();
-                if (saveExtractTo.isNotEmpty) {
-                  await store.setGlobalVariable(
-                    botId,
-                    saveExtractTo,
-                    extractedAsString,
-                  );
-                }
-              }
-            }
-          }
-          break;
-        case BotCreatorActionType.setGlobalVariable:
-          final key =
-              resolveValue((action.payload['key'] ?? '').toString()).trim();
-          if (key.isEmpty) {
-            throw Exception('key is required for setGlobalVariable');
-          }
-          final value = _resolveVariableValuePayload(
-            action.payload,
-            resolveValue,
-          );
-          await store.setGlobalVariable(botId, key, value);
-          variables['global.$key'] = value.toString();
-          results[resultKey] = 'OK';
-          break;
-        case BotCreatorActionType.getGlobalVariable:
-          final key =
-              resolveValue((action.payload['key'] ?? '').toString()).trim();
-          if (key.isEmpty) {
-            throw Exception('key is required for getGlobalVariable');
-          }
-          final value = await store.getGlobalVariable(botId, key) ?? '';
-          final valueAsString = value.toString();
-          final storeAs =
-              resolveValue(
-                (action.payload['storeAs'] ?? 'global.$key').toString(),
-              ).trim();
-          if (storeAs.isNotEmpty) {
-            variables[storeAs] = valueAsString;
-          }
-          variables['global.$key'] = valueAsString;
-          results[resultKey] = valueAsString;
-          break;
-        case BotCreatorActionType.removeGlobalVariable:
-          final key =
-              resolveValue((action.payload['key'] ?? '').toString()).trim();
-          if (key.isEmpty) {
-            throw Exception('key is required for removeGlobalVariable');
-          }
-          await store.removeGlobalVariable(botId, key);
-          variables.remove('global.$key');
-          results[resultKey] = 'REMOVED';
-          break;
-
-        case BotCreatorActionType.runWorkflow:
-          final workflowName =
-              resolveValue(
-                (action.payload['workflowName'] ?? '').toString(),
-              ).trim();
-          if (workflowName.isEmpty) {
-            throw Exception('workflowName is required for runWorkflow');
-          }
-
-          final workflow = await store.getWorkflowByName(botId, workflowName);
-          if (workflow == null) {
-            throw Exception('Workflow not found: $workflowName');
-          }
-          final requestedEntryPoint =
-              resolveValue(
-                (action.payload['entryPoint'] ?? '').toString(),
-              ).trim();
-          final workflowEntryPoint = normalizeWorkflowEntryPoint(
-            requestedEntryPoint,
-            fallback: normalizeWorkflowEntryPoint(workflow['entryPoint']),
-          );
-          final workflowArgDefinitions = parseWorkflowArgumentDefinitions(
-            workflow['arguments'],
-          );
-          final workflowCallArguments = resolveWorkflowCallArguments(
-            action.payload['arguments'],
-            resolveValue,
-          );
-          final stackKey =
-              '${workflowName.toLowerCase()}::${workflowEntryPoint.toLowerCase()}';
-          if (activeWorkflowStack.contains(stackKey)) {
-            throw Exception(
-              'Workflow recursion detected for "$workflowName" (entry: $workflowEntryPoint)',
-            );
-          }
-
-          applyWorkflowInvocationContext(
-            variables: variables,
-            workflowName: workflowName,
-            entryPoint: workflowEntryPoint,
-            definitions: workflowArgDefinitions,
-            providedArguments: workflowCallArguments,
-          );
-
-          final workflowActions = List<Action>.from(
-            ((workflow['actions'] as List?) ?? const <dynamic>[])
-                .whereType<Map>()
-                .map(
-                  (json) => Action.fromJson(Map<String, dynamic>.from(json)),
-                ),
-          );
-
-          activeWorkflowStack.add(stackKey);
-          late final Map<String, String> workflowResults;
-          try {
-            workflowResults = await handleActions(
-              client,
-              interaction,
-              actions: workflowActions,
-              store: store,
-              botId: botId,
-              variables: variables,
-              resolveTemplate: resolveTemplate,
-              workflowStack: activeWorkflowStack,
-              onLog: onLog,
-            );
-          } finally {
-            activeWorkflowStack.remove(stackKey);
-          }
-
-          for (final entry in workflowResults.entries) {
-            results['$resultKey.${entry.key}'] = entry.value;
-          }
-          results[resultKey] = 'WORKFLOW_OK:$workflowEntryPoint';
-          break;
-        case BotCreatorActionType.stopUnless:
-          final rawCondVar =
-              (action.payload['condition.variable'] ?? '').toString();
-          final condVar = resolveValue(rawCondVar);
-          final condOp =
-              (action.payload['condition.operator'] ?? 'equals').toString();
-          final condVal = resolveValue(
-            (action.payload['condition.value'] ?? '').toString(),
-          );
-          final passed = _evaluateCondition(
-            leftValue: resolveConditionLeftValue(rawCondVar),
-            operator: condOp,
-            rightValue: condVal,
-          );
-          if (!passed) {
-            onLog?.call(
-              'Workflow stopped: "$condVar $condOp $condVal" not met',
-            );
-            return results;
-          }
-          results[resultKey] = 'passed';
-          break;
-        case BotCreatorActionType.ifBlock:
-          final rawIfCondVar =
-              (action.payload['condition.variable'] ?? '').toString();
-          final ifCondVar = resolveValue(rawIfCondVar);
-          final ifCondOp =
-              (action.payload['condition.operator'] ?? 'equals').toString();
-          final ifCondVal = resolveValue(
-            (action.payload['condition.value'] ?? '').toString(),
-          );
-          final ifPassed = _evaluateCondition(
-            leftValue: resolveConditionLeftValue(rawIfCondVar),
-            operator: ifCondOp,
-            rightValue: ifCondVal,
-          );
-          onLog?.call(
-            'IF "$ifCondVar $ifCondOp $ifCondVal" → ${ifPassed ? "THEN" : "ELSE"}',
-          );
-          final branchKey = ifPassed ? 'thenActions' : 'elseActions';
-          final rawBranchActions = action.payload[branchKey];
-          if (rawBranchActions is List && rawBranchActions.isNotEmpty) {
-            final branchActions =
-                rawBranchActions
-                    .whereType<Map>()
-                    .map(
-                      (json) =>
-                          Action.fromJson(Map<String, dynamic>.from(json)),
-                    )
-                    .toList();
-            late final Map<String, String> branchResults;
-            try {
-              branchResults = await handleActions(
-                client,
-                interaction,
-                actions: branchActions,
-                store: store,
-                botId: botId,
-                variables: variables,
-                resolveTemplate: resolveTemplate,
-                fallbackChannelId: resolvedFallbackChannelId,
-                fallbackGuildId: guildId,
-                workflowStack: activeWorkflowStack,
-                onLog: onLog,
-              );
-            } catch (e) {
-              branchResults = {'__error__': e.toString()};
-            }
-            for (final entry in branchResults.entries) {
-              results['$resultKey.${entry.key}'] = entry.value;
-            }
-            if (branchResults.containsKey('__stopped__')) {
-              return results;
-            }
-          }
-          results[resultKey] = ifPassed ? 'then' : 'else';
-          break;
-
-        // ─── Math & Calculation ───────────────────────────────────────────
-        case BotCreatorActionType.calculate:
-          final calcResult = await calculateAction(
-            payload: action.payload,
-            resolve: resolveValue,
-          );
-          if (calcResult['error'] != null) {
-            throw Exception(calcResult['error']);
-          }
-          final calcValue = calcResult['result'] ?? '';
-          results[resultKey] = calcValue;
-          variables['$resultKey.result'] = calcValue;
-          break;
-
-        // ─── Message management ───────────────────────────────────────────
-        case BotCreatorActionType.getMessage:
-          final gmResult = await getMessageAction(
-            client,
-            payload: action.payload,
-            fallbackChannelId: resolvedFallbackChannelId,
-          );
-          if (gmResult['error'] != null) {
-            throw Exception(gmResult['error']);
-          }
-          results[resultKey] = gmResult['messageId'] ?? '';
-          for (final entry in gmResult.entries) {
-            variables['$resultKey.${entry.key}'] = entry.value;
-          }
-          break;
-
         case BotCreatorActionType.unpinMessage:
           final unpinResult = await unpinMessageAction(
             client,
@@ -1622,7 +412,6 @@ Future<Map<String, String>> handleActions(
             throw Exception(mvResult['error']);
           }
           results[resultKey] = mvResult['status'] ?? 'moved';
-          variables['$resultKey.userId'] = mvResult['userId'] ?? '';
           break;
 
         case BotCreatorActionType.disconnectFromVoice:

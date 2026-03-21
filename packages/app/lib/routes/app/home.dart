@@ -490,7 +490,7 @@ class _AppHomePageState extends State<AppHomePage>
                                       await _maybeOfferRewardedAd();
                                     }
 
-                                    // ── Runner API (mode développeur) ────────────────────
+                                    // ── Runner API (API only) ────────────────────────────
                                     final runnerUrl =
                                         await RunnerSettings.getUrl();
                                     if (runnerUrl != null &&

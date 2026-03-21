@@ -170,31 +170,16 @@ class ActionCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            ...action.type.parameterDefinitions.map((paramDef) {
-              final currentValue = action.parameters[paramDef.key];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _buildParameterField(context, paramDef, currentValue),
-              );
-            }),
             if (action.type == BotCreatorActionType.httpRequest)
-              Padding(
-                padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () => _showTestRequestModal(context),
-                    icon: const Icon(Icons.send_rounded),
-                    label: const Text('Send Test Request & Auto-Detect Routes'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
-                      foregroundColor: Colors.blueAccent,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                    ),
-                  ),
-                ),
-              ),
+              ..._buildHttpRequestFields(context)
+            else
+              ...action.type.parameterDefinitions.map((paramDef) {
+                final currentValue = action.parameters[paramDef.key];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _buildParameterField(context, paramDef, currentValue),
+                );
+              }),
           ],
         ),
       ),
@@ -488,6 +473,69 @@ class ActionCard extends StatelessWidget {
         );
       },
     );
+  }
+
+  List<Widget> _buildHttpRequestFields(BuildContext context) {
+    final defs = action.type.parameterDefinitions;
+    ParameterDefinition? defFor(String key) => defs
+        .cast<ParameterDefinition?>()
+        .firstWhere((d) => d?.key == key, orElse: () => null);
+
+    Widget fieldFor(String key) {
+      final pd = defFor(key);
+      if (pd == null) return const SizedBox.shrink();
+      final currentValue = action.parameters[pd.key];
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _buildParameterField(context, pd, currentValue),
+      );
+    }
+
+    final method =
+        (action.parameters['method']?.toString() ?? 'GET').toUpperCase();
+    final bodyMode =
+        (action.parameters['bodyMode']?.toString() ?? 'json').toLowerCase();
+    final showBody = method != 'GET' && method != 'HEAD';
+
+    return [
+      fieldFor('url'),
+      fieldFor('method'),
+      fieldFor('headers'),
+      if (showBody) ...[
+        fieldFor('bodyMode'),
+        if (bodyMode == 'text') fieldFor('bodyText') else fieldFor('bodyJson'),
+      ],
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: ExpansionTile(
+          title: const Text('Store results in global variables'),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: const EdgeInsets.only(top: 4),
+          children: [
+            fieldFor('saveBodyToGlobalVar'),
+            fieldFor('saveStatusToGlobalVar'),
+          ],
+        ),
+      ),
+      fieldFor('extractJsonPath'),
+      Padding(
+        padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _showTestRequestModal(context),
+            icon: const Icon(Icons.send_rounded),
+            label: const Text('Send Test Request & Auto-Detect Routes'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blueAccent.withValues(alpha: 0.2),
+              foregroundColor: Colors.blueAccent,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 
   Widget _buildParameterField(

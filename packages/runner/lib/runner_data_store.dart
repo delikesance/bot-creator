@@ -78,7 +78,7 @@ class RunnerDataStore implements BotDataStore {
   }
 
   Future<void> dispose() async {
-    _sqliteStore?.close();
+    _sqliteStore?.dispose();
     _sqliteStore = null;
     _seededBotIds.clear();
   }

@@ -29,14 +29,16 @@ import 'package:bot_creator/actions/edit_webhook.dart';
 import 'package:bot_creator/actions/delete_webhook.dart';
 import 'package:bot_creator/actions/list_webhooks.dart';
 import 'package:bot_creator/actions/get_webhook.dart';
+import 'package:bot_creator_shared/actions/executors/control_flow_executor.dart'
+    as shared_control_flow_executor;
+import 'package:bot_creator_shared/actions/executors/http_executor.dart'
+    as shared_http_executor;
 import 'package:bot_creator_shared/actions/handler.dart' as shared_handler;
 import 'package:bot_creator_shared/types/action.dart' as shared_types;
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/interaction_listener_registry.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
-import 'package:http/http.dart' as http;
 import 'package:nyxx/nyxx.dart';
-import 'dart:convert';
 import '../types/action.dart';
 import 'handler_utils.dart';
 
@@ -51,85 +53,6 @@ Snowflake? _toSnowflake(dynamic value) {
   }
 
   return Snowflake(parsed);
-}
-
-dynamic _extractByJsonPath(dynamic data, String rawPath) {
-  var path = rawPath.trim();
-  if (path.isEmpty) {
-    return null;
-  }
-
-  if (path.startsWith(r'$.')) {
-    path = path.substring(2);
-  } else if (path.startsWith(r'$')) {
-    path = path.substring(1);
-  }
-
-  if (path.isEmpty) {
-    return data;
-  }
-
-  final segments = <Object>[];
-  final token = StringBuffer();
-
-  void flushToken() {
-    if (token.isNotEmpty) {
-      segments.add(token.toString());
-      token.clear();
-    }
-  }
-
-  for (var i = 0; i < path.length; i++) {
-    final char = path[i];
-    if (char == '.') {
-      flushToken();
-      continue;
-    }
-
-    if (char == '[') {
-      flushToken();
-      final closing = path.indexOf(']', i + 1);
-      if (closing == -1) {
-        return null;
-      }
-      final indexText = path.substring(i + 1, closing).trim();
-      final index = int.tryParse(indexText);
-      if (index == null) {
-        return null;
-      }
-      segments.add(index);
-      i = closing;
-      continue;
-    }
-
-    token.write(char);
-  }
-  flushToken();
-
-  dynamic current = data;
-  for (final segment in segments) {
-    if (segment is String) {
-      if (segment.isEmpty) {
-        continue;
-      }
-      if (current is Map && current.containsKey(segment)) {
-        current = current[segment];
-      } else {
-        return null;
-      }
-      continue;
-    }
-
-    if (segment is int) {
-      if (current is List && segment >= 0 && segment < current.length) {
-        current = current[segment];
-      } else {
-        return null;
-      }
-    }
-  }
-
-  return current;
 }
 
 const Set<String> _supportedVariableScopes = {
@@ -274,123 +197,81 @@ Future<Map<String, String>> handleActions(
 
   String resolveValue(String value) => resolveTemplate(value);
 
-  String normalizeMethod(dynamic rawMethod) {
-    final method =
-        resolveValue(rawMethod?.toString() ?? 'GET').trim().toUpperCase();
-    const supported = {'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'};
-    if (!supported.contains(method)) {
-      return 'GET';
-    }
-    return method;
-  }
-
-  bool supportsBody(String method) {
-    return method != 'GET' && method != 'HEAD';
-  }
-
-  dynamic resolveJsonLike(dynamic value) {
-    if (value is String) {
-      return resolveValue(value);
-    }
-    if (value is List) {
-      return value.map(resolveJsonLike).toList();
-    }
-    if (value is Map) {
-      return Map<String, dynamic>.fromEntries(
-        value.entries.map((entry) {
-          return MapEntry(entry.key.toString(), resolveJsonLike(entry.value));
-        }),
-      );
-    }
-    return value;
-  }
-
-  bool evaluateCondition({
-    required String leftValue,
-    required String operator,
-    required String rightValue,
-  }) {
-    final left = leftValue;
-    final right = rightValue;
-    switch (operator) {
-      case 'equals':
-        return left == right;
-      case 'notEquals':
-        return left != right;
-      case 'contains':
-        return left.contains(right);
-      case 'notContains':
-        return !left.contains(right);
-      case 'startsWith':
-        return left.startsWith(right);
-      case 'endsWith':
-        return left.endsWith(right);
-      case 'greaterThan':
-      case 'lessThan':
-      case 'greaterOrEqual':
-      case 'lessOrEqual':
-        final leftNum = num.tryParse(left);
-        final rightNum = num.tryParse(right);
-        if (leftNum == null || rightNum == null) {
-          return false;
-        }
-        if (operator == 'greaterThan') {
-          return leftNum > rightNum;
-        }
-        if (operator == 'lessThan') {
-          return leftNum < rightNum;
-        }
-        if (operator == 'greaterOrEqual') {
-          return leftNum >= rightNum;
-        }
-        return leftNum <= rightNum;
-      case 'isEmpty':
-        return left.trim().isEmpty;
-      case 'isNotEmpty':
-        return left.trim().isNotEmpty;
-      case 'matches':
-        try {
-          return RegExp(right).hasMatch(left);
-        } catch (_) {
-          return false;
-        }
-      default:
-        return left == right;
-    }
-  }
-
-  String resolveConditionLeftValue(String rawConditionVariable) {
-    final raw = rawConditionVariable.trim();
-    if (raw.isEmpty) {
-      return '';
-    }
-
-    if (variables.containsKey(raw)) {
-      return variables[raw] ?? '';
-    }
-
-    final wrappedMatch = RegExp(r'^\(\((.+)\)\)$').firstMatch(raw);
-    if (wrappedMatch != null) {
-      final wrappedKey = (wrappedMatch.group(1) ?? '').trim();
-      if (wrappedKey.isNotEmpty && variables.containsKey(wrappedKey)) {
-        return variables[wrappedKey] ?? '';
-      }
-    }
-
-    final resolved = resolveValue(raw).trim();
-    if (variables.containsKey(resolved)) {
-      return variables[resolved] ?? '';
-    }
-
-    return resolved;
-  }
-
   for (var i = 0; i < actions.length; i++) {
     final action = actions[i];
     final resultKey = action.key ?? 'action_$i';
     if (!action.enabled) {
       continue;
     }
+
+    final sharedActionType = shared_types.BotCreatorActionType.values
+        .cast<shared_types.BotCreatorActionType?>()
+        .firstWhere(
+          (value) => value?.name == action.type.name,
+          orElse: () => null,
+        );
+
+    var handledByControlFlowExecutor = false;
+    if (sharedActionType != null) {
+      handledByControlFlowExecutor = await shared_control_flow_executor
+          .executeControlFlowAction(
+            type: sharedActionType,
+            payload: action.payload,
+            resultKey: resultKey,
+            results: results,
+            variables: variables,
+            resolveValue: resolveValue,
+            onLog: onLog,
+            activeWorkflowStack: activeWorkflowStack,
+            getWorkflowByName:
+                (workflowName) =>
+                    manager.getWorkflowByName(botId, workflowName),
+            executeActions: (nestedSharedActions) async {
+              final nestedAppActions =
+                  nestedSharedActions
+                      .map(
+                        (sharedAction) =>
+                            Action.fromJson(sharedAction.toJson()),
+                      )
+                      .toList();
+              return handleActions(
+                client,
+                interaction,
+                actions: nestedAppActions,
+                manager: manager,
+                botId: botId,
+                variables: variables,
+                resolveTemplate: resolveTemplate,
+                fallbackChannelId: resolvedFallbackChannelId,
+                fallbackGuildId: guildId,
+                workflowStack: activeWorkflowStack,
+                onLog: onLog,
+              );
+            },
+          );
+    }
+    if (handledByControlFlowExecutor) {
+      if (results.containsKey('__stopped__')) {
+        return results;
+      }
+      continue;
+    }
+
+    var handledByHttpExecutor = false;
+    if (sharedActionType != null) {
+      handledByHttpExecutor = await shared_http_executor.executeHttpAction(
+        type: sharedActionType,
+        payload: action.payload,
+        resultKey: resultKey,
+        results: results,
+        variables: variables,
+        resolveValue: resolveValue,
+        onLog: onLog,
+        setGlobalVariable:
+            (key, value) => manager.setGlobalVariable(botId, key, value),
+      );
+    }
+    if (handledByHttpExecutor) continue;
 
     try {
       switch (action.type) {
@@ -1140,137 +1021,12 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = 'RENAMED';
           break;
         case BotCreatorActionType.httpRequest:
-          final resolvedUrl =
-              resolveValue((action.payload['url'] ?? '').toString()).trim();
-          if (resolvedUrl.isEmpty) {
-            throw Exception('url is required for httpRequest');
-          }
-
-          final method = normalizeMethod(action.payload['method']);
-          final bodyMode =
-              resolveValue(
-                (action.payload['bodyMode'] ?? 'json').toString(),
-              ).toLowerCase();
-
-          final headersRaw = Map<String, dynamic>.from(
-            (action.payload['headers'] as Map?)?.cast<String, dynamic>() ??
-                const {},
+        case BotCreatorActionType.runWorkflow:
+        case BotCreatorActionType.stopUnless:
+        case BotCreatorActionType.ifBlock:
+          throw StateError(
+            'Action ${action.type.name} should have been handled by an executor before switch dispatch.',
           );
-          final headers = <String, String>{};
-          for (final entry in headersRaw.entries) {
-            final key = resolveValue(entry.key).trim();
-            if (key.isEmpty) {
-              continue;
-            }
-            headers[key] = resolveValue(entry.value?.toString() ?? '');
-          }
-
-          Object? requestBody;
-          if (supportsBody(method)) {
-            if (bodyMode == 'text') {
-              requestBody = resolveValue(
-                (action.payload['bodyText'] ?? '').toString(),
-              );
-            } else {
-              final bodyJsonRaw =
-                  (action.payload['bodyJson'] is Map)
-                      ? Map<String, dynamic>.from(
-                        (action.payload['bodyJson'] as Map)
-                            .cast<String, dynamic>(),
-                      )
-                      : <String, dynamic>{};
-              final resolvedJson = resolveJsonLike(bodyJsonRaw);
-              requestBody = jsonEncode(resolvedJson);
-              headers.putIfAbsent('Content-Type', () => 'application/json');
-            }
-          }
-
-          final uri = Uri.tryParse(resolvedUrl);
-          if (uri == null) {
-            throw Exception('Invalid URL for httpRequest: $resolvedUrl');
-          }
-
-          final request = http.Request(method, uri);
-          request.headers.addAll(headers);
-          if (requestBody != null && requestBody.toString().isNotEmpty) {
-            request.body = requestBody.toString();
-          }
-
-          onLog?.call('HTTP: $method $resolvedUrl');
-          if (request.body.isNotEmpty) {
-            onLog?.call('HTTP Payload envoyée: ${request.body}');
-          }
-
-          final streamed = await http.Client().send(request);
-          final responseBody = await streamed.stream.bytesToString();
-          final status = streamed.statusCode;
-
-          onLog?.call('HTTP Réponse: $status (${responseBody.length} bytes)');
-          if (responseBody.isNotEmpty) {
-            onLog?.call('HTTP Payload reçue: $responseBody');
-          }
-          results[resultKey] = 'HTTP $status';
-          variables['action.$resultKey.status'] = '$status';
-          variables['action.$resultKey.body'] = responseBody;
-          variables['$resultKey.status'] = '$status';
-          variables['$resultKey.body'] = responseBody;
-
-          final saveBodyTo =
-              resolveValue(
-                (action.payload['saveBodyToGlobalVar'] ?? '').toString(),
-              ).trim();
-          if (saveBodyTo.isNotEmpty) {
-            await manager.setGlobalVariable(botId, saveBodyTo, responseBody);
-          }
-
-          final saveStatusTo =
-              resolveValue(
-                (action.payload['saveStatusToGlobalVar'] ?? '').toString(),
-              ).trim();
-          if (saveStatusTo.isNotEmpty) {
-            await manager.setGlobalVariable(botId, saveStatusTo, '$status');
-          }
-
-          final extractPath =
-              resolveValue(
-                (action.payload['extractJsonPath'] ?? '').toString(),
-              ).trim();
-          if (extractPath.isNotEmpty) {
-            dynamic decoded;
-            try {
-              decoded = jsonDecode(responseBody);
-            } catch (_) {
-              decoded = null;
-            }
-
-            if (decoded != null) {
-              final extracted = _extractByJsonPath(decoded, extractPath);
-              if (extracted != null) {
-                final extractedAsString =
-                    extracted is String
-                        ? extracted
-                        : (extracted is num || extracted is bool)
-                        ? extracted.toString()
-                        : jsonEncode(extracted);
-                variables['action.$resultKey.jsonPath'] = extractedAsString;
-                variables['$resultKey.jsonPath'] = extractedAsString;
-
-                final saveExtractTo =
-                    resolveValue(
-                      (action.payload['saveJsonPathToGlobalVar'] ?? '')
-                          .toString(),
-                    ).trim();
-                if (saveExtractTo.isNotEmpty) {
-                  await manager.setGlobalVariable(
-                    botId,
-                    saveExtractTo,
-                    extractedAsString,
-                  );
-                }
-              }
-            }
-          }
-          break;
         case BotCreatorActionType.setGlobalVariable:
           final key =
               resolveValue((action.payload['key'] ?? '').toString()).trim();
@@ -1312,167 +1068,6 @@ Future<Map<String, String>> handleActions(
           await manager.removeGlobalVariable(botId, key);
           variables.remove('global.$key');
           results[resultKey] = 'REMOVED';
-          break;
-        case BotCreatorActionType.runWorkflow:
-          final workflowName =
-              resolveValue(
-                (action.payload['workflowName'] ?? '').toString(),
-              ).trim();
-          if (workflowName.isEmpty) {
-            throw Exception('workflowName is required for runWorkflow');
-          }
-
-          final workflow = await manager.getWorkflowByName(botId, workflowName);
-          if (workflow == null) {
-            throw Exception('Workflow not found: $workflowName');
-          }
-          final requestedEntryPoint =
-              resolveValue(
-                (action.payload['entryPoint'] ?? '').toString(),
-              ).trim();
-          final workflowEntryPoint = normalizeWorkflowEntryPoint(
-            requestedEntryPoint,
-            fallback: normalizeWorkflowEntryPoint(workflow['entryPoint']),
-          );
-          final workflowArgDefinitions = parseWorkflowArgumentDefinitions(
-            workflow['arguments'],
-          );
-          final workflowCallArguments = resolveWorkflowCallArguments(
-            action.payload['arguments'],
-            resolveValue,
-          );
-          final stackKey =
-              '${workflowName.toLowerCase()}::${workflowEntryPoint.toLowerCase()}';
-          if (activeWorkflowStack.contains(stackKey)) {
-            throw Exception(
-              'Workflow recursion detected for "$workflowName" (entry: $workflowEntryPoint)',
-            );
-          }
-
-          applyWorkflowInvocationContext(
-            variables: variables,
-            workflowName: workflowName,
-            entryPoint: workflowEntryPoint,
-            definitions: workflowArgDefinitions,
-            providedArguments: workflowCallArguments,
-          );
-
-          final workflowActions = List<Action>.from(
-            ((workflow['actions'] as List?) ?? const <dynamic>[])
-                .whereType<Map>()
-                .map(
-                  (json) => Action.fromJson(Map<String, dynamic>.from(json)),
-                ),
-          );
-
-          activeWorkflowStack.add(stackKey);
-          late final Map<String, String> workflowResults;
-          try {
-            workflowResults = await handleActions(
-              client,
-              interaction,
-              actions: workflowActions,
-              manager: manager,
-              botId: botId,
-              variables: variables,
-              resolveTemplate: resolveTemplate,
-              fallbackChannelId: resolvedFallbackChannelId,
-              fallbackGuildId: guildId,
-              workflowStack: activeWorkflowStack,
-              onLog: onLog,
-            );
-          } finally {
-            activeWorkflowStack.remove(stackKey);
-          }
-
-          for (final entry in workflowResults.entries) {
-            results['$resultKey.${entry.key}'] = entry.value;
-          }
-          results[resultKey] = 'WORKFLOW_OK:$workflowEntryPoint';
-          break;
-        case BotCreatorActionType.stopUnless:
-          final rawConditionVariable =
-              (action.payload['condition.variable'] ?? '').toString();
-          final conditionVariable = resolveValue(rawConditionVariable).trim();
-          final conditionOperator =
-              resolveValue(
-                (action.payload['condition.operator'] ?? 'equals').toString(),
-              ).trim();
-          final conditionValue = resolveValue(
-            (action.payload['condition.value'] ?? '').toString(),
-          );
-
-          final leftValue = resolveConditionLeftValue(rawConditionVariable);
-          final conditionPassed = evaluateCondition(
-            leftValue: leftValue,
-            operator: conditionOperator,
-            rightValue: conditionValue,
-          );
-          results[resultKey] = conditionPassed ? 'PASSED' : 'STOPPED';
-          if (!conditionPassed) {
-            onLog?.call(
-              'Action $resultKey stopped workflow: "$conditionVariable" $conditionOperator "$conditionValue" failed (actual: "$leftValue")',
-            );
-            results['__stopped__'] = 'true';
-            return results;
-          }
-          break;
-        case BotCreatorActionType.ifBlock:
-          final rawConditionVariable =
-              (action.payload['condition.variable'] ?? '').toString();
-          final conditionOperator =
-              resolveValue(
-                (action.payload['condition.operator'] ?? 'equals').toString(),
-              ).trim();
-          final conditionValue = resolveValue(
-            (action.payload['condition.value'] ?? '').toString(),
-          );
-          final leftValue = resolveConditionLeftValue(rawConditionVariable);
-          final conditionPassed = evaluateCondition(
-            leftValue: leftValue,
-            operator: conditionOperator,
-            rightValue: conditionValue,
-          );
-
-          final rawThen = action.payload['thenActions'];
-          final rawElse = action.payload['elseActions'];
-          final branchRaw = conditionPassed ? rawThen : rawElse;
-
-          final branchActions = <Action>[];
-          if (branchRaw is List) {
-            for (final item in branchRaw) {
-              if (item is Map) {
-                branchActions.add(
-                  Action.fromJson(Map<String, dynamic>.from(item)),
-                );
-              }
-            }
-          }
-
-          results[resultKey] = conditionPassed ? 'IF_TRUE' : 'IF_FALSE';
-          if (branchActions.isEmpty) {
-            break;
-          }
-
-          final branchResults = await handleActions(
-            client,
-            interaction,
-            actions: branchActions,
-            manager: manager,
-            botId: botId,
-            variables: variables,
-            resolveTemplate: resolveTemplate,
-            fallbackChannelId: resolvedFallbackChannelId,
-            fallbackGuildId: guildId,
-            workflowStack: activeWorkflowStack,
-            onLog: onLog,
-          );
-          for (final entry in branchResults.entries) {
-            results['$resultKey.${entry.key}'] = entry.value;
-          }
-          if (branchResults.containsKey('__stopped__')) {
-            return results;
-          }
           break;
         case BotCreatorActionType.calculate:
         case BotCreatorActionType.getMessage:

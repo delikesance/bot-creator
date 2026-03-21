@@ -298,14 +298,16 @@ class RunnerClient {
   }
 
   /// Stops the bot identified by [botId] on the runner.
-  ///
-  /// If [botId] is omitted, the compatibility endpoint stops all bots.
-  Future<RunnerStatus> stopBot([String? botId]) async {
-    final path =
-        (botId == null || botId.trim().isEmpty)
-            ? '/runner/stop'
-            : '/bots/${Uri.encodeComponent(botId.trim())}/stop';
-    final json = await _post(path, const <String, dynamic>{});
+  Future<RunnerStatus> stopBot(String botId) async {
+    final normalizedBotId = botId.trim();
+    if (normalizedBotId.isEmpty) {
+      throw const RunnerClientException('Missing botId for stopBot().');
+    }
+
+    final json = await _post(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/stop',
+      const <String, dynamic>{},
+    );
     return RunnerStatus.fromJson(json);
   }
 

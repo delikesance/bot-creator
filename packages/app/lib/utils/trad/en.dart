@@ -143,11 +143,11 @@ const Map<String, String> appStringsEn = {
   'settings_drive_disconnect_loading': 'Disconnecting…',
   'settings_drive_disconnected': 'Disconnected from Google Drive',
   'settings_drive_disconnect': 'Disconnect',
-  // Developer mode (Runner API)
-  'settings_runner_title': 'Developer Mode',
+  // Runner API (API only)
+  'settings_runner_title': 'Runner API',
   'settings_runner_desc':
-      'Connect the app to a remote Bot Creator Runner. When configured, '
-      'Start/Stop and logs will use the runner API instead of the local engine.',
+      'Connect the app to a remote Bot Creator Runner (API only). When configured, '
+      'Start/Stop and logs use the Runner API.',
   'settings_runner_url_hint': 'http://192.168.1.x:8080',
   'settings_runner_url_save': 'Save URL',
   'settings_runner_url_clear': 'Clear',
@@ -157,7 +157,7 @@ const Map<String, String> appStringsEn = {
   'settings_runner_connected': 'Runner reachable ✓',
   'settings_runner_unreachable': 'Runner unreachable',
   'settings_runner_connecting': 'Checking connection…',
-  'settings_runner_active': 'Active runner: {url}',
+    'settings_runner_active': 'Active Runner API: {url}',
   'settings_data_operations_title': 'Data Operations',
   'settings_export': 'Export',
   'settings_import': 'Import',
@@ -607,4 +607,10 @@ const Map<String, String> appStringsEn = {
   'support_discord_badge': 'Official support',
   'home_empty_support_hint': 'Need help getting started?',
   'home_empty_support_btn': 'Join our Discord',
+
+  // Action errors
+  'error_invalid_count': 'Count must be greater than 0.',
+  'error_invalid_channel_type': 'Channel is not a text channel.',
+  'error_network_timeout': 'The action timed out. Please try again.',
+  'error_delete_messages_failed': 'Failed to delete messages.',
 };

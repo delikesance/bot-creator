@@ -148,11 +148,11 @@ const Map<String, String> appStringsFr = {
   'settings_drive_disconnect_loading': 'Déconnexion en cours…',
   'settings_drive_disconnected': 'Déconnecté de Google Drive',
   'settings_drive_disconnect': 'Déconnecter',
-  // Mode développeur (Runner API)
-  'settings_runner_title': 'Mode développeur',
+  // Runner API (API only)
+  'settings_runner_title': 'Runner API',
   'settings_runner_desc':
-      "Connecte l'application à un Bot Creator Runner distant. "
-      "Lorsque configuré, les boutons Lancer/Arrêter et les logs utilisent l'API du runner.",
+      "Connecte l'application à un Bot Creator Runner distant (API uniquement). "
+      "Lorsque configuré, les boutons Lancer/Arrêter et les logs utilisent l'API Runner.",
   'settings_runner_url_hint': 'http://192.168.1.x:8080',
   'settings_runner_url_save': "Enregistrer l'URL",
   'settings_runner_url_clear': 'Effacer',
@@ -162,7 +162,7 @@ const Map<String, String> appStringsFr = {
   'settings_runner_connected': 'Runner accessible ✓',
   'settings_runner_unreachable': 'Runner inaccessible',
   'settings_runner_connecting': 'Vérification de la connexion…',
-  'settings_runner_active': 'Runner actif : {url}',
+    'settings_runner_active': 'Runner API actif : {url}',
   'settings_data_operations_title': 'Opérations de données',
   'settings_export': 'Exporter',
   'settings_import': 'Importer',
@@ -620,4 +620,10 @@ const Map<String, String> appStringsFr = {
   'support_discord_badge': 'Support officiel',
   'home_empty_support_hint': 'Besoin d’aide pour commencer ?',
   'home_empty_support_btn': 'Rejoindre notre Discord',
+
+  // Erreurs d’actions
+  'error_invalid_count': 'Le nombre doit être supérieur à 0.',
+  'error_invalid_channel_type': 'Le salon n’est pas un salon textuel.',
+  'error_network_timeout': 'L’action a expiré. Veuillez réessayer.',
+  'error_delete_messages_failed': 'Échec de la suppression des messages.',
 };

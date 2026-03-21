@@ -321,7 +321,6 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             defaultValue: 10,
             hint: 'Number of messages to delete',
             minValue: 1,
-            maxValue: 100,
           ),
           ParameterDefinition(
             key: 'onlyUserId',
@@ -1092,9 +1091,10 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
           ),
           ParameterDefinition(
             key: 'method',
-            type: ParameterType.string,
+            type: ParameterType.multiSelect,
             defaultValue: 'GET',
-            hint: 'GET/POST/PUT/PATCH/DELETE/HEAD (placeholder allowed)',
+            hint: 'HTTP method',
+            options: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'],
           ),
           ParameterDefinition(
             key: 'bodyMode',
@@ -1138,12 +1138,6 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'JSON path to extract (ex: \$.data.access_token)',
-          ),
-          ParameterDefinition(
-            key: 'saveJsonPathToGlobalVar',
-            type: ParameterType.string,
-            defaultValue: '',
-            hint: 'Optional global var key to store extracted value',
           ),
         ];
       case BotCreatorActionType.setGlobalVariable:
