@@ -58,22 +58,51 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
-# Workaround for firebase_core not including firebase_remote_config in its
-# debug/release library path fix (omitted in firebase_core 4.5.0).
-# The firebase_cpp_sdk_windows always defaults to linking the Debug variant
-# because CMAKE_BUILD_TYPE is unset for multi-config generators. This fix
-# mirrors what firebase_core already does for firebase_app/firebase_auth/etc.,
-# ensuring the Release variant is used for non-Debug build configurations.
+# Workaround for firebase_core 4.5.0 omitting firebase_remote_config from its
+# Debug/Release library-path fix (the upstream fix landed in flutterfire after
+# 4.5.0 was published).
+#
+# The firebase_cpp_sdk_windows release_build_files/CMakeLists.txt selects the
+# library directory using CMAKE_BUILD_TYPE, which is empty for multi-config
+# generators (Visual Studio), so it defaults to the Debug sub-directory for
+# every configuration.
+#
+# The fix must update BOTH the generic IMPORTED_LOCATION AND the per-config
+# IMPORTED_LOCATION_<CONFIG> variants:
+#   - Per-config variants are used by cmake when resolving *direct* target
+#     dependencies (e.g. PUBLIC links).
+#   - The generic IMPORTED_LOCATION is the fallback used by the VS generator
+#     when computing linker inputs for *transitive* PRIVATE static-library
+#     dependencies (such as bot_creator → firebase_remote_config_plugin →
+#     firebase_remote_config).
+# Without updating both, the Debug library ends up on the Release link line.
 if(TARGET firebase_remote_config)
   get_target_property(_frc_debug_lib firebase_remote_config IMPORTED_LOCATION)
   if(_frc_debug_lib)
     string(REPLACE "Debug" "Release" _frc_release_lib "${_frc_debug_lib}")
+    message(STATUS
+      "[firebase_remote_config fix] Debug lib : ${_frc_debug_lib}")
+    message(STATUS
+      "[firebase_remote_config fix] Release lib: ${_frc_release_lib}")
     set_target_properties(firebase_remote_config PROPERTIES
+      # Generic property: used as fallback for transitive private deps in the
+      # VS multi-config generator → must point to Release so that non-Debug
+      # builds do not pull in debug-CRT symbols.
+      IMPORTED_LOCATION         "${_frc_release_lib}"
+      # Per-config properties: used for direct (PUBLIC/INTERFACE) dependencies.
       IMPORTED_LOCATION_DEBUG   "${_frc_debug_lib}"
       IMPORTED_LOCATION_RELEASE "${_frc_release_lib}"
       IMPORTED_LOCATION_PROFILE "${_frc_release_lib}"
     )
+  else()
+    message(WARNING
+      "[firebase_remote_config fix] IMPORTED_LOCATION not set; "
+      "Debug/Release CRT fix could not be applied.")
   endif()
+else()
+  message(WARNING
+    "[firebase_remote_config fix] firebase_remote_config target not found; "
+    "Debug/Release CRT fix was skipped.")
 endif()
 
 
