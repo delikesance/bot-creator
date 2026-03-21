@@ -162,7 +162,7 @@ const Map<String, String> appStringsFr = {
   'settings_runner_connected': 'Runner accessible ✓',
   'settings_runner_unreachable': 'Runner inaccessible',
   'settings_runner_connecting': 'Vérification de la connexion…',
-    'settings_runner_active': 'Runner API actif : {url}',
+  'settings_runner_active': 'Runner API actif : {url}',
   'settings_data_operations_title': 'Opérations de données',
   'settings_export': 'Exporter',
   'settings_import': 'Importer',

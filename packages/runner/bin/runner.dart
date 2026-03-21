@@ -9,12 +9,12 @@ import 'package:logging/logging.dart';
 const _usageHeader =
     'Bot Creator Runner\n'
     '\n'
-  'Runner API only.\n'
-  'Exposes a REST API used by the Bot Creator app to sync/start/stop bots.\n'
+    'Runner API only.\n'
+    'Exposes a REST API used by the Bot Creator app to sync/start/stop bots.\n'
     '\n'
     'Usage:\n'
-  '  dart run packages/runner/bin/runner.dart\n'
-  '  dart run packages/runner/bin/runner.dart --web-host 0.0.0.0 --web-port 8080\n';
+    '  dart run packages/runner/bin/runner.dart\n'
+    '  dart run packages/runner/bin/runner.dart --web-host 0.0.0.0 --web-port 8080\n';
 
 Future<void> main(List<String> args) async {
   final parser =
@@ -51,7 +51,9 @@ Future<void> main(List<String> args) async {
   final webHost = (results.option('web-host') ?? '').trim();
   final webPortRaw = (results.option('web-port') ?? '').trim();
   if (results.rest.isNotEmpty) {
-    stderr.writeln('Unexpected positional arguments: ${results.rest.join(' ')}');
+    stderr.writeln(
+      'Unexpected positional arguments: ${results.rest.join(' ')}',
+    );
     _printUsage(parser);
     exitCode = 64;
     return;

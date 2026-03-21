@@ -157,7 +157,7 @@ const Map<String, String> appStringsEn = {
   'settings_runner_connected': 'Runner reachable ✓',
   'settings_runner_unreachable': 'Runner unreachable',
   'settings_runner_connecting': 'Checking connection…',
-    'settings_runner_active': 'Active Runner API: {url}',
+  'settings_runner_active': 'Active Runner API: {url}',
   'settings_data_operations_title': 'Data Operations',
   'settings_export': 'Export',
   'settings_import': 'Import',
