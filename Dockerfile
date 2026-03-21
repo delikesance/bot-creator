@@ -38,4 +38,3 @@ EXPOSE 8080
 
 # Default mode: runner REST API.
 ENTRYPOINT ["/usr/local/bin/runner"]
-CMD ["--web"]
