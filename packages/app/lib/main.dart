@@ -20,7 +20,6 @@ import 'utils/analytics.dart';
 import 'utils/ad_reward_service.dart';
 import 'utils/i18n.dart';
 import 'utils/onboarding_manager.dart';
-import 'utils/remote_config_provider.dart';
 
 @pragma('vm:entry-point')
 late AppManager appManager;
@@ -184,17 +183,12 @@ Future<void> _bootstrapAndRunApp() async {
     appManager = AppManager();
     final prefs = await SharedPreferences.getInstance();
     final onboardingManager = OnboardingManager(prefs);
-    final remoteConfigProvider = RemoteConfigProvider();
-    await remoteConfigProvider.initialize(firebaseReady: firebaseReady);
 
     runApp(
       MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => ThemeProvider()),
           ChangeNotifierProvider(create: (_) => LocaleProvider()),
-          ChangeNotifierProvider<RemoteConfigProvider>.value(
-            value: remoteConfigProvider,
-          ),
           Provider(create: (_) => onboardingManager),
         ],
         child: const MyApp(),

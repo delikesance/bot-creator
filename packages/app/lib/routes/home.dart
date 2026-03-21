@@ -17,11 +17,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
-import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
 
-import 'package:bot_creator/utils/remote_config_provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -43,13 +41,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
 
-  Duration _runnerGetTimeout(RemoteConfigProvider remoteConfig) {
-    return remoteConfig.runnerGetTimeout;
-  }
-
-  Duration _runnerPostTimeout(RemoteConfigProvider remoteConfig) {
-    return remoteConfig.runnerPostTimeout;
-  }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -73,16 +64,14 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _initRunningState() async {
     final runningIds = <String>{};
-    final remoteConfig = context.read<RemoteConfigProvider>();
-
     final runnerUrl = await RunnerSettings.getUrl();
     if (runnerUrl != null && runnerUrl.isNotEmpty) {
       try {
         final status =
             await RunnerClient(
               baseUrl: runnerUrl,
-              getTimeout: _runnerGetTimeout(remoteConfig),
-              postTimeout: _runnerPostTimeout(remoteConfig),
+              getTimeout: const Duration(seconds: 30),
+              postTimeout: const Duration(seconds: 90),
             ).getStatus();
         for (final bot in status.bots) {
           if (bot.isRunning) {
@@ -175,19 +164,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     try {
       final isRunning = _runningBotIds.contains(botId);
-      final remoteConfig = context.read<RemoteConfigProvider>();
 
-      if (!isRunning && !remoteConfig.isBotRuntimeEnabled) {
-        throw Exception('Bot runtime is temporarily disabled.');
-      }
-
-      if (!isRunning && _runningBotIds.length >= remoteConfig.maxActiveBots) {
+      if (!isRunning && _runningBotIds.length >= 5) {
         throw Exception(
           AppStrings.tr(
             'error_with_details',
             params: {
-              'error':
-                  'Maximum active bots reached (${remoteConfig.maxActiveBots})',
+              'error': 'Maximum active bots reached (5)',
             },
           ),
         );
@@ -250,8 +233,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (runnerUrl != null && runnerUrl.isNotEmpty) {
         final client = RunnerClient(
           baseUrl: runnerUrl,
-          getTimeout: _runnerGetTimeout(remoteConfig),
-          postTimeout: _runnerPostTimeout(remoteConfig),
+          getTimeout: const Duration(seconds: 30),
+          postTimeout: const Duration(seconds: 90),
         );
         if (isRunning) {
           appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
@@ -322,7 +305,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           }
 
           await initForegroundService(
-            eventIntervalMs: remoteConfig.syncIntervalMs,
+            eventIntervalMs: 5000,
           );
           await startMobileBotSession(botId: botId, token: token);
 
@@ -392,9 +375,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return;
     }
 
-    if (!context.read<RemoteConfigProvider>().rewardedAdsEnabled) {
-      return;
-    }
 
     if (!await AdRewardService.shouldOfferRewardedAd()) {
       return;
@@ -475,7 +455,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final remoteConfig = context.watch<RemoteConfigProvider>();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -609,8 +588,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         final avatar = app['avatar']?.toString();
                         final guildCount = app['guild_count'] as int?;
                         final isRunning = _runningBotIds.contains(id);
-                        final runtimeToggleAllowed =
-                            remoteConfig.isBotRuntimeEnabled || isRunning;
+                        const runtimeToggleAllowed = true;
                         // En mode runner, plusieurs bots peuvent tourner en parallèle.
                         final canToggle =
                             runtimeToggleAllowed &&

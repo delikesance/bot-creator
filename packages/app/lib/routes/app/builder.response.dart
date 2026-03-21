@@ -1,9 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import '../../types/action.dart' show BotCreatorActionType;
 import '../../types/app_emoji.dart';
-import '../../utils/remote_config_provider.dart';
 import 'builder/action_types.dart';
 import 'builder/action_type_extension.dart';
 import 'builder/action_card.dart';
@@ -152,10 +150,9 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
 
   void _showAddActionDialog() {
     final maxHeight = MediaQuery.of(context).size.height * 0.7;
-    final remoteConfig = context.read<RemoteConfigProvider>();
-    final availableActionTypes = BotCreatorActionType.values
-        .where(remoteConfig.isActionEnabledForCurrentUser)
-        .toList(growable: false);
+    final availableActionTypes = BotCreatorActionType.values.toList(
+      growable: false,
+    );
     String searchQuery = '';
 
     showDialog(

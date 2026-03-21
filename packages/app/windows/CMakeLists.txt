@@ -58,24 +58,6 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
-# Workaround for firebase_core not including firebase_remote_config in its
-# debug/release library path fix (omitted in firebase_core 4.5.0).
-# The firebase_cpp_sdk_windows always defaults to linking the Debug variant
-# because CMAKE_BUILD_TYPE is unset for multi-config generators. This fix
-# mirrors what firebase_core already does for firebase_app/firebase_auth/etc.,
-# ensuring the Release variant is used for non-Debug build configurations.
-if(TARGET firebase_remote_config)
-  get_target_property(_frc_debug_lib firebase_remote_config IMPORTED_LOCATION)
-  if(_frc_debug_lib)
-    string(REPLACE "Debug" "Release" _frc_release_lib "${_frc_debug_lib}")
-    set_target_properties(firebase_remote_config PROPERTIES
-      IMPORTED_LOCATION_DEBUG   "${_frc_debug_lib}"
-      IMPORTED_LOCATION_RELEASE "${_frc_release_lib}"
-      IMPORTED_LOCATION_PROFILE "${_frc_release_lib}"
-    )
-  endif()
-endif()
-
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can
