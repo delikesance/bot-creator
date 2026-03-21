@@ -6,7 +6,6 @@ import 'package:bot_creator/utils/app_diagnostics.dart';
 import 'package:bot_creator/utils/drive.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/onboarding_manager.dart';
-import 'package:bot_creator/utils/remote_config_provider.dart';
 import 'package:bot_creator/utils/recovery_manager.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
@@ -178,11 +177,10 @@ class _SettingPageState extends State<SettingPage> {
       _runnerReachable = null;
     });
     try {
-      final remoteConfig = context.read<RemoteConfigProvider>();
       final client = RunnerClient(
         baseUrl: url,
-        getTimeout: remoteConfig.runnerGetTimeout,
-        postTimeout: remoteConfig.runnerPostTimeout,
+        getTimeout: const Duration(seconds: 30),
+        postTimeout: const Duration(seconds: 90),
       );
       final ok = await client.checkHealth();
       if (!mounted) return;

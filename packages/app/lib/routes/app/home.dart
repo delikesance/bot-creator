@@ -11,7 +11,6 @@ import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
-import 'package:bot_creator/utils/remote_config_provider.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/foundation.dart';
@@ -19,7 +18,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter/services.dart';
 import 'package:nyxx/nyxx.dart';
-import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
 
@@ -42,14 +40,11 @@ class _AppHomePageState extends State<AppHomePage>
 
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
 
-  RunnerClient _createRunnerClient(
-    RemoteConfigProvider remoteConfig,
-    String baseUrl,
-  ) {
+  RunnerClient _createRunnerClient(String baseUrl) {
     return RunnerClient(
       baseUrl: baseUrl,
-      getTimeout: remoteConfig.runnerGetTimeout,
-      postTimeout: remoteConfig.runnerPostTimeout,
+      getTimeout: const Duration(seconds: 30),
+      postTimeout: const Duration(seconds: 90),
     );
   }
 
@@ -83,8 +78,6 @@ class _AppHomePageState extends State<AppHomePage>
       return;
     }
 
-    final remoteConfig = context.read<RemoteConfigProvider>();
-
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
         channelId: 'foreground_service',
@@ -98,9 +91,7 @@ class _AppHomePageState extends State<AppHomePage>
         playSound: false,
       ),
       foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(
-          remoteConfig.syncIntervalMs,
-        ),
+        eventAction: ForegroundTaskEventAction.repeat(5000),
         autoRunOnBoot: false,
         autoRunOnMyPackageReplaced: false,
         allowWakeLock: true,
@@ -156,13 +147,12 @@ class _AppHomePageState extends State<AppHomePage>
   Future<void> _init() async {
     final botId = widget.client.user.id.toString();
     final app = await appManager.getApp(botId);
-    final remoteConfig = context.read<RemoteConfigProvider>();
     var isRunning = false;
     final runnerUrl = await RunnerSettings.getUrl();
     if (runnerUrl != null && runnerUrl.isNotEmpty) {
       try {
         final status =
-            await _createRunnerClient(remoteConfig, runnerUrl).getStatus();
+            await _createRunnerClient(runnerUrl).getStatus();
         isRunning = status.isBotRunning(botId);
       } catch (_) {
         isRunning = false;
@@ -277,15 +267,11 @@ class _AppHomePageState extends State<AppHomePage>
       return;
     }
 
-    if (!context.read<RemoteConfigProvider>().rewardedAdsEnabled) {
+    if (!AdRewardService.hasReadyRewardedAd) {
       return;
     }
 
     if (!await AdRewardService.shouldOfferRewardedAd()) {
-      return;
-    }
-
-    if (!AdRewardService.hasReadyRewardedAd) {
       return;
     }
 
@@ -358,8 +344,6 @@ class _AppHomePageState extends State<AppHomePage>
 
   @override
   Widget build(BuildContext context) {
-    final remoteConfig = context.watch<RemoteConfigProvider>();
-
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
@@ -412,17 +396,11 @@ class _AppHomePageState extends State<AppHomePage>
                               _botLaunched ? Colors.red : Colors.green,
                           minimumSize: const Size.fromHeight(44),
                         ),
-                        onPressed:
-                            (!_botLaunched && !remoteConfig.isBotRuntimeEnabled)
-                                ? null
-                                : () async {
+                        onPressed: () async {
                                   try {
                                     final app = await appManager.getApp(
                                       widget.client.user.id.toString(),
                                     );
-                                    final remoteConfig =
-                                        context.read<RemoteConfigProvider>();
-
                                     final token = app["token"]?.toString();
                                     if (token == null || token.trim().isEmpty) {
                                       throw Exception("Token not found");
@@ -430,13 +408,6 @@ class _AppHomePageState extends State<AppHomePage>
 
                                     final botId =
                                         widget.client.user.id.toString();
-
-                                    if (!_botLaunched &&
-                                        !remoteConfig.isBotRuntimeEnabled) {
-                                      throw Exception(
-                                        'Bot runtime is temporarily disabled.',
-                                      );
-                                    }
 
                                     if (!_botLaunched) {
                                       try {
@@ -496,7 +467,6 @@ class _AppHomePageState extends State<AppHomePage>
                                     if (runnerUrl != null &&
                                         runnerUrl.isNotEmpty) {
                                       final remoteClient = _createRunnerClient(
-                                        remoteConfig,
                                         runnerUrl,
                                       );
                                       if (_botLaunched) {

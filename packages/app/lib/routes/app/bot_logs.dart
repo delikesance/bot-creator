@@ -2,12 +2,10 @@ import 'dart:async';
 
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/i18n.dart';
-import 'package:bot_creator/utils/remote_config_provider.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
 
 class BotLogsPage extends StatefulWidget {
   const BotLogsPage({super.key, this.botId});
@@ -48,11 +46,10 @@ class _BotLogsPageState extends State<BotLogsPage> {
   }
 
   RunnerClient _createRunnerClient(String baseUrl) {
-    final remoteConfig = context.read<RemoteConfigProvider>();
     return RunnerClient(
       baseUrl: baseUrl,
-      getTimeout: remoteConfig.runnerGetTimeout,
-      postTimeout: remoteConfig.runnerPostTimeout,
+      getTimeout: const Duration(seconds: 30),
+      postTimeout: const Duration(seconds: 90),
     );
   }
 
