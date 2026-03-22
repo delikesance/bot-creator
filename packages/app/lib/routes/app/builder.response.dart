@@ -32,6 +32,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
   final List<ActionItem> _actions = [];
   final Map<String, int> _fieldRefreshVersions = {};
   int _actionCounter = 0;
+  String _desktopActionSearch = '';
 
   @override
   void initState() {
@@ -149,91 +150,120 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
   }
 
   void _showAddActionDialog() {
-    final maxHeight = MediaQuery.of(context).size.height * 0.7;
+    final mediaQuery = MediaQuery.of(context);
+    final isMobile = mediaQuery.size.width < 700;
     final availableActionTypes = BotCreatorActionType.values.toList(
       growable: false,
     );
     String searchQuery = '';
 
-    showDialog(
+    Widget selectorContent(
+      BuildContext dialogContext,
+      void Function(void Function()) setDialogState,
+    ) {
+      final actionsByCategory = <String, List<BotCreatorActionType>>{};
+
+      for (final actionType in availableActionTypes) {
+        if (searchQuery.isNotEmpty &&
+            !actionType.displayName.toLowerCase().contains(
+              searchQuery.toLowerCase(),
+            )) {
+          continue;
+        }
+        final category = _getCategoryForAction(actionType);
+        actionsByCategory.putIfAbsent(category, () => <BotCreatorActionType>[]);
+        actionsByCategory[category]!.add(actionType);
+      }
+
+      for (final entry in actionsByCategory.entries) {
+        entry.value.sort((a, b) => a.displayName.compareTo(b.displayName));
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            decoration: const InputDecoration(
+              hintText: 'Search actions...',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (value) {
+              setDialogState(() {
+                searchQuery = value;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child:
+                actionsByCategory.isEmpty
+                    ? const Center(child: Text('No actions match your search.'))
+                    : SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ...actionsByCategory.entries.map(
+                            (entry) =>
+                                _buildActionCategory(entry.key, entry.value),
+                          ),
+                        ],
+                      ),
+                    ),
+          ),
+          const SizedBox(height: 12),
+          if (isMobile)
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            )
+          else
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+            ),
+        ],
+      );
+    }
+
+    if (isMobile) {
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (sheetContext) {
+          return FractionallySizedBox(
+            heightFactor: 0.92,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: StatefulBuilder(
+                builder: (context, setDialogState) {
+                  return selectorContent(context, setDialogState);
+                },
+              ),
+            ),
+          );
+        },
+      );
+      return;
+    }
+
+    final maxHeight = mediaQuery.size.height * 0.8;
+    showDialog<void>(
       context: context,
-      builder: (context) {
+      builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // Rebuild the category list each time the search query changes
-            final actionsByCategory = <String, List<BotCreatorActionType>>{};
-
-            for (final actionType in availableActionTypes) {
-              if (searchQuery.isNotEmpty &&
-                  !actionType.displayName.toLowerCase().contains(
-                    searchQuery.toLowerCase(),
-                  )) {
-                continue; // Skip if it doesn't match the search
-              }
-              final category = _getCategoryForAction(actionType);
-              actionsByCategory.putIfAbsent(
-                category,
-                () => <BotCreatorActionType>[],
-              );
-              actionsByCategory[category]!.add(actionType);
-            }
-
-            for (final entry in actionsByCategory.entries) {
-              entry.value.sort(
-                (a, b) => a.displayName.compareTo(b.displayName),
-              );
-            }
-
             return AlertDialog(
               title: const Text('Add New Action'),
               content: SizedBox(
-                width: double.maxFinite,
+                width: 620,
                 height: maxHeight,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      decoration: const InputDecoration(
-                        hintText: 'Search actions...',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(),
-                      ),
-                      onChanged: (value) {
-                        setDialogState(() {
-                          searchQuery = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    Expanded(
-                      child:
-                          actionsByCategory.isEmpty
-                              ? const Center(
-                                child: Text('No actions match your search.'),
-                              )
-                              : SingleChildScrollView(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    ...actionsByCategory.entries.map(
-                                      (entry) => _buildActionCategory(
-                                        entry.key,
-                                        entry.value,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                    ),
-                  ],
-                ),
+                child: selectorContent(context, setDialogState),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-              ],
             );
           },
         );
@@ -555,8 +585,292 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
     }
   }
 
+  Widget _buildEmptyState({required bool isDesktop}) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.add_task, size: 64, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'No actions yet',
+            style: TextStyle(fontSize: 18, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isDesktop
+                ? 'Choose an action from the Action Library on the left.'
+                : 'Tap the + button to add your first action',
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionList({
+    required EdgeInsetsGeometry padding,
+    required double maxContentWidth,
+    required bool isDesktop,
+  }) {
+    if (_actions.isEmpty) {
+      return _buildEmptyState(isDesktop: isDesktop);
+    }
+
+    return ListView.builder(
+      padding: padding,
+      itemCount: _actions.length,
+      itemBuilder: (context, index) {
+        final action = _actions[index];
+        final computedActionKey =
+            (action.parameters['key'] ?? action.id).toString().trim();
+
+        return Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxContentWidth),
+            child: ActionCard(
+              key: ValueKey('action-card-${action.id}-$index'),
+              action: action,
+              index: index,
+              totalCount: _actions.length,
+              actionKey:
+                  computedActionKey.isNotEmpty
+                      ? computedActionKey
+                      : action.type.name,
+              onRemove: () => _removeAction(action.id),
+              onMoveUp: index > 0 ? () => _moveAction(index, index - 1) : null,
+              onMoveDown:
+                  index < _actions.length - 1
+                      ? () => _moveAction(index, index + 1)
+                      : null,
+              variableSuggestions: widget.variableSuggestions,
+              emojiSuggestions: widget.emojiSuggestions,
+              botIdForConfig: widget.botIdForConfig,
+              fieldRefreshVersionOf:
+                  (paramKey) =>
+                      _fieldRefreshVersions['${action.id}::$paramKey'] ?? 0,
+              onSuggestionSelected:
+                  (key, value) => _updateActionParameter(
+                    action.id,
+                    key,
+                    value,
+                    forceFieldRefresh: true,
+                  ),
+              onParameterChanged:
+                  (key, value) => _updateActionParameter(action.id, key, value),
+              onEditNestedActions: (current, suggestions) async {
+                return await Navigator.push<List<Map<String, dynamic>>>(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (_) => ActionsBuilderPage(
+                          initialActions: current,
+                          variableSuggestions: suggestions,
+                          botIdForConfig: widget.botIdForConfig,
+                        ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDesktopActionLibrary() {
+    final allActions = BotCreatorActionType.values.toList(growable: false);
+    final filteredByCategory = <String, List<BotCreatorActionType>>{};
+
+    for (final actionType in allActions) {
+      if (_desktopActionSearch.isNotEmpty &&
+          !actionType.displayName.toLowerCase().contains(
+            _desktopActionSearch.toLowerCase(),
+          )) {
+        continue;
+      }
+
+      final category = _getCategoryForAction(actionType);
+      filteredByCategory.putIfAbsent(category, () => <BotCreatorActionType>[]);
+      filteredByCategory[category]!.add(actionType);
+    }
+
+    for (final entry in filteredByCategory.entries) {
+      entry.value.sort((a, b) => a.displayName.compareTo(b.displayName));
+    }
+
+    final sortedEntries = filteredByCategory.entries.toList(growable: false)
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    return SafeArea(
+      right: false,
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Action Library',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Add blocks to your workflow',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  onChanged: (value) {
+                    setState(() {
+                      _desktopActionSearch = value;
+                    });
+                  },
+                  decoration: const InputDecoration(
+                    hintText: 'Search actions...',
+                    prefixIcon: Icon(Icons.search),
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child:
+                      sortedEntries.isEmpty
+                          ? const Center(child: Text('No actions found.'))
+                          : ListView(
+                            children: [
+                              for (final entry in sortedEntries) ...[
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Text(
+                                    entry.key,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: _getCategoryColor(entry.key),
+                                    ),
+                                  ),
+                                ),
+                                ...entry.value.map(
+                                  (type) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 8),
+                                    child: OutlinedButton.icon(
+                                      onPressed: () => _addAction(type),
+                                      icon: Icon(type.icon, size: 18),
+                                      label: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          type.displayName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      style: OutlinedButton.styleFrom(
+                                        alignment: Alignment.centerLeft,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 12,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                              ],
+                            ],
+                          ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isMobileLayout = MediaQuery.of(context).size.width < 900;
+
+    Widget saveButton() {
+      return ElevatedButton.icon(
+        onPressed: _saveActions,
+        icon: const Icon(Icons.save),
+        label: Text('Save ${_actions.length} Actions'),
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+        ),
+      );
+    }
+
+    Widget mobileBody() {
+      return Column(
+        children: [
+          Expanded(
+            child: _buildActionList(
+              padding: const EdgeInsets.all(16),
+              maxContentWidth: double.infinity,
+              isDesktop: false,
+            ),
+          ),
+          if (_actions.isNotEmpty)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                child: SizedBox(width: double.infinity, child: saveButton()),
+              ),
+            ),
+        ],
+      );
+    }
+
+    Widget desktopBody() {
+      return Row(
+        children: [
+          SizedBox(width: 340, child: _buildDesktopActionLibrary()),
+          VerticalDivider(width: 1, color: Colors.grey.shade800),
+          Expanded(
+            child: Column(
+              children: [
+                Expanded(
+                  child: _buildActionList(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                    maxContentWidth: 980,
+                    isDesktop: true,
+                  ),
+                ),
+                if (_actions.isNotEmpty)
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 360),
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: saveButton(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Actions Builder'),
@@ -568,113 +882,14 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
           ),
         ],
       ),
-      body:
-          _actions.isEmpty
-              ? const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.add_task, size: 64, color: Colors.grey),
-                    SizedBox(height: 16),
-                    Text(
-                      'No actions yet',
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Tap the + button to add your first action',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  ],
-                ),
+      body: isMobileLayout ? mobileBody() : desktopBody(),
+      floatingActionButton:
+          isMobileLayout
+              ? FloatingActionButton(
+                onPressed: _showAddActionDialog,
+                child: const Icon(Icons.add),
               )
-              : Column(
-                children: [
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.all(16),
-                      itemCount: _actions.length,
-                      itemBuilder: (context, index) {
-                        final action = _actions[index];
-                        final computedActionKey =
-                            (action.parameters['key'] ?? action.id)
-                                .toString()
-                                .trim();
-                        return ActionCard(
-                          key: ValueKey('action-card-${action.id}-$index'),
-                          action: action,
-                          index: index,
-                          totalCount: _actions.length,
-                          actionKey:
-                              computedActionKey.isNotEmpty
-                                  ? computedActionKey
-                                  : action.type.name,
-                          onRemove: () => _removeAction(action.id),
-                          onMoveUp:
-                              index > 0
-                                  ? () => _moveAction(index, index - 1)
-                                  : null,
-                          onMoveDown:
-                              index < _actions.length - 1
-                                  ? () => _moveAction(index, index + 1)
-                                  : null,
-                          variableSuggestions: widget.variableSuggestions,
-                          emojiSuggestions: widget.emojiSuggestions,
-                          botIdForConfig: widget.botIdForConfig,
-                          fieldRefreshVersionOf:
-                              (paramKey) =>
-                                  _fieldRefreshVersions['${action.id}::$paramKey'] ??
-                                  0,
-                          onSuggestionSelected:
-                              (key, value) => _updateActionParameter(
-                                action.id,
-                                key,
-                                value,
-                                forceFieldRefresh: true,
-                              ),
-                          onParameterChanged:
-                              (key, value) =>
-                                  _updateActionParameter(action.id, key, value),
-                          onEditNestedActions: (current, suggestions) async {
-                            return await Navigator.push<
-                              List<Map<String, dynamic>>
-                            >(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (_) => ActionsBuilderPage(
-                                      initialActions: current,
-                                      variableSuggestions: suggestions,
-                                      botIdForConfig: widget.botIdForConfig,
-                                    ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  if (_actions.isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      child: ElevatedButton.icon(
-                        onPressed: _saveActions,
-                        icon: const Icon(Icons.save),
-                        label: Text('Save ${_actions.length} Actions'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _showAddActionDialog,
-        child: const Icon(Icons.add),
-      ),
+              : null,
     );
   }
 }

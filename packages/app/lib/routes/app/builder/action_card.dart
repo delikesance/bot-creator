@@ -148,6 +148,7 @@ class ActionCard extends StatelessWidget {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: action.onErrorMode,
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'On Error',
                       border: OutlineInputBorder(),
@@ -694,6 +695,7 @@ class ActionCard extends StatelessWidget {
             DropdownButtonFormField<String>(
               initialValue:
                   currentValue?.toString() ?? paramDef.defaultValue.toString(),
+              isExpanded: true,
               decoration: InputDecoration(
                 hintText: _localizeHint(paramDef.hint),
                 border: const OutlineInputBorder(),
@@ -701,7 +703,10 @@ class ActionCard extends StatelessWidget {
               ),
               items:
                   paramDef.options?.map((option) {
-                    return DropdownMenuItem(value: option, child: Text(option));
+                    return DropdownMenuItem(
+                      value: option,
+                      child: Text(option, overflow: TextOverflow.ellipsis),
+                    );
                   }).toList(),
               onChanged:
                   (newValue) => onParameterChanged(paramDef.key, newValue),
@@ -977,100 +982,191 @@ class ActionCard extends StatelessWidget {
             _localizeHint(paramDef.hint) ?? _formatParameterName(paramDef.key);
         final blockColor =
             paramDef.key == 'thenActions' ? Colors.green : Colors.orange;
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: blockColor.withValues(alpha: 0.5)),
-            borderRadius: BorderRadius.circular(8),
-            color: blockColor.withValues(alpha: 0.05),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    paramDef.key == 'thenActions'
-                        ? Icons.check_circle_outline
-                        : Icons.cancel_outlined,
-                    color: blockColor,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      blockLabel,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: blockColor,
-                      ),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed:
-                        onEditNestedActions == null
-                            ? null
-                            : () async {
-                              final result = await onEditNestedActions!(
-                                nestedList,
-                                variableSuggestions,
-                              );
-                              if (result != null) {
-                                onParameterChanged(paramDef.key, result);
-                              }
-                            },
-                    icon: const Icon(Icons.edit, size: 15),
-                    label: Text(
-                      'Edit (${nestedList.length})',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: blockColor.withValues(alpha: 0.15),
-                      foregroundColor: blockColor,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                    ),
-                  ),
-                ],
+
+        Future<void> openNestedEditor() async {
+          if (onEditNestedActions == null) {
+            return;
+          }
+
+          final result = await onEditNestedActions!(
+            nestedList,
+            variableSuggestions,
+          );
+          if (result != null) {
+            onParameterChanged(paramDef.key, result);
+          }
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 560;
+
+            final editButton = FilledButton.tonalIcon(
+              onPressed: onEditNestedActions == null ? null : openNestedEditor,
+              icon: const Icon(Icons.edit, size: 15),
+              label: Text(
+                isCompact
+                    ? 'Edit ${nestedList.length}'
+                    : 'Edit (${nestedList.length})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13),
               ),
-              if (nestedList.isNotEmpty)
-                ...nestedList
-                    .take(3)
-                    .map(
-                      (a) => Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.arrow_right,
-                              size: 16,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              a['type']?.toString() ?? '?',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              style: FilledButton.styleFrom(
+                backgroundColor: blockColor.withValues(alpha: 0.16),
+                foregroundColor: blockColor,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+            );
+
+            return Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                onTap: onEditNestedActions == null ? null : openNestedEditor,
+                borderRadius: BorderRadius.circular(10),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: blockColor.withValues(alpha: 0.5),
                     ),
-              if (nestedList.length > 3)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, left: 20),
-                  child: Text(
-                    '… and ${nestedList.length - 3} more',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    borderRadius: BorderRadius.circular(10),
+                    color: blockColor.withValues(alpha: 0.05),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isCompact) ...[
+                          Row(
+                            children: [
+                              Icon(
+                                paramDef.key == 'thenActions'
+                                    ? Icons.check_circle_outline
+                                    : Icons.cancel_outlined,
+                                color: blockColor,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  blockLabel,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: blockColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(width: double.infinity, child: editButton),
+                        ] else
+                          Row(
+                            children: [
+                              Icon(
+                                paramDef.key == 'thenActions'
+                                    ? Icons.check_circle_outline
+                                    : Icons.cancel_outlined,
+                                color: blockColor,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  blockLabel,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: blockColor,
+                                  ),
+                                ),
+                              ),
+                              editButton,
+                            ],
+                          ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: blockColor.withValues(alpha: 0.08),
+                          ),
+                          child:
+                              nestedList.isEmpty
+                                  ? Text(
+                                    'No actions in this branch yet.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  )
+                                  : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      ...nestedList
+                                          .take(3)
+                                          .map(
+                                            (a) => Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 4,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.arrow_right,
+                                                    size: 16,
+                                                    color: Colors.grey,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      a['type']?.toString() ??
+                                                          '?',
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                      if (nestedList.length > 3)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 20,
+                                          ),
+                                          child: Text(
+                                            '… and ${nestedList.length - 3} more',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-            ],
-          ),
+              ),
+            );
+          },
         );
 
       case ParameterType.componentV2:
