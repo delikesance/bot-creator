@@ -30,7 +30,7 @@ COPY --from=builder /out/runner /usr/local/bin/runner
 # Persistent runtime data (synced bot configs + logs)
 ENV BOT_CREATOR_DATA_DIR=/data/bots
 ENV BOT_CREATOR_RUNNER_LOG_FILE=/data/logs/runner.log
-ENV BOT_CREATOR_WEB_HOST=0.0.0.0
+ENV BOT_CREATOR_WEB_HOST=127.0.0.1
 ENV BOT_CREATOR_WEB_PORT=8080
 
 VOLUME ["/data"]

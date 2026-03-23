@@ -12,7 +12,6 @@ import 'package:bot_creator/utils/ad_reward_service.dart';
 import 'package:bot_creator/utils/ads_placement_policy.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
 import 'package:bot_creator/utils/global.dart';
-import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:bot_creator/widgets/native_ad_slot.dart';
 import 'package:flutter/foundation.dart';
@@ -64,15 +63,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _initRunningState() async {
     final runningIds = <String>{};
-    final runnerUrl = await RunnerSettings.getUrl();
-    if (runnerUrl != null && runnerUrl.isNotEmpty) {
+    final runnerClient = await RunnerSettings.createClient(
+      getTimeout: const Duration(seconds: 30),
+      postTimeout: const Duration(seconds: 90),
+    );
+    if (runnerClient != null) {
       try {
-        final status =
-            await RunnerClient(
-              baseUrl: runnerUrl,
-              getTimeout: const Duration(seconds: 30),
-              postTimeout: const Duration(seconds: 90),
-            ).getStatus();
+        final status = await runnerClient.getStatus();
         for (final bot in status.bots) {
           if (bot.isRunning) {
             runningIds.add(bot.botId);
@@ -177,8 +174,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       // ── Fetch + validate token before anything else (only when starting) ──
       String? token;
       if (!isRunning) {
-        final runnerUrl = await RunnerSettings.getUrl();
-        final usingRunner = runnerUrl != null && runnerUrl.isNotEmpty;
+        final usingRunner = await RunnerSettings.getConfig() != null;
 
         if (!usingRunner) {
           final app = await appManager.getApp(botId);
@@ -227,13 +223,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       }
 
       // ── Runner API (API only) ─────────────────────────────────────────────
-      final runnerUrl = await RunnerSettings.getUrl();
-      if (runnerUrl != null && runnerUrl.isNotEmpty) {
-        final client = RunnerClient(
-          baseUrl: runnerUrl,
-          getTimeout: const Duration(seconds: 30),
-          postTimeout: const Duration(seconds: 90),
-        );
+      final client = await RunnerSettings.createClient(
+        getTimeout: const Duration(seconds: 30),
+        postTimeout: const Duration(seconds: 90),
+      );
+      if (client != null) {
         if (isRunning) {
           appendBotLog('Bot stop requested', botId: botId);
           await client.stopBot(botId);

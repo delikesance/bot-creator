@@ -11,7 +11,6 @@ import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
-import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -39,14 +38,6 @@ class _AppHomePageState extends State<AppHomePage>
   void Function(Object)? _taskDataCallback;
 
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
-
-  RunnerClient _createRunnerClient(String baseUrl) {
-    return RunnerClient(
-      baseUrl: baseUrl,
-      getTimeout: const Duration(seconds: 30),
-      postTimeout: const Duration(seconds: 90),
-    );
-  }
 
   Future<void> _requestPermissions() async {
     if (!_supportsForegroundTask) {
@@ -148,10 +139,13 @@ class _AppHomePageState extends State<AppHomePage>
     final botId = widget.client.user.id.toString();
     final app = await appManager.getApp(botId);
     var isRunning = false;
-    final runnerUrl = await RunnerSettings.getUrl();
-    if (runnerUrl != null && runnerUrl.isNotEmpty) {
+    final runnerClient = await RunnerSettings.createClient(
+      getTimeout: const Duration(seconds: 30),
+      postTimeout: const Duration(seconds: 90),
+    );
+    if (runnerClient != null) {
       try {
-        final status = await _createRunnerClient(runnerUrl).getStatus();
+        final status = await runnerClient.getStatus();
         isRunning = status.isBotRunning(botId);
       } catch (_) {
         isRunning = false;
@@ -458,11 +452,12 @@ class _AppHomePageState extends State<AppHomePage>
                             }
 
                             // ── Runner API (API only) ────────────────────────────
-                            final runnerUrl = await RunnerSettings.getUrl();
-                            if (runnerUrl != null && runnerUrl.isNotEmpty) {
-                              final remoteClient = _createRunnerClient(
-                                runnerUrl,
-                              );
+                            final remoteClient =
+                                await RunnerSettings.createClient(
+                                  getTimeout: const Duration(seconds: 30),
+                                  postTimeout: const Duration(seconds: 90),
+                                );
+                            if (remoteClient != null) {
                               if (_botLaunched) {
                                 appendBotLog(
                                   'Bot stop requested',

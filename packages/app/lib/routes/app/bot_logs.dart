@@ -45,18 +45,12 @@ class _BotLogsPageState extends State<BotLogsPage> {
     super.dispose();
   }
 
-  RunnerClient _createRunnerClient(String baseUrl) {
-    return RunnerClient(
-      baseUrl: baseUrl,
+  Future<void> _initRunnerPolling() async {
+    final client = await RunnerSettings.createClient(
       getTimeout: const Duration(seconds: 30),
       postTimeout: const Duration(seconds: 90),
     );
-  }
-
-  Future<void> _initRunnerPolling() async {
-    final url = await RunnerSettings.getUrl();
-    if (!mounted || url == null || url.isEmpty) return;
-    final client = _createRunnerClient(url);
+    if (!mounted || client == null) return;
     await _pollRunnerData(client);
     _runnerPollTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
       if (mounted) {

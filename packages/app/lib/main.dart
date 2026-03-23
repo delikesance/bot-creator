@@ -66,19 +66,7 @@ bool get _isCrashlyticsSupported {
 }
 
 Future<void> main() async {
-  // On desktop platforms - especially Windows - the built-in certificate
-  // bundle used by BoringSSL does not necessarily include all of the root
-  // authorities that the operating system trusts.  This can lead to
-  // `HandshakeException` errors such as the one shown in the screenshot:
-  //
-  //   CERTIFICATE_VERIFY_FAILED: unable to get local issuer certificate
-  //
-  // During development we don't want invalid certs to completely break the
-  // app, so we install a global `HttpOverrides` that will allow an
-  // insecure connection on Windows.  In release builds you should either
-  // remove this override or supply the proper certificate to
-  // `SecurityContext` instead of bypassing verification.
-  HttpOverrides.global = _MyHttpOverrides();
+  HttpOverrides.global = _WindowsHttpOverrides();
 
   await runZonedGuarded(
     () async {
@@ -112,11 +100,8 @@ Future<void> main() async {
   );
 }
 
-/// An [HttpOverrides] implementation that accepts all certificates on
-/// Windows.  We scope the change to Windows to avoid hiding real network
-/// problems on other platforms where the system certificate store is
-/// trusted.
-class _MyHttpOverrides extends HttpOverrides {
+/// Windows TLS compatibility override.
+class _WindowsHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     final client = super.createHttpClient(context);

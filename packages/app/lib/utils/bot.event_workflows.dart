@@ -558,12 +558,20 @@ Future<void> _executeLocalEventWorkflow(
     ...context.variables,
     'workflow.type': workflowTypeEvent,
   };
-  final globalVars = await manager.getGlobalVariables(botId);
-  for (final entry in globalVars.entries) {
-    runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
-      entry.value,
-    );
-  }
+  await hydrateRuntimeVariables(
+    store: manager,
+    botId: botId,
+    runtimeVariables: runtimeVariables,
+    guildContextId: context.variables['guildId'] ?? context.guildId?.toString(),
+    channelContextId:
+        context.variables['channelId'] ?? context.channelId?.toString(),
+    userContextId:
+        context.variables['userId'] ?? context.variables['author.id'],
+    messageContextId:
+        context.variables['messageId'] ??
+        context.variables['message.id'] ??
+        context.variables['event.id'],
+  );
 
   applyWorkflowInvocationContext(
     variables: runtimeVariables,

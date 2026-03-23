@@ -716,6 +716,45 @@ class AppManager implements BotDataStore {
     return result;
   }
 
+  Future<Map<String, Map<String, Map<String, dynamic>>>> exportScopedVariables(
+    String botId,
+  ) async {
+    const scopes = <String>[
+      'guild',
+      'channel',
+      'user',
+      'guildMember',
+      'message',
+    ];
+
+    final exported = <String, Map<String, Map<String, dynamic>>>{};
+    for (final scope in scopes) {
+      final contextIds = await _variableStore.listContextIds(botId, scope);
+      if (contextIds.isEmpty) {
+        continue;
+      }
+
+      final scopeValues = <String, Map<String, dynamic>>{};
+      for (final contextId in contextIds) {
+        final values = await _variableStore.getScopedVariables(
+          botId,
+          scope,
+          contextId,
+        );
+        if (values.isEmpty) {
+          continue;
+        }
+        scopeValues[contextId] = Map<String, dynamic>.from(values);
+      }
+
+      if (scopeValues.isNotEmpty) {
+        exported[scope] = scopeValues;
+      }
+    }
+
+    return exported;
+  }
+
   Future<List<Map<String, dynamic>>> getWorkflows(String id) async {
     final app = await getApp(id);
     final rawWorkflows = _coerceWorkflowList(app['workflows']);

@@ -151,15 +151,23 @@ const Map<String, String> appStringsFr = {
   // Runner API (API only)
   'settings_runner_title': 'Runner API',
   'settings_runner_desc':
-      "Connecte l'application à un Bot Creator Runner distant (API uniquement). "
-      "Lorsque configuré, les boutons Lancer/Arrêter et les logs utilisent l'API Runner.",
+      "Connecte l'application à un Bot Creator Runner. Un runner distant doit rester sur "
+      'un réseau de confiance et utiliser un jeton bearer.',
   'settings_runner_url_hint': 'http://192.168.1.x:8080',
+  'settings_runner_token_label': 'Jeton API du runner',
+  'settings_runner_token_hint':
+      'Jeton bearer (optionnel si le runner reste en localhost)',
+  'settings_runner_save': 'Enregistrer',
+  'settings_runner_clear': 'Effacer',
+  'settings_runner_saved': 'Paramètres du runner enregistrés',
+  'settings_runner_cleared': 'Paramètres du runner effacés',
   'settings_runner_url_save': "Enregistrer l'URL",
   'settings_runner_url_clear': 'Effacer',
   'settings_runner_url_saved': 'URL du runner enregistrée',
   'settings_runner_url_cleared': 'URL du runner effacée',
   'settings_runner_check': 'Tester la connexion',
   'settings_runner_connected': 'Runner accessible ✓',
+  'settings_runner_auth_failed': 'Le runner a refusé le jeton API',
   'settings_runner_unreachable': 'Runner inaccessible',
   'settings_runner_connecting': 'Vérification de la connexion…',
   'settings_runner_active': 'Runner API actif : {url}',

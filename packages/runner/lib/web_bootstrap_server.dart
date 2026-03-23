@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:bot_creator_shared/bot/bot_config.dart';
 import 'package:bot_creator_runner/runner_runtime_controller.dart';
 import 'package:bot_creator_runner/web_log_store.dart';
+import 'package:bot_creator_runner/web_runtime_config.dart';
 
 class _CpuSample {
   const _CpuSample({required this.jiffies, required this.timestampMs});
@@ -15,7 +16,8 @@ class _CpuSample {
 
 /// HTTP API server for the Bot Creator Runner.
 ///
-/// All endpoints return JSON. There is no authentication in MVP.
+/// All endpoints return JSON. `/health` stays public; protected endpoints use
+/// bearer auth when an API token is configured.
 ///
 /// Endpoints
 /// ---------
@@ -34,11 +36,14 @@ class RunnerWebBootstrapServer {
   RunnerWebBootstrapServer({
     required this.host,
     required this.port,
+    String? apiToken,
     required this.logStore,
-  }) : _runtimeController = RunnerRuntimeController();
+  }) : _apiToken = normalizeRunnerApiToken(apiToken),
+       _runtimeController = RunnerRuntimeController();
 
   final String host;
   final int port;
+  final String _apiToken;
   final RunnerLogStore logStore;
 
   final RunnerRuntimeController _runtimeController;
@@ -84,11 +89,22 @@ class RunnerWebBootstrapServer {
     request.response.headers
       ..set('access-control-allow-origin', '*')
       ..set('access-control-allow-methods', 'GET, POST, OPTIONS')
-      ..set('access-control-allow-headers', 'content-type');
+      ..set('access-control-allow-headers', 'content-type, authorization');
 
     if (request.method == 'OPTIONS') {
       request.response.statusCode = HttpStatus.noContent;
       await request.response.close();
+      return;
+    }
+
+    if (_requiresAuthentication(request) && !_isAuthorized(request)) {
+      request.response.headers.set(
+        HttpHeaders.wwwAuthenticateHeader,
+        'Bearer realm="bot-creator-runner"',
+      );
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing or invalid bearer token.',
+      }, statusCode: HttpStatus.unauthorized);
       return;
     }
 
@@ -403,6 +419,29 @@ class RunnerWebBootstrapServer {
       return Uri.decodeComponent(parts[1]);
     }
     return null;
+  }
+
+  bool _requiresAuthentication(HttpRequest request) {
+    if (_apiToken.isEmpty) {
+      return false;
+    }
+
+    return !(request.method == 'GET' && request.uri.path == '/health');
+  }
+
+  bool _isAuthorized(HttpRequest request) {
+    final header = request.headers.value(HttpHeaders.authorizationHeader);
+    if (header == null) {
+      return false;
+    }
+
+    const prefix = 'Bearer ';
+    if (!header.startsWith(prefix)) {
+      return false;
+    }
+
+    final token = normalizeRunnerApiToken(header.substring(prefix.length));
+    return token == _apiToken;
   }
 
   Future<Map<String, dynamic>> _readJsonBody(HttpRequest request) async {

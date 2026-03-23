@@ -458,6 +458,16 @@ class SqliteCliVariableStore implements VariableDatabase {
     return contextIds;
   }
 
+  Future<bool> hasAnyVariablesForBot(String botId) async {
+    await init();
+    final stmt = _db.prepare(
+      'SELECT 1 FROM variables WHERE bot_id = ? LIMIT 1',
+    );
+    final rows = stmt.select([botId]);
+    stmt.dispose();
+    return rows.isNotEmpty;
+  }
+
   @override
   Future<Map<String, dynamic>> queryScopedVariableIndex(
     String botId,

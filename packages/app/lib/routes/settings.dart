@@ -34,8 +34,11 @@ class _SettingPageState extends State<SettingPage> {
 
   // Developer mode state
   final TextEditingController _runnerUrlController = TextEditingController();
+  final TextEditingController _runnerApiTokenController =
+      TextEditingController();
   bool _checkingRunner = false;
-  bool? _runnerReachable;
+  String? _runnerStatusKey;
+  bool _runnerTokenObscured = true;
   bool _checkingAdPrivacy = false;
   bool _adPrivacyRequired = false;
   bool _developerSectionExpanded = false;
@@ -80,7 +83,7 @@ class _SettingPageState extends State<SettingPage> {
     super.initState();
     _loadRecoverySettings();
     _initializeDriveApi();
-    _loadRunnerUrl();
+    _loadRunnerSettings();
     _loadAdPrivacyRequirement();
   }
 
@@ -136,30 +139,32 @@ class _SettingPageState extends State<SettingPage> {
     // La connexion à Google Drive se fait uniquement sur action de l'utilisateur.
   }
 
-  Future<void> _loadRunnerUrl() async {
-    final url = await RunnerSettings.getUrl();
+  Future<void> _loadRunnerSettings() async {
+    final config = await RunnerSettings.getConfig();
     if (!mounted) return;
     setState(() {
-      _runnerUrlController.text = url ?? '';
+      _runnerUrlController.text = config?.url ?? '';
+      _runnerApiTokenController.text = config?.apiToken ?? '';
     });
-    if (url != null && url.isNotEmpty) {
+    if (config != null) {
       await _checkRunnerConnection();
     }
   }
 
-  Future<void> _saveRunnerUrl() async {
+  Future<void> _saveRunnerSettings() async {
     final url = _runnerUrlController.text.trim();
-    await RunnerSettings.setUrl(url);
+    final apiToken = _runnerApiTokenController.text.trim();
+    await RunnerSettings.save(url: url, apiToken: apiToken);
     if (!mounted) return;
     setState(() {
-      _runnerReachable = null;
+      _runnerStatusKey = null;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          url.isEmpty
-              ? AppStrings.t('settings_runner_url_cleared')
-              : AppStrings.t('settings_runner_url_saved'),
+          url.isEmpty && apiToken.isEmpty
+              ? AppStrings.t('settings_runner_cleared')
+              : AppStrings.t('settings_runner_saved'),
         ),
       ),
     );
@@ -174,24 +179,35 @@ class _SettingPageState extends State<SettingPage> {
     if (!mounted) return;
     setState(() {
       _checkingRunner = true;
-      _runnerReachable = null;
+      _runnerStatusKey = null;
     });
     try {
-      final client = RunnerClient(
-        baseUrl: url,
+      final client = RunnerConnectionConfig(
+        url: url,
+        apiToken: _runnerApiTokenController.text.trim(),
+      ).createClient(
         getTimeout: const Duration(seconds: 30),
         postTimeout: const Duration(seconds: 90),
       );
-      final ok = await client.checkHealth();
+      await client.getStatus();
       if (!mounted) return;
       setState(() {
-        _runnerReachable = ok;
+        _runnerStatusKey = 'settings_runner_connected';
+        _checkingRunner = false;
+      });
+    } on RunnerClientException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _runnerStatusKey =
+            error.statusCode == 401 || error.statusCode == 403
+                ? 'settings_runner_auth_failed'
+                : 'settings_runner_unreachable';
         _checkingRunner = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _runnerReachable = false;
+        _runnerStatusKey = 'settings_runner_unreachable';
         _checkingRunner = false;
       });
     }
@@ -200,6 +216,7 @@ class _SettingPageState extends State<SettingPage> {
   @override
   void dispose() {
     _runnerUrlController.dispose();
+    _runnerApiTokenController.dispose();
     super.dispose();
   }
 
@@ -1010,19 +1027,16 @@ class _SettingPageState extends State<SettingPage> {
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       subtitle:
-                          _runnerReachable == null
+                          _runnerStatusKey == null
                               ? null
                               : Text(
-                                _runnerReachable!
-                                    ? AppStrings.t('settings_runner_connected')
-                                    : AppStrings.t(
-                                      'settings_runner_unreachable',
-                                    ),
+                                AppStrings.t(_runnerStatusKey!),
                                 style: Theme.of(
                                   context,
                                 ).textTheme.bodySmall?.copyWith(
                                   color:
-                                      _runnerReachable!
+                                      _runnerStatusKey ==
+                                              'settings_runner_connected'
                                           ? Colors.green[400]
                                           : Colors.red[400],
                                 ),
@@ -1055,14 +1069,16 @@ class _SettingPageState extends State<SettingPage> {
                                         ),
                                       ),
                                     )
-                                    : (_runnerReachable == null
+                                    : (_runnerStatusKey == null
                                         ? null
                                         : Icon(
-                                          _runnerReachable!
+                                          _runnerStatusKey ==
+                                                  'settings_runner_connected'
                                               ? Icons.check_circle
                                               : Icons.error_outline,
                                           color:
-                                              _runnerReachable!
+                                              _runnerStatusKey ==
+                                                      'settings_runner_connected'
                                                   ? Colors.green[400]
                                                   : Colors.red[400],
                                           size: 18,
@@ -1072,6 +1088,35 @@ class _SettingPageState extends State<SettingPage> {
                           autocorrect: false,
                         ),
                         const SizedBox(height: 12),
+                        TextField(
+                          controller: _runnerApiTokenController,
+                          decoration: InputDecoration(
+                            labelText: AppStrings.t(
+                              'settings_runner_token_label',
+                            ),
+                            hintText: AppStrings.t(
+                              'settings_runner_token_hint',
+                            ),
+                            isDense: true,
+                            border: const OutlineInputBorder(),
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _runnerTokenObscured = !_runnerTokenObscured;
+                                });
+                              },
+                              icon: Icon(
+                                _runnerTokenObscured
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                          autocorrect: false,
+                          obscureText: _runnerTokenObscured,
+                        ),
+                        const SizedBox(height: 12),
                         if (isMobile) ...[
                           SizedBox(
                             width: double.infinity,
@@ -1079,11 +1124,9 @@ class _SettingPageState extends State<SettingPage> {
                               onPressed:
                                   _isBusy || _checkingRunner
                                       ? null
-                                      : _saveRunnerUrl,
+                                      : _saveRunnerSettings,
                               icon: const Icon(Icons.save_outlined, size: 18),
-                              label: Text(
-                                AppStrings.t('settings_runner_url_save'),
-                              ),
+                              label: Text(AppStrings.t('settings_runner_save')),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -1124,11 +1167,12 @@ class _SettingPageState extends State<SettingPage> {
                                       ? null
                                       : () {
                                         _runnerUrlController.clear();
-                                        _saveRunnerUrl();
+                                        _runnerApiTokenController.clear();
+                                        _saveRunnerSettings();
                                       },
                               icon: const Icon(Icons.clear, size: 18),
                               label: Text(
-                                AppStrings.t('settings_runner_url_clear'),
+                                AppStrings.t('settings_runner_clear'),
                               ),
                             ),
                           ),
@@ -1140,13 +1184,13 @@ class _SettingPageState extends State<SettingPage> {
                                   onPressed:
                                       _isBusy || _checkingRunner
                                           ? null
-                                          : _saveRunnerUrl,
+                                          : _saveRunnerSettings,
                                   icon: const Icon(
                                     Icons.save_outlined,
                                     size: 18,
                                   ),
                                   label: Text(
-                                    AppStrings.t('settings_runner_url_save'),
+                                    AppStrings.t('settings_runner_save'),
                                   ),
                                 ),
                               ),
@@ -1183,12 +1227,11 @@ class _SettingPageState extends State<SettingPage> {
                                         ? null
                                         : () {
                                           _runnerUrlController.clear();
-                                          _saveRunnerUrl();
+                                          _runnerApiTokenController.clear();
+                                          _saveRunnerSettings();
                                         },
                                 icon: const Icon(Icons.clear, size: 18),
-                                tooltip: AppStrings.t(
-                                  'settings_runner_url_clear',
-                                ),
+                                tooltip: AppStrings.t('settings_runner_clear'),
                               ),
                             ],
                           ),
