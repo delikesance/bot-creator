@@ -132,8 +132,9 @@ class AppManager implements BotDataStore {
             );
 
       await _writeAppToDisk(botId, data);
-      if (!await allAppsFile.exists())
+      if (!await allAppsFile.exists()) {
         await allAppsFile.create(recursive: true);
+      }
 
       final appsList = await getAllApps();
       final index = appsList.indexWhere((a) => a['id'] == botId);
