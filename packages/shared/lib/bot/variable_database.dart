@@ -77,10 +77,10 @@ abstract class VariableDatabase {
   /// Returns a JSON-friendly payload:
   /// {
   ///   'items': [
-  ///     {'contextId': '...', 'key': '...', 'value': <dynamic>},
+  ///     {'contextId': '...', 'key': '...', 'value': `dynamic`},
   ///   ],
-  ///   'count': <int>,
-  ///   'total': <int>,
+  ///   'count': `int`,
+  ///   'total': `int`,
   /// }
   ///
   /// [offset] is clamped to >= 0 and [limit] is clamped to 1..25.
@@ -149,9 +149,9 @@ abstract class VariableDatabase {
   ///
   /// Returns a JSON-friendly payload:
   /// {
-  ///   'items': [<element1>, <element2>, ...],
-  ///   'count': <int>,
-  ///   'total': <int>,
+  ///   'items': [`element1`, `element2`, ...],
+  ///   'count': `int`,
+  ///   'total': `int`,
   /// }
   ///
   /// [offset] is clamped to >= 0 and [limit] is clamped to 1..25.
