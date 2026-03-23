@@ -370,6 +370,9 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.renameScopedVariable:
       case BotCreatorActionType.listScopedVariableIndex:
+      case BotCreatorActionType.appendArrayElement:
+      case BotCreatorActionType.removeArrayElement:
+      case BotCreatorActionType.queryArray:
         return 'HTTP & Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Workflows';
@@ -385,6 +388,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.listenForButtonClick:
       case BotCreatorActionType.listenForSelectMenu:
       case BotCreatorActionType.listenForModalSubmit:
+      case BotCreatorActionType.respondWithAutocomplete:
         return 'Interactions';
       case BotCreatorActionType.calculate:
         return 'Logic & Flow';
@@ -573,6 +577,12 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Rename a scoped variable key';
       case BotCreatorActionType.listScopedVariableIndex:
         return 'List indexed scoped values sorted by value with offset and limit';
+      case BotCreatorActionType.appendArrayElement:
+        return 'Append a new element into a global or scoped JSON array';
+      case BotCreatorActionType.removeArrayElement:
+        return 'Remove one element from a global or scoped JSON array by index';
+      case BotCreatorActionType.queryArray:
+        return 'Filter, sort and page any runtime JSON array';
       case BotCreatorActionType.runWorkflow:
         return 'Execute a saved workflow (supports entry point + arguments)';
       case BotCreatorActionType.respondWithMessage:
@@ -589,6 +599,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Register a workflow to run when a select menu is used';
       case BotCreatorActionType.listenForModalSubmit:
         return 'Register a workflow to run when a modal is submitted';
+      case BotCreatorActionType.respondWithAutocomplete:
+        return 'Reply to a Discord autocomplete interaction with up to 25 dynamic choices';
       case BotCreatorActionType.stopUnless:
         return 'Stop the workflow if a condition is not met (guard/filter)';
       case BotCreatorActionType.ifBlock:

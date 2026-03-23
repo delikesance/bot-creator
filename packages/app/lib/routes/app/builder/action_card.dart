@@ -1227,7 +1227,9 @@ class ActionCard extends StatelessWidget {
               action.type == BotCreatorActionType.getScopedVariable ||
               action.type == BotCreatorActionType.removeScopedVariable ||
               action.type == BotCreatorActionType.renameScopedVariable ||
-              action.type == BotCreatorActionType.listScopedVariableIndex;
+              action.type == BotCreatorActionType.listScopedVariableIndex ||
+              action.type == BotCreatorActionType.appendArrayElement ||
+              action.type == BotCreatorActionType.removeArrayElement;
 
           return _VariableKeyParameterField(
             label: _formatParameterName(paramDef.key),
@@ -2430,6 +2432,8 @@ class ActionCard extends StatelessWidget {
       case BotCreatorActionType.getScopedVariable:
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.listScopedVariableIndex:
+      case BotCreatorActionType.appendArrayElement:
+      case BotCreatorActionType.removeArrayElement:
         return paramKey == 'key';
       case BotCreatorActionType.renameScopedVariable:
         return paramKey == 'oldKey' || paramKey == 'newKey';

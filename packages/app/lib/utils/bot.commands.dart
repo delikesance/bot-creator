@@ -11,7 +11,14 @@ Future<void> handleLocalCommands(
 ) async {
   final interaction = event.interaction;
   final clientId = event.gateway.client.user.id.toString();
-  if (interaction is ApplicationCommandInteraction) {
+  if (interaction is ApplicationCommandAutocompleteInteraction) {
+    await _handleLocalCommandAutocomplete(
+      event,
+      manager,
+      interaction,
+      clientId,
+    );
+  } else if (interaction is ApplicationCommandInteraction) {
     appendBotLog('Command received: ${interaction.data.name}', botId: clientId);
     await _emitTaskLogToMain(
       'Command received: ${interaction.data.name}',
@@ -312,5 +319,148 @@ Future<void> handleLocalCommands(
       manager,
       clientId,
     );
+  }
+}
+
+Future<void> _handleLocalCommandAutocomplete(
+  InteractionCreateEvent event,
+  AppManager manager,
+  ApplicationCommandAutocompleteInteraction interaction,
+  String clientId,
+) async {
+  try {
+    final command = interaction.data;
+    final action = await manager.getAppCommand(clientId, command.id.toString());
+    if (action['id'] != command.id.toString()) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final normalized = manager.normalizeCommandData(
+      Map<String, dynamic>.from(action),
+    );
+    final normalizedData = Map<String, dynamic>.from(
+      (normalized['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final autocompleteConfig = resolveAutocompleteConfigForInteraction(
+      storedOptions: normalizedData['options'],
+      interactionOptions: interaction.data.options,
+    );
+    if (autocompleteConfig == null || autocompleteConfig['enabled'] != true) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final workflowName =
+        (autocompleteConfig['workflow'] ?? '').toString().trim();
+    if (workflowName.isEmpty) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final workflow = await manager.getWorkflowByName(clientId, workflowName);
+    if (workflow == null) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final normalizedWorkflow = normalizeStoredWorkflowDefinition(workflow);
+    if (normalizeWorkflowType(normalizedWorkflow['workflowType']) !=
+        workflowTypeGeneral) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final focusedOption = findFocusedOption(interaction.data.options);
+    final runtimeVariables = <String, String>{
+      ...await generateKeyValues(interaction),
+      'command.type': 'chatInput',
+      'interaction.command.type': 'chatInput',
+      'config.command.type': 'chatInput',
+      'interaction.command.name': interaction.data.name,
+      'interaction.command.id': interaction.data.id.toString(),
+      'interaction.command.route':
+          resolveSubcommandRoute(interaction.data.options) ?? '',
+      'autocomplete.query': focusedOption?.value?.toString() ?? '',
+      'autocomplete.optionName': focusedOption?.name ?? '',
+      'autocomplete.optionType':
+          focusedOption == null
+              ? 'string'
+              : commandOptionTypeToText(focusedOption.type),
+      'workflow.type': workflowTypeGeneral,
+    };
+    final dynamic rawInteraction = interaction;
+
+    await hydrateRuntimeVariables(
+      store: manager,
+      botId: clientId,
+      runtimeVariables: runtimeVariables,
+      guildContextId:
+          runtimeVariables['guildId'] ?? rawInteraction.guildId?.toString(),
+      channelContextId:
+          runtimeVariables['channelId'] ??
+          rawInteraction.channel?.id?.toString(),
+      userContextId:
+          runtimeVariables['userId'] ??
+          rawInteraction.user?.id?.toString() ??
+          rawInteraction.author?.id?.toString(),
+      messageContextId:
+          runtimeVariables['messageId'] ??
+          runtimeVariables['message.id'] ??
+          rawInteraction.message?.id?.toString(),
+    );
+
+    final providedArguments = resolveWorkflowCallArguments(
+      autocompleteConfig['arguments'],
+      (value) =>
+          updateString(value, Map<String, String>.from(runtimeVariables)),
+    );
+    applyWorkflowInvocationContext(
+      variables: runtimeVariables,
+      workflowName: workflowName,
+      entryPoint: normalizeWorkflowEntryPoint(
+        autocompleteConfig['entryPoint'] ?? normalizedWorkflow['entryPoint'],
+      ),
+      definitions: parseWorkflowArgumentDefinitions(
+        normalizedWorkflow['arguments'],
+      ),
+      providedArguments: providedArguments,
+    );
+
+    final actions = List<Action>.from(
+      ((normalizedWorkflow['actions'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((json) => Action.fromJson(Map<String, dynamic>.from(json))),
+    );
+    if (actions.isEmpty) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final actionResults = await handleActions(
+      event.gateway.client,
+      interaction,
+      actions: actions,
+      store: manager,
+      botId: clientId,
+      variables: runtimeVariables,
+      resolveTemplate:
+          (input) =>
+              updateString(input, Map<String, String>.from(runtimeVariables)),
+      onLog: (msg) {
+        appendBotLog(msg, botId: clientId);
+        unawaited(_emitTaskLogToMain(msg, botId: clientId));
+      },
+    );
+
+    if (!actionResults.containsKey('__stopped__')) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+    }
+  } catch (error, stackTrace) {
+    appendBotLog('Autocomplete workflow error: $error', botId: clientId);
+    appendBotDebugLog('$stackTrace', botId: clientId);
+    try {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+    } catch (_) {}
   }
 }

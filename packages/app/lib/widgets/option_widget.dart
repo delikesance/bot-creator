@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
+
+import '../routes/app/command_option_serialization.dart';
 
 class OptionWidget extends StatefulWidget {
   final Function(List<CommandOptionBuilder>) onChange;
@@ -45,6 +49,10 @@ class OptionWidgetState extends State<OptionWidget> {
     return type == CommandOptionType.string ||
         type == CommandOptionType.integer ||
         type == CommandOptionType.number;
+  }
+
+  bool _supportsAutocomplete(CommandOptionType type) {
+    return commandOptionSupportsAutocomplete(type);
   }
 
   String _typeLabel(CommandOptionType type) {
@@ -128,6 +136,8 @@ class OptionWidgetState extends State<OptionWidget> {
       option.choices = null;
       option.minValue = null;
       option.maxValue = null;
+      option.hasAutocomplete = null;
+      setCommandOptionAutocompleteConfig(option, null);
       option.options ??= <CommandOptionBuilder>[];
 
       if (type == CommandOptionType.subCommand) {
@@ -147,6 +157,15 @@ class OptionWidgetState extends State<OptionWidget> {
     option.options = null;
 
     if (!_supportsChoices(type)) {
+      option.choices = null;
+    }
+
+    if (!_supportsAutocomplete(type)) {
+      option.hasAutocomplete = null;
+      setCommandOptionAutocompleteConfig(option, null);
+    }
+
+    if (option.hasAutocomplete == true) {
       option.choices = null;
     }
 
@@ -341,6 +360,154 @@ class OptionWidgetState extends State<OptionWidget> {
                             });
                           },
                         ),
+                      if (!_isHierarchyType(option.type) &&
+                          _supportsAutocomplete(option.type))
+                        CheckboxListTile(
+                          title: const Text('Dynamic Autocomplete'),
+                          subtitle: const Text(
+                            'Resolve choices from a workflow instead of static values.',
+                          ),
+                          value: isCommandOptionAutocompleteEnabled(option),
+                          onChanged: (bool? value) {
+                            setState(() {
+                              if (value == true) {
+                                setCommandOptionAutocompleteConfig(option, {
+                                  'enabled': true,
+                                  'workflow': '',
+                                  'entryPoint': 'main',
+                                  'arguments': <String, dynamic>{},
+                                });
+                              } else {
+                                setCommandOptionAutocompleteConfig(
+                                  option,
+                                  null,
+                                );
+                              }
+                              _normalizeForType(option);
+                              _updateWidget();
+                            });
+                          },
+                        ),
+                      if (isCommandOptionAutocompleteEnabled(
+                        option,
+                      )) ...<Widget>[
+                        TextFormField(
+                          decoration: const InputDecoration(
+                            labelText: 'Autocomplete Workflow',
+                            border: OutlineInputBorder(),
+                          ),
+                          initialValue:
+                              (getCommandOptionAutocompleteConfig(
+                                        option,
+                                      )?['workflow'] ??
+                                      '')
+                                  .toString(),
+                          onChanged: (String value) {
+                            setState(() {
+                              final config =
+                                  getCommandOptionAutocompleteConfig(option) ??
+                                  <String, dynamic>{
+                                    'enabled': true,
+                                    'workflow': '',
+                                    'entryPoint': 'main',
+                                    'arguments': <String, dynamic>{},
+                                  };
+                              config['workflow'] = value;
+                              setCommandOptionAutocompleteConfig(
+                                option,
+                                config,
+                              );
+                              _updateWidget();
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          decoration: const InputDecoration(
+                            labelText: 'Entry Point',
+                            border: OutlineInputBorder(),
+                          ),
+                          initialValue:
+                              (getCommandOptionAutocompleteConfig(
+                                        option,
+                                      )?['entryPoint'] ??
+                                      'main')
+                                  .toString(),
+                          onChanged: (String value) {
+                            setState(() {
+                              final config =
+                                  getCommandOptionAutocompleteConfig(option) ??
+                                  <String, dynamic>{
+                                    'enabled': true,
+                                    'workflow': '',
+                                    'entryPoint': 'main',
+                                    'arguments': <String, dynamic>{},
+                                  };
+                              config['entryPoint'] =
+                                  value.trim().isEmpty ? 'main' : value;
+                              setCommandOptionAutocompleteConfig(
+                                option,
+                                config,
+                              );
+                              _updateWidget();
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          decoration: const InputDecoration(
+                            labelText: 'Autocomplete Arguments (JSON)',
+                            hintText: '{"dataset":"countries"}',
+                            border: OutlineInputBorder(),
+                          ),
+                          minLines: 2,
+                          maxLines: 4,
+                          initialValue: jsonEncode(
+                            (getCommandOptionAutocompleteConfig(
+                                  option,
+                                )?['arguments'] ??
+                                const <String, dynamic>{}),
+                          ),
+                          onChanged: (String value) {
+                            setState(() {
+                              final config =
+                                  getCommandOptionAutocompleteConfig(option) ??
+                                  <String, dynamic>{
+                                    'enabled': true,
+                                    'workflow': '',
+                                    'entryPoint': 'main',
+                                    'arguments': <String, dynamic>{},
+                                  };
+                              if (value.trim().isEmpty) {
+                                config['arguments'] = <String, dynamic>{};
+                              } else {
+                                try {
+                                  final decoded = jsonDecode(value);
+                                  config['arguments'] =
+                                      decoded is Map
+                                          ? Map<String, dynamic>.from(
+                                            decoded.map(
+                                              (key, value) => MapEntry(
+                                                key.toString(),
+                                                value,
+                                              ),
+                                            ),
+                                          )
+                                          : <String, dynamic>{};
+                                } catch (_) {
+                                  // Keep last valid arguments while user is typing invalid JSON.
+                                }
+                              }
+                              setCommandOptionAutocompleteConfig(
+                                option,
+                                config,
+                              );
+                              _updateWidget();
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       if (_isNumericType(option.type)) ...<Widget>[
                         Row(
                           children: <Widget>[
@@ -510,7 +677,10 @@ class OptionWidgetState extends State<OptionWidget> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      if (_supportsChoices(option.type)) ...<Widget>[
+                      if (_supportsChoices(option.type) &&
+                          !isCommandOptionAutocompleteEnabled(
+                            option,
+                          )) ...<Widget>[
                         if (option.choices != null)
                           ListView.builder(
                             physics: const NeverScrollableScrollPhysics(),

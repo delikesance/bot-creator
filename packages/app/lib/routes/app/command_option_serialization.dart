@@ -2,6 +2,9 @@ import 'dart:convert';
 
 import 'package:nyxx/nyxx.dart';
 
+final Expando<Map<String, dynamic>> _autocompleteConfigExpando =
+    Expando<Map<String, dynamic>>('command_option_autocomplete_config');
+
 String commandOptionTypeToText(CommandOptionType type) {
   if (type == CommandOptionType.subCommand) return 'subCommand';
   if (type == CommandOptionType.subCommandGroup) return 'subCommandGroup';
@@ -46,7 +49,94 @@ CommandOptionType commandOptionTypeFromText(String text) {
   }
 }
 
+bool commandOptionSupportsAutocomplete(CommandOptionType type) {
+  return type == CommandOptionType.string ||
+      type == CommandOptionType.integer ||
+      type == CommandOptionType.number;
+}
+
+Map<String, dynamic>? normalizeCommandOptionAutocompleteConfig(dynamic raw) {
+  if (raw is! Map) {
+    return null;
+  }
+
+  final source = Map<String, dynamic>.from(
+    raw.map((key, value) => MapEntry(key.toString(), value)),
+  );
+  final workflow = (source['workflow'] ?? '').toString().trim();
+  final entryPoint = (source['entryPoint'] ?? 'main').toString().trim();
+  final arguments = <String, dynamic>{};
+
+  if (source['arguments'] is Map) {
+    final rawArguments = Map<String, dynamic>.from(
+      (source['arguments'] as Map).map(
+        (key, value) => MapEntry(key.toString(), value),
+      ),
+    );
+    for (final entry in rawArguments.entries) {
+      final key = entry.key.trim();
+      if (key.isEmpty) {
+        continue;
+      }
+      arguments[key] = entry.value;
+    }
+  }
+
+  final enabled =
+      source['enabled'] == true ||
+      (source['enabled'] == null &&
+          (workflow.isNotEmpty || arguments.isNotEmpty));
+
+  if (!enabled && workflow.isEmpty && arguments.isEmpty) {
+    return null;
+  }
+
+  return <String, dynamic>{
+    'enabled': enabled,
+    'workflow': workflow,
+    'entryPoint': entryPoint.isEmpty ? 'main' : entryPoint,
+    'arguments': arguments,
+  };
+}
+
+Map<String, dynamic>? getCommandOptionAutocompleteConfig(
+  CommandOptionBuilder option,
+) {
+  final config = _autocompleteConfigExpando[option];
+  if (config != null) {
+    return cloneJsonMap(config);
+  }
+  if (option.hasAutocomplete == true) {
+    return <String, dynamic>{
+      'enabled': true,
+      'workflow': '',
+      'entryPoint': 'main',
+      'arguments': <String, dynamic>{},
+    };
+  }
+  return null;
+}
+
+bool isCommandOptionAutocompleteEnabled(CommandOptionBuilder option) {
+  final config = getCommandOptionAutocompleteConfig(option);
+  return config != null && config['enabled'] == true;
+}
+
+void setCommandOptionAutocompleteConfig(
+  CommandOptionBuilder option,
+  Map<String, dynamic>? rawConfig,
+) {
+  final normalized = normalizeCommandOptionAutocompleteConfig(rawConfig);
+  _autocompleteConfigExpando[option] =
+      normalized == null ? null : cloneJsonMap(normalized);
+  option.hasAutocomplete = normalized?['enabled'] == true;
+  if (option.hasAutocomplete == true) {
+    option.choices = null;
+  }
+}
+
 Map<String, dynamic> serializeCommandOption(CommandOptionBuilder option) {
+  final autocomplete = getCommandOptionAutocompleteConfig(option);
   return <String, dynamic>{
     'type': commandOptionTypeToText(option.type),
     'name': option.name,
@@ -54,7 +144,8 @@ Map<String, dynamic> serializeCommandOption(CommandOptionBuilder option) {
     'required': option.isRequired,
     if (option.minValue != null) 'minValue': option.minValue,
     if (option.maxValue != null) 'maxValue': option.maxValue,
-    if (option.choices?.isNotEmpty == true)
+    if (autocomplete != null) 'autocomplete': autocomplete,
+    if (autocomplete == null && option.choices?.isNotEmpty == true)
       'choices': option.choices!
           .map((choice) => {'name': choice.name, 'value': choice.value})
           .toList(growable: false),
@@ -79,8 +170,17 @@ CommandOptionBuilder deserializeCommandOption(Map<String, dynamic> raw) {
     maxValue: raw['maxValue'] as num?,
   );
 
+  final autocompleteConfig = normalizeCommandOptionAutocompleteConfig(
+    raw['autocomplete'],
+  );
+  if (autocompleteConfig != null) {
+    setCommandOptionAutocompleteConfig(option, autocompleteConfig);
+  } else {
+    option.hasAutocomplete = raw['hasAutocomplete'] == true;
+  }
+
   final choicesRaw = raw['choices'];
-  if (choicesRaw is List) {
+  if (choicesRaw is List && option.hasAutocomplete != true) {
     option.choices = choicesRaw
         .whereType<Map>()
         .map(

@@ -1,6 +1,7 @@
 import 'package:nyxx/nyxx.dart';
 import '../types/component.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart'; // for updateString
+import 'package:bot_creator_shared/utils/embed_fields.dart';
 import '../utils/component_workflow_bindings.dart';
 import '../utils/interaction_listener_registry.dart';
 import '../utils/workflow_call.dart';
@@ -346,26 +347,13 @@ Future<void> sendWorkflowResponse({
         embed.thumbnail = EmbedThumbnailBuilder(url: thumbnailUri);
       }
 
-      final fieldList =
-          (embedJson['fields'] as List?)?.whereType<Map>() ?? const [];
-      for (final fieldJson in fieldList.take(25)) {
-        final name = resolveTemplatePlaceholders(
-          (fieldJson['name'] ?? '').toString(),
-          runtimeVariables,
-        );
-        final value = resolveTemplatePlaceholders(
-          (fieldJson['value'] ?? '').toString(),
-          runtimeVariables,
-        );
-        if (name.isNotEmpty && value.isNotEmpty) {
-          (embed.fields ??= []).add(
-            EmbedFieldBuilder(
-              name: name,
-              value: value,
-              isInline: fieldJson['inline'] == true,
-            ),
-          );
-        }
+      final resolvedFields = buildResolvedEmbedFields(
+        embedJson: embedJson,
+        resolve:
+            (input) => resolveTemplatePlaceholders(input, runtimeVariables),
+      );
+      if (resolvedFields.isNotEmpty) {
+        embed.fields = resolvedFields;
       }
 
       embeds.add(embed);

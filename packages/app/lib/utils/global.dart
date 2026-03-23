@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:nyxx/nyxx.dart';
 import 'dart:developer' as developer;
+import 'package:bot_creator_shared/utils/command_autocomplete.dart';
 
 const String discordUrl = "https://discord.com/api/v10";
 
@@ -124,7 +125,7 @@ String makeGuildIcon(String guildId, String? iconId) {
 }
 
 Future<Map<String, String>> generateKeyValues(
-  ApplicationCommandInteraction interaction,
+  Interaction<ApplicationCommandInteractionData> interaction,
 ) async {
   PartialGuild? guild = interaction.guild;
   try {
@@ -244,7 +245,7 @@ Future<Map<String, String>> generateKeyValues(
 
 Future<Map<String, String>> generateKeyValuesFromInteractionOption(
   InteractionOption value,
-  ApplicationCommandInteraction interaction,
+  Interaction<ApplicationCommandInteractionData> interaction,
 ) async {
   final client = interaction.manager.client;
   switch (value.type) {
@@ -302,6 +303,10 @@ Future<Map<String, String>> generateKeyValuesFromInteractionOption(
       return {value.name: value.value.toString()};
   }
   return {value.name: value.value.toString()};
+}
+
+InteractionOption? findFocusedOption(List<InteractionOption>? options) {
+  return findFocusedInteractionOption(options);
 }
 
 String getChannelName(PartialChannel? channel) {

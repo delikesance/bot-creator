@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:bot_creator/utils/simple_mode.dart';
+
 Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
   final normalized = Map<String, dynamic>.from(command);
   final rawData = Map<String, dynamic>.from(
@@ -63,6 +65,17 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
           )
           : <Map<String, dynamic>>[];
 
+  final options =
+      (rawData['options'] is List)
+          ? List<Map<String, dynamic>>.from(
+            (rawData['options'] as List).whereType<Map>().map(
+              (option) => Map<String, dynamic>.from(
+                jsonDecode(jsonEncode(option)) as Map,
+              ),
+            ),
+          )
+          : <Map<String, dynamic>>[];
+
   final normalizedSubcommandWorkflows = <String, Map<String, dynamic>>{};
   final rawSubcommandWorkflows = rawData['subcommandWorkflows'];
   if (rawSubcommandWorkflows is Map) {
@@ -96,16 +109,7 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
   final simpleConfigRaw = Map<String, dynamic>.from(
     (rawData['simpleConfig'] as Map?)?.cast<String, dynamic>() ?? const {},
   );
-  final simpleConfig = <String, dynamic>{
-    'deleteMessages': simpleConfigRaw['deleteMessages'] == true,
-    'kickUser': simpleConfigRaw['kickUser'] == true,
-    'banUser': simpleConfigRaw['banUser'] == true,
-    'muteUser': simpleConfigRaw['muteUser'] == true,
-    'addRole': simpleConfigRaw['addRole'] == true,
-    'removeRole': simpleConfigRaw['removeRole'] == true,
-    'sendMessage': simpleConfigRaw['sendMessage'] == true,
-    'sendMessageText': (simpleConfigRaw['sendMessageText'] ?? '').toString(),
-  };
+  final simpleConfig = normalizeSimpleModeConfigMap(simpleConfigRaw);
 
   final rawWorkflow = Map<String, dynamic>.from(
     (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
@@ -197,6 +201,7 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
       'workflow': normalizedWorkflow,
     },
     'actions': actions,
+    if (options.isNotEmpty) 'options': options,
     if (normalizedSubcommandWorkflows.isNotEmpty)
       'subcommandWorkflows': normalizedSubcommandWorkflows,
     if (normalizedSubcommandWorkflows.isNotEmpty)

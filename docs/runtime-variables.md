@@ -1,257 +1,321 @@
-# Variables de Template — Référence complète
+# Variables Runtime — Référence complète
 
-Les variables sont utilisées dans les champs texte qui passent par le résolveur runtime
-via la syntaxe `((nomDeLaVariable))`. Elles sont résolues au moment de l'exécution
-par l'app locale et par le Runner.
+Les variables runtime sont résolues dans les templates via la syntaxe
+`((nomDeLaVariable))`. Elles sont injectées par l'app locale et par le Runner
+au moment de l'exécution.
 
-> **Source** : `packages/shared/lib/utils/global.dart` — `generateKeyValues()`  
-> **Résolution** : `packages/shared/lib/utils/template_resolver.dart` — `resolveTemplatePlaceholders()`
+Cette V1 ajoute deux points importants:
 
----
+- les variables stockées peuvent contenir du JSON complet, y compris arrays et objets
+- les workflows d'auto-complete exposent un contexte runtime dédié
 
-## 1. Variables globales (toujours disponibles)
-
-Ces variables sont générées à partir de l'interaction Discord, quelle que soit la commande.
-
-| Variable              | Valeur                                                          | Exemple                                              |
-|-----------------------|-----------------------------------------------------------------|------------------------------------------------------|
-| `((userName))`        | Nom d'utilisateur du membre qui a exécuté la commande           | `JohnDoe`                                            |
-| `((userId))`          | ID Snowflake du membre                                          | `123456789012345678`                                 |
-| `((userUsername))`    | Username Discord (identique à `userName`)                       | `johndoe`                                            |
-| `((userTag))`         | Discriminant (ex-tag) `#0000`                                   | `0` (vide pour nouveaux comptes)                     |
-| `((userAvatar))`      | URL CDN complète de l'avatar du membre                          | `https://cdn.discordapp.com/avatars/…/….webp?size=1024` |
-| `((guildName))`       | Nom du serveur                                                  | `Mon Serveur`                                        |
-| `((guildId))`         | ID Snowflake du serveur                                         | `987654321098765432`                                 |
-| `((guildCount))`      | Nombre de membres approximatif                                  | `142`                                                |
-| `((guildIcon))`       | URL CDN de l'icône du serveur                                   | `https://cdn.discordapp.com/icons/…/….webp?size=1024`|
-| `((channelName))`     | Nom du salon                                                    | `général`                                            |
-| `((channelId))`       | ID Snowflake du salon                                           | `111122223333444455`                                 |
-| `((channelType))`     | Type de salon (`GuildTextChannel`, `DmChannel`, …)              | `GuildTextChannel`                                   |
-| `((commandName))`     | Nom de la commande exécutée (slash, user ou message)            | `stats`                                              |
-| `((commandId))`       | ID Snowflake de la commande                                     | `555566667777888899`                                 |
-| `((commandType))`     | Type logique de la commande (`chatInput`, `user`, `message`)    | `user`                                               |
-| `((commandTypeValue))`| Valeur brute Discord du type (`1`, `2`, `3`)                    | `2`                                                  |
-| `((command.type))`    | Alias textuel du type de commande                               | `message`                                            |
-| `((interaction.command.type))` | Alias textuel orienté runtime                           | `chatInput`                                          |
+> Sources:
+> `packages/shared/lib/utils/global.dart`
+> `packages/shared/lib/utils/runtime_variables.dart`
+> `packages/shared/lib/utils/template_resolver.dart`
 
 ---
 
-## 2. Variables d'options de commande
-
-Pour chaque option de commande slash définie, des variables préfixées `opts.` sont générées.
-
-### Préfixe `opts.<nomOption>`
-
-Le préfixe `opts.` est **toujours présent**, y compris pour les sous-commandes.
-
-#### Option de type `string`, `integer`, `number`, `boolean`
-
-| Variable                    | Valeur                          |
-|-----------------------------|---------------------------------|
-| `((opts.<nomOption>))`      | Valeur de l'option (string)     |
-
-#### Option de type `user`
-
-| Variable                         | Valeur                                                    |
-|----------------------------------|-----------------------------------------------------------|
-| `((opts.<nomOption>))`           | Nom d'utilisateur Discord                                 |
-| `((opts.<nomOption>.id))`        | ID Snowflake de l'utilisateur                             |
-| `((opts.<nomOption>.avatar))`    | URL CDN complète de l'avatar — **valide avec scheme** ✅  |
-
-#### Option de type `channel`
-
-| Variable                         | Valeur                        |
-|----------------------------------|-------------------------------|
-| `((opts.<nomOption>))`           | Nom du salon                  |
-| `((opts.<nomOption>.id))`        | ID Snowflake du salon         |
-| `((opts.<nomOption>.type))`      | Type du salon (string)        |
-
-#### Option de type `role`
-
-| Variable                         | Valeur                        |
-|----------------------------------|-------------------------------|
-| `((opts.<nomOption>))`           | Nom du rôle                   |
-| `((opts.<nomOption>.id))`        | ID Snowflake du rôle          |
-
-#### Option de type `mentionable`
-
-| Variable                         | Valeur                                                    |
-|----------------------------------|-----------------------------------------------------------|
-| `((opts.<nomOption>))`           | Nom d'utilisateur                                         |
-| `((opts.<nomOption>.id))`        | ID Snowflake                                              |
-| `((opts.<nomOption>.avatar))`    | URL CDN complète de l'avatar — **valide avec scheme** ✅  |
-
-### Sous-commandes & groupes de sous-commandes
-
-Les options des sous-commandes sont également préfixées `opts.` (le nom de la sous-commande
-elle-même est stocké dans `listOfArgs[subCommandName]` **sans** le préfixe `opts.`).
-
-Exemple :
-
-```
-/moderation ban user:@John reason:"spam"
-```
-
-Variables disponibles :
-
-```
-((opts.user))
-((opts.user.id))
-((opts.reason))
-```
-
----
-
-## 2.1 Variables de cible pour les commandes `user`
-
-Ces variables sont présentes quand `((commandType)) == user`.
+## 1. Variables globales toujours disponibles
 
 | Variable | Valeur |
 |----------|--------|
-| `((target.id))` | ID de la cible Discord |
-| `((interaction.target.id))` | Alias de l'ID cible |
-| `((target.user.id))` | ID de l'utilisateur ciblé |
-| `((target.user.username))` | Username de l'utilisateur ciblé |
-| `((target.user.tag))` | Discriminant/tag de l'utilisateur ciblé |
-| `((target.user.avatar))` | URL avatar de l'utilisateur ciblé |
-| `((target.userName))` | Alias court de `target.user.username` |
-| `((target.userAvatar))` | Alias court de `target.user.avatar` |
-| `((target.member.id))` | ID membre si la cible est résolue dans le serveur |
-| `((target.member.nick))` | Surnom de membre si disponible |
-
-Exemple :
-
-```
-Profil ciblé : ((target.user.username))
-Avatar : ((target.user.avatar))
-```
+| `((userName))` | Nom de l'utilisateur ayant déclenché l'interaction |
+| `((userId))` | ID utilisateur |
+| `((userUsername))` | Username Discord |
+| `((userTag))` | Discriminant ou `0` |
+| `((userAvatar))` | URL avatar |
+| `((guildName))` | Nom du serveur |
+| `((guildId))` | ID du serveur |
+| `((guildCount))` | Nombre de membres approx. |
+| `((guildIcon))` | URL icône serveur |
+| `((channelName))` | Nom du salon |
+| `((channelId))` | ID du salon |
+| `((channelType))` | Type de salon |
+| `((commandName))` | Nom de la commande |
+| `((commandId))` | ID de la commande |
+| `((commandType))` | `chatInput`, `user`, `message` |
+| `((commandTypeValue))` | Valeur Discord brute |
+| `((command.type))` | Alias textuel |
+| `((interaction.command.type))` | Alias runtime textuel |
+| `((interaction.command.route))` | Route de sous-commande résolue, ex: `admin/ban` |
 
 ---
 
-## 2.2 Variables de cible pour les commandes `message`
+## 2. Options de commande slash
 
-Ces variables sont présentes quand `((commandType)) == message`.
+Chaque option expose un préfixe `opts.<nomOption>`.
+
+### Types simples
 
 | Variable | Valeur |
 |----------|--------|
-| `((target.id))` | ID de la cible Discord |
-| `((interaction.target.id))` | Alias de l'ID cible |
+| `((opts.<nom>))` | Valeur brute d'une option `string`, `integer`, `number`, `boolean` |
+
+### Option `user`
+
+| Variable | Valeur |
+|----------|--------|
+| `((opts.<nom>))` | Username / nom |
+| `((opts.<nom>.id))` | ID utilisateur |
+| `((opts.<nom>.avatar))` | URL avatar |
+
+### Option `channel`
+
+| Variable | Valeur |
+|----------|--------|
+| `((opts.<nom>))` | Nom du salon |
+| `((opts.<nom>.id))` | ID du salon |
+| `((opts.<nom>.type))` | Type du salon |
+
+### Option `role`
+
+| Variable | Valeur |
+|----------|--------|
+| `((opts.<nom>))` | Nom du rôle |
+| `((opts.<nom>.id))` | ID du rôle |
+
+### Option `mentionable`
+
+| Variable | Valeur |
+|----------|--------|
+| `((opts.<nom>))` | Libellé principal |
+| `((opts.<nom>.id))` | ID cible |
+| `((opts.<nom>.avatar))` | URL avatar quand disponible |
+
+Les sous-commandes exposent aussi leurs arguments via `opts.*`.
+
+---
+
+## 3. Commandes `user` et `message`
+
+### Commandes `user`
+
+| Variable | Valeur |
+|----------|--------|
+| `((target.id))` | ID cible |
+| `((interaction.target.id))` | Alias |
+| `((target.user.id))` | ID utilisateur ciblé |
+| `((target.user.username))` | Username ciblé |
+| `((target.user.tag))` | Tag ciblé |
+| `((target.user.avatar))` | Avatar ciblé |
+| `((target.userName))` | Alias court |
+| `((target.userAvatar))` | Alias court |
+| `((target.member.id))` | ID membre si disponible |
+| `((target.member.nick))` | Surnom si disponible |
+
+### Commandes `message`
+
+| Variable | Valeur |
+|----------|--------|
+| `((target.id))` | ID cible |
+| `((interaction.target.id))` | Alias |
 | `((target.message.id))` | ID du message ciblé |
-| `((target.message.channelId))` | ID du salon du message ciblé |
-| `((target.message.content))` | Contenu du message ciblé |
-| `((target.message.author.id))` | ID de l'auteur du message ciblé |
-| `((target.messageId))` | Alias court de `target.message.id` |
-| `((target.messageContent))` | Alias court de `target.message.content` |
+| `((target.message.channelId))` | ID du salon du message |
+| `((target.message.content))` | Contenu du message |
+| `((target.message.author.id))` | ID auteur |
+| `((target.messageId))` | Alias court |
+| `((target.messageContent))` | Alias court |
 
-Exemple :
+---
 
+## 4. Variables stockées persistées
+
+Les variables persistées sont hydratées dans le runtime au début d'un workflow.
+
+### Variables globales
+
+Accès:
+
+```txt
+((global.<key>))
 ```
-Citation : ((target.message.content))
-Auteur : ((target.message.author.id))
+
+Exemples:
+
+```txt
+((global.settings))
+((global.settings.$.locale))
+((global.inventory.$[0].name))
+```
+
+### Variables scopées
+
+Scopes supportés:
+
+- `guild`
+- `user`
+- `channel`
+- `guildMember`
+- `message`
+
+Accès:
+
+```txt
+((guild.bc_<key>))
+((user.bc_<key>))
+((channel.bc_<key>))
+```
+
+Compatibilité:
+
+- la forme `bc_<key>` reste l'alias runtime principal
+- selon le contexte, l'éditeur et certaines actions acceptent aussi le nom nu
+
+Types supportés:
+
+- `string`
+- `number`
+- `boolean`
+- `json`
+
+Le type `json` permet de stocker directement:
+
+- un objet
+- un array
+- un objet contenant des arrays
+
+Exemples:
+
+```txt
+((guild.bc_settings.$.logs.channelId))
+((guild.bc_leaderboard.$[0].userId))
+((user.bc_profile.$.tags[1]))
 ```
 
 ---
 
-## 3. Variables issues d'actions (runtime)
+## 5. Variables issues d'actions
 
-Certaines actions stockent leurs résultats dans des variables accessibles aux actions suivantes
-(via `key` de l'action). Consultez la documentation de chaque action pour les clés générées.
+Les actions avec `key` exposent souvent leurs sorties dans le runtime.
 
-Exemple pour `httpRequest` avec `key: "monHttp"` :
+### `httpRequest`
 
-| Variable                                | Valeur                                  |
-|-----------------------------------------|-----------------------------------------|
-| `((monHttp.body))`                      | Corps de la réponse HTTP (string brut)  |
-| `((monHttp.body.$.champ))`              | Extraction JSONPath depuis le corps     |
-| `((monHttp.body.$.liste[0].propriete))` | Extraction JSONPath avec index de liste |
+Exemple avec `key: "search"`:
 
-Exemple pour `listScopedVariableIndex` avec `key: "classement"` :
+| Variable | Valeur |
+|----------|--------|
+| `((search.body))` | corps brut |
+| `((search.body.$.items))` | array JSON sérialisé |
+| `((search.body.$.items[0].name))` | champ extrait |
 
-| Variable                                  | Valeur                                        |
-|-------------------------------------------|-----------------------------------------------|
-| `((classement.items))`                    | Liste JSON paginée des entrées trouvées       |
-| `((classement.count))`                    | Nombre d'éléments retournés                   |
-| `((classement.total))`                    | Nombre total d'éléments indexés               |
-| `((classement.items.$[0].contextId))`     | Contexte du premier élément                   |
-| `((classement.items.$[0].value))`         | Valeur du premier élément                     |
+### `listScopedVariableIndex`
+
+Exemple avec `key: "classement"`:
+
+| Variable | Valeur |
+|----------|--------|
+| `((classement.items))` | liste JSON des entrées |
+| `((classement.count))` | nombre d'éléments renvoyés |
+| `((classement.total))` | total indexé |
+
+### `appendArrayElement`
+
+Exemple avec `key: "appendScore"`:
+
+| Variable | Valeur |
+|----------|--------|
+| `((appendScore.items))` | array mis à jour |
+| `((appendScore.length))` | longueur après ajout |
+
+### `removeArrayElement`
+
+Exemple avec `key: "removeScore"`:
+
+| Variable | Valeur |
+|----------|--------|
+| `((removeScore.items))` | array restant |
+| `((removeScore.length))` | longueur restante |
+| `((removeScore.removed))` | élément supprimé |
+
+### `queryArray`
+
+Exemple avec `key: "topScores"`:
+
+| Variable | Valeur |
+|----------|--------|
+| `((topScores.items))` | page courante en JSON |
+| `((topScores.count))` | taille de la page |
+| `((topScores.total))` | total après filtre |
+
+Si `storeAs` est fourni, l'array paginé est aussi copié dans l'alias demandé.
+
+Exemple:
+
+```txt
+queryArray key=topScores storeAs=best
+((best))
+((best.$[0].name))
+```
 
 ---
 
-## 4. Cas d'usage pour les URLs d'embed
+## 6. Variables dédiées à l'auto-complete
 
-Les champs URL (`image.url`, `thumbnail.url`, `footer.icon_url`, `author.url`,
-`author.icon_url`) sont traités par `resolveEmbedUri()` qui **exige que l'URL résolue
-possède un scheme** (`https://` ou `http://`).
+Lorsqu'une option de commande utilise l'autocomplete dynamique, le workflow
+appelé reçoit ces variables:
 
-### ✅ Exemples valides
+| Variable | Valeur |
+|----------|--------|
+| `((autocomplete.query))` | texte actuellement saisi par l'utilisateur |
+| `((autocomplete.optionName))` | nom de l'option focusée |
+| `((autocomplete.optionType))` | type de l'option focusée (`string`, `integer`, `number`) |
 
-```
-((userAvatar))
-  → https://cdn.discordapp.com/avatars/123/abc.webp?size=1024   ✓ scheme présent
+Les autres options déjà remplies par Discord restent accessibles via `opts.*`
+quand elles sont présentes dans l'interaction.
 
-((opts.cible.avatar))
-  → https://cdn.discordapp.com/avatars/456/def.webp?size=1024   ✓ scheme présent
+Exemple:
 
-https://exemple.com/image.png
-  → https://exemple.com/image.png                               ✓ URL statique
-```
-
-### ❌ Exemples invalides (champ ignoré silencieusement)
-
-```
-((mauvaise))
-  → ""                    ✗ variable inconnue → chaîne vide → ignoré
-
-cdn.discordapp.com/…
-  → cdn.discordapp.com/…  ✗ pas de scheme → ignoré
-
-((user.avatar))           ✗ MAUVAIS NOM — la variable correcte est ((userAvatar))
-((avatar))                ✗ MAUVAIS NOM — la variable correcte est ((userAvatar))
+```txt
+Recherche: ((autocomplete.query))
+Option: ((autocomplete.optionName))
 ```
 
 ---
 
-## 5. Récapitulatif rapide (cheat sheet)
+## 7. Exemples utiles avec arrays
 
+### Lire une réponse HTTP et la formater
+
+```txt
+((formatEach(search.body.$.items, "{name} ({score})", "\n")))
 ```
-Invocateur de la commande :
-  ((userName))        nom d'utilisateur
-  ((userId))          ID Snowflake
-  ((userAvatar))      URL de l'avatar
 
-Serveur :
-  ((guildName))       nom du serveur
-  ((guildId))         ID du serveur
-  ((guildCount))      nombre de membres
-  ((guildIcon))       icône du serveur
+### Lire un array stocké dans une variable globale
 
-Salon :
-  ((channelName))     nom du salon
-  ((channelId))       ID du salon
+```txt
+((join(global.tags.$, ", ")))
+```
 
-Commande :
-  ((commandName))     /nomdelacommande
+### Lire le premier objet d'une variable scopée JSON
 
-Option <X> de type user :
-  ((opts.X))          nom d'utilisateur
-  ((opts.X.id))       ID
-  ((opts.X.avatar))   URL avatar ← UTILISER POUR LES IMAGES
+```txt
+((guild.bc_inventory.$[0].name))
+```
 
-Option <X> de type string/int/bool/number :
-  ((opts.X))          valeur brute
+### Formater un résultat de `queryArray`
 
-Commande User :
-  ((commandType))             user
-  ((target.user.id))          ID cible
-  ((target.user.username))    username cible
-  ((target.user.avatar))      avatar cible
+```txt
+((formatEach(topScores.items.$, "{name}: {score}", "\n")))
+```
 
-Commande Message :
-  ((commandType))             message
-  ((target.message.id))       ID du message cible
-  ((target.message.content))  contenu du message cible
-  ((target.message.author.id)) ID auteur du message cible
+---
 
-Fallback (séparateur |) :
-  ((opts.X|userName)) → opts.X si défini, sinon userName
+## 8. Bonnes pratiques
+
+- Préférez `global.<key>` et les scopes `guild.bc_<key>` / `user.bc_<key>`
+  pour les variables persistées
+- Stockez les structures complexes en `json`, pas en string manuelle
+- Pour les arrays d'objets, utilisez `formatEach(...)` ou `embedFields(...)`
+- Pour l'auto-complete, terminez le workflow par `respondWithAutocomplete`
+- En cas de doute sur le contenu d'une variable JSON, testez d'abord:
+
+```txt
+((maVariable))
+```
+
+puis un chemin plus précis:
+
+```txt
+((maVariable.$.items[0]))
 ```

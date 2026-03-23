@@ -1,145 +1,300 @@
-# Syntaxe des Templates — Référence
+# Syntaxe des Templates — Référence V1
 
-Le moteur de résolution de templates remplace les placeholders `((…))` dans les champs
-texte qui passent par le résolveur runtime (réponses, embeds et principaux payloads
-d'actions).
+Le moteur de templates résout les placeholders `((...))` dans les champs texte
+qui passent par le runtime: réponses, embeds, payloads d'actions, arguments de
+workflow, etc.
 
-> **Source** : `packages/shared/lib/utils/template_resolver.dart`
+Cette V1 traite désormais les arrays et objets JSON comme des données de premier
+rang. Une expression peut donc lire du JSON, en extraire un sous-chemin,
+appliquer des fonctions, puis réinjecter le résultat sous forme de texte ou de
+JSON sérialisé.
+
+> Source: `packages/shared/lib/utils/template_resolver.dart`
 
 ---
 
 ## 1. Syntaxe de base
 
-```
+```txt
 ((nomDeLaVariable))
 ```
 
-- Délimiteurs : `((` et `))`
-- Insensible à la casse pour la recherche de variable
-- La variable correspondante est recherchée dans le dictionnaire runtime (`Map<String, String>`)
-  avec priorité à la clé exacte, puis fallback insensible à la casse
-- Si la variable **n'existe pas** → remplacée par `""` (chaîne vide) — **jamais** laissée telle quelle
+- Délimiteurs: `((` et `))`
+- Recherche de variable insensible à la casse
+- Priorité à la clé exacte, puis fallback insensible à la casse
+- Une variable inconnue est remplacée par `""`
+
+Exemples:
+
+```txt
+((userName))
+((global.score))
+((guild.bc_settings))
+```
 
 ---
 
-## 2. Fallback (valeur de secours)
+## 2. Fallback avec `|`
 
-Plusieurs clés peuvent être séparées par `|`. La première clé trouvée dans le dictionnaire
-est utilisée. Si aucune n'est trouvée, le résultat est `""`.
+Le séparateur `|` reste supporté, mais uniquement comme fallback au niveau
+racine de l'expression.
 
+```txt
+((opts.user|userName))
+((target.user.username|userName))
 ```
-((opts.cible|userName))
+
+Règles:
+
+- Le moteur teste chaque candidat de gauche à droite
+- La première valeur résolue est utilisée
+- Si rien n'est trouvé, le résultat est `""`
+- `|` n'est pas une pipeline de fonctions
+
+Exemple:
+
+```txt
+((join(scores.$, ", ")|Aucun score))
 ```
 
-→ Retourne la valeur de `opts.cible` si elle existe, sinon la valeur de `userName`.
+Ici, `|Aucun score` est un fallback global sur toute l'expression.
 
 ---
 
-## 3. Extraction JSONPath (depuis une variable contenant du JSON)
+## 3. Lecture JSON avec JSONPath
 
-Pour n'importe quelle variable runtime contenant du JSON :
+Le sous-ensemble JSONPath supporté reste volontairement simple:
 
-```
-((maListe.$[0]))
+- `$` pour la racine
+- `.champ` pour un accès objet
+- `[0]` pour un index de tableau
+
+Exemples:
+
+```txt
+((monHttp.body.$.items[0].name))
 ((classement.items.$[0].value))
-((classement.items.$[0].contextId))
+((global.profile.$.stats.level))
+((guild.bc_inventory.$[2]))
 ```
 
-Le format générique est : `<nomVariable>.$.<chemin JSONPath>`
+Format générique:
 
-Pour `httpRequest`, le corps reste accessible de la même manière via `body` :
-
-```
-((monHttp.body.$.propriete))
-((monHttp.body.$.liste[0].champ))
-((monHttp.body.$.a.b.c))
+```txt
+<variable>.$.<chemin>
 ```
 
-Format complet : `<key>.body.$.<chemin JSONPath>`
+Exemples courants:
 
-| Segment        | Description                         |
-|----------------|-------------------------------------|
-| `<key>`        | Nom de la variable JSON source      |
-| `.body`        | Marqueur : lecteur du corps JSON    |
-| `.$`           | Racine du document JSON             |
-| `.propriete`   | Accès à un champ objet              |
-| `[0]`          | Accès à un index de liste           |
+```txt
+((httpRequest.body.$.data))
+((query.items.$[0].id))
+((global.settings.$.channels.logs))
+```
 
-Le résultat est :
-- **string** → retourné tel quel
-- **number / bool** → converti en string
-- **object / array** → sérialisé en JSON
-- **null / absent** → `""` (chaîne vide)
+Résultat final:
+
+- `string` -> injecté tel quel
+- `number` / `bool` -> converti en string
+- `array` / `object` -> sérialisé en JSON
+- `null`, chemin absent, JSON invalide -> `""`
 
 ---
 
-## 4. Comportements importants
+## 4. Fonctions d'expression
+
+Le moteur supporte maintenant des fonctions explicites.
+
+Syntaxe:
+
+```txt
+((fonction(arg1, arg2, ...)))
+```
+
+Arguments autorisés:
+
+- variable runtime
+- expression JSONPath
+- littéral string entre guillemets
+- littéral number
+- littéral `true`, `false`, `null`
+- autre fonction imbriquée
+
+Exemples:
+
+```txt
+((length(scores.$)))
+((at(scores.$, 0)))
+((slice(scores.$, 0, 5)))
+((join(scores.$, ", ")))
+((formatEach(scores.$, "{name}: {score}", "\n")))
+((embedFields(scores.$, "{name}", "{score}", true)))
+```
+
+### Fonctions V1
+
+| Fonction | Rôle | Exemple |
+|----------|------|---------|
+| `length(source)` | Taille d'une string, array ou map | `((length(query.items.$)))` |
+| `at(source, index)` | Lit un élément d'array | `((at(query.items.$, 0)))` |
+| `slice(source, start, end?)` | Sous-tableau ou sous-chaîne | `((slice(names.$, 0, 3)))` |
+| `join(source, separator)` | Concatène un array | `((join(tags.$, ", ")))` |
+| `formatEach(source, itemTemplate, separator)` | Formate chaque item | `((formatEach(users.$, "{name}", ", ")))` |
+| `embedFields(source, nameTemplate, valueTemplate, inline?)` | Génère un JSON array de fields d'embed | `((embedFields(scores.$, "{name}", "{score}", true)))` |
+
+---
+
+## 5. Placeholders d'item pour les arrays
+
+`formatEach(...)` et `embedFields(...)` introduisent des placeholders item:
+
+- `{value}` cible l'item courant
+- `{field}` cible une propriété simple
+- `{field.subField}` cible une propriété imbriquée
+
+Exemples:
+
+```txt
+((formatEach(scores.$, "{name}: {score}", ", ")))
+((formatEach(users.$, "{profile.username}", "\n")))
+((embedFields(scores.$, "{name}", "{score}", true)))
+```
+
+Si l'item courant est un scalaire:
+
+```txt
+((formatEach(tags.$, "#{value}", ", ")))
+```
+
+---
+
+## 6. Règles de rendu final
+
+Après évaluation d'une expression:
+
+- valeur string -> injectée telle quelle
+- valeur number / bool -> `toString()`
+- valeur array / object -> JSON sérialisé
+- expression invalide -> `""`
+
+Exemples:
+
+```txt
+((length(scores.$)))              -> 3
+((at(scores.$, 0)))               -> {"name":"Alice","score":12}
+((slice(tags.$, 1, 3)))           -> ["beta","gamma"]
+((embedFields(scores.$, "{name}", "{score}", true)))
+                                  -> [{"name":"Alice","value":"12","inline":true}]
+```
+
+---
+
+## 7. Exemples complets
+
+### Texte simple
+
+```txt
+Bonjour ((userName)), bienvenue sur ((guildName)) !
+```
+
+### Fallback
+
+```txt
+Utilisateur ciblé: ((opts.user|userName))
+```
+
+### Lecture JSON HTTP
+
+```txt
+Premier joueur: ((search.body.$.items[0].name))
+```
+
+### Join d'un array
+
+```txt
+Joueurs: ((join(search.body.$.items, ", ")))
+```
+
+Si `items` contient des strings, le rendu sera direct.
+Si `items` contient des objets, préférez `formatEach(...)`.
+
+### Formatage textuel d'objets
+
+```txt
+((formatEach(search.body.$.items, "{name} ({score})", "\n")))
+```
+
+### Création de fields d'embed
+
+```json
+{
+  "title": "Classement",
+  "fieldsTemplate": "((embedFields(search.body.$.items, \"{name}\", \"{score}\", true)))"
+}
+```
+
+---
+
+## 8. Champs URL d'embed
+
+Les champs URL d'embed passent toujours par `resolveEmbedUri()`.
+
+Champs concernés:
+
+- `image.url`
+- `thumbnail.url`
+- `footer.icon_url`
+- `author.url`
+- `author.icon_url`
+
+Règle:
+
+- le template est d'abord résolu
+- le résultat doit être une URL valide avec scheme `http://` ou `https://`
+- sinon le champ est ignoré silencieusement
+
+Exemple valide:
+
+```json
+{ "thumbnail": { "url": "((userAvatar))" } }
+```
+
+Exemple ignoré:
+
+```json
+{ "thumbnail": { "url": "((avatar))" } }
+```
+
+---
+
+## 9. Comportements importants
 
 | Situation | Résultat |
 |-----------|----------|
-| Variable connue | Valeur de la variable |
-| Variable inconnue | `""` (chaîne vide) |
-| Fallback : première clé connue | Valeur de cette clé |
-| Fallback : aucune clé connue | `""` |
-| JSONPath invalide / JSON malformé | `""` |
-| Variable dans un champ URL (embed) | Validée en plus par `resolveEmbedUri()` — voir ci-dessous |
-
-Les actions qui résolvent explicitement leurs champs avant exécution incluent notamment
-`sendMessage`, `editMessage`, `createChannel`, `updateChannel`, `updateGuild`,
-`sendComponentV2`, `editComponentV2`, `respondWithMessage`, `respondWithComponentV2`
-et `sendWebhook`.
+| Variable connue | valeur résolue |
+| Variable inconnue | `""` |
+| Fallback avec valeur trouvée | première valeur trouvée |
+| JSONPath absent | `""` |
+| JSON invalide | `""` |
+| Fonction invalide | `""` |
+| Array/object final | JSON sérialisé |
+| URL embed sans scheme | champ ignoré |
 
 ---
 
-## 5. Résolution dans les champs URL (`resolveEmbedUri`)
+## 10. Bonnes pratiques
 
-Pour les champs URL des embeds (`image.url`, `thumbnail.url`, `footer.icon_url`,
-`author.url`, `author.icon_url`), la résolution passe par une étape supplémentaire :
+- Utilisez `formatEach(...)` pour du texte lisible à partir d'objets JSON
+- Utilisez `embedFields(...)` pour construire dynamiquement des fields
+- Réservez `|` au fallback global, pas à une logique de transformation
+- Quand une réponse HTTP renvoie un array d'objets, préférez:
 
-```
-raw string
-  → resolveTemplatePlaceholders()  → string résolue
-  → Uri.tryParse()                 → Uri?
-  → uri.hasScheme ?                → Uri (retourné) | null (champ ignoré)
+```txt
+((formatEach(monHttp.body.$.items, "{name}", ", ")))
 ```
 
-**Conséquence** : si la variable n'existe pas (résolution → `""`), ou si l'URL résolue
-n'a pas de scheme (`https://` ou `http://`), le champ est **silencieusement supprimé**
-de l'embed envoyé à Discord.
+plutôt que des index manuels:
 
----
-
-## 6. Exemples complets
-
-### Texte simple
+```txt
+((monHttp.body.$.items[0].name)), ((monHttp.body.$.items[1].name)), ...
 ```
-Bonjour ((userName)), bienvenue sur ((guildName)) !
-```
-→ `Bonjour JohnDoe, bienvenue sur Mon Serveur !`
-
-### Fallback
-```
-Utilisateur ciblé : ((opts.cible|userName))
-```
-→ Si l'option `cible` existe : son nom. Sinon : le nom de l'invocateur.
-
-### URL d'image (avatar d'une option user)
-```json
-{ "image": { "url": "((opts.cible.avatar))" } }
-```
-→ `https://cdn.discordapp.com/avatars/456/def.webp?size=1024` ✅
-
-### JSONPath
-```
-Résultat : ((monHttp.body.$.data.username))
-```
-→ Extrait `body.data.username` depuis la réponse JSON de l'action `monHttp`.
-
-### Erreur silencieuse typique
-```json
-{ "thumbnail": { "url": "((user.avatar))" } }
-```
-→ `user.avatar` n'est **pas** une variable valide.  
-→ Résolution → `""` → `resolveEmbedUri` → `null` → thumbnail absente.  
-→ **Correction** : utiliser `((userAvatar))` pour l'invocateur ou `((opts.X.avatar))`
-  pour une option.

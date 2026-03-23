@@ -41,6 +41,8 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
       'editorMode': _editorMode,
       'simpleConfig': _currentSimpleConfig(),
       'defaultMemberPermissions': _defaultMemberPermissions.trim(),
+      if (_supportsCommandOptions && _effectiveOptions.isNotEmpty)
+        'options': _serializeOptions(_effectiveOptions),
       'response': responsePayload,
       'actions': actionsPayload,
       if (hasSubcommandWorkflows)

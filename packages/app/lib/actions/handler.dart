@@ -35,6 +35,8 @@ import 'package:bot_creator_shared/actions/executors/control_flow_executor.dart'
     as shared_control_flow_executor;
 import 'package:bot_creator_shared/actions/executors/http_executor.dart'
     as shared_http_executor;
+import 'package:bot_creator_shared/actions/executors/variables_executor.dart'
+    as shared_variables_executor;
 import 'package:bot_creator_shared/actions/handler.dart' as shared_handler;
 import 'package:bot_creator_shared/types/action.dart' as shared_types;
 import 'package:bot_creator/utils/database.dart';
@@ -357,6 +359,30 @@ Future<Map<String, String>> handleActions(
       );
     }
     if (handledByHttpExecutor) continue;
+
+    var handledByVariablesExecutor = false;
+    if (sharedActionType != null) {
+      handledByVariablesExecutor = await shared_variables_executor
+          .executeVariablesAction(
+            type: sharedActionType,
+            store: manager,
+            botId: botId,
+            payload: action.payload,
+            resultKey: resultKey,
+            results: results,
+            variables: variables,
+            resolveValue: resolveValue,
+            guildId: guildId,
+            fallbackChannelId: resolvedFallbackChannelId,
+            interaction: interaction,
+          );
+    }
+    if (handledByVariablesExecutor) {
+      if (results.containsKey('__stopped__')) {
+        return results;
+      }
+      continue;
+    }
 
     try {
       switch (action.type) {
@@ -1199,6 +1225,10 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = itemsJson;
           break;
         // Array operations
+        case BotCreatorActionType.appendArrayElement:
+        case BotCreatorActionType.removeArrayElement:
+        case BotCreatorActionType.queryArray:
+        case BotCreatorActionType.respondWithAutocomplete:
         case BotCreatorActionType.httpRequest:
         case BotCreatorActionType.runWorkflow:
         case BotCreatorActionType.stopUnless:

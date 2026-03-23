@@ -251,6 +251,11 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                             value: 'number',
                             child: Text('Number'),
                           ),
+                          DropdownMenuItem(
+                            value: 'boolean',
+                            child: Text('Boolean'),
+                          ),
+                          DropdownMenuItem(value: 'json', child: Text('JSON')),
                         ],
                         onChanged: (v) {
                           if (v != null) setInner(() => valueType = v);
@@ -495,6 +500,10 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                 backgroundColor:
                     valueType == 'number'
                         ? Colors.blue.withAlpha(40)
+                        : valueType == 'boolean'
+                        ? Colors.green.withAlpha(40)
+                        : valueType == 'json'
+                        ? Colors.orange.withAlpha(40)
                         : Colors.grey.withAlpha(40),
               ),
               const SizedBox(width: 8),

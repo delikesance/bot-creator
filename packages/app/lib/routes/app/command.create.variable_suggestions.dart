@@ -232,6 +232,37 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
         ]);
       }
 
+      if (type == 'appendArrayElement') {
+        outputVariables.addAll([
+          'action.$actionKey.items',
+          '$actionKey.items',
+          'action.$actionKey.length',
+          '$actionKey.length',
+        ]);
+      }
+
+      if (type == 'removeArrayElement') {
+        outputVariables.addAll([
+          'action.$actionKey.items',
+          '$actionKey.items',
+          'action.$actionKey.length',
+          '$actionKey.length',
+          'action.$actionKey.removed',
+          '$actionKey.removed',
+        ]);
+      }
+
+      if (type == 'queryArray' || type == 'listScopedVariableIndex') {
+        outputVariables.addAll([
+          'action.$actionKey.items',
+          '$actionKey.items',
+          'action.$actionKey.count',
+          '$actionKey.count',
+          'action.$actionKey.total',
+          '$actionKey.total',
+        ]);
+      }
+
       final storeAlias = _resolveActionStoreAlias(action);
       if (storeAlias.isNotEmpty) {
         outputVariables.add(storeAlias);
@@ -351,6 +382,64 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
         );
       }
 
+      if (type == 'appendArrayElement') {
+        addSuggestion(
+          'action.$actionKey.items',
+          kind: VariableSuggestionKind.unknown,
+        );
+        addSuggestion('$actionKey.items', kind: VariableSuggestionKind.unknown);
+        addSuggestion(
+          'action.$actionKey.length',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion(
+          '$actionKey.length',
+          kind: VariableSuggestionKind.numeric,
+        );
+      }
+
+      if (type == 'removeArrayElement') {
+        addSuggestion(
+          'action.$actionKey.items',
+          kind: VariableSuggestionKind.unknown,
+        );
+        addSuggestion('$actionKey.items', kind: VariableSuggestionKind.unknown);
+        addSuggestion(
+          'action.$actionKey.length',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion(
+          '$actionKey.length',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion(
+          'action.$actionKey.removed',
+          kind: VariableSuggestionKind.unknown,
+        );
+        addSuggestion(
+          '$actionKey.removed',
+          kind: VariableSuggestionKind.unknown,
+        );
+      }
+
+      if (type == 'queryArray' || type == 'listScopedVariableIndex') {
+        addSuggestion(
+          'action.$actionKey.items',
+          kind: VariableSuggestionKind.unknown,
+        );
+        addSuggestion('$actionKey.items', kind: VariableSuggestionKind.unknown);
+        addSuggestion(
+          'action.$actionKey.count',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion('$actionKey.count', kind: VariableSuggestionKind.numeric);
+        addSuggestion(
+          'action.$actionKey.total',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion('$actionKey.total', kind: VariableSuggestionKind.numeric);
+      }
+
       final storeAlias = _resolveActionStoreAlias(action);
       if (storeAlias.isNotEmpty) {
         addSuggestion(storeAlias, kind: VariableSuggestionKind.unknown);
@@ -365,6 +454,16 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
     addSuggestion('workflow.args', kind: VariableSuggestionKind.nonNumeric);
     addSuggestion('arg.yourArg', kind: VariableSuggestionKind.unknown);
     addSuggestion('workflow.arg.yourArg', kind: VariableSuggestionKind.unknown);
+    for (final functionName in const <String>[
+      'length(source)',
+      'at(source, 0)',
+      'slice(source, 0, 10)',
+      'join(source, ", ")',
+      'formatEach(source, "{value}", ", ")',
+      'embedFields(source, "{name}", "{value}", true)',
+    ]) {
+      addSuggestion(functionName, kind: VariableSuggestionKind.unknown);
+    }
 
     for (final name in _persistedGlobalVariableNames) {
       addSuggestion(name, kind: VariableSuggestionKind.unknown);

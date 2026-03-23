@@ -11,6 +11,7 @@ import 'package:bot_creator/utils/app_emoji_api.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/command_variable_catalog.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/simple_mode.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:bot_creator/widgets/command_create_cards/basic_info_card.dart';
 import 'package:bot_creator/widgets/command_create_cards/reply_card.dart';
@@ -83,12 +84,37 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   bool _simpleDeleteMessages = false;
   bool _simpleKickUser = false;
   bool _simpleBanUser = false;
+  bool _simpleUnbanUser = false;
   bool _simpleMuteUser = false;
+  bool _simpleUnmuteUser = false;
   bool _simpleAddRole = false;
   bool _simpleRemoveRole = false;
   bool _simpleSendMessage = false;
+  bool _simplePinMessage = false;
+  bool _simpleUnpinMessage = false;
+  bool _simpleCreateInvite = false;
+  bool _simpleCreatePoll = false;
   final TextEditingController _simpleSendMessageController =
       TextEditingController();
+  final TextEditingController _simpleActionReasonController =
+      TextEditingController();
+  final TextEditingController _simpleMuteDurationController =
+      TextEditingController(text: '10m');
+  final TextEditingController _simpleBanDeleteDaysController =
+      TextEditingController(text: '0');
+  final TextEditingController _simpleDeleteMessagesDefaultCountController =
+      TextEditingController(text: '1');
+  final TextEditingController _simpleInviteMaxAgeController =
+      TextEditingController(text: '86400');
+  final TextEditingController _simpleInviteMaxUsesController =
+      TextEditingController(text: '0');
+  final TextEditingController _simplePollAnswersController =
+      TextEditingController(text: 'Yes\nNo');
+  final TextEditingController _simplePollDurationHoursController =
+      TextEditingController(text: '24');
+  bool _simpleInviteTemporary = false;
+  bool _simpleInviteUnique = false;
+  bool _simplePollAllowMultiselect = false;
   Map<String, Map<String, dynamic>> _subcommandWorkflows =
       <String, Map<String, dynamic>>{};
   String _activeSubcommandRoute = _rootWorkflowRoute;
@@ -131,15 +157,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
   String get _effectiveCommandDescription =>
       _supportsCommandDescription ? _commandDescription : '';
-
-  bool get _requiresSimpleUserOption =>
-      _simpleKickUser ||
-      _simpleBanUser ||
-      _simpleMuteUser ||
-      _simpleAddRole ||
-      _simpleRemoveRole;
-
-  bool get _requiresSimpleRoleOption => _simpleAddRole || _simpleRemoveRole;
 
   bool _isHierarchyOptionType(CommandOptionType type) {
     return type == CommandOptionType.subCommand ||
@@ -473,9 +490,21 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       descriptionLocalizations:
           source.descriptionLocalizations as Map<Locale, String>?,
     );
+    option.hasAutocomplete = source.hasAutocomplete == true;
+    if (option.hasAutocomplete == true &&
+        commandOptionSupportsAutocomplete(option.type)) {
+      setCommandOptionAutocompleteConfig(option, <String, dynamic>{
+        'enabled': true,
+        'workflow': '',
+        'entryPoint': 'main',
+        'arguments': <String, dynamic>{},
+      });
+    }
 
     final rawChoices = source.choices;
-    if (rawChoices is List && rawChoices.isNotEmpty) {
+    if (rawChoices is List &&
+        rawChoices.isNotEmpty &&
+        option.hasAutocomplete != true) {
       option.choices = rawChoices
           .map(
             (choice) => CommandOptionChoiceBuilder(
@@ -530,6 +559,14 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   void dispose() {
     _responseController.dispose();
     _simpleSendMessageController.dispose();
+    _simpleActionReasonController.dispose();
+    _simpleMuteDurationController.dispose();
+    _simpleBanDeleteDaysController.dispose();
+    _simpleDeleteMessagesDefaultCountController.dispose();
+    _simpleInviteMaxAgeController.dispose();
+    _simpleInviteMaxUsesController.dispose();
+    _simplePollAnswersController.dispose();
+    _simplePollDurationHoursController.dispose();
     super.dispose();
   }
 
@@ -709,6 +746,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           _activeSubcommandRoute =
               (normalizedData['activeSubcommandRoute'] ?? _rootWorkflowRoute)
                   .toString();
+          final storedOptions = normalizedData['options'];
+          if (storedOptions is List) {
+            _options = deserializeCommandOptions(storedOptions);
+          }
           if (_subcommandWorkflows.containsKey(_activeSubcommandRoute)) {
             final activePayload = _subcommandWorkflows[_activeSubcommandRoute];
             if (activePayload != null) {
@@ -763,7 +804,15 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         _commandName = currentCommand.name;
         _commandDescription = currentCommand.description;
         _commandType = currentCommand.type;
-        if (currentCommand.options != null) {
+        final storedOptions =
+            data is Map
+                ? Map<String, dynamic>.from(
+                  data.cast<String, dynamic>(),
+                )['options']
+                : null;
+        if (storedOptions is List) {
+          _options = deserializeCommandOptions(storedOptions);
+        } else if (currentCommand.options != null) {
           _options = currentCommand.options!
               .map(_buildOptionFromApplicationOption)
               .toList(growable: false);
@@ -830,12 +879,17 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       return;
     }
 
-    if (_isSimpleMode &&
-        _simpleSendMessage &&
-        _simpleSendMessageController.text.trim().isEmpty) {
+    final simpleValidationError =
+        _isSimpleMode
+            ? validateSimpleModeConfig(
+              _simpleModeConfig,
+              translate: AppStrings.t,
+            )
+            : null;
+    if (simpleValidationError != null) {
       final dialog = AlertDialog(
         title: Text(AppStrings.t('error')),
-        content: Text(AppStrings.t('cmd_simple_send_message_required')),
+        content: Text(simpleValidationError),
         actions: [
           TextButton(
             onPressed: () {

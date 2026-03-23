@@ -7,6 +7,7 @@ import 'package:bot_creator_shared/actions/handler.dart';
 import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator_shared/bot/bot_config.dart';
 import 'package:bot_creator_shared/events/event_contexts.dart';
+import 'package:bot_creator_shared/utils/command_autocomplete.dart';
 import 'package:bot_creator_shared/utils/global.dart';
 import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart';
@@ -91,7 +92,23 @@ class DiscordRunner {
     final client = event.gateway.client;
     final botId = client.user.id.toString();
 
-    if (interaction is ApplicationCommandInteraction) {
+    if (interaction is ApplicationCommandAutocompleteInteraction) {
+      final commandId = interaction.data.id.toString();
+      final commandData = _findCommand(commandId);
+      if (commandData == null) {
+        await interaction.respond(
+          const <CommandOptionChoiceBuilder<dynamic>>[],
+        );
+        return;
+      }
+
+      await _executeAutocomplete(
+        client: client,
+        botId: botId,
+        interaction: interaction,
+        commandData: commandData,
+      );
+    } else if (interaction is ApplicationCommandInteraction) {
       final commandId = interaction.data.id.toString();
       final interactionType = _commandTypeToStorage(interaction.data.type);
 
@@ -779,6 +796,140 @@ class DiscordRunner {
         didDefer: didDefer,
         isEphemeral: isEphemeral,
       );
+    }
+  }
+
+  Future<void> _executeAutocomplete({
+    required NyxxGateway client,
+    required String botId,
+    required ApplicationCommandAutocompleteInteraction interaction,
+    required Map<String, dynamic> commandData,
+  }) async {
+    final data = Map<String, dynamic>.from(
+      (commandData['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final value = Map<String, dynamic>.from(
+      (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
+    );
+    final autocompleteConfig = resolveAutocompleteConfigForInteraction(
+      storedOptions: value['options'],
+      interactionOptions: interaction.data.options,
+    );
+    if (autocompleteConfig == null || autocompleteConfig['enabled'] != true) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final workflowName =
+        (autocompleteConfig['workflow'] ?? '').toString().trim();
+    if (workflowName.isEmpty) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final workflow = await store.getWorkflowByName(botId, workflowName);
+    if (workflow == null) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final normalizedWorkflow = normalizeStoredWorkflowDefinition(workflow);
+    if (normalizeWorkflowType(normalizedWorkflow['workflowType']) !=
+        workflowTypeGeneral) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    final focusedOption = findFocusedOption(interaction.data.options);
+    final runtimeVariables = await generateKeyValues(interaction);
+    runtimeVariables['command.type'] = 'chatInput';
+    runtimeVariables['interaction.command.type'] = 'chatInput';
+    runtimeVariables['config.command.type'] = 'chatInput';
+    runtimeVariables['interaction.command.name'] = interaction.data.name;
+    runtimeVariables['interaction.command.id'] = interaction.data.id.toString();
+    runtimeVariables['interaction.command.route'] =
+        resolveSubcommandRoute(interaction.data.options) ?? '';
+    runtimeVariables['autocomplete.query'] =
+        focusedOption?.value?.toString() ?? '';
+    runtimeVariables['autocomplete.optionName'] = focusedOption?.name ?? '';
+    runtimeVariables['autocomplete.optionType'] =
+        focusedOption == null
+            ? 'string'
+            : commandOptionTypeToText(focusedOption.type);
+    runtimeVariables['workflow.type'] = workflowTypeGeneral;
+
+    await hydrateRuntimeVariables(
+      store: store,
+      botId: botId,
+      runtimeVariables: runtimeVariables,
+      guildContextId: runtimeVariables['guildId'],
+      channelContextId: runtimeVariables['channelId'],
+      userContextId: runtimeVariables['userId'],
+      messageContextId:
+          runtimeVariables['messageId'] ?? runtimeVariables['message.id'],
+    );
+
+    final providedArguments = resolveWorkflowCallArguments(
+      autocompleteConfig['arguments'],
+      (input) => resolveTemplatePlaceholders(
+        input,
+        Map<String, String>.from(runtimeVariables),
+      ),
+    );
+    applyWorkflowInvocationContext(
+      variables: runtimeVariables,
+      workflowName: workflowName,
+      entryPoint: normalizeWorkflowEntryPoint(
+        autocompleteConfig['entryPoint'] ?? normalizedWorkflow['entryPoint'],
+      ),
+      definitions: parseWorkflowArgumentDefinitions(
+        normalizedWorkflow['arguments'],
+      ),
+      providedArguments: providedArguments,
+    );
+
+    final actions = List<Action>.from(
+      ((normalizedWorkflow['actions'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((json) => Action.fromJson(Map<String, dynamic>.from(json))),
+    );
+    if (actions.isEmpty) {
+      await interaction.respond(const <CommandOptionChoiceBuilder<dynamic>>[]);
+      return;
+    }
+
+    try {
+      final actionResults = await handleActions(
+        client,
+        interaction,
+        actions: actions,
+        store: store,
+        botId: botId,
+        variables: runtimeVariables,
+        resolveTemplate:
+            (input) => resolveTemplatePlaceholders(
+              input,
+              Map<String, String>.from(runtimeVariables),
+            ),
+        onLog: (msg) => _log.info(msg),
+      );
+
+      if (!actionResults.containsKey('__stopped__')) {
+        await interaction.respond(
+          const <CommandOptionChoiceBuilder<dynamic>>[],
+        );
+      }
+    } catch (error, stackTrace) {
+      _log.warning(
+        'Autocomplete workflow "$workflowName" failed: $error',
+        error,
+        stackTrace,
+      );
+      try {
+        await interaction.respond(
+          const <CommandOptionChoiceBuilder<dynamic>>[],
+        );
+      } catch (_) {}
     }
   }
 

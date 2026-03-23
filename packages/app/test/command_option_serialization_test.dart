@@ -121,5 +121,71 @@ void main() {
         'done',
       );
     });
+
+    test('serializes autocomplete config and omits static choices', () {
+      final option = CommandOptionBuilder(
+          type: CommandOptionType.string,
+          name: 'country',
+          description: 'Country',
+          isRequired: false,
+        )
+        ..choices = <CommandOptionChoiceBuilder>[
+          CommandOptionChoiceBuilder(name: 'France', value: 'fr'),
+        ];
+
+      setCommandOptionAutocompleteConfig(option, <String, dynamic>{
+        'enabled': true,
+        'workflow': 'country_search',
+        'entryPoint': 'main',
+        'arguments': <String, dynamic>{'dataset': 'countries'},
+      });
+
+      final serialized = serializeCommandOption(option);
+      final deserialized = deserializeCommandOption(serialized);
+
+      expect(serialized['autocomplete'], <String, dynamic>{
+        'enabled': true,
+        'workflow': 'country_search',
+        'entryPoint': 'main',
+        'arguments': <String, dynamic>{'dataset': 'countries'},
+      });
+      expect(serialized.containsKey('choices'), isFalse);
+      expect(isCommandOptionAutocompleteEnabled(deserialized), isTrue);
+      expect(
+        getCommandOptionAutocompleteConfig(deserialized),
+        <String, dynamic>{
+          'enabled': true,
+          'workflow': 'country_search',
+          'entryPoint': 'main',
+          'arguments': <String, dynamic>{'dataset': 'countries'},
+        },
+      );
+      expect(deserialized.choices, isNull);
+    });
+
+    test(
+      'normalizes stored autocomplete config with inferred enabled flag',
+      () {
+        final option = deserializeCommandOption(<String, dynamic>{
+          'type': 'integer',
+          'name': 'rank',
+          'description': 'Rank',
+          'required': false,
+          'autocomplete': <String, dynamic>{
+            'workflow': 'rank_search',
+            'entryPoint': '',
+            'arguments': <String, dynamic>{' dataset ': ' ladder '},
+          },
+        });
+
+        expect(isCommandOptionAutocompleteEnabled(option), isTrue);
+        expect(getCommandOptionAutocompleteConfig(option), <String, dynamic>{
+          'enabled': true,
+          'workflow': 'rank_search',
+          'entryPoint': 'main',
+          'arguments': <String, dynamic>{'dataset': ' ladder '},
+        });
+      },
+    );
   });
 }

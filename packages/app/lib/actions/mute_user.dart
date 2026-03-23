@@ -29,6 +29,27 @@ Duration _resolveMuteDuration(Map<String, dynamic> payload) {
     return Duration(seconds: generic);
   }
 
+  final compact = RegExp(
+    r'^(\d+)\s*([smhd])$',
+    caseSensitive: false,
+  ).firstMatch((payload['duration'] ?? '').toString().trim());
+  if (compact != null) {
+    final amount = int.tryParse(compact.group(1) ?? '');
+    final unit = (compact.group(2) ?? '').toLowerCase();
+    if (amount != null) {
+      switch (unit) {
+        case 's':
+          return Duration(seconds: amount);
+        case 'm':
+          return Duration(minutes: amount);
+        case 'h':
+          return Duration(hours: amount);
+        case 'd':
+          return Duration(days: amount);
+      }
+    }
+  }
+
   return const Duration(minutes: 10);
 }
 

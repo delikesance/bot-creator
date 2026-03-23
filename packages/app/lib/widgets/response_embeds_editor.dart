@@ -59,6 +59,7 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
         'url': (embed['author']?['url'] ?? '').toString(),
         'icon_url': (embed['author']?['icon_url'] ?? '').toString(),
       },
+      'fieldsTemplate': (embed['fieldsTemplate'] ?? '').toString(),
       'fields':
           (embed['fields'] is List)
               ? List<Map<String, dynamic>>.from(
@@ -476,6 +477,19 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                             );
                           }),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+                    VariableTextField(
+                      label: 'Dynamic Fields Template',
+                      initialValue: embed['fieldsTemplate']?.toString() ?? '',
+                      maxLines: 3,
+                      suggestions: widget.variableSuggestions,
+                      emojiSuggestions: widget.emojiSuggestions,
+                      hint:
+                          'Ex: ((embedFields(myHttp.body.\$.items, "{name}", "{score}", true)))',
+                      onChanged:
+                          (value) =>
+                              _setEmbedValue(index, 'fieldsTemplate', value),
                     ),
                   ],
                 ),

@@ -158,6 +158,9 @@ Future<Map<String, String>> handleActions(
       interaction: interaction,
     );
     if (handledByVariablesExecutor) {
+      if (results.containsKey('__stopped__')) {
+        return results;
+      }
       continue;
     }
 
@@ -255,9 +258,13 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.removeScopedVariable:
         case BotCreatorActionType.renameScopedVariable:
         case BotCreatorActionType.listScopedVariableIndex:
+        case BotCreatorActionType.appendArrayElement:
+        case BotCreatorActionType.removeArrayElement:
+        case BotCreatorActionType.queryArray:
         case BotCreatorActionType.setGlobalVariable:
         case BotCreatorActionType.getGlobalVariable:
         case BotCreatorActionType.removeGlobalVariable:
+        case BotCreatorActionType.respondWithAutocomplete:
         case BotCreatorActionType.httpRequest:
         case BotCreatorActionType.runWorkflow:
         case BotCreatorActionType.stopUnless:
