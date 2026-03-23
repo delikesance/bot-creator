@@ -417,6 +417,8 @@ Future<void> sendWorkflowResponse({
             ? 'Workflow executed successfully.'
             : responseText;
 
+    String? responseMessageId;
+
     if (didDefer) {
       final isV2 = activeResponseType == 'componentV2';
       final updateBuilder = MessageUpdateBuilder(
@@ -431,7 +433,9 @@ Future<void> sendWorkflowResponse({
 
       if (interaction is MessageResponse ||
           interaction is ModalSubmitInteraction) {
-        await (interaction as dynamic).updateOriginalResponse(updateBuilder);
+        final updatedMessage = await (interaction as dynamic)
+            .updateOriginalResponse(updateBuilder);
+        responseMessageId = updatedMessage.id.toString();
         onLog?.call('Response edited after defer', botId: botId);
       }
     } else {
@@ -449,6 +453,11 @@ Future<void> sendWorkflowResponse({
             flags: flagValue > 0 ? MessageFlags(flagValue) : null,
           ),
         );
+        try {
+          final responseMessage =
+              await (interaction as dynamic).fetchOriginalResponse();
+          responseMessageId = responseMessage.id.toString();
+        } catch (_) {}
         onLog?.call('Response sent', botId: botId);
       } else {}
     }
@@ -460,6 +469,7 @@ Future<void> sendWorkflowResponse({
         botId: botId,
         guildId: interaction.guildId?.toString(),
         channelId: interaction.channelId?.toString(),
+        messageId: responseMessageId,
       );
     }
 

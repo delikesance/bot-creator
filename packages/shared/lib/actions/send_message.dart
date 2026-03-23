@@ -1,5 +1,6 @@
 ﻿import 'package:nyxx/nyxx.dart';
 import '../types/component.dart';
+import '../utils/component_workflow_bindings.dart';
 import 'send_component_v2.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
@@ -18,6 +19,8 @@ Future<Map<String, String>> sendMessageToChannel(
   required String content,
   Map<String, dynamic>? payload,
   String Function(String)? resolve,
+  String? botId,
+  String? guildId,
 }) async {
   try {
     // Determine actual channel to send to
@@ -52,6 +55,7 @@ Future<Map<String, String>> sendMessageToChannel(
 
     List<ComponentBuilder>? components;
     bool isRichV2 = false;
+    ComponentV2Definition? definition;
     if (payload != null &&
         payload.containsKey('componentV2') &&
         payload['componentV2'] is Map) {
@@ -59,6 +63,7 @@ Future<Map<String, String>> sendMessageToChannel(
         final def = ComponentV2Definition.fromJson(
           Map<String, dynamic>.from(payload['componentV2']),
         );
+        definition = def;
         isRichV2 = def.isRichV2;
         components = buildComponentNodes(
           definition: def,
@@ -74,6 +79,16 @@ Future<Map<String, String>> sendMessageToChannel(
         flags: isRichV2 ? MessageFlags(32768) : null,
       ),
     );
+    if (definition != null && botId != null && botId.trim().isNotEmpty) {
+      registerComponentWorkflowBindings(
+        definition: definition,
+        resolve: resolve ?? (s) => s,
+        botId: botId,
+        guildId: guildId,
+        channelId: targetChannelId.toString(),
+        messageId: message.id.toString(),
+      );
+    }
     return {'messageId': message.id.toString()};
   } catch (e) {
     return {'error': 'Failed to send message: $e', 'messageId': ''};

@@ -184,6 +184,10 @@ ou une URL sans scheme, le champ est **silencieusement ignoré**.
 }
 ```
 
+Les champs string des payloads d'actions qui passent par le moteur d'exécution supportent
+les templates `((variables))`. Cela couvre notamment les actions de messagerie,
+de composants V2, de webhook et les principales actions de gestion de salons/serveur.
+
 #### Types d'actions disponibles (`BotCreatorActionType`)
 
 | Valeur (`type`)           | Description                            |
@@ -231,6 +235,7 @@ ou une URL sans scheme, le champ est **silencieusement ignoré**.
 | `respondWithModal`        | Ouvrir un modal                       |
 | `editInteractionMessage`  | Modifier la réponse initiale          |
 | `listenForButtonClick`    | Attendre un clic de bouton            |
+| `listenForSelectMenu`     | Attendre l'utilisation d'un select    |
 | `listenForModalSubmit`    | Attendre la soumission d'un modal     |
 
 ---

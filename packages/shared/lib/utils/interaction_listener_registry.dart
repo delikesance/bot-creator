@@ -12,6 +12,7 @@ class ListenerEntry {
   final String type; // 'button' | 'select' | 'modal'
   final String? guildId;
   final String? channelId;
+  final String? messageId;
   final String? userId; // if userId is set, only respond to that user
 
   const ListenerEntry({
@@ -24,6 +25,7 @@ class ListenerEntry {
     this.oneShot = true,
     this.guildId,
     this.channelId,
+    this.messageId,
     this.userId,
   });
 
@@ -36,6 +38,7 @@ class ListenerMatchRequest {
     required this.type,
     this.guildId,
     this.channelId,
+    this.messageId,
     this.userId,
   });
 
@@ -43,6 +46,7 @@ class ListenerMatchRequest {
   final String type;
   final String? guildId;
   final String? channelId;
+  final String? messageId;
   final String? userId;
 }
 
@@ -123,6 +127,9 @@ class InteractionListenerRegistry {
       return false;
     }
     if (entry.channelId != null && entry.channelId != request.channelId) {
+      return false;
+    }
+    if (entry.messageId != null && entry.messageId != request.messageId) {
       return false;
     }
     if (entry.userId != null && entry.userId != request.userId) {

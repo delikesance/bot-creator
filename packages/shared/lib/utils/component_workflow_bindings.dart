@@ -106,6 +106,7 @@ void registerComponentWorkflowBindings({
   required String botId,
   String? guildId,
   String? channelId,
+  String? messageId,
   Duration ttl = const Duration(hours: 24),
 }) {
   final bindings = extractComponentWorkflowBindings(
@@ -134,6 +135,7 @@ void registerComponentWorkflowBindings({
         oneShot: false,
         guildId: guildId,
         channelId: channelId,
+        messageId: messageId,
       ),
     );
   }

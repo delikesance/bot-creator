@@ -66,6 +66,8 @@ Future<Map<String, String>> handleActions(
       resultKey: resultKey,
       results: results,
       variables: variables,
+      botId: botId,
+      guildId: guildId,
       fallbackChannelId: resolvedFallbackChannelId,
       resolveValue: resolveValue,
     );
@@ -246,6 +248,7 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.respondWithModal:
         case BotCreatorActionType.editInteractionMessage:
         case BotCreatorActionType.listenForButtonClick:
+        case BotCreatorActionType.listenForSelectMenu:
         case BotCreatorActionType.listenForModalSubmit:
         case BotCreatorActionType.setScopedVariable:
         case BotCreatorActionType.getScopedVariable:
@@ -290,6 +293,7 @@ Future<Map<String, String>> handleActions(
             client,
             guildId: guildId,
             payload: action.payload,
+            resolve: resolveValue,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);

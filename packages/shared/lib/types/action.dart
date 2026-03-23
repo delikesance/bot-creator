@@ -46,6 +46,7 @@ enum BotCreatorActionType {
   respondWithModal,
   editInteractionMessage,
   listenForButtonClick,
+  listenForSelectMenu,
   listenForModalSubmit,
   // Math & Calculation
   calculate,

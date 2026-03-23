@@ -255,6 +255,7 @@ const Map<String, String> appStringsFr = {
   'action_name_respondWithModal': 'Répondre avec un modal',
   'action_name_editInteractionMessage': 'Modifier le message d\'interaction',
   'action_name_listenForButtonClick': 'Écouter un clic bouton',
+  'action_name_listenForSelectMenu': 'Écouter un menu de sélection',
   'action_name_listenForModalSubmit': 'Écouter une soumission de modal',
   'action_name_stopUnless': 'Arrêter sauf si condition',
   'action_name_ifBlock': 'Bloc SI / SINON',

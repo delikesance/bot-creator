@@ -93,6 +93,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return AppStrings.t('action_name_editInteractionMessage');
       case BotCreatorActionType.listenForButtonClick:
         return AppStrings.t('action_name_listenForButtonClick');
+      case BotCreatorActionType.listenForSelectMenu:
+        return AppStrings.t('action_name_listenForSelectMenu');
       case BotCreatorActionType.listenForModalSubmit:
         return AppStrings.t('action_name_listenForModalSubmit');
       case BotCreatorActionType.stopUnless:
@@ -234,6 +236,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.edit_notifications;
       case BotCreatorActionType.listenForButtonClick:
         return Icons.touch_app;
+      case BotCreatorActionType.listenForSelectMenu:
+        return Icons.list_alt;
       case BotCreatorActionType.listenForModalSubmit:
         return Icons.dynamic_form;
       case BotCreatorActionType.stopUnless:
@@ -878,19 +882,41 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
       case BotCreatorActionType.sendComponentV2:
         return [
           ParameterDefinition(
-            key: 'components',
-            type: ParameterType.string,
+            key: 'channelId',
+            type: ParameterType.channelId,
             defaultValue: '',
-            hint: 'Component definitions (Not implemented yet)',
+            hint:
+                'Channel to send the components in (optional: current channel)',
+          ),
+          ParameterDefinition(
+            key: 'components',
+            type: ParameterType.componentV2,
+            defaultValue: <String, dynamic>{},
+            hint: 'Component V2 layout to send',
+            required: true,
           ),
         ];
       case BotCreatorActionType.editComponentV2:
         return [
           ParameterDefinition(
-            key: 'components',
-            type: ParameterType.string,
+            key: 'channelId',
+            type: ParameterType.channelId,
             defaultValue: '',
-            hint: 'Component definitions (Not implemented yet)',
+            hint: 'Channel containing the message (optional: current channel)',
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint: 'Message to edit',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'components',
+            type: ParameterType.componentV2,
+            defaultValue: <String, dynamic>{},
+            hint: 'Updated Component V2 layout',
+            required: true,
           ),
         ];
       case BotCreatorActionType.sendWebhook:
@@ -1486,6 +1512,13 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             required: true,
           ),
           ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint:
+                'Optional message scope. Recommended to avoid collisions when the same customId exists on multiple messages.',
+          ),
+          ParameterDefinition(
             key: 'workflowName',
             type: ParameterType.string,
             defaultValue: '',
@@ -1519,6 +1552,56 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'Remove listener after first click',
           ),
         ];
+      case BotCreatorActionType.listenForSelectMenu:
+        return [
+          ParameterDefinition(
+            key: 'customId',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Select menu customId to listen for (supports ((variables)))',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint:
+                'Optional message scope. Recommended to avoid collisions when the same customId exists on multiple messages.',
+          ),
+          ParameterDefinition(
+            key: 'workflowName',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Workflow to run when the select menu is used',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'entryPoint',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional entry point override',
+          ),
+          ParameterDefinition(
+            key: 'arguments',
+            type: ParameterType.map,
+            defaultValue: <String, dynamic>{},
+            hint: 'Optional key/value arguments for workflow call',
+          ),
+          ParameterDefinition(
+            key: 'ttlMinutes',
+            type: ParameterType.number,
+            defaultValue: 60,
+            hint: 'Listener TTL in minutes (max 60)',
+            minValue: 1,
+            maxValue: 60,
+          ),
+          ParameterDefinition(
+            key: 'oneShot',
+            type: ParameterType.boolean,
+            defaultValue: true,
+            hint: 'Remove listener after first selection',
+          ),
+        ];
       case BotCreatorActionType.listenForModalSubmit:
         return [
           ParameterDefinition(
@@ -1527,6 +1610,13 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             defaultValue: '',
             hint: 'Modal customId to listen for',
             required: true,
+          ),
+          ParameterDefinition(
+            key: 'messageId',
+            type: ParameterType.messageId,
+            defaultValue: '',
+            hint:
+                'Optional originating message scope when the modal is opened from a component interaction.',
           ),
           ParameterDefinition(
             key: 'workflowName',

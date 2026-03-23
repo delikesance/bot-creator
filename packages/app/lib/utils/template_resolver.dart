@@ -80,6 +80,21 @@ dynamic _extractJsonPath(dynamic data, String rawPath) {
   return current;
 }
 
+String? _lookupVariableValue(String key, Map<String, String> updates) {
+  if (updates.containsKey(key)) {
+    return updates[key];
+  }
+
+  final loweredKey = key.toLowerCase();
+  for (final entry in updates.entries) {
+    if (entry.key.toLowerCase() == loweredKey) {
+      return entry.value;
+    }
+  }
+
+  return null;
+}
+
 String? _resolveComputedVariable(String key, Map<String, String> updates) {
   final markerIndex = key.lastIndexOf('.\$');
   if (markerIndex == -1) {
@@ -92,7 +107,7 @@ String? _resolveComputedVariable(String key, Map<String, String> updates) {
     return null;
   }
 
-  final rawBody = updates[bodyVariableKey];
+  final rawBody = _lookupVariableValue(bodyVariableKey, updates);
   if (rawBody == null || rawBody.isEmpty) {
     return null;
   }
@@ -130,8 +145,9 @@ String resolveTemplatePlaceholders(
     final keys = content.split('|').map((k) => k.trim()).toList();
 
     for (final key in keys) {
-      if (updates.containsKey(key)) {
-        return updates[key]!;
+      final direct = _lookupVariableValue(key, updates);
+      if (direct != null) {
+        return direct;
       }
 
       final computed = _resolveComputedVariable(key, updates);

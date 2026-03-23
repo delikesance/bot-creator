@@ -1,5 +1,6 @@
 import 'package:nyxx/nyxx.dart';
 import '../types/component.dart';
+import '../utils/component_workflow_bindings.dart';
 import 'send_component_v2.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
@@ -16,6 +17,8 @@ Future<Map<String, String>> editMessageAction(
   required Snowflake? fallbackChannelId,
   required String content,
   String Function(String)? resolve,
+  String? botId,
+  String? guildId,
 }) async {
   try {
     final channelId = _toSnowflake(payload['channelId']) ?? fallbackChannelId;
@@ -31,11 +34,13 @@ Future<Map<String, String>> editMessageAction(
 
     final message = await channel.messages.fetch(messageId);
     List<ComponentBuilder>? components;
+    ComponentV2Definition? definition;
     if (payload.containsKey('componentV2') && payload['componentV2'] is Map) {
       try {
         final def = ComponentV2Definition.fromJson(
           Map<String, dynamic>.from(payload['componentV2']),
         );
+        definition = def;
         components = buildComponentNodes(
           definition: def,
           resolve: resolve ?? (s) => s,
@@ -49,6 +54,16 @@ Future<Map<String, String>> editMessageAction(
         components: components,
       ),
     );
+    if (definition != null && botId != null && botId.trim().isNotEmpty) {
+      registerComponentWorkflowBindings(
+        definition: definition,
+        resolve: resolve ?? (s) => s,
+        botId: botId,
+        guildId: guildId,
+        channelId: channelId.toString(),
+        messageId: message.id.toString(),
+      );
+    }
     return {'messageId': message.id.toString()};
   } catch (error) {
     return {'error': 'Failed to edit message: $error', 'messageId': ''};

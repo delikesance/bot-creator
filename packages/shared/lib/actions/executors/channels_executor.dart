@@ -44,7 +44,11 @@ Future<bool> executeChannelsAction({
       return true;
 
     case BotCreatorActionType.updateChannel:
-      final result = await updateChannelAction(client, payload: payload);
+      final result = await updateChannelAction(
+        client,
+        payload: payload,
+        resolve: resolveValue,
+      );
       if (result['error'] != null) {
         throw Exception(result['error']);
       }

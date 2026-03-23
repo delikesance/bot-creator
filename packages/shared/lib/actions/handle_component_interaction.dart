@@ -32,6 +32,7 @@ Future<void> handleComponentInteraction(
       type: interactionType,
       guildId: guildId?.toString(),
       channelId: fallbackChannelId?.toString(),
+      messageId: interaction.message?.id.toString(),
       userId: userId,
     ),
   );
@@ -52,6 +53,7 @@ Future<void> handleComponentInteraction(
     'interaction.userId': userId,
     'interaction.guildId': guildId?.toString() ?? '',
     'interaction.channelId': fallbackChannelId?.toString() ?? '',
+    'interaction.messageId': interaction.message?.id.toString() ?? '',
     // For select menus, provide selected values as comma-separated list
     'interaction.values': interaction.data.values?.join(',') ?? '',
   };
@@ -87,6 +89,8 @@ Future<void> handleModalSubmitInteraction(
       type: 'modal',
       guildId: interaction.guildId?.toString(),
       channelId: interaction.channelId?.toString(),
+      messageId:
+          ((interaction as dynamic).message?.id as Snowflake?)?.toString(),
       userId: userId,
     ),
   );
@@ -105,6 +109,8 @@ Future<void> handleModalSubmitInteraction(
     'interaction.userId': userId,
     'interaction.guildId': interaction.guildId?.toString() ?? '',
     'interaction.channelId': interaction.channelId?.toString() ?? '',
+    'interaction.messageId':
+        ((interaction as dynamic).message?.id as Snowflake?)?.toString() ?? '',
   };
 
   // Extract each text input's value from submitted components

@@ -253,6 +253,7 @@ const Map<String, String> appStringsEn = {
   'action_name_respondWithModal': 'Respond with Modal',
   'action_name_editInteractionMessage': 'Edit Interaction Message',
   'action_name_listenForButtonClick': 'Listen for Button Click',
+  'action_name_listenForSelectMenu': 'Listen for Select Menu',
   'action_name_listenForModalSubmit': 'Listen for Modal Submit',
   'action_name_stopUnless': 'Stop Unless Condition',
   'action_name_ifBlock': 'IF / ELSE Block',

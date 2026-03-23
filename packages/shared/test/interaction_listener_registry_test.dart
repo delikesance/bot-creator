@@ -99,6 +99,56 @@ void main() {
 
       registry.removeEntry(customId, entry);
     });
+
+    test('matches listeners by messageId to avoid same-channel collisions', () {
+      final customId = 'shared-custom-id-message-scope';
+      final registry = InteractionListenerRegistry.instance;
+
+      final first = ListenerEntry(
+        botId: 'bot-a',
+        workflowName: 'first',
+        expiresAt: _future,
+        type: 'button',
+        channelId: 'channel-a',
+        messageId: 'message-1',
+      );
+      final second = ListenerEntry(
+        botId: 'bot-a',
+        workflowName: 'second',
+        expiresAt: _future,
+        type: 'button',
+        channelId: 'channel-a',
+        messageId: 'message-2',
+      );
+
+      registry.register(customId, first);
+      registry.register(customId, second);
+
+      final secondMatch = registry.getMatching(
+        customId,
+        const ListenerMatchRequest(
+          botId: 'bot-a',
+          type: 'button',
+          channelId: 'channel-a',
+          messageId: 'message-2',
+        ),
+      );
+      final missingMatch = registry.getMatching(
+        customId,
+        const ListenerMatchRequest(
+          botId: 'bot-a',
+          type: 'button',
+          channelId: 'channel-a',
+          messageId: 'message-3',
+        ),
+      );
+
+      expect(secondMatch, same(second));
+      expect(missingMatch, isNull);
+
+      registry.removeEntry(customId, first);
+      registry.removeEntry(customId, second);
+    });
   });
 }
 
