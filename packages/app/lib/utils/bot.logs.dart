@@ -451,7 +451,7 @@ void startBotLogSession({required String botId}) {
     botId: botId,
     overwriteNulls: true,
   );
-  appendBotLog('Session de logs démarrée', botId: botId);
+  appendBotLog('Log session started', botId: botId);
 }
 
 void appendBotLog(String message, {String? botId}) {

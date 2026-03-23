@@ -79,6 +79,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return AppStrings.t('action_name_removeScopedVariable');
       case BotCreatorActionType.renameScopedVariable:
         return AppStrings.t('action_name_renameScopedVariable');
+      case BotCreatorActionType.listScopedVariableIndex:
+        return AppStrings.t('action_name_listScopedVariableIndex');
       case BotCreatorActionType.runWorkflow:
         return AppStrings.t('action_name_runWorkflow');
       case BotCreatorActionType.respondWithMessage:
@@ -218,6 +220,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
       case BotCreatorActionType.getScopedVariable:
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.renameScopedVariable:
+      case BotCreatorActionType.listScopedVariableIndex:
         return Icons.inventory_2;
       case BotCreatorActionType.runWorkflow:
         return Icons.account_tree;
@@ -1153,8 +1156,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'valueType',
             type: ParameterType.multiSelect,
             defaultValue: 'string',
-            hint: 'Value type: string or number',
-            options: ['string', 'number'],
+            hint: 'Value type: string, number, boolean or json',
+            options: ['string', 'number', 'boolean', 'json'],
           ),
           ParameterDefinition(
             key: 'value',
@@ -1167,6 +1170,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.number,
             defaultValue: 0,
             hint: 'Numeric value when valueType=number',
+          ),
+          ParameterDefinition(
+            key: 'boolValue',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Boolean value when valueType=boolean',
+          ),
+          ParameterDefinition(
+            key: 'jsonValue',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'JSON value when valueType=json (array/object)',
           ),
         ];
       case BotCreatorActionType.getGlobalVariable:
@@ -1216,8 +1231,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'valueType',
             type: ParameterType.multiSelect,
             defaultValue: 'string',
-            hint: 'Value type: string or number',
-            options: ['string', 'number'],
+            hint: 'Value type: string, number, boolean or json',
+            options: ['string', 'number', 'boolean', 'json'],
           ),
           ParameterDefinition(
             key: 'value',
@@ -1230,6 +1245,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.number,
             defaultValue: 0,
             hint: 'Numeric value when valueType=number',
+          ),
+          ParameterDefinition(
+            key: 'boolValue',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Boolean value when valueType=boolean',
+          ),
+          ParameterDefinition(
+            key: 'jsonValue',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'JSON value when valueType=json (array/object)',
           ),
         ];
       case BotCreatorActionType.getScopedVariable:
@@ -1297,6 +1324,54 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             defaultValue: '',
             hint: 'New key (must start with bc_)',
             required: true,
+          ),
+        ];
+      case BotCreatorActionType.listScopedVariableIndex:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'user',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped variable key to index (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'order',
+            type: ParameterType.multiSelect,
+            defaultValue: 'desc',
+            hint: 'Sort order by value',
+            options: ['desc', 'asc'],
+          ),
+          ParameterDefinition(
+            key: 'offset',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Pagination offset (>= 0)',
+            minValue: 0,
+            allowDynamic: true,
+          ),
+          ParameterDefinition(
+            key: 'limit',
+            type: ParameterType.number,
+            defaultValue: 25,
+            hint: 'Maximum items to return (1..25)',
+            minValue: 1,
+            maxValue: 25,
+            allowDynamic: false,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional runtime alias for the JSON items list',
           ),
         ];
       case BotCreatorActionType.runWorkflow:

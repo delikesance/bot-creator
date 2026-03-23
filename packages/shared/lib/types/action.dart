@@ -35,6 +35,7 @@ enum BotCreatorActionType {
   getScopedVariable,
   removeScopedVariable,
   renameScopedVariable,
+  listScopedVariableIndex,
   runWorkflow,
   // Logic & Flow actions
   stopUnless,

@@ -148,6 +148,7 @@ class ActionCard extends StatelessWidget {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: action.onErrorMode,
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'On Error',
                       border: OutlineInputBorder(),
@@ -562,70 +563,12 @@ class ActionCard extends StatelessWidget {
         );
 
       case ParameterType.number:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  _formatParameterName(paramDef.key),
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                if (paramDef.required)
-                  const Text(
-                    ' *',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            TextFormField(
-              key: _parameterInputKey(paramDef.key),
-              initialValue: (currentValue ?? paramDef.defaultValue).toString(),
-              keyboardType: TextInputType.text,
-              decoration: InputDecoration(
-                hintText: _localizeHint(paramDef.hint),
-                border: const OutlineInputBorder(),
-                isDense: true,
-                suffixText:
-                    paramDef.minValue != null && paramDef.maxValue != null
-                        ? '${paramDef.minValue}-${paramDef.maxValue}'
-                        : null,
-              ),
-              onChanged: (newValue) {
-                final trimmed = newValue.trim();
-                if (trimmed.isEmpty) {
-                  onParameterChanged(paramDef.key, '');
-                  return;
-                }
-
-                final intValue = int.tryParse(trimmed);
-                if (intValue != null) {
-                  // Vérifier les limites
-                  if (paramDef.minValue != null &&
-                      intValue < paramDef.minValue!) {
-                    return;
-                  }
-                  if (paramDef.maxValue != null &&
-                      intValue > paramDef.maxValue!) {
-                    return;
-                  }
-                  onParameterChanged(paramDef.key, intValue);
-                  return;
-                }
-
-                onParameterChanged(paramDef.key, trimmed);
-              },
-            ),
-            ..._buildVariableSuggestionsForParam(
-              paramKey: paramDef.key,
-              value: currentValue,
-              isNumericField: true,
-            ),
-          ],
+        return _NumberParameterField(
+          paramDef: paramDef,
+          currentValue: currentValue,
+          onParameterChanged: onParameterChanged,
+          variableSuggestions: variableSuggestions,
+          paramKey: paramDef.key,
         );
 
       case ParameterType.list:
@@ -694,6 +637,7 @@ class ActionCard extends StatelessWidget {
             DropdownButtonFormField<String>(
               initialValue:
                   currentValue?.toString() ?? paramDef.defaultValue.toString(),
+              isExpanded: true,
               decoration: InputDecoration(
                 hintText: _localizeHint(paramDef.hint),
                 border: const OutlineInputBorder(),
@@ -701,7 +645,10 @@ class ActionCard extends StatelessWidget {
               ),
               items:
                   paramDef.options?.map((option) {
-                    return DropdownMenuItem(value: option, child: Text(option));
+                    return DropdownMenuItem(
+                      value: option,
+                      child: Text(option, overflow: TextOverflow.ellipsis),
+                    );
                   }).toList(),
               onChanged:
                   (newValue) => onParameterChanged(paramDef.key, newValue),
@@ -977,100 +924,191 @@ class ActionCard extends StatelessWidget {
             _localizeHint(paramDef.hint) ?? _formatParameterName(paramDef.key);
         final blockColor =
             paramDef.key == 'thenActions' ? Colors.green : Colors.orange;
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: blockColor.withValues(alpha: 0.5)),
-            borderRadius: BorderRadius.circular(8),
-            color: blockColor.withValues(alpha: 0.05),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    paramDef.key == 'thenActions'
-                        ? Icons.check_circle_outline
-                        : Icons.cancel_outlined,
-                    color: blockColor,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      blockLabel,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: blockColor,
-                      ),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed:
-                        onEditNestedActions == null
-                            ? null
-                            : () async {
-                              final result = await onEditNestedActions!(
-                                nestedList,
-                                variableSuggestions,
-                              );
-                              if (result != null) {
-                                onParameterChanged(paramDef.key, result);
-                              }
-                            },
-                    icon: const Icon(Icons.edit, size: 15),
-                    label: Text(
-                      'Edit (${nestedList.length})',
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: blockColor.withValues(alpha: 0.15),
-                      foregroundColor: blockColor,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                    ),
-                  ),
-                ],
+
+        Future<void> openNestedEditor() async {
+          if (onEditNestedActions == null) {
+            return;
+          }
+
+          final result = await onEditNestedActions!(
+            nestedList,
+            variableSuggestions,
+          );
+          if (result != null) {
+            onParameterChanged(paramDef.key, result);
+          }
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 560;
+
+            final editButton = FilledButton.tonalIcon(
+              onPressed: onEditNestedActions == null ? null : openNestedEditor,
+              icon: const Icon(Icons.edit, size: 15),
+              label: Text(
+                isCompact
+                    ? 'Edit ${nestedList.length}'
+                    : 'Edit (${nestedList.length})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13),
               ),
-              if (nestedList.isNotEmpty)
-                ...nestedList
-                    .take(3)
-                    .map(
-                      (a) => Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.arrow_right,
-                              size: 16,
-                              color: Colors.grey,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              a['type']?.toString() ?? '?',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+              style: FilledButton.styleFrom(
+                backgroundColor: blockColor.withValues(alpha: 0.16),
+                foregroundColor: blockColor,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+              ),
+            );
+
+            return Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              child: InkWell(
+                onTap: onEditNestedActions == null ? null : openNestedEditor,
+                borderRadius: BorderRadius.circular(10),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: blockColor.withValues(alpha: 0.5),
                     ),
-              if (nestedList.length > 3)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, left: 20),
-                  child: Text(
-                    '… and ${nestedList.length - 3} more',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    borderRadius: BorderRadius.circular(10),
+                    color: blockColor.withValues(alpha: 0.05),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isCompact) ...[
+                          Row(
+                            children: [
+                              Icon(
+                                paramDef.key == 'thenActions'
+                                    ? Icons.check_circle_outline
+                                    : Icons.cancel_outlined,
+                                color: blockColor,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  blockLabel,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: blockColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(width: double.infinity, child: editButton),
+                        ] else
+                          Row(
+                            children: [
+                              Icon(
+                                paramDef.key == 'thenActions'
+                                    ? Icons.check_circle_outline
+                                    : Icons.cancel_outlined,
+                                color: blockColor,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  blockLabel,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: blockColor,
+                                  ),
+                                ),
+                              ),
+                              editButton,
+                            ],
+                          ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(8),
+                            color: blockColor.withValues(alpha: 0.08),
+                          ),
+                          child:
+                              nestedList.isEmpty
+                                  ? Text(
+                                    'No actions in this branch yet.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  )
+                                  : Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      ...nestedList
+                                          .take(3)
+                                          .map(
+                                            (a) => Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 4,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.arrow_right,
+                                                    size: 16,
+                                                    color: Colors.grey,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Expanded(
+                                                    child: Text(
+                                                      a['type']?.toString() ??
+                                                          '?',
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        color: Colors.grey,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                      if (nestedList.length > 3)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 20,
+                                          ),
+                                          child: Text(
+                                            '… and ${nestedList.length - 3} more',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey,
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-            ],
-          ),
+              ),
+            );
+          },
         );
 
       case ParameterType.componentV2:
@@ -1188,7 +1226,8 @@ class ActionCard extends StatelessWidget {
               action.type == BotCreatorActionType.setScopedVariable ||
               action.type == BotCreatorActionType.getScopedVariable ||
               action.type == BotCreatorActionType.removeScopedVariable ||
-              action.type == BotCreatorActionType.renameScopedVariable;
+              action.type == BotCreatorActionType.renameScopedVariable ||
+              action.type == BotCreatorActionType.listScopedVariableIndex;
 
           return _VariableKeyParameterField(
             label: _formatParameterName(paramDef.key),
@@ -1330,17 +1369,43 @@ class ActionCard extends StatelessWidget {
             )
             : variableSuggestions;
 
+    final dedupedByName = <String, VariableSuggestion>{};
+    for (final item in filteredByKind) {
+      final normalizedName = item.name.trim();
+      if (normalizedName.isEmpty) {
+        continue;
+      }
+      dedupedByName.putIfAbsent(
+        normalizedName,
+        () => VariableSuggestion(name: normalizedName, kind: item.kind),
+      );
+    }
+
     final suggestions =
-        filteredByKind
+        dedupedByName.values
             .where(
               (item) =>
                   normalizedQuery.isEmpty ||
                   item.name.toLowerCase().contains(normalizedQuery),
             )
-            .take(8)
             .toList();
 
-    if (suggestions.isEmpty) {
+    if (!isNumericField) {
+      suggestions.addAll(
+        _buildContextualArraySuggestions(
+          normalizedQuery: normalizedQuery,
+          baseSuggestions: dedupedByName.values,
+        ),
+      );
+    }
+
+    final uniqueSuggestions = <String, VariableSuggestion>{};
+    for (final item in suggestions) {
+      uniqueSuggestions[item.name] = item;
+    }
+    final topSuggestions = uniqueSuggestions.values.take(8).toList();
+
+    if (topSuggestions.isEmpty) {
       return const [];
     }
 
@@ -1357,7 +1422,7 @@ class ActionCard extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children:
-            suggestions
+            topSuggestions
                 .map(
                   (item) => ActionChip(
                     label: Text('((${item.name}))'),
@@ -1373,6 +1438,70 @@ class ActionCard extends StatelessWidget {
                 .toList(),
       ),
     ];
+  }
+
+  List<VariableSuggestion> _buildContextualArraySuggestions({
+    required String normalizedQuery,
+    required Iterable<VariableSuggestion> baseSuggestions,
+  }) {
+    final query = normalizedQuery.trim();
+    if (query.isEmpty) {
+      return const [];
+    }
+
+    final baseQuery =
+        query.endsWith('.') ? query.substring(0, query.length - 1) : query;
+    if (baseQuery.isEmpty) {
+      return const [];
+    }
+
+    final matchingBases =
+        baseSuggestions
+            .where((item) => item.name.toLowerCase() == baseQuery)
+            .map((item) => item.name)
+            .toSet();
+
+    if (matchingBases.isEmpty) {
+      return const [];
+    }
+
+    final generated = <VariableSuggestion>[];
+    for (final base in matchingBases) {
+      generated.add(
+        VariableSuggestion(
+          name: '$base.items',
+          kind: VariableSuggestionKind.unknown,
+        ),
+      );
+      generated.add(
+        VariableSuggestion(
+          name: '$base.display',
+          kind: VariableSuggestionKind.nonNumeric,
+        ),
+      );
+      generated.add(
+        VariableSuggestion(
+          name: '$base.count',
+          kind: VariableSuggestionKind.numeric,
+        ),
+      );
+      generated.add(
+        VariableSuggestion(
+          name: '$base.total',
+          kind: VariableSuggestionKind.numeric,
+        ),
+      );
+      for (var index = 0; index < 5; index++) {
+        generated.add(
+          VariableSuggestion(
+            name: '$base.$index',
+            kind: VariableSuggestionKind.unknown,
+          ),
+        );
+      }
+    }
+
+    return generated;
   }
 
   String? _extractPlaceholderQuery(String input) {
@@ -2300,6 +2429,7 @@ class ActionCard extends StatelessWidget {
       case BotCreatorActionType.setScopedVariable:
       case BotCreatorActionType.getScopedVariable:
       case BotCreatorActionType.removeScopedVariable:
+      case BotCreatorActionType.listScopedVariableIndex:
         return paramKey == 'key';
       case BotCreatorActionType.renameScopedVariable:
         return paramKey == 'oldKey' || paramKey == 'newKey';
@@ -2648,5 +2778,267 @@ class _WorkflowNameParameterFieldState
         ),
       ],
     );
+  }
+}
+
+// Widget stateful pour les champs numériques avec clamping en temps réel
+class _NumberParameterField extends StatefulWidget {
+  final ParameterDefinition paramDef;
+  final dynamic currentValue;
+  final Function(String key, dynamic value) onParameterChanged;
+  final List<VariableSuggestion> variableSuggestions;
+  final String paramKey;
+
+  const _NumberParameterField({
+    required this.paramDef,
+    required this.currentValue,
+    required this.onParameterChanged,
+    required this.variableSuggestions,
+    required this.paramKey,
+  });
+
+  @override
+  State<_NumberParameterField> createState() => _NumberParameterFieldState();
+}
+
+class _NumberParameterFieldState extends State<_NumberParameterField> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: (widget.currentValue ?? widget.paramDef.defaultValue).toString(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_NumberParameterField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentValue != widget.currentValue) {
+      _controller.text =
+          (widget.currentValue ?? widget.paramDef.defaultValue).toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String? _getErrorMessage() {
+    final numValue = int.tryParse(_controller.text);
+    if (numValue != null) {
+      if (widget.paramDef.minValue != null &&
+          numValue < widget.paramDef.minValue!) {
+        return 'Min: ${widget.paramDef.minValue}';
+      } else if (widget.paramDef.maxValue != null &&
+          numValue > widget.paramDef.maxValue!) {
+        return 'Max: ${widget.paramDef.maxValue}';
+      }
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              _formatParameterName(widget.paramKey),
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
+            if (widget.paramDef.required)
+              const Text(
+                ' *',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        TextFormField(
+          controller: _controller,
+          keyboardType: TextInputType.text,
+          decoration: InputDecoration(
+            hintText: _localizeHint(widget.paramDef.hint),
+            border: const OutlineInputBorder(),
+            isDense: true,
+            errorText: _getErrorMessage(),
+            suffixText:
+                widget.paramDef.minValue != null &&
+                        widget.paramDef.maxValue != null
+                    ? '${widget.paramDef.minValue}-${widget.paramDef.maxValue}'
+                    : null,
+          ),
+          onChanged: (newValue) {
+            final trimmed = newValue.trim();
+            if (trimmed.isEmpty) {
+              widget.onParameterChanged(widget.paramKey, '');
+              setState(() {});
+              return;
+            }
+
+            final intValue = int.tryParse(trimmed);
+            if (intValue != null) {
+              // Clamper aux limites min/max
+              int finalValue = intValue;
+              if (widget.paramDef.minValue != null &&
+                  finalValue < widget.paramDef.minValue!) {
+                finalValue = widget.paramDef.minValue!;
+                _controller.text = finalValue.toString();
+              }
+              if (widget.paramDef.maxValue != null &&
+                  finalValue > widget.paramDef.maxValue!) {
+                finalValue = widget.paramDef.maxValue!;
+                _controller.text = finalValue.toString();
+              }
+              widget.onParameterChanged(widget.paramKey, finalValue);
+              setState(() {});
+              return;
+            }
+
+            // Si allowDynamic est false, rejeter les valeurs non numériques
+            if (!widget.paramDef.allowDynamic) {
+              _controller.text =
+                  (widget.currentValue ?? widget.paramDef.defaultValue)
+                      .toString();
+              setState(() {});
+              return;
+            }
+
+            widget.onParameterChanged(widget.paramKey, trimmed);
+            setState(() {});
+          },
+        ),
+        if (widget.paramDef.allowDynamic)
+          ..._buildVariableSuggestionsForParam(
+            paramKey: widget.paramKey,
+            value: widget.currentValue,
+            isNumericField: true,
+          ),
+      ],
+    );
+  }
+
+  String _formatParameterName(String key) {
+    return key
+        .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(1)}')
+        .trim()
+        .split(' ')
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join(' ');
+  }
+
+  String? _localizeHint(String? hint) {
+    if (hint == null) return null;
+    try {
+      return AppStrings.t(hint);
+    } catch (_) {
+      return hint;
+    }
+  }
+
+  List<Widget> _buildVariableSuggestionsForParam({
+    required String paramKey,
+    required dynamic value,
+    bool isNumericField = false,
+  }) {
+    final rawValue = value?.toString() ?? '';
+    final query = _extractPlaceholderQuery(rawValue);
+    if (query == null) {
+      return const [];
+    }
+
+    final normalizedQuery = query.trim().toLowerCase();
+    final filteredByKind =
+        isNumericField
+            ? widget.variableSuggestions.where(
+              (item) => item.isNumeric || item.isUnknown,
+            )
+            : widget.variableSuggestions;
+
+    final suggestions =
+        filteredByKind
+            .where(
+              (item) =>
+                  normalizedQuery.isEmpty ||
+                  item.name.toLowerCase().contains(normalizedQuery),
+            )
+            .take(8)
+            .toList();
+
+    if (suggestions.isEmpty) {
+      return const [];
+    }
+
+    return [
+      const SizedBox(height: 8),
+      Text(
+        isNumericField
+            ? 'Dynamic numeric suggestions'
+            : 'Dynamic variable suggestions',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+      ),
+      const SizedBox(height: 6),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children:
+            suggestions
+                .map(
+                  (item) => ActionChip(
+                    label: Text('((${item.name}))'),
+                    onPressed: () {
+                      final nextValue = _insertVariableInOpenPlaceholder(
+                        rawValue,
+                        item.name,
+                      );
+                      _controller.text = nextValue;
+                      widget.onParameterChanged(widget.paramKey, nextValue);
+                      setState(() {});
+                    },
+                  ),
+                )
+                .toList(),
+      ),
+    ];
+  }
+
+  String? _extractPlaceholderQuery(String input) {
+    final start = input.lastIndexOf('((');
+    if (start == -1) {
+      return null;
+    }
+
+    final afterStart = input.substring(start + 2);
+    if (afterStart.contains('))')) {
+      return null;
+    }
+
+    final parts = afterStart.split('|');
+    return parts.last.trimLeft();
+  }
+
+  String _insertVariableInOpenPlaceholder(String input, String variableName) {
+    final start = input.lastIndexOf('((');
+    if (start == -1) {
+      return '(($variableName))';
+    }
+
+    final beforeStart = input.substring(0, start);
+    final afterStart = input.substring(start + 2);
+
+    if (afterStart.contains('))')) {
+      return input;
+    }
+
+    return '$beforeStart(($variableName))';
   }
 }

@@ -238,6 +238,8 @@ const Map<String, String> appStringsEn = {
   'action_name_getScopedVariable': 'Get Scoped Variable',
   'action_name_removeScopedVariable': 'Remove Scoped Variable',
   'action_name_renameScopedVariable': 'Rename Scoped Variable',
+  'action_name_listScopedVariableIndex': 'List Scoped Variable Index',
+
   'action_name_runWorkflow': 'Run Workflow',
   'action_name_respondWithMessage': 'Respond with Message',
   'action_name_respondWithComponentV2': 'Respond with Component V2',

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:bot_creator/actions/create_channel.dart';
 import 'package:bot_creator/actions/delete_message.dart';
 import 'package:bot_creator/actions/remove_channel.dart';
@@ -137,7 +139,51 @@ dynamic _resolveVariableValuePayload(
     }
   }
 
-  return resolveValue((payload['value'] ?? '').toString());
+  if (valueType == 'boolean' || valueType == 'bool') {
+    final rawBool =
+        resolveValue(
+          (payload['boolValue'] ?? '').toString(),
+        ).trim().toLowerCase();
+    if (rawBool == 'true') {
+      return true;
+    }
+    if (rawBool == 'false') {
+      return false;
+    }
+    throw Exception(
+      'boolValue is required and must be true or false when valueType=boolean',
+    );
+  }
+
+  if (valueType == 'json') {
+    final rawJson =
+        resolveValue((payload['jsonValue'] ?? '').toString()).trim();
+    if (rawJson.isEmpty) {
+      throw Exception('jsonValue is required when valueType=json');
+    }
+    try {
+      return jsonDecode(rawJson);
+    } catch (error) {
+      throw Exception('jsonValue must be valid JSON: $error');
+    }
+  }
+
+  final rawValue =
+      payload.containsKey('value') ? payload['value'] : payload['element'];
+  return resolveValue((rawValue ?? '').toString());
+}
+
+String _stringifyRuntimeValue(dynamic value) {
+  if (value == null) {
+    return '';
+  }
+  if (value is String) {
+    return value;
+  }
+  if (value is List || value is Map) {
+    return jsonEncode(value);
+  }
+  return value.toString();
 }
 
 String _scopedStorageKey(String rawKey) {
@@ -833,6 +879,7 @@ Future<Map<String, String>> handleActions(
             action.payload,
             resolveValue,
           );
+          final runtimeValue = _stringifyRuntimeValue(value);
           await manager.setScopedVariable(
             botId,
             scope,
@@ -840,9 +887,9 @@ Future<Map<String, String>> handleActions(
             storageKey,
             value,
           );
-          variables['$scope.$referenceKey'] = value.toString();
+          variables['$scope.$referenceKey'] = runtimeValue;
           if (rawKey.isNotEmpty && rawKey != referenceKey) {
-            variables['$scope.$rawKey'] = value.toString();
+            variables['$scope.$rawKey'] = runtimeValue;
           }
           results[resultKey] = 'OK';
           break;
@@ -886,19 +933,20 @@ Future<Map<String, String>> handleActions(
             );
           }
           value ??= '';
+          final runtimeValue = _stringifyRuntimeValue(value);
           final storeAs =
               resolveValue(
                 (action.payload['storeAs'] ?? '$scope.$referenceKey')
                     .toString(),
               ).trim();
           if (storeAs.isNotEmpty) {
-            variables[storeAs] = value.toString();
+            variables[storeAs] = runtimeValue;
           }
-          variables['$scope.$referenceKey'] = value.toString();
+          variables['$scope.$referenceKey'] = runtimeValue;
           if (rawKey.isNotEmpty && rawKey != referenceKey) {
-            variables['$scope.$rawKey'] = value.toString();
+            variables['$scope.$rawKey'] = runtimeValue;
           }
-          results[resultKey] = value.toString();
+          results[resultKey] = runtimeValue;
           break;
         case BotCreatorActionType.removeScopedVariable:
           final scope =
@@ -1020,6 +1068,71 @@ Future<Map<String, String>> handleActions(
           }
           results[resultKey] = 'RENAMED';
           break;
+        case BotCreatorActionType.listScopedVariableIndex:
+          final scope =
+              resolveValue((action.payload['scope'] ?? '').toString()).trim();
+          if (!_supportedVariableScopes.contains(scope)) {
+            throw Exception(
+              'scope is required for listScopedVariableIndex and must be one of ${_supportedVariableScopes.join(', ')}',
+            );
+          }
+
+          final rawKey =
+              resolveValue((action.payload['key'] ?? '').toString()).trim();
+          final storageKey = _scopedStorageKey(rawKey);
+          final offset =
+              int.tryParse(
+                resolveValue(
+                  (action.payload['offset'] ?? '0').toString(),
+                ).trim(),
+              ) ??
+              0;
+          final limit =
+              int.tryParse(
+                resolveValue(
+                  (action.payload['limit'] ?? '25').toString(),
+                ).trim(),
+              ) ??
+              25;
+          final safeOffset = offset < 0 ? 0 : offset;
+          final safeLimit = limit < 1 ? 1 : (limit > 25 ? 25 : limit);
+          final order =
+              resolveValue(
+                (action.payload['order'] ?? 'desc').toString(),
+              ).trim().toLowerCase();
+          final page = await manager.queryScopedVariableIndex(
+            botId,
+            scope,
+            storageKey,
+            offset: safeOffset,
+            limit: safeLimit,
+            descending: order != 'asc',
+          );
+          final items = List<Map<String, dynamic>>.from(
+            (page['items'] as List?)?.whereType<Map>().map(
+                  (entry) => Map<String, dynamic>.from(entry),
+                ) ??
+                const <Map<String, dynamic>>[],
+          );
+          final itemsJson = jsonEncode(items);
+          final count = (page['count'] ?? items.length).toString();
+          final total = (page['total'] ?? items.length).toString();
+
+          variables['action.$resultKey.items'] = itemsJson;
+          variables['$resultKey.items'] = itemsJson;
+          variables['action.$resultKey.count'] = count;
+          variables['$resultKey.count'] = count;
+          variables['action.$resultKey.total'] = total;
+          variables['$resultKey.total'] = total;
+
+          final storeAs =
+              resolveValue((action.payload['storeAs'] ?? '').toString()).trim();
+          if (storeAs.isNotEmpty) {
+            variables[storeAs] = itemsJson;
+          }
+          results[resultKey] = itemsJson;
+          break;
+        // Array operations
         case BotCreatorActionType.httpRequest:
         case BotCreatorActionType.runWorkflow:
         case BotCreatorActionType.stopUnless:
@@ -1038,7 +1151,7 @@ Future<Map<String, String>> handleActions(
             resolveValue,
           );
           await manager.setGlobalVariable(botId, key, value);
-          variables['global.$key'] = value.toString();
+          variables['global.$key'] = _stringifyRuntimeValue(value);
           results[resultKey] = 'OK';
           break;
         case BotCreatorActionType.getGlobalVariable:
@@ -1048,7 +1161,7 @@ Future<Map<String, String>> handleActions(
             throw Exception('key is required for getGlobalVariable');
           }
           final value = await manager.getGlobalVariable(botId, key) ?? '';
-          final valueAsString = value.toString();
+          final valueAsString = _stringifyRuntimeValue(value);
           final storeAs =
               resolveValue(
                 (action.payload['storeAs'] ?? 'global.$key').toString(),

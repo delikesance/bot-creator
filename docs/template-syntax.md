@@ -35,7 +35,17 @@ est utilisée. Si aucune n'est trouvée, le résultat est `""`.
 
 ## 3. Extraction JSONPath (depuis une variable contenant du JSON)
 
-Pour une action ayant `key: "monHttp"` et dont le `body` est un JSON :
+Pour n'importe quelle variable runtime contenant du JSON :
+
+```
+((maListe.$[0]))
+((classement.items.$[0].value))
+((classement.items.$[0].contextId))
+```
+
+Le format générique est : `<nomVariable>.$.<chemin JSONPath>`
+
+Pour `httpRequest`, le corps reste accessible de la même manière via `body` :
 
 ```
 ((monHttp.body.$.propriete))
@@ -47,7 +57,7 @@ Format complet : `<key>.body.$.<chemin JSONPath>`
 
 | Segment        | Description                         |
 |----------------|-------------------------------------|
-| `<key>`        | Clé de l'action (champ `key`)       |
+| `<key>`        | Nom de la variable JSON source      |
 | `.body`        | Marqueur : lecteur du corps JSON    |
 | `.$`           | Racine du document JSON             |
 | `.propriete`   | Accès à un champ objet              |

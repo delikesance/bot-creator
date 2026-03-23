@@ -2085,6 +2085,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       if (actionKey.isEmpty) {
         continue;
       }
+      addSuggestion(actionKey, kind: VariableSuggestionKind.unknown);
       addSuggestion('action.$actionKey', kind: VariableSuggestionKind.unknown);
 
       final type = (action['type'] ?? '').toString();
@@ -2099,6 +2100,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         );
         addSuggestion(
           'action.$actionKey.jsonPath',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+        addSuggestion(
+          '$actionKey.status',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion(
+          '$actionKey.body',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+        addSuggestion(
+          '$actionKey.jsonPath',
           kind: VariableSuggestionKind.nonNumeric,
         );
       }

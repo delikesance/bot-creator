@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -55,7 +57,55 @@ dynamic _resolveVariableValuePayload(
     return payload['value'] as num;
   }
 
-  return resolveValue((payload['value'] ?? '').toString());
+  if (payload.containsKey('element') && payload['element'] is num) {
+    return payload['element'] as num;
+  }
+
+  if (valueType == 'boolean' || valueType == 'bool') {
+    final rawBool =
+        resolveValue(
+          (payload['boolValue'] ?? '').toString(),
+        ).trim().toLowerCase();
+    if (rawBool == 'true') {
+      return true;
+    }
+    if (rawBool == 'false') {
+      return false;
+    }
+    throw Exception(
+      'boolValue is required and must be true or false when valueType=boolean',
+    );
+  }
+
+  if (valueType == 'json') {
+    final rawJson =
+        resolveValue((payload['jsonValue'] ?? '').toString()).trim();
+    if (rawJson.isEmpty) {
+      throw Exception('jsonValue is required when valueType=json');
+    }
+    try {
+      return jsonDecode(rawJson);
+    } catch (error) {
+      throw Exception('jsonValue must be valid JSON: $error');
+    }
+  }
+
+  final rawValue =
+      payload.containsKey('value') ? payload['value'] : payload['element'];
+  return resolveValue((rawValue ?? '').toString());
+}
+
+String _stringifyRuntimeValue(dynamic value) {
+  if (value == null) {
+    return '';
+  }
+  if (value is String) {
+    return value;
+  }
+  if (value is List || value is Map) {
+    return jsonEncode(value);
+  }
+  return value.toString();
 }
 
 String? _resolveScopeContextId({
@@ -154,9 +204,10 @@ Future<bool> executeVariablesAction({
 
       final value = _resolveVariableValuePayload(payload, resolveValue);
       await store.setScopedVariable(botId, scope, contextId, storageKey, value);
-      variables['$scope.$referenceKey'] = value.toString();
+      final runtimeValue = _stringifyRuntimeValue(value);
+      variables['$scope.$referenceKey'] = runtimeValue;
       if (rawKey.isNotEmpty && rawKey != referenceKey) {
-        variables['$scope.$rawKey'] = value.toString();
+        variables['$scope.$rawKey'] = runtimeValue;
       }
       results[resultKey] = 'OK';
       return true;
@@ -199,18 +250,19 @@ Future<bool> executeVariablesAction({
         );
       }
       value ??= '';
+      final runtimeValue = _stringifyRuntimeValue(value);
       final storeAs =
           resolveValue(
             (payload['storeAs'] ?? '$scope.$referenceKey').toString(),
           ).trim();
       if (storeAs.isNotEmpty) {
-        variables[storeAs] = value.toString();
+        variables[storeAs] = runtimeValue;
       }
-      variables['$scope.$referenceKey'] = value.toString();
+      variables['$scope.$referenceKey'] = runtimeValue;
       if (rawKey.isNotEmpty && rawKey != referenceKey) {
-        variables['$scope.$rawKey'] = value.toString();
+        variables['$scope.$rawKey'] = runtimeValue;
       }
-      results[resultKey] = value.toString();
+      results[resultKey] = runtimeValue;
       return true;
 
     case BotCreatorActionType.removeScopedVariable:
@@ -322,6 +374,67 @@ Future<bool> executeVariablesAction({
       results[resultKey] = 'RENAMED';
       return true;
 
+    case BotCreatorActionType.listScopedVariableIndex:
+      final scope = resolveValue((payload['scope'] ?? '').toString()).trim();
+      if (!_supportedVariableScopes.contains(scope)) {
+        throw Exception(
+          'scope is required for listScopedVariableIndex and must be one of ${_supportedVariableScopes.join(', ')}',
+        );
+      }
+
+      final rawKey = resolveValue((payload['key'] ?? '').toString()).trim();
+      final storageKey = _scopedStorageKey(rawKey);
+      final offset =
+          int.tryParse(
+            resolveValue((payload['offset'] ?? '0').toString()).trim(),
+          ) ??
+          0;
+      final limit =
+          int.tryParse(
+            resolveValue((payload['limit'] ?? '25').toString()).trim(),
+          ) ??
+          25;
+      final safeOffset = offset < 0 ? 0 : offset;
+      final safeLimit = limit < 1 ? 1 : (limit > 25 ? 25 : limit);
+      final order =
+          resolveValue(
+            (payload['order'] ?? 'desc').toString(),
+          ).trim().toLowerCase();
+
+      final page = await store.queryScopedVariableIndex(
+        botId,
+        scope,
+        storageKey,
+        offset: safeOffset,
+        limit: safeLimit,
+        descending: order != 'asc',
+      );
+      final items = List<Map<String, dynamic>>.from(
+        (page['items'] as List?)?.whereType<Map>().map(
+              (entry) => Map<String, dynamic>.from(entry),
+            ) ??
+            const <Map<String, dynamic>>[],
+      );
+      final itemsJson = jsonEncode(items);
+      final count = (page['count'] ?? items.length).toString();
+      final total = (page['total'] ?? items.length).toString();
+
+      variables['action.$resultKey.items'] = itemsJson;
+      variables['$resultKey.items'] = itemsJson;
+      variables['action.$resultKey.count'] = count;
+      variables['$resultKey.count'] = count;
+      variables['action.$resultKey.total'] = total;
+      variables['$resultKey.total'] = total;
+
+      final storeAs =
+          resolveValue((payload['storeAs'] ?? '').toString()).trim();
+      if (storeAs.isNotEmpty) {
+        variables[storeAs] = itemsJson;
+      }
+
+      results[resultKey] = itemsJson;
+      return true;
+
     case BotCreatorActionType.setGlobalVariable:
       final key = resolveValue((payload['key'] ?? '').toString()).trim();
       if (key.isEmpty) {
@@ -329,7 +442,7 @@ Future<bool> executeVariablesAction({
       }
       final value = _resolveVariableValuePayload(payload, resolveValue);
       await store.setGlobalVariable(botId, key, value);
-      variables['global.$key'] = value.toString();
+      variables['global.$key'] = _stringifyRuntimeValue(value);
       results[resultKey] = 'OK';
       return true;
 
@@ -339,7 +452,7 @@ Future<bool> executeVariablesAction({
         throw Exception('key is required for getGlobalVariable');
       }
       final value = await store.getGlobalVariable(botId, key) ?? '';
-      final valueAsString = value.toString();
+      final valueAsString = _stringifyRuntimeValue(value);
       final storeAs =
           resolveValue((payload['storeAs'] ?? 'global.$key').toString()).trim();
       if (storeAs.isNotEmpty) {

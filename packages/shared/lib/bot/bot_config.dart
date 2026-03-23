@@ -235,8 +235,18 @@ Map<String, Map<String, Map<String, dynamic>>> _normalizeScopedVariables(
 }
 
 dynamic _normalizeVariableValue(dynamic value) {
-  if (value is num || value is String) {
+  if (value == null || value is num || value is bool || value is String) {
     return value;
+  }
+
+  if (value is List) {
+    return value.map(_normalizeVariableValue).toList(growable: false);
+  }
+
+  if (value is Map) {
+    return value.map(
+      (key, value) => MapEntry(key.toString(), _normalizeVariableValue(value)),
+    );
   }
 
   final text = (value ?? '').toString();

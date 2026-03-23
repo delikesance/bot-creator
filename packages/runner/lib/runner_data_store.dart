@@ -176,6 +176,111 @@ class RunnerDataStore implements BotDataStore {
   }
 
   @override
+  Future<void> pushScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    dynamic element,
+  ) async {
+    await (await _storeForBot(
+      botId,
+    )).pushScopedArrayElement(botId, scope, contextId, key, element);
+  }
+
+  @override
+  Future<dynamic> popScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    return await (await _storeForBot(
+      botId,
+    )).popScopedArrayElement(botId, scope, contextId, key);
+  }
+
+  @override
+  Future<dynamic> removeScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  ) async {
+    return await (await _storeForBot(
+      botId,
+    )).removeScopedArrayElement(botId, scope, contextId, key, index);
+  }
+
+  @override
+  Future<dynamic> getScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  ) async {
+    return await (await _storeForBot(
+      botId,
+    )).getScopedArrayElement(botId, scope, contextId, key, index);
+  }
+
+  @override
+  Future<int> getScopedArrayLength(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    return await (await _storeForBot(
+      botId,
+    )).getScopedArrayLength(botId, scope, contextId, key);
+  }
+
+  @override
+  Future<Map<String, dynamic>> queryScopedArray(
+    String botId,
+    String scope,
+    String contextId,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+    String? filter,
+  }) async {
+    return await (await _storeForBot(botId)).queryScopedArray(
+      botId,
+      scope,
+      contextId,
+      key,
+      offset: offset,
+      limit: limit,
+      descending: descending,
+      filter: filter,
+    );
+  }
+
+  @override
+  Future<Map<String, dynamic>> queryScopedVariableIndex(
+    String botId,
+    String scope,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+  }) async {
+    return await (await _storeForBot(botId)).queryScopedVariableIndex(
+      botId,
+      scope,
+      key,
+      offset: offset,
+      limit: limit,
+      descending: descending,
+    );
+  }
+
+  @override
   Future<Map<String, dynamic>?> getWorkflowByName(
     String botId,
     String name,

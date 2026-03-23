@@ -251,6 +251,7 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.getScopedVariable:
         case BotCreatorActionType.removeScopedVariable:
         case BotCreatorActionType.renameScopedVariable:
+        case BotCreatorActionType.listScopedVariableIndex:
         case BotCreatorActionType.setGlobalVariable:
         case BotCreatorActionType.getGlobalVariable:
         case BotCreatorActionType.removeGlobalVariable:

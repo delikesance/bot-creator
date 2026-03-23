@@ -191,12 +191,15 @@ ou une URL sans scheme, le champ est **silencieusement ignoré**.
 | `deleteWebhook`           | Supprimer un webhook                  |
 | `listWebhooks`            | Lister les webhooks                   |
 | `getWebhook`              | Récupérer un webhook                  |
-| `makeList`                | Construire une liste                  |
 | `httpRequest`             | Requête HTTP externe                  |
 | `setGlobalVariable`       | Définir une variable globale          |
 | `getGlobalVariable`       | Lire une variable globale             |
 | `removeGlobalVariable`    | Supprimer une variable globale        |
-| `listGlobalVariables`     | Lister les variables globales         |
+| `setScopedVariable`       | Définir une variable scopée           |
+| `getScopedVariable`       | Lire une variable scopée              |
+| `removeScopedVariable`    | Supprimer une variable scopée         |
+| `renameScopedVariable`    | Renommer une variable scopée          |
+| `listScopedVariableIndex` | Lister un index de variable scopée    |
 | `runWorkflow`             | Exécuter un autre workflow            |
 | `respondWithMessage`      | Répondre à l'interaction (texte)      |
 | `respondWithComponentV2`  | Répondre avec composants V2           |

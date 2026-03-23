@@ -36,6 +36,7 @@ class ParameterDefinition {
   final int? minValue;
   final int? maxValue;
   final bool required;
+  final bool allowDynamic; // Si false, n'accepte que des valeurs littérales
 
   ParameterDefinition({
     required this.key,
@@ -46,6 +47,7 @@ class ParameterDefinition {
     this.minValue,
     this.maxValue,
     this.required = false,
+    this.allowDynamic = true,
   });
 }
 

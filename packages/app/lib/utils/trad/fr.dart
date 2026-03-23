@@ -239,6 +239,8 @@ const Map<String, String> appStringsFr = {
   'action_name_getScopedVariable': 'Lire une variable scopée',
   'action_name_removeScopedVariable': 'Supprimer une variable scopée',
   'action_name_renameScopedVariable': 'Renommer une variable scopée',
+  'action_name_listScopedVariableIndex': 'Lister un index de variable scopée',
+
   'action_name_runWorkflow': 'Exécuter un workflow',
   'action_name_respondWithMessage': 'Répondre avec un message',
   'action_name_respondWithComponentV2': 'Répondre avec un composant V2',
