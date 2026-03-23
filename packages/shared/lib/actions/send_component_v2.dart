@@ -1,4 +1,4 @@
-﻿import 'package:nyxx/nyxx.dart';
+import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator_shared/types/component.dart';
 import 'package:bot_creator_shared/utils/component_workflow_bindings.dart';
 
@@ -302,22 +302,27 @@ MessageBuilder buildComponentMessage({
   );
 }
 
+ComponentV2Definition _componentDefinitionFromPayload(
+  Map<String, dynamic> payload,
+) {
+  final componentsDef = payload['components'] ?? payload['componentV2'];
+  return componentsDef is Map
+      ? ComponentV2Definition.fromJson(Map<String, dynamic>.from(componentsDef))
+      : ComponentV2Definition();
+}
+
 /// Send a ComponentV2 message to a channel.
 Future<Map<String, dynamic>> sendComponentV2Action(
   NyxxGateway client, {
   required Map<String, dynamic> payload,
   Snowflake? fallbackChannelId,
   String Function(String)? resolve,
+  String? botId,
+  String? guildId,
 }) async {
   resolve ??= (s) => s;
   try {
-    final componentsDef = payload['components'];
-    final definition =
-        componentsDef is Map
-            ? ComponentV2Definition.fromJson(
-              Map<String, dynamic>.from(componentsDef),
-            )
-            : ComponentV2Definition();
+    final definition = _componentDefinitionFromPayload(payload);
 
     final channelIdRaw = resolve((payload['channelId'] ?? '').toString());
     Snowflake? channelId;
@@ -341,6 +346,16 @@ Future<Map<String, dynamic>> sendComponentV2Action(
       resolve: resolve,
     );
     final message = await channel.sendMessage(builder);
+    if (botId != null && botId.trim().isNotEmpty) {
+      registerComponentWorkflowBindings(
+        definition: definition,
+        resolve: resolve,
+        botId: botId,
+        guildId: guildId,
+        channelId: channelId.toString(),
+        messageId: message.id.toString(),
+      );
+    }
 
     return {'messageId': message.id.toString()};
   } catch (e) {
@@ -358,13 +373,7 @@ Future<Map<String, dynamic>> respondWithComponentV2Action(
 }) async {
   resolve ??= (s) => s;
   try {
-    final componentsDef = payload['components'];
-    final definition =
-        componentsDef is Map
-            ? ComponentV2Definition.fromJson(
-              Map<String, dynamic>.from(componentsDef),
-            )
-            : ComponentV2Definition();
+    final definition = _componentDefinitionFromPayload(payload);
 
     // build the component nodes
     final nodes = buildComponentNodes(definition: definition, resolve: resolve);
@@ -396,6 +405,7 @@ Future<Map<String, dynamic>> respondWithComponentV2Action(
               botId: botId,
               guildId: interaction.guildId?.toString(),
               channelId: interaction.channelId?.toString(),
+              messageId: message.id.toString(),
             );
           }
           return {'messageId': message.id.toString()};
@@ -406,6 +416,11 @@ Future<Map<String, dynamic>> respondWithComponentV2Action(
             flags: MessageFlags(flagsOpt),
           );
           await dynInt.respond(builder);
+          String? messageId;
+          try {
+            final responseMessage = await dynInt.fetchOriginalResponse();
+            messageId = responseMessage.id.toString();
+          } catch (_) {}
           if (botId != null && botId.trim().isNotEmpty) {
             registerComponentWorkflowBindings(
               definition: definition,
@@ -413,9 +428,13 @@ Future<Map<String, dynamic>> respondWithComponentV2Action(
               botId: botId,
               guildId: interaction.guildId?.toString(),
               channelId: interaction.channelId?.toString(),
+              messageId: messageId,
             );
           }
-          return {'status': 'responded'};
+          return {
+            if (messageId != null) 'messageId': messageId,
+            'status': 'responded',
+          };
         }
       } catch (e) {
         return {'error': 'Failed to send interaction response: $e'};

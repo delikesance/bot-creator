@@ -45,3 +45,9 @@ jobs:
 
       - name: Run app tests
         run: flutter test packages/app/test --reporter expanded
+
+      - name: Run shared tests
+        run: dart test packages/shared/test
+
+      - name: Run runner tests
+        run: dart test packages/runner/test

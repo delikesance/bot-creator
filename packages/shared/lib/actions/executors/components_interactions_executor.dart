@@ -9,6 +9,45 @@ import '../respond_modal.dart';
 import '../respond_with_message.dart';
 import '../send_component_v2.dart';
 
+String? _resolveListenerMessageId({
+  required Map<String, dynamic> payload,
+  required Map<String, String> variables,
+  required String Function(String input) resolveValue,
+  Interaction? interaction,
+}) {
+  final explicitMessageId =
+      resolveValue((payload['messageId'] ?? '').toString()).trim();
+  if (explicitMessageId.isNotEmpty) {
+    return explicitMessageId;
+  }
+
+  final runtimeMessageId =
+      variables['interaction.messageId'] ??
+      variables['messageId'] ??
+      variables['message.id'];
+  if (runtimeMessageId != null && runtimeMessageId.trim().isNotEmpty) {
+    return runtimeMessageId.trim();
+  }
+
+  final dynamic dynInteraction = interaction;
+  final interactionMessageId =
+      (dynInteraction?.message?.id as Snowflake?)?.toString();
+  if (interactionMessageId != null && interactionMessageId.isNotEmpty) {
+    return interactionMessageId;
+  }
+
+  return null;
+}
+
+String? _resolveExplicitListenerMessageId(
+  Map<String, dynamic> payload,
+  String Function(String input) resolveValue,
+) {
+  final messageId =
+      resolveValue((payload['messageId'] ?? '').toString()).trim();
+  return messageId.isEmpty ? null : messageId;
+}
+
 Future<bool> executeComponentsInteractionsAction({
   required BotCreatorActionType type,
   required NyxxGateway client,
@@ -29,6 +68,8 @@ Future<bool> executeComponentsInteractionsAction({
         payload: payload,
         fallbackChannelId: fallbackChannelId,
         resolve: resolveValue,
+        botId: botId,
+        guildId: guildId?.toString(),
       );
       if (result['error'] != null) {
         throw Exception(result['error']);
@@ -37,7 +78,14 @@ Future<bool> executeComponentsInteractionsAction({
       return true;
 
     case BotCreatorActionType.editComponentV2:
-      final result = await editComponentV2Action(client, payload: payload);
+      final result = await editComponentV2Action(
+        client,
+        payload: payload,
+        fallbackChannelId: fallbackChannelId,
+        resolve: resolveValue,
+        botId: botId,
+        guildId: guildId?.toString(),
+      );
       if (result['error'] != null) {
         throw Exception(result['error']);
       }
@@ -122,6 +170,10 @@ Future<bool> executeComponentsInteractionsAction({
             oneShot: true,
             guildId: guildId?.toString(),
             channelId: fallbackChannelId?.toString(),
+            messageId: _resolveExplicitListenerMessageId(
+              modalResult,
+              resolveValue,
+            ),
           ),
         );
       }
@@ -137,6 +189,7 @@ Future<bool> executeComponentsInteractionsAction({
         interaction,
         payload: payload,
         resolve: resolveValue,
+        botId: botId,
       );
       if (editResult['error'] != null) {
         throw Exception(editResult['error']);
@@ -145,6 +198,7 @@ Future<bool> executeComponentsInteractionsAction({
       return true;
 
     case BotCreatorActionType.listenForButtonClick:
+    case BotCreatorActionType.listenForSelectMenu:
     case BotCreatorActionType.listenForModalSubmit:
       final customId = resolveValue((payload['customId'] ?? '').toString());
       if (customId.isEmpty) {
@@ -183,10 +237,21 @@ Future<bool> executeComponentsInteractionsAction({
           type:
               type == BotCreatorActionType.listenForButtonClick
                   ? 'button'
+                  : type == BotCreatorActionType.listenForSelectMenu
+                  ? 'select'
                   : 'modal',
           oneShot: oneShot,
           guildId: guildId?.toString(),
           channelId: fallbackChannelId?.toString(),
+          messageId:
+              type == BotCreatorActionType.listenForModalSubmit
+                  ? _resolveExplicitListenerMessageId(payload, resolveValue)
+                  : _resolveListenerMessageId(
+                    payload: payload,
+                    variables: variables,
+                    resolveValue: resolveValue,
+                    interaction: interaction,
+                  ),
         ),
       );
       results[resultKey] = 'listening:$customId';

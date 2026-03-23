@@ -1,4 +1,4 @@
-﻿import 'package:nyxx/nyxx.dart';
+import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator_shared/types/component.dart';
 import 'package:bot_creator_shared/actions/send_component_v2.dart';
 import 'package:bot_creator_shared/utils/component_workflow_bindings.dart';
@@ -196,6 +196,7 @@ Future<Map<String, dynamic>> respondWithMessageAction(
         botId: botId,
         guildId: interaction.guildId?.toString(),
         channelId: interaction.channelId?.toString(),
+        messageId: message.id.toString(),
       );
       return {'messageId': message.id.toString()};
     }
@@ -210,14 +211,23 @@ Future<Map<String, dynamic>> respondWithMessageAction(
         flags: flags > 0 ? MessageFlags(flags) : null,
       ),
     );
+    String? messageId;
+    try {
+      final responseMessage = await dynInteraction.fetchOriginalResponse();
+      messageId = responseMessage.id.toString();
+    } catch (_) {}
     registerComponentWorkflowBindings(
       definition: definition,
       resolve: resolve,
       botId: botId,
       guildId: interaction.guildId?.toString(),
       channelId: interaction.channelId?.toString(),
+      messageId: messageId,
     );
-    return {'status': 'responded'};
+    return {
+      if (messageId != null) 'messageId': messageId,
+      'status': 'responded',
+    };
   } catch (e) {
     return {'error': e.toString()};
   }

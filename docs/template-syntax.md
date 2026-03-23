@@ -1,7 +1,8 @@
 # Syntaxe des Templates — Référence
 
-Le moteur de résolution de templates remplace les placeholders `((…))` dans tous les champs
-texte des commandes (réponses, embeds, payloads d'actions, etc.).
+Le moteur de résolution de templates remplace les placeholders `((…))` dans les champs
+texte qui passent par le résolveur runtime (réponses, embeds et principaux payloads
+d'actions).
 
 > **Source** : `packages/shared/lib/utils/template_resolver.dart`
 
@@ -14,8 +15,9 @@ texte des commandes (réponses, embeds, payloads d'actions, etc.).
 ```
 
 - Délimiteurs : `((` et `))`
-- Insensible à la casse
+- Insensible à la casse pour la recherche de variable
 - La variable correspondante est recherchée dans le dictionnaire runtime (`Map<String, String>`)
+  avec priorité à la clé exacte, puis fallback insensible à la casse
 - Si la variable **n'existe pas** → remplacée par `""` (chaîne vide) — **jamais** laissée telle quelle
 
 ---
@@ -81,6 +83,11 @@ Le résultat est :
 | Fallback : aucune clé connue | `""` |
 | JSONPath invalide / JSON malformé | `""` |
 | Variable dans un champ URL (embed) | Validée en plus par `resolveEmbedUri()` — voir ci-dessous |
+
+Les actions qui résolvent explicitement leurs champs avant exécution incluent notamment
+`sendMessage`, `editMessage`, `createChannel`, `updateChannel`, `updateGuild`,
+`sendComponentV2`, `editComponentV2`, `respondWithMessage`, `respondWithComponentV2`
+et `sendWebhook`.
 
 ---
 

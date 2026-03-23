@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator/utils/component_workflow_bindings.dart';
 import 'package:bot_creator/types/component.dart';
 import 'package:bot_creator/actions/send_component_v2.dart';
 
@@ -8,6 +9,7 @@ Future<Map<String, dynamic>> editInteractionMessageAction(
   Interaction<dynamic> interaction, {
   required Map<String, dynamic> payload,
   required String Function(String) resolve,
+  String? botId,
 }) async {
   try {
     if (interaction is! MessageResponse) {
@@ -20,11 +22,12 @@ Future<Map<String, dynamic>> editInteractionMessageAction(
 
     // Build components if defined
     List<ComponentBuilder>? actionRows;
+    ComponentV2Definition? definition;
     final componentsDef = payload['components'];
     if (clearComponents) {
       actionRows = [];
     } else if (componentsDef is Map && componentsDef.isNotEmpty) {
-      final definition = ComponentV2Definition.fromJson(
+      definition = ComponentV2Definition.fromJson(
         Map<String, dynamic>.from(
           componentsDef.map((k, v) => MapEntry(k.toString(), v)),
         ),
@@ -41,6 +44,16 @@ Future<Map<String, dynamic>> editInteractionMessageAction(
     );
 
     final message = await msgInteraction.updateOriginalResponse(builder);
+    if (definition != null && botId != null && botId.trim().isNotEmpty) {
+      registerComponentWorkflowBindings(
+        definition: definition,
+        resolve: resolve,
+        botId: botId,
+        guildId: interaction.guildId?.toString(),
+        channelId: interaction.channelId?.toString(),
+        messageId: message.id.toString(),
+      );
+    }
     return {'messageId': message.id.toString()};
   } catch (e) {
     return {'error': e.toString()};

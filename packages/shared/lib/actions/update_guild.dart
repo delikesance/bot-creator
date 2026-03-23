@@ -1,4 +1,4 @@
-﻿import 'package:nyxx/nyxx.dart';
+import 'package:nyxx/nyxx.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -12,7 +12,9 @@ Future<Map<String, String>> updateGuildAction(
   NyxxGateway client, {
   required Snowflake? guildId,
   required Map<String, dynamic> payload,
+  String Function(String)? resolve,
 }) async {
+  resolve ??= (s) => s;
   try {
     if (guildId == null) {
       return {'error': 'Missing guildId', 'guildId': ''};
@@ -21,30 +23,34 @@ Future<Map<String, String>> updateGuildAction(
     final builder = GuildUpdateBuilder();
 
     if (payload.containsKey('name')) {
-      final name = payload['name']?.toString().trim();
-      builder.name = (name != null && name.isNotEmpty) ? name : null;
+      final name = resolve((payload['name'] ?? '').toString()).trim();
+      builder.name = name.isNotEmpty ? name : null;
     }
 
     if (payload.containsKey('description')) {
-      builder.description = payload['description']?.toString();
+      final description = resolve((payload['description'] ?? '').toString());
+      builder.description = description.isNotEmpty ? description : null;
     }
 
     if (payload.containsKey('preferredLocale')) {
-      final localeRaw = payload['preferredLocale']?.toString().trim() ?? '';
+      final localeRaw =
+          resolve((payload['preferredLocale'] ?? '').toString()).trim();
       if (localeRaw.isNotEmpty) {
         builder.preferredLocale = Locale.parse(localeRaw);
       }
     }
 
     if (payload.containsKey('premiumProgressBarEnabled')) {
-      final raw = payload['premiumProgressBarEnabled'];
-      builder.premiumProgressBarEnabled =
-          raw is bool ? raw : raw?.toString().toLowerCase() == 'true';
+      final raw =
+          resolve(
+            (payload['premiumProgressBarEnabled'] ?? '').toString(),
+          ).toLowerCase();
+      builder.premiumProgressBarEnabled = raw == 'true';
     }
 
     if (payload.containsKey('afkTimeoutSeconds')) {
       final seconds = int.tryParse(
-        (payload['afkTimeoutSeconds'] ?? '').toString(),
+        resolve((payload['afkTimeoutSeconds'] ?? '').toString()),
       );
       if (seconds != null && seconds >= 0) {
         builder.afkTimeout = Duration(seconds: seconds);
@@ -52,34 +58,42 @@ Future<Map<String, String>> updateGuildAction(
     }
 
     if (payload.containsKey('afkChannelId')) {
-      builder.afkChannelId = _toSnowflake(payload['afkChannelId']);
+      builder.afkChannelId = _toSnowflake(
+        resolve((payload['afkChannelId'] ?? '').toString()),
+      );
     }
     if (payload.containsKey('systemChannelId')) {
-      builder.systemChannelId = _toSnowflake(payload['systemChannelId']);
+      builder.systemChannelId = _toSnowflake(
+        resolve((payload['systemChannelId'] ?? '').toString()),
+      );
     }
     if (payload.containsKey('rulesChannelId')) {
-      builder.rulesChannelId = _toSnowflake(payload['rulesChannelId']);
+      builder.rulesChannelId = _toSnowflake(
+        resolve((payload['rulesChannelId'] ?? '').toString()),
+      );
     }
     if (payload.containsKey('publicUpdatesChannelId')) {
       builder.publicUpdatesChannelId = _toSnowflake(
-        payload['publicUpdatesChannelId'],
+        resolve((payload['publicUpdatesChannelId'] ?? '').toString()),
       );
     }
     if (payload.containsKey('safetyAlertsChannelId')) {
       builder.safetyAlertsChannelId = _toSnowflake(
-        payload['safetyAlertsChannelId'],
+        resolve((payload['safetyAlertsChannelId'] ?? '').toString()),
       );
     }
 
     if (payload.containsKey('verificationLevel')) {
-      final raw = int.tryParse((payload['verificationLevel'] ?? '').toString());
+      final raw = int.tryParse(
+        resolve((payload['verificationLevel'] ?? '').toString()),
+      );
       if (raw != null) {
         builder.verificationLevel = VerificationLevel(raw);
       }
     }
     if (payload.containsKey('defaultMessageNotificationLevel')) {
       final raw = int.tryParse(
-        (payload['defaultMessageNotificationLevel'] ?? '').toString(),
+        resolve((payload['defaultMessageNotificationLevel'] ?? '').toString()),
       );
       if (raw != null) {
         builder.defaultMessageNotificationLevel = MessageNotificationLevel(raw);
@@ -87,18 +101,18 @@ Future<Map<String, String>> updateGuildAction(
     }
     if (payload.containsKey('explicitContentFilterLevel')) {
       final raw = int.tryParse(
-        (payload['explicitContentFilterLevel'] ?? '').toString(),
+        resolve((payload['explicitContentFilterLevel'] ?? '').toString()),
       );
       if (raw != null) {
         builder.explicitContentFilterLevel = ExplicitContentFilterLevel(raw);
       }
     }
 
-    final reason = payload['reason']?.toString().trim();
+    final reason = resolve((payload['reason'] ?? '').toString()).trim();
     final updated = await client.guilds.update(
       guildId,
       builder,
-      auditLogReason: (reason != null && reason.isNotEmpty) ? reason : null,
+      auditLogReason: reason.isNotEmpty ? reason : null,
     );
 
     return {

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -9,11 +8,13 @@ import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator_shared/bot/bot_config.dart';
 import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator_shared/utils/global.dart';
+import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart';
 import 'package:bot_creator_shared/utils/workflow_call.dart';
 import 'package:bot_creator_shared/types/action.dart';
 import 'package:nyxx/nyxx.dart';
 
+import 'command_workflow_routing.dart';
 import 'runner_data_store.dart';
 
 final _log = Logger('BotRunner');
@@ -126,9 +127,9 @@ class DiscordRunner {
         commandData: commandData,
       );
     } else if (interaction is MessageComponentInteraction) {
-      await handleComponentInteraction(client, interaction, store);
+      await handleComponentInteraction(client, interaction, store, botId);
     } else if (interaction is ModalSubmitInteraction) {
-      await handleModalSubmitInteraction(client, interaction, store);
+      await handleModalSubmitInteraction(client, interaction, store, botId);
     }
   }
 
@@ -570,60 +571,20 @@ class DiscordRunner {
       ...context.variables,
       'workflow.type': workflowTypeEvent,
     };
-    final globalVars = await store.getGlobalVariables(botId);
-    for (final entry in globalVars.entries) {
-      runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
-        entry.value,
-      );
-    }
-
-    final guildContextId =
-        context.variables['guildId'] ?? context.guildId?.toString();
-    final channelContextId =
-        context.variables['channelId'] ?? context.channelId?.toString();
-    final userContextId =
-        context.variables['userId'] ?? context.variables['author.id'];
-    final guildMemberContextId =
-        (guildContextId != null &&
-                guildContextId.trim().isNotEmpty &&
-                userContextId != null &&
-                userContextId.trim().isNotEmpty)
-            ? '${guildContextId.trim()}:${userContextId.trim()}'
-            : null;
-    final messageContextId =
-        context.variables['messageId'] ??
-        context.variables['message.id'] ??
-        context.variables['event.id'];
-
-    await _injectScopedVariables(
-      runtimeVariables: runtimeVariables,
+    await hydrateRuntimeVariables(
+      store: store,
       botId: botId,
-      scope: 'guild',
-      contextId: guildContextId,
-    );
-    await _injectScopedVariables(
       runtimeVariables: runtimeVariables,
-      botId: botId,
-      scope: 'channel',
-      contextId: channelContextId,
-    );
-    await _injectScopedVariables(
-      runtimeVariables: runtimeVariables,
-      botId: botId,
-      scope: 'user',
-      contextId: userContextId,
-    );
-    await _injectScopedVariables(
-      runtimeVariables: runtimeVariables,
-      botId: botId,
-      scope: 'guildMember',
-      contextId: guildMemberContextId,
-    );
-    await _injectScopedVariables(
-      runtimeVariables: runtimeVariables,
-      botId: botId,
-      scope: 'message',
-      contextId: messageContextId,
+      guildContextId:
+          context.variables['guildId'] ?? context.guildId?.toString(),
+      channelContextId:
+          context.variables['channelId'] ?? context.channelId?.toString(),
+      userContextId:
+          context.variables['userId'] ?? context.variables['author.id'],
+      messageContextId:
+          context.variables['messageId'] ??
+          context.variables['message.id'] ??
+          context.variables['event.id'],
     );
 
     applyWorkflowInvocationContext(
@@ -663,38 +624,6 @@ class DiscordRunner {
     }
   }
 
-  Future<void> _injectScopedVariables({
-    required Map<String, String> runtimeVariables,
-    required String botId,
-    required String scope,
-    required String? contextId,
-  }) async {
-    final normalizedContextId = (contextId ?? '').trim();
-    if (normalizedContextId.isEmpty) {
-      return;
-    }
-
-    final values = await store.getScopedVariables(
-      botId,
-      scope,
-      normalizedContextId,
-    );
-    for (final entry in values.entries) {
-      final rawKey = entry.key.toString().trim();
-      if (rawKey.isEmpty) {
-        continue;
-      }
-
-      final canonicalKey = rawKey.startsWith('bc_') ? rawKey : 'bc_$rawKey';
-      final value = _runtimeVariableValueToString(entry.value);
-
-      // Canonical reference form for scoped placeholders.
-      runtimeVariables['$scope.$canonicalKey'] = value;
-      // Backward-compat alias for older payloads still using raw keys.
-      runtimeVariables['$scope.$rawKey'] = value;
-    }
-  }
-
   Future<void> _executeCommand({
     required NyxxGateway client,
     required String botId,
@@ -707,8 +636,15 @@ class DiscordRunner {
     final value = Map<String, dynamic>.from(
       (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
     );
+    final subcommandRoute = resolveSubcommandRoute(interaction.data.options);
+    final routePayload =
+        (subcommandRoute == null)
+            ? null
+            : resolveSubcommandWorkflowPayload(value, subcommandRoute);
+    final executionValue = routePayload ?? value;
+
     final response = Map<String, dynamic>.from(
-      (value['response'] as Map?)?.cast<String, dynamic>() ?? const {},
+      (executionValue['response'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
     final workflow = Map<String, dynamic>.from(
       (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
@@ -726,60 +662,21 @@ class DiscordRunner {
     runtimeVariables['config.command.type'] = storedType;
     runtimeVariables['interaction.command.name'] = interaction.data.name;
     runtimeVariables['interaction.command.id'] = interaction.data.id.toString();
-    final globalVars = await store.getGlobalVariables(botId);
-    for (final entry in globalVars.entries) {
-      runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
-        entry.value,
-      );
-    }
-
-    final guildContextId = runtimeVariables['guildId'];
-    final channelContextId = runtimeVariables['channelId'];
-    final userContextId = runtimeVariables['userId'];
-    final guildMemberContextId =
-        (guildContextId != null &&
-                guildContextId.trim().isNotEmpty &&
-                userContextId != null &&
-                userContextId.trim().isNotEmpty)
-            ? '${guildContextId.trim()}:${userContextId.trim()}'
-            : null;
-    final messageContextId =
-        runtimeVariables['messageId'] ?? runtimeVariables['message.id'];
-
-    await _injectScopedVariables(
-      runtimeVariables: runtimeVariables,
+    runtimeVariables['interaction.command.route'] = subcommandRoute ?? '';
+    await hydrateRuntimeVariables(
+      store: store,
       botId: botId,
-      scope: 'guild',
-      contextId: guildContextId,
-    );
-    await _injectScopedVariables(
       runtimeVariables: runtimeVariables,
-      botId: botId,
-      scope: 'channel',
-      contextId: channelContextId,
-    );
-    await _injectScopedVariables(
-      runtimeVariables: runtimeVariables,
-      botId: botId,
-      scope: 'user',
-      contextId: userContextId,
-    );
-    await _injectScopedVariables(
-      runtimeVariables: runtimeVariables,
-      botId: botId,
-      scope: 'guildMember',
-      contextId: guildMemberContextId,
-    );
-    await _injectScopedVariables(
-      runtimeVariables: runtimeVariables,
-      botId: botId,
-      scope: 'message',
-      contextId: messageContextId,
+      guildContextId: runtimeVariables['guildId'],
+      channelContextId: runtimeVariables['channelId'],
+      userContextId: runtimeVariables['userId'],
+      messageContextId:
+          runtimeVariables['messageId'] ?? runtimeVariables['message.id'],
     );
 
     // Collect actions
     var actionsJson = List<Map<String, dynamic>>.from(
-      (value['actions'] as List?)?.whereType<Map>().map(
+      (executionValue['actions'] as List?)?.whereType<Map>().map(
             (e) => Map<String, dynamic>.from(e),
           ) ??
           const [],
@@ -883,19 +780,6 @@ class DiscordRunner {
         isEphemeral: isEphemeral,
       );
     }
-  }
-
-  String _runtimeVariableValueToString(dynamic value) {
-    if (value == null) {
-      return '';
-    }
-    if (value is String) {
-      return value;
-    }
-    if (value is List || value is Map) {
-      return jsonEncode(value);
-    }
-    return value.toString();
   }
 
   Future<void> _safeRespond(

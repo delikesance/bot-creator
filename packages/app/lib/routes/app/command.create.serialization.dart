@@ -4,77 +4,58 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
   Map<String, dynamic> _buildCommandDataPayload({
     required List<Map<String, dynamic>> effectiveActions,
   }) {
+    _persistActiveSubcommandWorkflow();
+
+    final hasSubcommandWorkflows = _subcommandWorkflows.isNotEmpty;
+    final fallbackRoute =
+        _subcommandWorkflows.containsKey(_activeSubcommandRoute)
+            ? _activeSubcommandRoute
+            : (hasSubcommandWorkflows
+                ? _subcommandWorkflows.keys.first
+                : _CommandCreatePageState._rootWorkflowRoute);
+
+    final fallbackPayload =
+        hasSubcommandWorkflows ? _subcommandWorkflows[fallbackRoute] : null;
+
+    final responsePayload =
+        fallbackPayload != null
+            ? Map<String, dynamic>.from(
+              (fallbackPayload['response'] as Map?)?.cast<String, dynamic>() ??
+                  _buildResponsePayloadFromEditor(),
+            )
+            : _buildResponsePayloadFromEditor();
+
+    final actionsPayload =
+        fallbackPayload != null
+            ? List<Map<String, dynamic>>.from(
+              (fallbackPayload['actions'] as List?)?.whereType<Map>().map(
+                    (entry) => Map<String, dynamic>.from(entry),
+                  ) ??
+                  const <Map<String, dynamic>>[],
+            )
+            : effectiveActions;
+
     return {
       'version': 1,
       'commandType': _commandTypeToText(_commandType),
       'editorMode': _editorMode,
       'simpleConfig': _currentSimpleConfig(),
       'defaultMemberPermissions': _defaultMemberPermissions.trim(),
-      'response': {
-        'mode': _responseEmbeds.isNotEmpty ? 'embed' : 'text',
-        'type': _responseType,
-        'text': _responseController.text,
-        'embed':
-            _responseEmbeds.isNotEmpty
-                ? _responseEmbeds.first
-                : {'title': '', 'description': '', 'url': ''},
-        'embeds': _responseEmbeds.take(10).toList(),
-        'components': _responseComponents,
-        'modal': _responseModal,
-        'workflow': _normalizeWorkflow(_responseWorkflow),
-      },
-      'actions': effectiveActions,
-    };
-  }
-
-  Map<String, dynamic> _serializeOption(CommandOptionBuilder option) {
-    return <String, dynamic>{
-      'type': _commandOptionTypeToText(option.type),
-      'name': option.name,
-      'description': option.description,
-      'required': option.isRequired,
-      if (option.minValue != null) 'minValue': option.minValue,
-      if (option.maxValue != null) 'maxValue': option.maxValue,
-      if (option.choices?.isNotEmpty == true)
-        'choices': option.choices!
-            .map((choice) => {'name': choice.name, 'value': choice.value})
-            .toList(growable: false),
+      'response': responsePayload,
+      'actions': actionsPayload,
+      if (hasSubcommandWorkflows)
+        'subcommandWorkflows': cloneSubcommandWorkflowPayloads(
+          _subcommandWorkflows,
+        ),
+      if (hasSubcommandWorkflows)
+        'activeSubcommandRoute': _activeSubcommandRoute,
     };
   }
 
   List<Map<String, dynamic>> _serializeOptions(
     List<CommandOptionBuilder> options,
   ) {
-    return options.map(_serializeOption).toList(growable: false);
-  }
-
-  CommandOptionBuilder _deserializeOption(Map<String, dynamic> raw) {
-    final typeName = (raw['type'] ?? '').toString();
-    final type = _commandOptionTypeFromText(typeName);
-
-    final option = CommandOptionBuilder(
-      type: type,
-      name: (raw['name'] ?? '').toString(),
-      description: (raw['description'] ?? '').toString(),
-      isRequired: raw['required'] == true,
-      minValue: raw['minValue'] as num?,
-      maxValue: raw['maxValue'] as num?,
-    );
-
-    final choicesRaw = raw['choices'];
-    if (choicesRaw is List) {
-      option.choices = choicesRaw
-          .whereType<Map>()
-          .map(
-            (choice) => CommandOptionChoiceBuilder(
-              name: (choice['name'] ?? '').toString(),
-              value: (choice['value'] ?? '').toString(),
-            ),
-          )
-          .toList(growable: false);
-    }
-
-    return option;
+    return serializeCommandOptions(options);
   }
 
   String _normalizeScopedKeyForImport(String rawKey) {
@@ -154,50 +135,6 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
         'data': commandData,
       },
     };
-  }
-
-  String _commandOptionTypeToText(CommandOptionType type) {
-    if (type == CommandOptionType.subCommand) return 'subCommand';
-    if (type == CommandOptionType.subCommandGroup) return 'subCommandGroup';
-    if (type == CommandOptionType.string) return 'string';
-    if (type == CommandOptionType.integer) return 'integer';
-    if (type == CommandOptionType.boolean) return 'boolean';
-    if (type == CommandOptionType.user) return 'user';
-    if (type == CommandOptionType.channel) return 'channel';
-    if (type == CommandOptionType.role) return 'role';
-    if (type == CommandOptionType.mentionable) return 'mentionable';
-    if (type == CommandOptionType.number) return 'number';
-    if (type == CommandOptionType.attachment) return 'attachment';
-    return 'string';
-  }
-
-  CommandOptionType _commandOptionTypeFromText(String text) {
-    final normalized = text.trim().toLowerCase();
-    switch (normalized) {
-      case 'subcommand':
-        return CommandOptionType.subCommand;
-      case 'subcommandgroup':
-        return CommandOptionType.subCommandGroup;
-      case 'integer':
-        return CommandOptionType.integer;
-      case 'boolean':
-        return CommandOptionType.boolean;
-      case 'user':
-        return CommandOptionType.user;
-      case 'channel':
-        return CommandOptionType.channel;
-      case 'role':
-        return CommandOptionType.role;
-      case 'mentionable':
-        return CommandOptionType.mentionable;
-      case 'number':
-        return CommandOptionType.number;
-      case 'attachment':
-        return CommandOptionType.attachment;
-      case 'string':
-      default:
-        return CommandOptionType.string;
-    }
   }
 
   String _integrationTypeToText(ApplicationIntegrationType type) {
@@ -449,7 +386,9 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
         const [];
     final importedOptions = optionsRaw
         .whereType<Map>()
-        .map((entry) => _deserializeOption(Map<String, dynamic>.from(entry)))
+        .map(
+          (entry) => deserializeCommandOption(Map<String, dynamic>.from(entry)),
+        )
         .toList(growable: false);
 
     final integrationTypeNames =
@@ -538,6 +477,36 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
         ),
       );
 
+      final importedSubcommandWorkflows = _normalizeStoredSubcommandWorkflows(
+        normalizedPayload['subcommandWorkflows'],
+      );
+      _subcommandWorkflows =
+          importedSubcommandWorkflows
+              .map(
+                (route, workflowPayload) => MapEntry(route, {
+                  'response': Map<String, dynamic>.from(
+                    (workflowPayload['response'] as Map?)
+                            ?.cast<String, dynamic>() ??
+                        const <String, dynamic>{},
+                  ),
+                  'actions': _normalizeImportedScopedActionKeys(
+                    List<Map<String, dynamic>>.from(
+                      (workflowPayload['actions'] as List?)
+                              ?.whereType<Map>()
+                              .map(
+                                (entry) => Map<String, dynamic>.from(entry),
+                              ) ??
+                          const <Map<String, dynamic>>[],
+                    ),
+                  ),
+                }),
+              )
+              .cast<String, Map<String, dynamic>>();
+      _activeSubcommandRoute =
+          (normalizedPayload['activeSubcommandRoute'] ??
+                  _CommandCreatePageState._rootWorkflowRoute)
+              .toString();
+
       if (_supportsCommandOptions && importedOptions.isNotEmpty) {
         _options = importedOptions;
       }
@@ -547,6 +516,8 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
       if (importedContexts.isNotEmpty) {
         _contexts = importedContexts;
       }
+
+      _syncSubcommandWorkflowRoutes();
 
       _isDataIncomplete = false;
     });

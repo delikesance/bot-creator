@@ -39,14 +39,6 @@ class _BotStatsPageState extends State<BotStatsPage> {
   double? _cpuPercent;
   int? _storageBytes;
 
-  RunnerClient _createRunnerClient(String baseUrl) {
-    return RunnerClient(
-      baseUrl: baseUrl,
-      getTimeout: const Duration(seconds: 30),
-      postTimeout: const Duration(seconds: 90),
-    );
-  }
-
   @override
   void initState() {
     super.initState();
@@ -68,14 +60,15 @@ class _BotStatsPageState extends State<BotStatsPage> {
   }
 
   Future<void> _initializeStatsSync() async {
-    final runnerUrl = await RunnerSettings.getUrl();
+    _runnerClient = await RunnerSettings.createClient(
+      getTimeout: const Duration(seconds: 30),
+      postTimeout: const Duration(seconds: 90),
+    );
     if (!mounted) {
       return;
     }
 
-    if (runnerUrl != null && runnerUrl.isNotEmpty) {
-      _runnerClient = _createRunnerClient(runnerUrl);
-    } else {
+    if (_runnerClient == null) {
       _setMetricsSource(isRemote: false);
     }
 

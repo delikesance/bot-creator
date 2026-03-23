@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:bot_creator_runner/web_log_store.dart';
 import 'package:bot_creator_runner/web_bootstrap_server.dart';
+import 'package:bot_creator_runner/web_runtime_config.dart';
 import 'package:logging/logging.dart';
 
 const _usageHeader =
@@ -14,7 +15,7 @@ const _usageHeader =
     '\n'
     'Usage:\n'
     '  dart run packages/runner/bin/runner.dart\n'
-    '  dart run packages/runner/bin/runner.dart --web-host 0.0.0.0 --web-port 8080\n';
+    '  dart run packages/runner/bin/runner.dart --web-host 0.0.0.0 --web-port 8080 --api-token changeme\n';
 
 Future<void> main(List<String> args) async {
   final parser =
@@ -22,14 +23,21 @@ Future<void> main(List<String> args) async {
         ..addOption(
           'web-host',
           help: 'Host/interface used by API mode.',
-          valueHelp: '0.0.0.0',
-          defaultsTo: Platform.environment['BOT_CREATOR_WEB_HOST'] ?? '0.0.0.0',
+          valueHelp: '127.0.0.1',
+          defaultsTo:
+              Platform.environment['BOT_CREATOR_WEB_HOST'] ?? '127.0.0.1',
         )
         ..addOption(
           'web-port',
           help: 'Port used by API mode.',
           valueHelp: '8080',
           defaultsTo: Platform.environment['BOT_CREATOR_WEB_PORT'] ?? '8080',
+        )
+        ..addOption(
+          'api-token',
+          help: 'Bearer token required by protected API endpoints.',
+          valueHelp: 'secret-token',
+          defaultsTo: Platform.environment['BOT_CREATOR_API_TOKEN'] ?? '',
         )
         ..addFlag('help', abbr: 'h', negatable: false, help: 'Show help.');
 
@@ -50,6 +58,7 @@ Future<void> main(List<String> args) async {
 
   final webHost = (results.option('web-host') ?? '').trim();
   final webPortRaw = (results.option('web-port') ?? '').trim();
+  final apiToken = normalizeRunnerApiToken(results.option('api-token'));
   if (results.rest.isNotEmpty) {
     stderr.writeln(
       'Unexpected positional arguments: ${results.rest.join(' ')}',
@@ -67,8 +76,19 @@ Future<void> main(List<String> args) async {
     return;
   }
 
+  final configError = validateRunnerWebConfiguration(
+    host: webHost,
+    apiToken: apiToken,
+  );
+  if (configError != null) {
+    stderr.writeln(configError);
+    _printUsage(parser);
+    exitCode = 64;
+    return;
+  }
+
   Logger.root.level = Level.INFO;
-  await _runWebMode(host: webHost, port: webPort);
+  await _runWebMode(host: webHost, port: webPort, apiToken: apiToken);
 }
 
 void _printUsage(ArgParser parser) {
@@ -77,7 +97,11 @@ void _printUsage(ArgParser parser) {
     ..writeln(parser.usage);
 }
 
-Future<void> _runWebMode({required String host, required int port}) async {
+Future<void> _runWebMode({
+  required String host,
+  required int port,
+  required String apiToken,
+}) async {
   final logStore = RunnerLogStore();
   final logSubscription = Logger.root.onRecord.listen((record) {
     final errorPart = record.error == null ? '' : ' | ${record.error}';
@@ -93,6 +117,7 @@ Future<void> _runWebMode({required String host, required int port}) async {
   final server = RunnerWebBootstrapServer(
     host: host,
     port: port,
+    apiToken: apiToken,
     logStore: logStore,
   );
 

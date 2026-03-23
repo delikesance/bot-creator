@@ -29,9 +29,14 @@ entre les redémarrages du conteneur.
 
 ## Lancer le Runner API
 
+Par défaut, l'image écoute sur `127.0.0.1`. Pour l'exposer via Docker, il faut
+forcer l'écoute sur `0.0.0.0` et définir un jeton bearer.
+
 ```bash
 docker run --rm \
   -p 8080:8080 \
+  -e BOT_CREATOR_WEB_HOST=0.0.0.0 \
+  -e BOT_CREATOR_API_TOKEN=change-me \
   -v bot_creator_data:/data \
   bot-creator-runner
 ```
@@ -51,8 +56,9 @@ L'image démarre en mode API par défaut.
 
 ## Variables d'environnement utiles
 
-- `BOT_CREATOR_WEB_HOST` (défaut: `0.0.0.0`)
+- `BOT_CREATOR_WEB_HOST` (défaut image: `127.0.0.1`)
 - `BOT_CREATOR_WEB_PORT` (défaut: `8080`)
+- `BOT_CREATOR_API_TOKEN` (obligatoire si le runner écoute hors loopback)
 - `BOT_CREATOR_DATA_DIR` (défaut image: `/data/bots`)
 - `BOT_CREATOR_RUNNER_LOG_FILE` (défaut image: `/data/logs/runner.log`)
 
@@ -60,3 +66,6 @@ L'image démarre en mode API par défaut.
 
 Le binaire Runner est API-only. Les anciens usages CLI (ex: `--config` / ZIP local)
 ne font plus partie du comportement supporté.
+
+`GET /health` reste public pour le liveness check. Les autres endpoints sont
+protégés par bearer token quand `BOT_CREATOR_API_TOKEN` est configuré.

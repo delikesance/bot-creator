@@ -1,6 +1,7 @@
 ﻿import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator_shared/utils/interaction_listener_registry.dart';
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
+import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart';
 import 'package:bot_creator_shared/utils/workflow_call.dart';
 import 'package:bot_creator_shared/types/action.dart';
@@ -13,9 +14,28 @@ Future<void> handleComponentInteraction(
   NyxxGateway client,
   MessageComponentInteraction interaction,
   BotDataStore store,
+  String botId,
 ) async {
   final customId = interaction.data.customId;
-  final entry = InteractionListenerRegistry.instance.get(customId);
+  final userId =
+      interaction.user?.id.toString() ??
+      interaction.member?.user?.id.toString() ??
+      '';
+  final fallbackChannelId = (interaction as dynamic)?.channel?.id as Snowflake?;
+  final guildId = (interaction as dynamic)?.guildId as Snowflake?;
+  final interactionType =
+      (interaction.data.values?.isNotEmpty ?? false) ? 'select' : 'button';
+  final entry = InteractionListenerRegistry.instance.getMatching(
+    customId,
+    ListenerMatchRequest(
+      botId: botId,
+      type: interactionType,
+      guildId: guildId?.toString(),
+      channelId: fallbackChannelId?.toString(),
+      messageId: interaction.message?.id.toString(),
+      userId: userId,
+    ),
+  );
 
   if (entry == null) {
     // No listener registered for this customId â€” ignore silently
@@ -24,20 +44,16 @@ Future<void> handleComponentInteraction(
 
   // Remove listener if one-shot
   if (entry.oneShot) {
-    InteractionListenerRegistry.instance.remove(customId);
+    InteractionListenerRegistry.instance.removeEntry(customId, entry);
   }
 
   // Build variables for the workflow
-  final fallbackChannelId = (interaction as dynamic)?.channel?.id as Snowflake?;
-  final guildId = (interaction as dynamic)?.guildId as Snowflake?;
   final variables = <String, String>{
     'interaction.customId': customId,
-    'interaction.userId':
-        interaction.user?.id.toString() ??
-        interaction.member?.user?.id.toString() ??
-        '',
+    'interaction.userId': userId,
     'interaction.guildId': guildId?.toString() ?? '',
     'interaction.channelId': fallbackChannelId?.toString() ?? '',
+    'interaction.messageId': interaction.message?.id.toString() ?? '',
     // For select menus, provide selected values as comma-separated list
     'interaction.values': interaction.data.values?.join(',') ?? '',
   };
@@ -59,25 +75,42 @@ Future<void> handleModalSubmitInteraction(
   NyxxGateway client,
   ModalSubmitInteraction interaction,
   BotDataStore store,
+  String botId,
 ) async {
   final customId = interaction.data.customId;
-  final entry = InteractionListenerRegistry.instance.get(customId);
+  final userId =
+      interaction.user?.id.toString() ??
+      interaction.member?.user?.id.toString() ??
+      '';
+  final entry = InteractionListenerRegistry.instance.getMatching(
+    customId,
+    ListenerMatchRequest(
+      botId: botId,
+      type: 'modal',
+      guildId: interaction.guildId?.toString(),
+      channelId: interaction.channelId?.toString(),
+      messageId:
+          ((interaction as dynamic).message?.id as Snowflake?)?.toString(),
+      userId: userId,
+    ),
+  );
 
   if (entry == null) {
     return;
   }
 
-  InteractionListenerRegistry.instance.remove(customId);
+  if (entry.oneShot) {
+    InteractionListenerRegistry.instance.removeEntry(customId, entry);
+  }
 
   // Build variables: one per modal input field
   final variables = <String, String>{
     'modal.customId': customId,
-    'interaction.userId':
-        interaction.user?.id.toString() ??
-        interaction.member?.user?.id.toString() ??
-        '',
+    'interaction.userId': userId,
     'interaction.guildId': interaction.guildId?.toString() ?? '',
     'interaction.channelId': interaction.channelId?.toString() ?? '',
+    'interaction.messageId':
+        ((interaction as dynamic).message?.id as Snowflake?)?.toString() ?? '',
   };
 
   // Extract each text input's value from submitted components
@@ -121,9 +154,19 @@ Future<void> _runListenerWorkflow({
     final workflow = await store.getWorkflowByName(botId, workflowName);
     if (workflow == null) return;
 
-    // Merge variables with global ones if needed?
-    // For now we assume they are passed or loaded by handleActions
-    // But handleActions expects variables.
+    await hydrateRuntimeVariables(
+      store: store,
+      botId: botId,
+      runtimeVariables: variables,
+      guildContextId: variables['interaction.guildId'],
+      channelContextId: variables['interaction.channelId'],
+      userContextId: variables['interaction.userId'],
+      messageContextId:
+          variables['messageId'] ??
+          variables['message.id'] ??
+          variables['interaction.messageId'],
+    );
+
     final effectiveEntryPoint = normalizeWorkflowEntryPoint(
       workflowEntryPoint,
       fallback: normalizeWorkflowEntryPoint(workflow['entryPoint']),

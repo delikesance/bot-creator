@@ -174,16 +174,16 @@ Future<bool> executeHttpAction({
 
   onLog?.call('HTTP: $method $resolvedUrl');
   if (request.body.isNotEmpty) {
-    onLog?.call('HTTP Payload envoyée: ${request.body}');
+    onLog?.call('HTTP Payload sent: ${request.body}');
   }
 
   final streamed = await http.Client().send(request);
   final responseBody = await streamed.stream.bytesToString();
   final status = streamed.statusCode;
 
-  onLog?.call('HTTP Réponse: $status (${responseBody.length} bytes)');
+  onLog?.call('HTTP Response: $status (${responseBody.length} bytes)');
   if (responseBody.isNotEmpty) {
-    onLog?.call('HTTP Payload reçue: $responseBody');
+    onLog?.call('HTTP Payload received: $responseBody');
   }
 
   results[resultKey] = 'HTTP $status';

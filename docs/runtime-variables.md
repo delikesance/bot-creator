@@ -1,7 +1,8 @@
 # Variables de Template — Référence complète
 
-Les variables sont utilisées dans tous les champs texte des commandes via la syntaxe
-`((nomDeLaVariable))`. Elles sont résolues au moment de l'exécution par le Runner.
+Les variables sont utilisées dans les champs texte qui passent par le résolveur runtime
+via la syntaxe `((nomDeLaVariable))`. Elles sont résolues au moment de l'exécution
+par l'app locale et par le Runner.
 
 > **Source** : `packages/shared/lib/utils/global.dart` — `generateKeyValues()`  
 > **Résolution** : `packages/shared/lib/utils/template_resolver.dart` — `resolveTemplatePlaceholders()`

@@ -22,14 +22,12 @@ void _registerLocalEventWorkflowListeners(
       .toList(growable: false);
 
   if (workflows.isEmpty) {
-    onLog?.call(
-      'Aucun workflow de type \'event\' trouve — listeners non actives.',
-    );
+    onLog?.call('No event workflows found - listeners disabled.');
     return;
   }
 
   onLog?.call(
-    'Activation des listeners event (${workflows.length} workflow(s) trouve(s))...',
+    'Enabling event listeners (${workflows.length} workflow(s) found)...',
   );
 
   final configuredEvents = workflows
@@ -560,12 +558,20 @@ Future<void> _executeLocalEventWorkflow(
     ...context.variables,
     'workflow.type': workflowTypeEvent,
   };
-  final globalVars = await manager.getGlobalVariables(botId);
-  for (final entry in globalVars.entries) {
-    runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
-      entry.value,
-    );
-  }
+  await hydrateRuntimeVariables(
+    store: manager,
+    botId: botId,
+    runtimeVariables: runtimeVariables,
+    guildContextId: context.variables['guildId'] ?? context.guildId?.toString(),
+    channelContextId:
+        context.variables['channelId'] ?? context.channelId?.toString(),
+    userContextId:
+        context.variables['userId'] ?? context.variables['author.id'],
+    messageContextId:
+        context.variables['messageId'] ??
+        context.variables['message.id'] ??
+        context.variables['event.id'],
+  );
 
   applyWorkflowInvocationContext(
     variables: runtimeVariables,

@@ -27,6 +27,8 @@ Future<bool> executeMessagingAction({
   required String resultKey,
   required Map<String, String> results,
   required Map<String, String> variables,
+  required String botId,
+  required Snowflake? guildId,
   required Snowflake? fallbackChannelId,
   required String Function(String input) resolveValue,
 }) async {
@@ -151,6 +153,8 @@ Future<bool> executeMessagingAction({
         content: content,
         payload: resolvedSendPayload,
         resolve: resolveValue,
+        botId: botId,
+        guildId: guildId?.toString(),
       );
       if (result['error'] != null) {
         throw Exception(result['error']);
@@ -167,6 +171,8 @@ Future<bool> executeMessagingAction({
         fallbackChannelId: fallbackChannelId,
         content: content,
         resolve: resolveValue,
+        botId: botId,
+        guildId: guildId?.toString(),
       );
       if (result['error'] != null) {
         throw Exception(result['error']);

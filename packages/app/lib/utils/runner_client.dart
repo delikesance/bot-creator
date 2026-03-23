@@ -141,11 +141,13 @@ class RunnerBotSummary {
 class RunnerClient {
   RunnerClient({
     required String baseUrl,
+    String? apiToken,
     http.Client? httpClient,
     Duration? getTimeout,
     Duration? postTimeout,
   }) : _getTimeout = getTimeout ?? const Duration(seconds: 10),
        _postTimeout = postTimeout ?? const Duration(seconds: 30),
+       _apiToken = _normalizeOptional(apiToken),
        _baseUrl =
            baseUrl.trimRight().endsWith('/')
                ? baseUrl.trimRight().substring(
@@ -156,6 +158,7 @@ class RunnerClient {
        _http = httpClient ?? http.Client();
 
   final String _baseUrl;
+  final String? _apiToken;
   final http.Client _http;
   final Duration _getTimeout;
   final Duration _postTimeout;
@@ -173,25 +176,38 @@ class RunnerClient {
   Future<Map<String, dynamic>> _get(
     String path, {
     Map<String, String?>? query,
+    bool includeAuth = true,
   }) async {
     final response = await _http
-        .get(_uri(path, query: query))
+        .get(
+          _uri(path, query: query),
+          headers: _headers(includeAuth: includeAuth),
+        )
         .timeout(_getTimeout);
     return _parseResponse(response);
   }
 
   Future<Map<String, dynamic>> _post(
     String path,
-    Map<String, dynamic> body,
-  ) async {
+    Map<String, dynamic> body, {
+    bool includeAuth = true,
+  }) async {
     final response = await _http
         .post(
           _uri(path),
-          headers: {'content-type': 'application/json'},
+          headers: _headers(includeAuth: includeAuth),
           body: jsonEncode(body),
         )
         .timeout(_postTimeout);
     return _parseResponse(response);
+  }
+
+  Map<String, String> _headers({required bool includeAuth}) {
+    final headers = <String, String>{'content-type': 'application/json'};
+    if (includeAuth && _apiToken != null) {
+      headers['authorization'] = 'Bearer $_apiToken';
+    }
+    return headers;
   }
 
   Map<String, dynamic> _parseResponse(http.Response response) {
@@ -218,7 +234,7 @@ class RunnerClient {
   /// Checks that the runner is reachable and responding.
   Future<bool> checkHealth() async {
     try {
-      final json = await _get('/health');
+      final json = await _get('/health', includeAuth: false);
       return json['ok'] == true;
     } catch (_) {
       return false;
@@ -356,4 +372,9 @@ List<RunnerBotRuntime> _parseBotRuntimeList(dynamic raw) {
       )
       .where((entry) => entry.botId.isNotEmpty)
       .toList(growable: false);
+}
+
+String? _normalizeOptional(String? value) {
+  final normalized = value?.trim() ?? '';
+  return normalized.isEmpty ? null : normalized;
 }

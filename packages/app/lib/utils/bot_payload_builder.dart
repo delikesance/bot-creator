@@ -30,12 +30,13 @@ Future<Map<String, dynamic>> buildBotPayload(String botId) async {
         const {},
   );
 
-  final globalVariables = Map<String, String>.from(
+  final globalVariables = Map<String, dynamic>.from(
     (appData['globalVariables'] as Map?)?.map(
-          (k, v) => MapEntry(k.toString(), v?.toString() ?? ''),
+          (k, v) => MapEntry(k.toString(), v),
         ) ??
-        const {},
+        const <String, dynamic>{},
   );
+  final scopedVariables = await _appManager.exportScopedVariables(botId);
 
   final workflows = List<Map<String, dynamic>>.from(
     (appData['workflows'] as List?)?.whereType<Map>().map(
@@ -65,6 +66,7 @@ Future<Map<String, dynamic>> buildBotPayload(String botId) async {
             : appData['avatar'].toString().trim(),
     intents: intents,
     globalVariables: globalVariables,
+    scopedVariables: scopedVariables,
     workflows: workflows,
     statuses: statuses,
     commands: commands,

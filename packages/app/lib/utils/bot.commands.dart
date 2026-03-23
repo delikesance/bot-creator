@@ -1,47 +1,8 @@
 part of 'bot.dart';
 
-String _runtimeVariableValueToString(dynamic value) {
-  if (value == null) {
-    return '';
-  }
-  if (value is String) {
-    return value;
-  }
-  if (value is List || value is Map) {
-    return jsonEncode(value);
-  }
-  return value.toString();
-}
-
-Future<void> _injectScopedCommandVariables({
-  required AppManager manager,
-  required String botId,
-  required String scope,
-  required String? contextId,
-  required Map<String, String> runtimeVariables,
-}) async {
-  final normalizedContextId = (contextId ?? '').trim();
-  if (normalizedContextId.isEmpty) {
-    return;
-  }
-
-  final values = await manager.getScopedVariables(
-    botId,
-    scope,
-    normalizedContextId,
-  );
-  for (final entry in values.entries) {
-    final rawKey = entry.key.toString().trim();
-    if (rawKey.isEmpty) {
-      continue;
-    }
-
-    final canonicalKey = rawKey.startsWith('bc_') ? rawKey : 'bc_$rawKey';
-    final value = _runtimeVariableValueToString(entry.value);
-    runtimeVariables['$scope.$canonicalKey'] = value;
-    runtimeVariables['$scope.$rawKey'] = value;
-  }
-}
+// Route resolution functions are provided by
+// package:bot_creator_shared/utils/command_workflow_routing.dart
+// imported in bot.dart.
 
 @pragma('vm:entry-point')
 Future<void> handleLocalCommands(
@@ -66,13 +27,6 @@ Future<void> handleLocalCommands(
     if (action["id"] == command.id.toString()) {
       final listOfArgs = await generateKeyValues(interaction);
       final runtimeVariables = <String, String>{...listOfArgs};
-      final globalVars = await manager.getGlobalVariables(clientId);
-      for (final entry in globalVars.entries) {
-        runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
-          entry.value,
-        );
-      }
-
       final dynamic rawInteraction = interaction;
       final guildContextId =
           runtimeVariables['guildId'] ?? rawInteraction.guildId?.toString();
@@ -83,52 +37,19 @@ Future<void> handleLocalCommands(
           runtimeVariables['userId'] ??
           rawInteraction.user?.id?.toString() ??
           rawInteraction.author?.id?.toString();
-      final guildMemberContextId =
-          (guildContextId != null &&
-                  guildContextId.trim().isNotEmpty &&
-                  userContextId != null &&
-                  userContextId.trim().isNotEmpty)
-              ? '${guildContextId.trim()}:${userContextId.trim()}'
-              : null;
       final messageContextId =
           runtimeVariables['messageId'] ??
           runtimeVariables['message.id'] ??
           rawInteraction.message?.id?.toString();
 
-      await _injectScopedCommandVariables(
-        manager: manager,
+      await hydrateRuntimeVariables(
+        store: manager,
         botId: clientId,
-        scope: 'guild',
-        contextId: guildContextId,
         runtimeVariables: runtimeVariables,
-      );
-      await _injectScopedCommandVariables(
-        manager: manager,
-        botId: clientId,
-        scope: 'channel',
-        contextId: channelContextId,
-        runtimeVariables: runtimeVariables,
-      );
-      await _injectScopedCommandVariables(
-        manager: manager,
-        botId: clientId,
-        scope: 'user',
-        contextId: userContextId,
-        runtimeVariables: runtimeVariables,
-      );
-      await _injectScopedCommandVariables(
-        manager: manager,
-        botId: clientId,
-        scope: 'guildMember',
-        contextId: guildMemberContextId,
-        runtimeVariables: runtimeVariables,
-      );
-      await _injectScopedCommandVariables(
-        manager: manager,
-        botId: clientId,
-        scope: 'message',
-        contextId: messageContextId,
-        runtimeVariables: runtimeVariables,
+        guildContextId: guildContextId,
+        channelContextId: channelContextId,
+        userContextId: userContextId,
+        messageContextId: messageContextId,
       );
 
       appendBotDebugLog(
@@ -142,8 +63,24 @@ Future<void> handleLocalCommands(
       final value = Map<String, dynamic>.from(
         (normalized["data"] as Map?)?.cast<String, dynamic>() ?? const {},
       );
+
+      final subcommandRoute = resolveSubcommandRoute(command.options);
+      runtimeVariables['interaction.command.route'] = subcommandRoute ?? '';
+
+      final routePayload =
+          (subcommandRoute == null)
+              ? null
+              : resolveSubcommandWorkflowPayload(value, subcommandRoute);
+      final executionValue = routePayload ?? value;
+
+      appendBotDebugLog(
+        'Resolved command route=${subcommandRoute ?? '(none)'} payloadFound=${routePayload != null}',
+        botId: clientId,
+      );
+
       final response = Map<String, dynamic>.from(
-        (value["response"] as Map?)?.cast<String, dynamic>() ?? const {},
+        (executionValue["response"] as Map?)?.cast<String, dynamic>() ??
+            const {},
       );
       final workflow = Map<String, dynamic>.from(
         (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
@@ -154,7 +91,7 @@ Future<void> handleLocalCommands(
 
       // Récupérer les actions : d'abord de la commande, puis du workflow sauvegardé si spécifié
       var actionsJson = List<Map<String, dynamic>>.from(
-        (value["actions"] as List?)?.whereType<Map>().map(
+        (executionValue["actions"] as List?)?.whereType<Map>().map(
               (e) => Map<String, dynamic>.from(e),
             ) ??
             const [],
@@ -365,6 +302,7 @@ Future<void> handleLocalCommands(
       event.gateway.client,
       interaction,
       manager,
+      clientId,
     );
   } else if (interaction is ModalSubmitInteraction) {
     // Route modal submit to the interaction listener registry
@@ -372,6 +310,7 @@ Future<void> handleLocalCommands(
       event.gateway.client,
       interaction,
       manager,
+      clientId,
     );
   }
 }

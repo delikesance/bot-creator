@@ -65,6 +65,45 @@ const Set<String> _supportedVariableScopes = {
   'message',
 };
 
+String? _resolveListenerMessageId({
+  required Map<String, dynamic> payload,
+  required Map<String, String> variables,
+  required String Function(String input) resolveValue,
+  Interaction? interaction,
+}) {
+  final explicitMessageId =
+      resolveValue((payload['messageId'] ?? '').toString()).trim();
+  if (explicitMessageId.isNotEmpty) {
+    return explicitMessageId;
+  }
+
+  final runtimeMessageId =
+      variables['interaction.messageId'] ??
+      variables['messageId'] ??
+      variables['message.id'];
+  if (runtimeMessageId != null && runtimeMessageId.trim().isNotEmpty) {
+    return runtimeMessageId.trim();
+  }
+
+  final dynamic dynInteraction = interaction;
+  final interactionMessageId =
+      (dynInteraction?.message?.id as Snowflake?)?.toString();
+  if (interactionMessageId != null && interactionMessageId.isNotEmpty) {
+    return interactionMessageId;
+  }
+
+  return null;
+}
+
+String? _resolveExplicitListenerMessageId(
+  Map<String, dynamic> payload,
+  String Function(String input) resolveValue,
+) {
+  final messageId =
+      resolveValue((payload['messageId'] ?? '').toString()).trim();
+  return messageId.isEmpty ? null : messageId;
+}
+
 String? _resolveScopeContextId({
   required String scope,
   required Map<String, String> variables,
@@ -413,16 +452,11 @@ Future<Map<String, String>> handleActions(
             throw Exception('This action requires a guild context');
           }
 
-          final typeRaw = (action.payload['type'] ?? 'text').toString();
-          final channelType =
-              typeRaw == 'voice'
-                  ? ChannelType.guildVoice
-                  : ChannelType.guildText;
-          final result = await createChannel(
+          final result = await createChannelAction(
             client,
-            (action.payload['name'] ?? '').toString(),
             guildId: guildId,
-            type: channelType,
+            payload: action.payload,
+            resolve: resolveValue,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -433,6 +467,7 @@ Future<Map<String, String>> handleActions(
           final result = await updateChannelAction(
             client,
             payload: action.payload,
+            resolve: resolveValue,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -472,6 +507,8 @@ Future<Map<String, String>> handleActions(
             content: content,
             payload: action.payload,
             resolve: resolveValue,
+            botId: botId,
+            guildId: guildId?.toString(),
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -488,6 +525,8 @@ Future<Map<String, String>> handleActions(
             fallbackChannelId: resolvedFallbackChannelId,
             content: content,
             resolve: resolveValue,
+            botId: botId,
+            guildId: guildId?.toString(),
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -606,6 +645,7 @@ Future<Map<String, String>> handleActions(
             client,
             guildId: guildId,
             payload: action.payload,
+            resolve: resolveValue,
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -640,6 +680,8 @@ Future<Map<String, String>> handleActions(
             payload: action.payload,
             fallbackChannelId: resolvedFallbackChannelId,
             resolve: resolveValue,
+            botId: botId,
+            guildId: guildId?.toString(),
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -650,6 +692,10 @@ Future<Map<String, String>> handleActions(
           final result = await editComponentV2Action(
             client,
             payload: action.payload,
+            fallbackChannelId: resolvedFallbackChannelId,
+            resolve: resolveValue,
+            botId: botId,
+            guildId: guildId?.toString(),
           );
           if (result['error'] != null) {
             throw Exception(result['error']);
@@ -733,6 +779,10 @@ Future<Map<String, String>> handleActions(
                 oneShot: true,
                 guildId: guildId?.toString(),
                 channelId: resolvedFallbackChannelId?.toString(),
+                messageId: _resolveExplicitListenerMessageId(
+                  modalResult,
+                  resolveValue,
+                ),
               ),
             );
           }
@@ -747,6 +797,7 @@ Future<Map<String, String>> handleActions(
             interaction,
             payload: action.payload,
             resolve: resolveValue,
+            botId: botId,
           );
           if (editResult['error'] != null) {
             throw Exception(editResult['error']);
@@ -754,6 +805,7 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = editResult['messageId'] ?? '';
           break;
         case BotCreatorActionType.listenForButtonClick:
+        case BotCreatorActionType.listenForSelectMenu:
         case BotCreatorActionType.listenForModalSubmit:
           final customId = resolveValue(
             (action.payload['customId'] ?? '').toString(),
@@ -796,10 +848,24 @@ Future<Map<String, String>> handleActions(
               type:
                   action.type == BotCreatorActionType.listenForButtonClick
                       ? 'button'
+                      : action.type == BotCreatorActionType.listenForSelectMenu
+                      ? 'select'
                       : 'modal',
               oneShot: oneShot,
               guildId: guildId?.toString(),
               channelId: resolvedFallbackChannelId?.toString(),
+              messageId:
+                  action.type == BotCreatorActionType.listenForModalSubmit
+                      ? _resolveExplicitListenerMessageId(
+                        action.payload,
+                        resolveValue,
+                      )
+                      : _resolveListenerMessageId(
+                        payload: action.payload,
+                        variables: variables,
+                        resolveValue: resolveValue,
+                        interaction: interaction,
+                      ),
             ),
           );
           results[resultKey] = 'listening:$customId';

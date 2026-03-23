@@ -383,6 +383,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Interactions';
       case BotCreatorActionType.respondWithModal:
       case BotCreatorActionType.listenForButtonClick:
+      case BotCreatorActionType.listenForSelectMenu:
       case BotCreatorActionType.listenForModalSubmit:
         return 'Interactions';
       case BotCreatorActionType.calculate:
@@ -584,6 +585,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Edit the deferred or original interaction response';
       case BotCreatorActionType.listenForButtonClick:
         return 'Register a workflow to run when a button is clicked';
+      case BotCreatorActionType.listenForSelectMenu:
+        return 'Register a workflow to run when a select menu is used';
       case BotCreatorActionType.listenForModalSubmit:
         return 'Register a workflow to run when a modal is submitted';
       case BotCreatorActionType.stopUnless:

@@ -146,15 +146,22 @@ const Map<String, String> appStringsEn = {
   // Runner API (API only)
   'settings_runner_title': 'Runner API',
   'settings_runner_desc':
-      'Connect the app to a remote Bot Creator Runner (API only). When configured, '
-      'Start/Stop and logs use the Runner API.',
+      'Connect the app to a Bot Creator Runner. Remote runners should stay on trusted '
+      'networks and use a bearer token.',
   'settings_runner_url_hint': 'http://192.168.1.x:8080',
+  'settings_runner_token_label': 'Runner API token',
+  'settings_runner_token_hint': 'Bearer token (optional on localhost)',
+  'settings_runner_save': 'Save settings',
+  'settings_runner_clear': 'Clear',
+  'settings_runner_saved': 'Runner settings saved',
+  'settings_runner_cleared': 'Runner settings cleared',
   'settings_runner_url_save': 'Save URL',
   'settings_runner_url_clear': 'Clear',
   'settings_runner_url_saved': 'Runner URL saved',
   'settings_runner_url_cleared': 'Runner URL cleared',
   'settings_runner_check': 'Check connection',
   'settings_runner_connected': 'Runner reachable ✓',
+  'settings_runner_auth_failed': 'Runner rejected the API token',
   'settings_runner_unreachable': 'Runner unreachable',
   'settings_runner_connecting': 'Checking connection…',
   'settings_runner_active': 'Active Runner API: {url}',
@@ -246,6 +253,7 @@ const Map<String, String> appStringsEn = {
   'action_name_respondWithModal': 'Respond with Modal',
   'action_name_editInteractionMessage': 'Edit Interaction Message',
   'action_name_listenForButtonClick': 'Listen for Button Click',
+  'action_name_listenForSelectMenu': 'Listen for Select Menu',
   'action_name_listenForModalSubmit': 'Listen for Modal Submit',
   'action_name_stopUnless': 'Stop Unless Condition',
   'action_name_ifBlock': 'IF / ELSE Block',

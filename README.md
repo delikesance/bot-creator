@@ -66,6 +66,8 @@ flutter run
 
 The Docker image starts the runner in API mode by default.
 The runner is API-only and is used by the app to sync/start/stop bots remotely.
+By default it binds to `127.0.0.1`. If you expose it beyond loopback, set a bearer
+token and keep it behind a trusted network, VPN, or TLS-terminating proxy.
 
 Use a persistent Docker volume to keep Bots Configs between restarts:
 
@@ -74,6 +76,8 @@ docker volume create bot_creator_data
 
 docker run --rm \
   -p 8080:8080 \
+  -e BOT_CREATOR_WEB_HOST=0.0.0.0 \
+  -e BOT_CREATOR_API_TOKEN=change-me \
   -v bot_creator_data:/data \
   bot-creator-runner
 

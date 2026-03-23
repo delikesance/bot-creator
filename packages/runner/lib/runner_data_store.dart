@@ -15,6 +15,8 @@ import 'package:bot_creator_runner/stores/sqlite_cli_variable_store.dart';
 class RunnerDataStore implements BotDataStore {
   final String botId;
   final List<Map<String, dynamic>> _workflows;
+  final Map<String, dynamic> _seedGlobalVariables;
+  final Map<String, Map<String, Map<String, dynamic>>> _seedScopedVariables;
   late JsonVariableStore _jsonFallbackStore;
   SqliteCliVariableStore? _sqliteStore;
   Future<void>? _initStoreFuture;
@@ -22,13 +24,13 @@ class RunnerDataStore implements BotDataStore {
 
   RunnerDataStore(BotConfig config)
     : botId = 'runner',
-      _workflows = List<Map<String, dynamic>>.from(config.workflows) {
+      _workflows = List<Map<String, dynamic>>.from(config.workflows),
+      _seedGlobalVariables = Map<String, dynamic>.from(config.globalVariables),
+      _seedScopedVariables = _cloneScopedVariables(config.scopedVariables) {
     // JSON fallback remains available if SQLite fails to initialize.
-    // Scoped runtime values must NOT be preloaded from config: they are
-    // created by bot execution and then persisted in SQLite.
     _jsonFallbackStore = JsonVariableStore.fromMaps(
-      globalVariables: config.globalVariables,
-      scopedVariables: const <String, Map<String, Map<String, dynamic>>>{},
+      globalVariables: _seedGlobalVariables,
+      scopedVariables: _seedScopedVariables,
     );
 
     _initStoreFuture = _initializePrimaryStore();
@@ -74,6 +76,31 @@ class RunnerDataStore implements BotDataStore {
       return;
     }
 
+    if (await sqlite.hasAnyVariablesForBot(botId)) {
+      _seededBotIds.add(botId);
+      return;
+    }
+
+    for (final entry in _seedGlobalVariables.entries) {
+      await sqlite.setGlobalVariable(botId, entry.key, entry.value);
+    }
+
+    for (final scopeEntry in _seedScopedVariables.entries) {
+      final scope = scopeEntry.key;
+      for (final contextEntry in scopeEntry.value.entries) {
+        final contextId = contextEntry.key;
+        for (final valueEntry in contextEntry.value.entries) {
+          await sqlite.setScopedVariable(
+            botId,
+            scope,
+            contextId,
+            valueEntry.key,
+            valueEntry.value,
+          );
+        }
+      }
+    }
+
     _seededBotIds.add(botId);
   }
 
@@ -85,11 +112,11 @@ class RunnerDataStore implements BotDataStore {
 
   @override
   Future<Map<String, dynamic>> getGlobalVariables(String botId) async =>
-      await _jsonFallbackStore.getGlobalVariables(botId);
+      await (await _storeForBot(botId)).getGlobalVariables(botId);
 
   @override
   Future<dynamic> getGlobalVariable(String botId, String key) async =>
-      await _jsonFallbackStore.getGlobalVariable(botId, key);
+      await (await _storeForBot(botId)).getGlobalVariable(botId, key);
 
   @override
   Future<void> setGlobalVariable(
@@ -97,7 +124,7 @@ class RunnerDataStore implements BotDataStore {
     String key,
     dynamic value,
   ) async {
-    await _jsonFallbackStore.setGlobalVariable(botId, key, value);
+    await (await _storeForBot(botId)).setGlobalVariable(botId, key, value);
   }
 
   @override
@@ -106,12 +133,14 @@ class RunnerDataStore implements BotDataStore {
     String oldKey,
     String newKey,
   ) async {
-    await _jsonFallbackStore.renameGlobalVariable(botId, oldKey, newKey);
+    await (await _storeForBot(
+      botId,
+    )).renameGlobalVariable(botId, oldKey, newKey);
   }
 
   @override
   Future<void> removeGlobalVariable(String botId, String key) async {
-    await _jsonFallbackStore.removeGlobalVariable(botId, key);
+    await (await _storeForBot(botId)).removeGlobalVariable(botId, key);
   }
 
   @override
@@ -297,4 +326,19 @@ class RunnerDataStore implements BotDataStore {
   Map<String, dynamic> _normalizeWorkflow(Map<String, dynamic> w) {
     return normalizeStoredWorkflowDefinition(w);
   }
+}
+
+Map<String, Map<String, Map<String, dynamic>>> _cloneScopedVariables(
+  Map<String, Map<String, Map<String, dynamic>>> source,
+) {
+  final cloned = <String, Map<String, Map<String, dynamic>>>{};
+  for (final scopeEntry in source.entries) {
+    cloned[scopeEntry.key] = <String, Map<String, dynamic>>{};
+    for (final contextEntry in scopeEntry.value.entries) {
+      cloned[scopeEntry.key]![contextEntry.key] = Map<String, dynamic>.from(
+        contextEntry.value,
+      );
+    }
+  }
+  return cloned;
 }

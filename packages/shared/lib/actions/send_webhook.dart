@@ -1,4 +1,4 @@
-﻿import 'package:nyxx/nyxx.dart';
+import 'package:nyxx/nyxx.dart';
 import '../types/component.dart';
 import 'send_component_v2.dart';
 
@@ -11,17 +11,18 @@ Snowflake? _toSnowflake(dynamic value) {
 }
 
 ({Snowflake? id, String? token}) _extractWebhookRef(
-  Map<String, dynamic> payload,
+  String webhookUrl,
+  String webhookId,
+  String token,
 ) {
-  final directId = _toSnowflake(payload['webhookId']);
-  final directToken = payload['token']?.toString().trim();
+  final directId = _toSnowflake(webhookId);
+  final directToken = token.trim();
 
-  if (directId != null && directToken != null && directToken.isNotEmpty) {
+  if (directId != null && directToken.isNotEmpty) {
     return (id: directId, token: directToken);
   }
 
-  final rawUrl = payload['webhookUrl']?.toString().trim() ?? '';
-  final uri = Uri.tryParse(rawUrl);
+  final uri = Uri.tryParse(webhookUrl.trim());
   if (uri == null) {
     return (id: directId, token: directToken);
   }
@@ -46,8 +47,12 @@ Future<Map<String, String>> sendWebhookAction(
   required Map<String, dynamic> payload,
   String Function(String)? resolve,
 }) async {
+  resolve ??= (s) => s;
   try {
-    final ref = _extractWebhookRef(payload);
+    final webhookUrl = resolve((payload['webhookUrl'] ?? '').toString()).trim();
+    final webhookId = resolve((payload['webhookId'] ?? '').toString()).trim();
+    final token = resolve((payload['token'] ?? '').toString()).trim();
+    final ref = _extractWebhookRef(webhookUrl, webhookId, token);
     if (ref.id == null || ref.token == null || ref.token!.isEmpty) {
       return {
         'error': 'Missing webhookId/token (or webhookUrl)',
@@ -55,28 +60,28 @@ Future<Map<String, String>> sendWebhookAction(
       };
     }
 
-    final content = payload['content']?.toString() ?? '';
-    final username = payload['username']?.toString().trim();
-    final avatarUrl = payload['avatarUrl']?.toString().trim();
-    final waitRaw = payload['wait'];
+    final content = resolve((payload['content'] ?? '').toString());
+    final username = resolve((payload['username'] ?? '').toString()).trim();
+    final avatarUrl = resolve((payload['avatarUrl'] ?? '').toString()).trim();
+    final waitRaw = resolve((payload['wait'] ?? '').toString());
     final wait =
-        waitRaw is bool
-            ? waitRaw
-            : (waitRaw?.toString().toLowerCase() == 'true');
-    final threadId = _toSnowflake(payload['threadId']);
+        payload['wait'] is bool
+            ? payload['wait'] as bool
+            : waitRaw.toLowerCase() == 'true';
+    final threadId = _toSnowflake(
+      resolve((payload['threadId'] ?? '').toString()),
+    );
 
     List<ComponentBuilder>? components;
     bool isRichV2 = false;
-    if (payload.containsKey('componentV2') && payload['componentV2'] is Map) {
+    final componentPayload = payload['componentV2'] ?? payload['components'];
+    if (componentPayload is Map) {
       try {
         final def = ComponentV2Definition.fromJson(
-          Map<String, dynamic>.from(payload['componentV2']),
+          Map<String, dynamic>.from(componentPayload),
         );
         isRichV2 = def.isRichV2;
-        components = buildComponentNodes(
-          definition: def,
-          resolve: resolve ?? (s) => s,
-        );
+        components = buildComponentNodes(definition: def, resolve: resolve);
       } catch (_) {}
     }
 
@@ -90,8 +95,8 @@ Future<Map<String, String>> sendWebhookAction(
       token: ref.token!,
       wait: wait,
       threadId: threadId,
-      username: (username != null && username.isNotEmpty) ? username : null,
-      avatarUrl: (avatarUrl != null && avatarUrl.isNotEmpty) ? avatarUrl : null,
+      username: username.isNotEmpty ? username : null,
+      avatarUrl: avatarUrl.isNotEmpty ? avatarUrl : null,
     );
 
     return {
