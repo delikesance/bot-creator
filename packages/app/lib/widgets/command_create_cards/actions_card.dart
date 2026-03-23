@@ -12,6 +12,8 @@ class ActionsCard extends StatelessWidget {
   actionVariableSuggestions; // Defined as dynamic to avoid import issues if not public
   final List<AppEmoji>? emojiSuggestions;
   final String? botIdForConfig;
+  final String? activeRouteLabel;
+  final bool activeRouteIsGrouped;
 
   const ActionsCard({
     super.key,
@@ -20,10 +22,17 @@ class ActionsCard extends StatelessWidget {
     required this.actionVariableSuggestions,
     this.emojiSuggestions,
     this.botIdForConfig,
+    this.activeRouteLabel,
+    this.activeRouteIsGrouped = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final routeColor =
+        activeRouteIsGrouped
+            ? Theme.of(context).colorScheme.secondary
+            : Theme.of(context).colorScheme.primary;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -39,6 +48,31 @@ class ActionsCard extends StatelessWidget {
               "Build runtime actions for this command",
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
+            if (activeRouteLabel != null && activeRouteLabel!.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: routeColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Active route: $activeRouteLabel',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: routeColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
             FilledButton(
               style: FilledButton.styleFrom(

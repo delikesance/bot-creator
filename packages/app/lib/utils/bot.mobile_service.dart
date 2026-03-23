@@ -476,7 +476,7 @@ class DiscordBotTaskHandler extends TaskHandler {
         _readyBots[resolvedBotId] = true;
         await _emitTaskLifecycleToMain('started', botId: resolvedBotId);
         await _emitTaskLogToMain(
-          'Bot mobile connecté et prêt',
+          'Mobile bot connected and ready',
           botId: resolvedBotId,
         );
         final latestAppData = await _manager!.getApp(resolvedBotId);
@@ -500,7 +500,7 @@ class DiscordBotTaskHandler extends TaskHandler {
     } catch (e) {
       await _emitTaskLifecycleToMain('stopped', botId: trimmedBotId);
       await _emitTaskLogToMain(
-        'Échec de connexion Discord: $e',
+        'Discord connection failed: $e',
         botId: trimmedBotId,
       );
       developer.log(
@@ -525,7 +525,7 @@ class DiscordBotTaskHandler extends TaskHandler {
       await client.close();
     }
     await _emitTaskLifecycleToMain('stopped', botId: trimmedBotId);
-    await _emitTaskLogToMain('Session bot arrêtée', botId: trimmedBotId);
+    await _emitTaskLogToMain('Bot session stopped', botId: trimmedBotId);
   }
 
   Future<void> _syncSessions(Map<String, String> desired) async {
@@ -548,14 +548,14 @@ class DiscordBotTaskHandler extends TaskHandler {
     ui.DartPluginRegistrant.ensureInitialized();
     debugPrint('[Bot] DiscordBotTaskHandler.onStart()');
     await _syncDebugFlagFromMain();
-    await _emitTaskLogToMain('Service mobile démarré');
+    await _emitTaskLogToMain('Mobile service started');
     developer.log('Starting Discord bot', name: 'DiscordBotTaskHandler');
     _manager ??= AppManager();
 
     _bindMobileNyxxLogs();
     final sessions = await _readConfiguredMobileSessions();
     if (sessions.isEmpty) {
-      await _emitTaskLogToMain('Aucune session mobile configurée');
+      await _emitTaskLogToMain('No mobile sessions configured');
       return;
     }
 
@@ -593,7 +593,7 @@ class DiscordBotTaskHandler extends TaskHandler {
   void onNotificationButtonPressed(String id) {
     if (id == 'stop') {
       unawaited(
-        _emitTaskLogToMain('Arrêt demandé depuis la notification', botId: null),
+        _emitTaskLogToMain('Stop requested from notification', botId: null),
       );
       stopCallback();
     }
@@ -615,11 +615,11 @@ class DiscordBotTaskHandler extends TaskHandler {
     _mobileNyxxLogsSubscription = null;
 
     if (isTimeout) {
-      await _emitTaskLogToMain('Service interrompu (timeout), redémarrage...');
+      await _emitTaskLogToMain('Service interrupted (timeout), restarting...');
       developer.log('Service timeout', name: 'DiscordBotTaskHandler');
       await startService();
     } else {
-      await _emitTaskLogToMain('Service arrêté');
+      await _emitTaskLogToMain('Service stopped');
       developer.log('Service stopped', name: 'DiscordBotTaskHandler');
     }
   }

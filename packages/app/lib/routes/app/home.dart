@@ -151,8 +151,7 @@ class _AppHomePageState extends State<AppHomePage>
     final runnerUrl = await RunnerSettings.getUrl();
     if (runnerUrl != null && runnerUrl.isNotEmpty) {
       try {
-        final status =
-            await _createRunnerClient(runnerUrl).getStatus();
+        final status = await _createRunnerClient(runnerUrl).getStatus();
         isRunning = status.isBotRunning(botId);
       } catch (_) {
         isRunning = false;
@@ -397,211 +396,194 @@ class _AppHomePageState extends State<AppHomePage>
                           minimumSize: const Size.fromHeight(44),
                         ),
                         onPressed: () async {
-                                  try {
-                                    final app = await appManager.getApp(
-                                      widget.client.user.id.toString(),
-                                    );
-                                    final token = app["token"]?.toString();
-                                    if (token == null || token.trim().isEmpty) {
-                                      throw Exception("Token not found");
-                                    }
+                          try {
+                            final app = await appManager.getApp(
+                              widget.client.user.id.toString(),
+                            );
+                            final token = app["token"]?.toString();
+                            if (token == null || token.trim().isEmpty) {
+                              throw Exception("Token not found");
+                            }
 
-                                    final botId =
-                                        widget.client.user.id.toString();
+                            final botId = widget.client.user.id.toString();
 
-                                    if (!_botLaunched) {
-                                      try {
-                                        await getDiscordUser(token);
-                                      } catch (_) {
-                                        if (!mounted) return;
-                                        final proceed =
-                                            await showDialog<bool>(
-                                              context: context,
-                                              builder:
-                                                  (ctx) => AlertDialog(
-                                                    title: Text(
-                                                      AppStrings.t(
-                                                        'bot_home_token_invalid_title',
-                                                      ),
-                                                    ),
-                                                    content: Text(
-                                                      AppStrings.t(
-                                                        'bot_home_token_invalid_content',
-                                                      ),
-                                                    ),
-                                                    actions: [
-                                                      TextButton(
-                                                        onPressed:
-                                                            () => Navigator.of(
-                                                              ctx,
-                                                            ).pop(false),
-                                                        child: Text(
-                                                          AppStrings.t(
-                                                            'cancel',
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      FilledButton(
-                                                        onPressed:
-                                                            () => Navigator.of(
-                                                              ctx,
-                                                            ).pop(true),
-                                                        child: Text(
-                                                          AppStrings.t(
-                                                            'bot_home_start',
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
+                            if (!_botLaunched) {
+                              try {
+                                await getDiscordUser(token);
+                              } catch (_) {
+                                if (!mounted) return;
+                                final proceed =
+                                    await showDialog<bool>(
+                                      context: context,
+                                      builder:
+                                          (ctx) => AlertDialog(
+                                            title: Text(
+                                              AppStrings.t(
+                                                'bot_home_token_invalid_title',
+                                              ),
+                                            ),
+                                            content: Text(
+                                              AppStrings.t(
+                                                'bot_home_token_invalid_content',
+                                              ),
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      ctx,
+                                                    ).pop(false),
+                                                child: Text(
+                                                  AppStrings.t('cancel'),
+                                                ),
+                                              ),
+                                              FilledButton(
+                                                onPressed:
+                                                    () => Navigator.of(
+                                                      ctx,
+                                                    ).pop(true),
+                                                child: Text(
+                                                  AppStrings.t(
+                                                    'bot_home_start',
                                                   ),
-                                            ) ??
-                                            false;
-                                        if (!proceed || !mounted) return;
-                                      }
-                                      await _maybeOfferRewardedAd();
-                                    }
-
-                                    // ── Runner API (API only) ────────────────────────────
-                                    final runnerUrl =
-                                        await RunnerSettings.getUrl();
-                                    if (runnerUrl != null &&
-                                        runnerUrl.isNotEmpty) {
-                                      final remoteClient = _createRunnerClient(
-                                        runnerUrl,
-                                      );
-                                      if (_botLaunched) {
-                                        appendBotLog(
-                                          AppStrings.t('bot_home_log_stop'),
-                                          botId: botId,
-                                        );
-                                        await remoteClient.stopBot(botId);
-                                        setBotRuntimeActive(false);
-                                        if (mounted) {
-                                          setState(() => _botLaunched = false);
-                                        }
-                                      } else {
-                                        startBotLogSession(botId: botId);
-                                        clearBotBaselineRss();
-                                        appendBotLog(
-                                          AppStrings.t('bot_home_log_start'),
-                                          botId: botId,
-                                        );
-                                        final payload = await buildBotPayload(
-                                          botId,
-                                        );
-                                        await remoteClient.syncBot(
-                                          botId,
-                                          _appName,
-                                          payload,
-                                        );
-                                        await remoteClient.startBot(
-                                          botId,
-                                          botName: _appName,
-                                        );
-                                        setBotRuntimeActive(true);
-                                        if (mounted) {
-                                          setState(() => _botLaunched = true);
-                                        }
-                                      }
-                                      return;
-                                    }
-
-                                    // ── Local engine ─────────────────────────────────
-                                    if (!_botLaunched) {
-                                      clearBotBaselineRss();
-                                      startBotLogSession(botId: botId);
-                                      appendBotLog(
-                                        AppStrings.t('bot_home_log_start'),
-                                        botId: botId,
-                                      );
-                                    }
-
-                                    if (_supportsForegroundTask) {
-                                      if (_botLaunched) {
-                                        appendBotLog(
-                                          AppStrings.t('bot_home_log_stop'),
-                                          botId: botId,
-                                        );
-                                        await stopMobileBotSession(
-                                          botId: botId,
-                                        );
-                                        setBotRuntimeActive(
-                                          isDesktopBotRunning ||
-                                              mobileRunningBotIds.isNotEmpty,
-                                        );
-                                        if (mounted) {
-                                          setState(() {
-                                            _botLaunched = false;
-                                          });
-                                        }
-                                        return;
-                                      }
-
-                                      await _requestPermissions();
-                                      await _initService();
-
-                                      await startMobileBotSession(
-                                        botId: botId,
-                                        token: token,
-                                      );
-                                      developer.log(
-                                        'Token saved, starting foreground service',
-                                        name: 'AppHomePage',
-                                      );
-
-                                      final running =
-                                          await FlutterForegroundTask
-                                              .isRunningService;
-                                      if (!running) {
-                                        throw Exception(
-                                          AppStrings.t(
-                                            'bot_home_service_not_started',
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        );
-                                      }
-                                    } else {
-                                      if (_botLaunched) {
-                                        appendBotLog(
-                                          AppStrings.t(
-                                            'bot_home_log_desktop_stop',
-                                          ),
-                                          botId: botId,
-                                        );
-                                        await stopDesktopBot();
-                                        setBotRuntimeActive(false);
-                                        clearBotBaselineRss();
-                                        if (mounted) {
-                                          setState(() {
-                                            _botLaunched = false;
-                                          });
-                                        }
-                                        return;
-                                      }
+                                    ) ??
+                                    false;
+                                if (!proceed || !mounted) return;
+                              }
+                              await _maybeOfferRewardedAd();
+                            }
 
-                                      await startDesktopBot(token);
-                                    }
+                            // ── Runner API (API only) ────────────────────────────
+                            final runnerUrl = await RunnerSettings.getUrl();
+                            if (runnerUrl != null && runnerUrl.isNotEmpty) {
+                              final remoteClient = _createRunnerClient(
+                                runnerUrl,
+                              );
+                              if (_botLaunched) {
+                                appendBotLog(
+                                  'Bot stop requested',
+                                  botId: botId,
+                                );
+                                await remoteClient.stopBot(botId);
+                                setBotRuntimeActive(false);
+                                if (mounted) {
+                                  setState(() => _botLaunched = false);
+                                }
+                              } else {
+                                startBotLogSession(botId: botId);
+                                clearBotBaselineRss();
+                                appendBotLog(
+                                  'Bot start requested',
+                                  botId: botId,
+                                );
+                                final payload = await buildBotPayload(botId);
+                                await remoteClient.syncBot(
+                                  botId,
+                                  _appName,
+                                  payload,
+                                );
+                                await remoteClient.startBot(
+                                  botId,
+                                  botName: _appName,
+                                );
+                                setBotRuntimeActive(true);
+                                if (mounted) {
+                                  setState(() => _botLaunched = true);
+                                }
+                              }
+                              return;
+                            }
 
-                                    if (mounted) {
-                                      setState(() {
-                                        _botLaunched = true;
-                                      });
-                                    }
-                                  } catch (e) {
-                                    if (!mounted) {
-                                      return;
-                                    }
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          AppStrings.tr(
-                                            'bot_home_start_error',
-                                            params: {'error': e.toString()},
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                },
+                            // ── Local engine ─────────────────────────────────
+                            if (!_botLaunched) {
+                              clearBotBaselineRss();
+                              startBotLogSession(botId: botId);
+                              appendBotLog('Bot start requested', botId: botId);
+                            }
+
+                            if (_supportsForegroundTask) {
+                              if (_botLaunched) {
+                                appendBotLog(
+                                  'Bot stop requested',
+                                  botId: botId,
+                                );
+                                await stopMobileBotSession(botId: botId);
+                                setBotRuntimeActive(
+                                  isDesktopBotRunning ||
+                                      mobileRunningBotIds.isNotEmpty,
+                                );
+                                if (mounted) {
+                                  setState(() {
+                                    _botLaunched = false;
+                                  });
+                                }
+                                return;
+                              }
+
+                              await _requestPermissions();
+                              await _initService();
+
+                              await startMobileBotSession(
+                                botId: botId,
+                                token: token,
+                              );
+                              developer.log(
+                                'Token saved, starting foreground service',
+                                name: 'AppHomePage',
+                              );
+
+                              final running =
+                                  await FlutterForegroundTask.isRunningService;
+                              if (!running) {
+                                throw Exception(
+                                  AppStrings.t('bot_home_service_not_started'),
+                                );
+                              }
+                            } else {
+                              if (_botLaunched) {
+                                appendBotLog(
+                                  AppStrings.t('bot_home_log_desktop_stop'),
+                                  botId: botId,
+                                );
+                                await stopDesktopBot();
+                                setBotRuntimeActive(false);
+                                clearBotBaselineRss();
+                                if (mounted) {
+                                  setState(() {
+                                    _botLaunched = false;
+                                  });
+                                }
+                                return;
+                              }
+
+                              await startDesktopBot(token);
+                            }
+
+                            if (mounted) {
+                              setState(() {
+                                _botLaunched = true;
+                              });
+                            }
+                          } catch (e) {
+                            if (!mounted) {
+                              return;
+                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  AppStrings.tr(
+                                    'bot_home_start_error',
+                                    params: {'error': e.toString()},
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                        },
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

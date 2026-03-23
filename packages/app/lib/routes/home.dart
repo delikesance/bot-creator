@@ -235,7 +235,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           postTimeout: const Duration(seconds: 90),
         );
         if (isRunning) {
-          appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
+          appendBotLog('Bot stop requested', botId: botId);
           await client.stopBot(botId);
           if (mounted) {
             setState(() {
@@ -246,7 +246,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         } else {
           startBotLogSession(botId: botId);
           clearBotBaselineRss();
-          appendBotLog(AppStrings.t('home_log_start_requested'), botId: botId);
+          appendBotLog('Bot start requested', botId: botId);
           final payload = await buildBotPayload(botId);
           await client.syncBot(botId, botName, payload);
           await client.startBot(botId, botName: botName);
@@ -276,13 +276,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (!isRunning) {
         clearBotBaselineRss();
         startBotLogSession(botId: botId);
-        appendBotLog(AppStrings.t('home_log_start_requested'), botId: botId);
+        appendBotLog('Bot start requested', botId: botId);
       }
 
       if (_supportsForegroundTask) {
         // ── Mobile (Android / iOS) ─────────────────────────────────────────
         if (isRunning) {
-          appendBotLog(AppStrings.t('home_log_stop_requested'), botId: botId);
+          appendBotLog('Bot stop requested', botId: botId);
           await stopMobileBotSession(botId: botId);
           if (mounted) {
             setState(() {

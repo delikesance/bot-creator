@@ -43,6 +43,10 @@ Future<void> _injectScopedCommandVariables({
   }
 }
 
+// Route resolution functions are provided by
+// package:bot_creator_shared/utils/command_workflow_routing.dart
+// imported in bot.dart.
+
 @pragma('vm:entry-point')
 Future<void> handleLocalCommands(
   InteractionCreateEvent event,
@@ -142,8 +146,24 @@ Future<void> handleLocalCommands(
       final value = Map<String, dynamic>.from(
         (normalized["data"] as Map?)?.cast<String, dynamic>() ?? const {},
       );
+
+      final subcommandRoute = resolveSubcommandRoute(command.options);
+      runtimeVariables['interaction.command.route'] = subcommandRoute ?? '';
+
+      final routePayload =
+          (subcommandRoute == null)
+              ? null
+              : resolveSubcommandWorkflowPayload(value, subcommandRoute);
+      final executionValue = routePayload ?? value;
+
+      appendBotDebugLog(
+        'Resolved command route=${subcommandRoute ?? '(none)'} payloadFound=${routePayload != null}',
+        botId: clientId,
+      );
+
       final response = Map<String, dynamic>.from(
-        (value["response"] as Map?)?.cast<String, dynamic>() ?? const {},
+        (executionValue["response"] as Map?)?.cast<String, dynamic>() ??
+            const {},
       );
       final workflow = Map<String, dynamic>.from(
         (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
@@ -154,7 +174,7 @@ Future<void> handleLocalCommands(
 
       // Récupérer les actions : d'abord de la commande, puis du workflow sauvegardé si spécifié
       var actionsJson = List<Map<String, dynamic>>.from(
-        (value["actions"] as List?)?.whereType<Map>().map(
+        (executionValue["actions"] as List?)?.whereType<Map>().map(
               (e) => Map<String, dynamic>.from(e),
             ) ??
             const [],

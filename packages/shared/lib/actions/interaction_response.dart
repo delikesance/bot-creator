@@ -1,4 +1,4 @@
-﻿import 'package:nyxx/nyxx.dart';
+import 'package:nyxx/nyxx.dart';
 import '../types/component.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart'; // for updateString
 import '../utils/component_workflow_bindings.dart';
@@ -212,9 +212,9 @@ Future<void> sendWorkflowResponse({
           }
         }
 
-        onLog?.call('Modal envoyÃ©', botId: botId);
+        onLog?.call('Modal sent', botId: botId);
       } catch (e) {
-        onLog?.call('Erreur construction modal: $e', botId: botId);
+        onLog?.call('Modal build error: $e', botId: botId);
       }
     }
   } else {
@@ -385,7 +385,7 @@ Future<void> sendWorkflowResponse({
           );
           if (built.isNotEmpty) componentNodes = built;
         } catch (e) {
-          onLog?.call('Erreur construction components: $e', botId: botId);
+          onLog?.call('Components build error: $e', botId: botId);
         }
       }
     }
@@ -406,10 +406,7 @@ Future<void> sendWorkflowResponse({
 
     // If no custom response and interaction already responded, just return
     if (isResponded && !hasCustomResponse) {
-      onLog?.call(
-        'Actions dÃ©jÃ  traitÃ©es, pas de rÃ©ponse par dÃ©faut',
-        botId: botId,
-      );
+      onLog?.call('Actions already handled, no default response', botId: botId);
       return;
     }
 
@@ -435,7 +432,7 @@ Future<void> sendWorkflowResponse({
       if (interaction is MessageResponse ||
           interaction is ModalSubmitInteraction) {
         await (interaction as dynamic).updateOriginalResponse(updateBuilder);
-        onLog?.call('RÃ©ponse Ã©ditÃ©e aprÃ¨s defer', botId: botId);
+        onLog?.call('Response edited after defer', botId: botId);
       }
     } else {
       int flagValue = isEphemeral ? MessageFlags.ephemeral.value : 0;
@@ -452,7 +449,7 @@ Future<void> sendWorkflowResponse({
             flags: flagValue > 0 ? MessageFlags(flagValue) : null,
           ),
         );
-        onLog?.call('RÃ©ponse envoyÃ©e', botId: botId);
+        onLog?.call('Response sent', botId: botId);
       } else {}
     }
 
@@ -479,7 +476,7 @@ Future<void> sendWorkflowResponse({
         if (interaction is MessageResponse ||
             interaction is ModalSubmitInteraction) {
           await (interaction as dynamic).deleteOriginalResponse();
-          onLog?.call('RÃ©ponse supprimÃ©e automatiquement', botId: botId);
+          onLog?.call('Response auto-deleted', botId: botId);
         }
       } catch (_) {}
     }

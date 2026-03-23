@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
+import 'package:bot_creator/routes/app/command_option_serialization.dart';
+import 'package:bot_creator/routes/app/command_option_validation.dart';
 import 'package:bot_creator/routes/app/workflow_docs.page.dart';
 import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/utils/analytics.dart';
@@ -43,6 +45,7 @@ class CommandCreatePage extends StatefulWidget {
 class _CommandCreatePageState extends State<CommandCreatePage> {
   static const String _editorModeSimple = 'simple';
   static const String _editorModeAdvanced = 'advanced';
+  static const String _rootWorkflowRoute = '__root__';
 
   String _commandName = "";
   String _commandDescription = "";
@@ -86,6 +89,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   bool _simpleSendMessage = false;
   final TextEditingController _simpleSendMessageController =
       TextEditingController();
+  Map<String, Map<String, dynamic>> _subcommandWorkflows =
+      <String, Map<String, dynamic>>{};
+  String _activeSubcommandRoute = _rootWorkflowRoute;
+  bool _isApplyingWorkflowPayload = false;
 
   static Map<String, dynamic> _defaultWorkflow() {
     return {
@@ -134,6 +141,361 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
   bool get _requiresSimpleRoleOption => _simpleAddRole || _simpleRemoveRole;
 
+  bool _isHierarchyOptionType(CommandOptionType type) {
+    return type == CommandOptionType.subCommand ||
+        type == CommandOptionType.subCommandGroup;
+  }
+
+  bool _containsHierarchyOption(List<CommandOptionBuilder> options) {
+    for (final option in options) {
+      if (_isHierarchyOptionType(option.type)) {
+        return true;
+      }
+      final nested = option.options;
+      if (nested != null &&
+          nested.isNotEmpty &&
+          _containsHierarchyOption(nested)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  List<String> _collectSubcommandRoutes(List<CommandOptionBuilder> options) {
+    final routes = <String>[];
+
+    for (final option in options) {
+      final name = option.name.trim();
+      if (name.isEmpty) {
+        continue;
+      }
+
+      if (option.type == CommandOptionType.subCommand) {
+        routes.add(name);
+        continue;
+      }
+
+      if (option.type == CommandOptionType.subCommandGroup) {
+        final children = option.options ?? <CommandOptionBuilder>[];
+        for (final child in children) {
+          if (child.type != CommandOptionType.subCommand) {
+            continue;
+          }
+          final childName = child.name.trim();
+          if (childName.isEmpty) {
+            continue;
+          }
+          routes.add('$name/$childName');
+        }
+      }
+    }
+
+    return routes;
+  }
+
+  Map<String, dynamic> _cloneJsonMap(Map<String, dynamic> source) {
+    return cloneJsonMap(source);
+  }
+
+  List<Map<String, dynamic>> _cloneJsonListOfMaps(
+    List<Map<String, dynamic>> source,
+  ) {
+    return List<Map<String, dynamic>>.from(
+      (jsonDecode(jsonEncode(source)) as List).whereType<Map>().map(
+        (entry) => Map<String, dynamic>.from(entry),
+      ),
+    );
+  }
+
+  Map<String, dynamic> _buildResponsePayloadFromEditor() {
+    return {
+      'mode': _responseEmbeds.isNotEmpty ? 'embed' : 'text',
+      'type': _responseType,
+      'text': _responseController.text,
+      'embed':
+          _responseEmbeds.isNotEmpty
+              ? Map<String, dynamic>.from(_responseEmbeds.first)
+              : {'title': '', 'description': '', 'url': ''},
+      'embeds': _cloneJsonListOfMaps(_responseEmbeds.take(10).toList()),
+      'components': _cloneJsonMap(_responseComponents),
+      'modal': _cloneJsonMap(_responseModal),
+      'workflow': _normalizeWorkflow(_cloneJsonMap(_responseWorkflow)),
+    };
+  }
+
+  Map<String, dynamic> _buildCurrentWorkflowPayload() {
+    return {
+      'response': _buildResponsePayloadFromEditor(),
+      'actions': _cloneJsonListOfMaps(_actions),
+    };
+  }
+
+  Map<String, dynamic> _buildDefaultWorkflowPayload() {
+    return {
+      'response': {
+        'mode': 'text',
+        'type': 'normal',
+        'text': '',
+        'embed': {'title': '', 'description': '', 'url': ''},
+        'embeds': <Map<String, dynamic>>[],
+        'components': <String, dynamic>{},
+        'modal': <String, dynamic>{},
+        'workflow': _defaultWorkflow(),
+      },
+      'actions': <Map<String, dynamic>>[],
+    };
+  }
+
+  void _applyWorkflowPayloadToEditor(Map<String, dynamic> payload) {
+    final response = Map<String, dynamic>.from(
+      (payload['response'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+
+    var embeds = _normalizeEmbedsPayload(response['embeds']);
+    if (embeds.isEmpty) {
+      final legacyEmbed = Map<String, dynamic>.from(
+        (response['embed'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final hasLegacyEmbed =
+          (legacyEmbed['title']?.toString().isNotEmpty ?? false) ||
+          (legacyEmbed['description']?.toString().isNotEmpty ?? false) ||
+          (legacyEmbed['url']?.toString().isNotEmpty ?? false);
+      if (hasLegacyEmbed) {
+        embeds = <Map<String, dynamic>>[
+          {
+            'title': legacyEmbed['title']?.toString() ?? '',
+            'description': legacyEmbed['description']?.toString() ?? '',
+            'url': legacyEmbed['url']?.toString() ?? '',
+          },
+        ];
+      }
+    }
+
+    final actions = List<Map<String, dynamic>>.from(
+      (payload['actions'] as List?)?.whereType<Map>().map(
+            (entry) => Map<String, dynamic>.from(entry),
+          ) ??
+          const <Map<String, dynamic>>[],
+    );
+
+    final text = (response['text'] ?? '').toString();
+    _isApplyingWorkflowPayload = true;
+    _responseType = (response['type'] ?? 'normal').toString();
+    _response = text;
+    if (_responseController.text != text) {
+      _responseController.text = text;
+    }
+    _responseEmbeds = embeds.take(10).toList(growable: false);
+    _responseComponents = Map<String, dynamic>.from(
+      (response['components'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    _responseModal = Map<String, dynamic>.from(
+      (response['modal'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    _responseWorkflow = _normalizeWorkflow(
+      Map<String, dynamic>.from(
+        (response['workflow'] as Map?)?.cast<String, dynamic>() ??
+            _defaultWorkflow(),
+      ),
+    );
+    _actions = actions;
+    _isApplyingWorkflowPayload = false;
+  }
+
+  Map<String, Map<String, dynamic>> _normalizeStoredSubcommandWorkflows(
+    dynamic raw,
+  ) {
+    if (raw is! Map) {
+      return <String, Map<String, dynamic>>{};
+    }
+
+    final normalized = <String, Map<String, dynamic>>{};
+    raw.forEach((key, value) {
+      if (value is! Map) {
+        return;
+      }
+      final route = key.toString().trim();
+      if (route.isEmpty) {
+        return;
+      }
+      normalized[route] = Map<String, dynamic>.from(
+        value.cast<String, dynamic>(),
+      );
+    });
+
+    return normalized;
+  }
+
+  void _persistActiveSubcommandWorkflow() {
+    if (_activeSubcommandRoute == _rootWorkflowRoute) {
+      return;
+    }
+    if (!_subcommandWorkflows.containsKey(_activeSubcommandRoute)) {
+      return;
+    }
+
+    _subcommandWorkflows[_activeSubcommandRoute] =
+        _buildCurrentWorkflowPayload();
+  }
+
+  void _syncSubcommandWorkflowRoutes() {
+    final routes = _collectSubcommandRoutes(_options);
+    if (routes.isEmpty) {
+      _subcommandWorkflows = <String, Map<String, dynamic>>{};
+      _activeSubcommandRoute = _rootWorkflowRoute;
+      return;
+    }
+
+    final hadExistingWorkflows = _subcommandWorkflows.isNotEmpty;
+    _persistActiveSubcommandWorkflow();
+
+    final next = <String, Map<String, dynamic>>{};
+    for (final route in routes) {
+      final existing = _subcommandWorkflows[route];
+      if (existing != null) {
+        next[route] = _cloneJsonMap(existing);
+      } else {
+        next[route] =
+            (!hadExistingWorkflows && next.isEmpty)
+                ? _buildCurrentWorkflowPayload()
+                : _buildDefaultWorkflowPayload();
+      }
+    }
+
+    _subcommandWorkflows = next;
+    if (!_subcommandWorkflows.containsKey(_activeSubcommandRoute)) {
+      _activeSubcommandRoute = routes.first;
+    }
+
+    final activePayload = _subcommandWorkflows[_activeSubcommandRoute];
+    if (activePayload != null) {
+      _applyWorkflowPayloadToEditor(activePayload);
+    }
+  }
+
+  void _switchActiveSubcommandRoute(String route) {
+    if (route == _activeSubcommandRoute) {
+      return;
+    }
+    _persistActiveSubcommandWorkflow();
+    _activeSubcommandRoute = route;
+    final payload = _subcommandWorkflows[route];
+    if (payload != null) {
+      _applyWorkflowPayloadToEditor(payload);
+    }
+  }
+
+  String _workflowRouteLabel(String route) {
+    final parts = route.split('/');
+    if (parts.length == 2) {
+      return '/$_commandName ${parts[0]} ${parts[1]}';
+    }
+    return '/$_commandName $route';
+  }
+
+  Widget _buildSubcommandWorkflowSelectorCard() {
+    if (_subcommandWorkflows.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final routes = _subcommandWorkflows.keys.toList(growable: false);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'SubCommand Workflow',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Choose which subcommand you are configuring.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue:
+                  routes.contains(_activeSubcommandRoute)
+                      ? _activeSubcommandRoute
+                      : routes.first,
+              decoration: const InputDecoration(
+                labelText: 'Target subcommand',
+                border: OutlineInputBorder(),
+              ),
+              items: routes
+                  .map(
+                    (route) => DropdownMenuItem<String>(
+                      value: route,
+                      child: Text(_workflowRouteLabel(route)),
+                    ),
+                  )
+                  .toList(growable: false),
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                setState(() {
+                  _switchActiveSubcommandRoute(value);
+                });
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _applyOptionsUpdate(List<CommandOptionBuilder> options) {
+    _options = options;
+    if (_containsHierarchyOption(_options)) {
+      _editorMode = _editorModeAdvanced;
+      _simpleModeLocked = true;
+    } else if (!_supportsSimpleMode) {
+      _editorMode = _editorModeAdvanced;
+      _simpleModeLocked = true;
+    } else {
+      _simpleModeLocked = _editorMode == _editorModeAdvanced;
+    }
+    _syncSubcommandWorkflowRoutes();
+  }
+
+  CommandOptionBuilder _buildOptionFromApplicationOption(dynamic source) {
+    final option = CommandOptionBuilder(
+      type: source.type as CommandOptionType,
+      name: source.name.toString(),
+      description: source.description?.toString() ?? '',
+      isRequired: source.isRequired == true,
+      minValue: source.minValue as num?,
+      maxValue: source.maxValue as num?,
+      nameLocalizations: source.nameLocalizations as Map<Locale, String>?,
+      descriptionLocalizations:
+          source.descriptionLocalizations as Map<Locale, String>?,
+    );
+
+    final rawChoices = source.choices;
+    if (rawChoices is List && rawChoices.isNotEmpty) {
+      option.choices = rawChoices
+          .map(
+            (choice) => CommandOptionChoiceBuilder(
+              name: choice.name.toString(),
+              value: choice.value,
+            ),
+          )
+          .toList(growable: false);
+    }
+
+    final rawOptions = source.options;
+    if (rawOptions is List && rawOptions.isNotEmpty) {
+      option.options = rawOptions
+          .map(_buildOptionFromApplicationOption)
+          .toList(growable: false);
+    }
+
+    return option;
+  }
+
   List<CommandOptionBuilder> get _effectiveOptions {
     if (!_supportsCommandOptions) {
       return <CommandOptionBuilder>[];
@@ -153,7 +515,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     _responseController.text = _response;
     _responseController.addListener(() {
       _response = _responseController.text;
-      if (mounted) {
+      if (!_isApplyingWorkflowPayload) {
+        _persistActiveSubcommandWorkflow();
+      }
+      if (mounted && !_isApplyingWorkflowPayload) {
         setState(() {});
       }
     });
@@ -338,6 +703,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 ) ??
                 const [],
           );
+          _subcommandWorkflows = _normalizeStoredSubcommandWorkflows(
+            normalizedData['subcommandWorkflows'],
+          );
+          _activeSubcommandRoute =
+              (normalizedData['activeSubcommandRoute'] ?? _rootWorkflowRoute)
+                  .toString();
+          if (_subcommandWorkflows.containsKey(_activeSubcommandRoute)) {
+            final activePayload = _subcommandWorkflows[_activeSubcommandRoute];
+            if (activePayload != null) {
+              _applyWorkflowPayloadToEditor(activePayload);
+            }
+          }
           _defaultMemberPermissions =
               (normalizedData['defaultMemberPermissions'] ?? '')
                   .toString()
@@ -387,29 +764,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         _commandDescription = currentCommand.description;
         _commandType = currentCommand.type;
         if (currentCommand.options != null) {
-          _options =
-              currentCommand.options!.map((e) {
-                final option = CommandOptionBuilder(
-                  type: e.type,
-                  name: e.name,
-                  description: e.description,
-                  isRequired: e.isRequired,
-                  minValue: e.minValue,
-                  maxValue: e.maxValue,
-                  nameLocalizations: e.nameLocalizations,
-                  descriptionLocalizations: e.descriptionLocalizations,
-                );
-                if (e.choices?.isNotEmpty ?? false) {
-                  option.choices =
-                      e.choices?.map((choice) {
-                        return CommandOptionChoiceBuilder(
-                          name: choice.name,
-                          value: choice.value,
-                        );
-                      }).toList();
-                }
-                return option;
-              }).toList();
+          _options = currentCommand.options!
+              .map(_buildOptionFromApplicationOption)
+              .toList(growable: false);
         } else {
           _options = [];
         }
@@ -439,6 +796,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           _editorMode = _editorModeAdvanced;
           _simpleModeLocked = true;
         }
+        if (_containsHierarchyOption(_options)) {
+          _editorMode = _editorModeAdvanced;
+          _simpleModeLocked = true;
+        }
+        _syncSubcommandWorkflowRoutes();
         _isLoading = false;
       });
     } else {
@@ -486,6 +848,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       showDialog(context: context, builder: (context) => dialog);
       return;
     }
+
+    _persistActiveSubcommandWorkflow();
 
     final effectiveOptions = _effectiveOptions;
     final effectiveActions = _effectiveActions;
@@ -834,12 +1198,21 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               },
                               onCommandTypeChanged: (val) {
                                 setState(() {
+                                  _persistActiveSubcommandWorkflow();
                                   _commandType = val;
                                   if (!_supportsSimpleMode) {
                                     _editorMode = _editorModeAdvanced;
                                   }
                                   _simpleModeLocked =
                                       _editorMode == _editorModeAdvanced;
+                                  if (_commandType !=
+                                      ApplicationCommandType.chatInput) {
+                                    _subcommandWorkflows =
+                                        <String, Map<String, dynamic>>{};
+                                    _activeSubcommandRoute = _rootWorkflowRoute;
+                                  } else {
+                                    _syncSubcommandWorkflowRoutes();
+                                  }
                                 });
                               },
                               onIntegrationTypesChanged: (val) {
@@ -879,11 +1252,16 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               const SizedBox(height: 12),
                               _buildSimpleResponseCard(),
                             ] else ...[
+                              if (_subcommandWorkflows.isNotEmpty) ...[
+                                _buildSubcommandWorkflowSelectorCard(),
+                                const SizedBox(height: 12),
+                              ],
                               ReplyCard(
                                 responseType: _responseType,
                                 onResponseTypeChanged: (type) {
                                   setState(() {
                                     _responseType = type;
+                                    _persistActiveSubcommandWorkflow();
                                   });
                                 },
                                 responseController: _responseController,
@@ -895,18 +1273,21 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 onEmbedsChanged: (embeds) {
                                   setState(() {
                                     _responseEmbeds = embeds;
+                                    _persistActiveSubcommandWorkflow();
                                   });
                                 },
                                 responseComponents: _responseComponents,
                                 onComponentsChanged: (components) {
                                   setState(() {
                                     _responseComponents = components;
+                                    _persistActiveSubcommandWorkflow();
                                   });
                                 },
                                 responseModal: _responseModal,
                                 onModalChanged: (modal) {
                                   setState(() {
                                     _responseModal = modal;
+                                    _persistActiveSubcommandWorkflow();
                                   });
                                 },
                                 responseWorkflow: _responseWorkflow,
@@ -917,9 +1298,19 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 onWorkflowChanged: (workflow) {
                                   setState(() {
                                     _responseWorkflow = workflow;
+                                    _persistActiveSubcommandWorkflow();
                                   });
                                 },
                                 workflowSummary: _workflowSummary(),
+                                activeRouteLabel:
+                                    _subcommandWorkflows.isNotEmpty
+                                        ? _workflowRouteLabel(
+                                          _activeSubcommandRoute,
+                                        )
+                                        : null,
+                                activeRouteIsGrouped:
+                                    _subcommandWorkflows.isNotEmpty &&
+                                    _activeSubcommandRoute.contains('/'),
                               ),
                               if (_supportsCommandOptions) ...[
                                 const SizedBox(height: 16),
@@ -950,7 +1341,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                           initialOptions: _options,
                                           onChange: (options) {
                                             setState(() {
-                                              _options = options;
+                                              _applyOptionsUpdate(options);
                                             });
                                           },
                                         ),
@@ -965,12 +1356,22 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 onActionsChanged: (val) {
                                   setState(() {
                                     _actions = val;
+                                    _persistActiveSubcommandWorkflow();
                                   });
                                 },
                                 actionVariableSuggestions:
                                     _actionVariableSuggestions,
                                 emojiSuggestions: _appEmojis,
                                 botIdForConfig: _botIdForConfig,
+                                activeRouteLabel:
+                                    _subcommandWorkflows.isNotEmpty
+                                        ? _workflowRouteLabel(
+                                          _activeSubcommandRoute,
+                                        )
+                                        : null,
+                                activeRouteIsGrouped:
+                                    _subcommandWorkflows.isNotEmpty &&
+                                    _activeSubcommandRoute.contains('/'),
                               ),
                             ],
                             const SizedBox(height: 20),

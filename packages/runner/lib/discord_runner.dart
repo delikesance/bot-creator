@@ -14,6 +14,7 @@ import 'package:bot_creator_shared/utils/workflow_call.dart';
 import 'package:bot_creator_shared/types/action.dart';
 import 'package:nyxx/nyxx.dart';
 
+import 'command_workflow_routing.dart';
 import 'runner_data_store.dart';
 
 final _log = Logger('BotRunner');
@@ -707,8 +708,15 @@ class DiscordRunner {
     final value = Map<String, dynamic>.from(
       (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
     );
+    final subcommandRoute = resolveSubcommandRoute(interaction.data.options);
+    final routePayload =
+        (subcommandRoute == null)
+            ? null
+            : resolveSubcommandWorkflowPayload(value, subcommandRoute);
+    final executionValue = routePayload ?? value;
+
     final response = Map<String, dynamic>.from(
-      (value['response'] as Map?)?.cast<String, dynamic>() ?? const {},
+      (executionValue['response'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
     final workflow = Map<String, dynamic>.from(
       (response['workflow'] as Map?)?.cast<String, dynamic>() ?? const {},
@@ -726,6 +734,7 @@ class DiscordRunner {
     runtimeVariables['config.command.type'] = storedType;
     runtimeVariables['interaction.command.name'] = interaction.data.name;
     runtimeVariables['interaction.command.id'] = interaction.data.id.toString();
+    runtimeVariables['interaction.command.route'] = subcommandRoute ?? '';
     final globalVars = await store.getGlobalVariables(botId);
     for (final entry in globalVars.entries) {
       runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
@@ -779,7 +788,7 @@ class DiscordRunner {
 
     // Collect actions
     var actionsJson = List<Map<String, dynamic>>.from(
-      (value['actions'] as List?)?.whereType<Map>().map(
+      (executionValue['actions'] as List?)?.whereType<Map>().map(
             (e) => Map<String, dynamic>.from(e),
           ) ??
           const [],

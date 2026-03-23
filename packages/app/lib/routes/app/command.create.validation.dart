@@ -1,6 +1,12 @@
 part of 'command.create.dart';
 
 extension _CommandCreateValidation on _CommandCreatePageState {
+  String? _validateOptionsForLevel(
+    List<CommandOptionBuilder> options, {
+    required int level,
+    required CommandOptionType? parentType,
+  }) => validateOptionsForLevel(options, level: level, parentType: parentType);
+
   String? _validateName(String? value) {
     if (value!.isEmpty) {
       return 'Please enter a command name';
@@ -56,6 +62,31 @@ extension _CommandCreateValidation on _CommandCreatePageState {
             ),
       );
       return false;
+    }
+
+    if (_supportsCommandOptions) {
+      final optionsError = _validateOptionsForLevel(
+        _effectiveOptions,
+        level: 0,
+        parentType: null,
+      );
+      if (optionsError != null) {
+        showDialog(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: Text(AppStrings.t('error')),
+                content: Text(optionsError),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(AppStrings.t('ok')),
+                  ),
+                ],
+              ),
+        );
+        return false;
+      }
     }
 
     return true;

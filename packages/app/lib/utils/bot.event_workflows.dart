@@ -22,14 +22,12 @@ void _registerLocalEventWorkflowListeners(
       .toList(growable: false);
 
   if (workflows.isEmpty) {
-    onLog?.call(
-      'Aucun workflow de type \'event\' trouve — listeners non actives.',
-    );
+    onLog?.call('No event workflows found - listeners disabled.');
     return;
   }
 
   onLog?.call(
-    'Activation des listeners event (${workflows.length} workflow(s) trouve(s))...',
+    'Enabling event listeners (${workflows.length} workflow(s) found)...',
   );
 
   final configuredEvents = workflows

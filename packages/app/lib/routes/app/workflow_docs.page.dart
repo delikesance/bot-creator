@@ -1,8 +1,7 @@
+import 'package:bot_creator/routes/app/doc_kind.dart';
 import 'package:bot_creator/utils/command_variable_catalog.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
-
-enum DocKind { event, action, template, runtime }
 
 class _DocSection {
   const _DocSection({required this.title, required this.lines});

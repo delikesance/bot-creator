@@ -27,6 +27,8 @@ class ReplyCard extends StatelessWidget {
   final String? botIdForConfig;
   final ValueChanged<Map<String, dynamic>> onWorkflowChanged;
   final String workflowSummary;
+  final String? activeRouteLabel;
+  final bool activeRouteIsGrouped;
 
   const ReplyCard({
     super.key,
@@ -47,10 +49,17 @@ class ReplyCard extends StatelessWidget {
     this.botIdForConfig,
     required this.onWorkflowChanged,
     required this.workflowSummary,
+    this.activeRouteLabel,
+    this.activeRouteIsGrouped = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final routeColor =
+        activeRouteIsGrouped
+            ? Theme.of(context).colorScheme.secondary
+            : Theme.of(context).colorScheme.primary;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -66,6 +75,31 @@ class ReplyCard extends StatelessWidget {
               "Choose the type of response to send",
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
+            if (activeRouteLabel != null && activeRouteLabel!.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: routeColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'Active route: $activeRouteLabel',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: routeColor,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
