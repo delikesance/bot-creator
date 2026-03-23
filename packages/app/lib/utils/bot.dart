@@ -137,9 +137,7 @@ void applyDesktopRuntimeSettings({
 
 void setBotDebugLogsEnabled(bool enabled) {
   _debugBotLogsEnabled = enabled;
-  appendBotLog(
-    enabled ? 'Mode debug logs activé' : 'Mode debug logs désactivé',
-  );
+  appendBotLog(enabled ? 'Debug logs enabled' : 'Debug logs disabled');
   unawaited(_persistDebugLogsEnabled(enabled));
 }
 
@@ -218,11 +216,11 @@ Future<void> startDesktopBot(String token) async {
   }
 
   if (_desktopGateway != null) {
-    appendBotLog('Le bot desktop est déjà en cours d’exécution');
+    appendBotLog('Desktop bot is already running');
     return;
   }
-  appendBotLog('Démarrage du bot desktop...');
-  appendBotDebugLog('Plateforme desktop détectée');
+  appendBotLog('Starting desktop bot...');
+  appendBotDebugLog('Desktop platform detected');
 
   final botUser = await getDiscordUser(token);
   final appData = await appManager.getApp(botUser.id.toString());
@@ -231,8 +229,8 @@ Future<void> startDesktopBot(String token) async {
   final enabledIntentNames = _enabledIntentNames(intentsMap);
   _bindDesktopNyxxLogs(botId: botUser.id.toString());
   appendBotLog(
-    'Intents runtime actifs (${enabledIntentNames.length}): '
-    '${enabledIntentNames.isEmpty ? 'aucun' : enabledIntentNames.join(', ')}',
+    'Active runtime intents (${enabledIntentNames.length}): '
+    '${enabledIntentNames.isEmpty ? 'none' : enabledIntentNames.join(', ')}',
     botId: botUser.id.toString(),
   );
 
@@ -249,7 +247,7 @@ Future<void> startDesktopBot(String token) async {
     final botId = event.gateway.client.user.id.toString();
     _desktopRunningBotId = botId;
     setBotRuntimeActive(true);
-    appendBotLog('Bot desktop connecté et prêt', botId: botId);
+    appendBotLog('Desktop bot connected and ready', botId: botId);
     unawaited(appManager.updateGuildCount(botId, event.guilds.length));
     unawaited(_refreshBotMetrics(botId: botId));
     _desktopMetricsTimer?.cancel();
@@ -277,7 +275,7 @@ Future<void> startDesktopBot(String token) async {
 }
 
 Future<void> stopDesktopBot() async {
-  appendBotLog('Arrêt du bot desktop demandé');
+  appendBotLog('Desktop bot shutdown requested');
   _desktopMetricsTimer?.cancel();
   _desktopMetricsTimer = null;
   _desktopStatusRotationTimer?.cancel();
@@ -385,7 +383,7 @@ Future<void> _applyDesktopStatus(
       ),
     );
     appendBotLog(
-      'Presence desktop appliquée: $type $text',
+      'Desktop presence applied: $type $text',
       botId: _desktopRunningBotId,
     );
   } catch (error) {

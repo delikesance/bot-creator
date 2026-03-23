@@ -197,97 +197,6 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         'action.$resultKey',
         VariableSuggestionKind.unknown,
       );
-
-      switch (action.type) {
-        case BotCreatorActionType.listScopedArrayElements:
-          _addSuggestionIfMissing(
-            merged,
-            '$resultKey.items',
-            VariableSuggestionKind.unknown,
-          );
-          _addSuggestionIfMissing(
-            merged,
-            'action.$resultKey.items',
-            VariableSuggestionKind.unknown,
-          );
-          _addSuggestionIfMissing(
-            merged,
-            '$resultKey.display',
-            VariableSuggestionKind.nonNumeric,
-          );
-          _addSuggestionIfMissing(
-            merged,
-            'action.$resultKey.display',
-            VariableSuggestionKind.nonNumeric,
-          );
-          _addSuggestionIfMissing(
-            merged,
-            '$resultKey.count',
-            VariableSuggestionKind.numeric,
-          );
-          _addSuggestionIfMissing(
-            merged,
-            'action.$resultKey.count',
-            VariableSuggestionKind.numeric,
-          );
-          _addSuggestionIfMissing(
-            merged,
-            '$resultKey.total',
-            VariableSuggestionKind.numeric,
-          );
-          _addSuggestionIfMissing(
-            merged,
-            'action.$resultKey.total',
-            VariableSuggestionKind.numeric,
-          );
-          for (var index = 0; index < 3; index++) {
-            _addSuggestionIfMissing(
-              merged,
-              '$resultKey.$index',
-              VariableSuggestionKind.unknown,
-            );
-            _addSuggestionIfMissing(
-              merged,
-              'action.$resultKey.$index',
-              VariableSuggestionKind.unknown,
-            );
-          }
-
-          final listStoreAs =
-              (action.parameters['storeAs'] ?? '').toString().trim();
-          if (listStoreAs.isNotEmpty) {
-            _addSuggestionIfMissing(
-              merged,
-              '$listStoreAs.items',
-              VariableSuggestionKind.unknown,
-            );
-            _addSuggestionIfMissing(
-              merged,
-              '$listStoreAs.display',
-              VariableSuggestionKind.nonNumeric,
-            );
-            _addSuggestionIfMissing(
-              merged,
-              '$listStoreAs.count',
-              VariableSuggestionKind.numeric,
-            );
-            _addSuggestionIfMissing(
-              merged,
-              '$listStoreAs.total',
-              VariableSuggestionKind.numeric,
-            );
-            for (var index = 0; index < 3; index++) {
-              _addSuggestionIfMissing(
-                merged,
-                '$listStoreAs.$index',
-                VariableSuggestionKind.unknown,
-              );
-            }
-          }
-          break;
-        default:
-          break;
-      }
     }
 
     return merged.values.toList(growable: false);
@@ -461,12 +370,6 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.renameScopedVariable:
       case BotCreatorActionType.listScopedVariableIndex:
-      case BotCreatorActionType.pushScopedArrayElement:
-      case BotCreatorActionType.popScopedArrayElement:
-      case BotCreatorActionType.removeScopedArrayElement:
-      case BotCreatorActionType.getScopedArrayElement:
-      case BotCreatorActionType.getScopedArrayLength:
-      case BotCreatorActionType.listScopedArrayElements:
         return 'HTTP & Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Workflows';
@@ -669,18 +572,6 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Rename a scoped variable key';
       case BotCreatorActionType.listScopedVariableIndex:
         return 'List indexed scoped values sorted by value with offset and limit';
-      case BotCreatorActionType.pushScopedArrayElement:
-        return 'Add an element to the end of a scoped array';
-      case BotCreatorActionType.popScopedArrayElement:
-        return 'Remove and return the last element of a scoped array';
-      case BotCreatorActionType.removeScopedArrayElement:
-        return 'Remove an element from a scoped array by index';
-      case BotCreatorActionType.getScopedArrayElement:
-        return 'Get an element from a scoped array at a specific index';
-      case BotCreatorActionType.getScopedArrayLength:
-        return 'Get the length of a scoped array';
-      case BotCreatorActionType.listScopedArrayElements:
-        return 'List array elements with pagination, sorting, and filtering';
       case BotCreatorActionType.runWorkflow:
         return 'Execute a saved workflow (supports entry point + arguments)';
       case BotCreatorActionType.respondWithMessage:

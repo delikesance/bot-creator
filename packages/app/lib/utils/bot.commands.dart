@@ -51,15 +51,15 @@ Future<void> handleLocalCommands(
   final interaction = event.interaction;
   final clientId = event.gateway.client.user.id.toString();
   if (interaction is ApplicationCommandInteraction) {
-    appendBotLog('Commande reçue: ${interaction.data.name}', botId: clientId);
+    appendBotLog('Command received: ${interaction.data.name}', botId: clientId);
     await _emitTaskLogToMain(
-      'Commande reçue: ${interaction.data.name}',
+      'Command received: ${interaction.data.name}',
       botId: clientId,
     );
     final command = interaction.data;
     final action = await manager.getAppCommand(clientId, command.id.toString());
     appendBotDebugLog(
-      'Lookup commande id=${command.id} trouvé=${action["id"] == command.id.toString()}',
+      'Command lookup id=${command.id} found=${action["id"] == command.id.toString()}',
       botId: clientId,
     );
 
@@ -132,7 +132,7 @@ Future<void> handleLocalCommands(
       );
 
       appendBotDebugLog(
-        'Arguments générés: ${runtimeVariables.length}',
+        'Runtime variables built: ${runtimeVariables.length}',
         botId: clientId,
       );
 
@@ -161,7 +161,7 @@ Future<void> handleLocalCommands(
       );
 
       appendBotDebugLog(
-        'Actions trouvées dans la commande: ${actionsJson.length}',
+        'Actions found in command: ${actionsJson.length}',
         botId: clientId,
       );
       if (actionsJson.isNotEmpty) {
@@ -193,13 +193,13 @@ Future<void> handleLocalCommands(
                   const [],
             );
             appendBotDebugLog(
-              'Workflow sauvegardé chargé: $workflowName avec ${actionsJson.length} actions',
+              'Saved workflow loaded: $workflowName with ${actionsJson.length} actions',
               botId: clientId,
             );
           }
         } catch (e) {
           appendBotDebugLog(
-            'Erreur lors du chargement du workflow $workflowName: $e',
+            'Error loading workflow $workflowName: $e',
             botId: clientId,
           );
         }
@@ -251,22 +251,22 @@ Future<void> handleLocalCommands(
           }
 
           didDefer = true;
-          appendBotLog('Réponse différée (defer ACK)', botId: clientId);
+          appendBotLog('Response deferred (defer ACK)', botId: clientId);
           await _emitTaskLogToMain(
-            'Réponse différée (defer ACK)',
+            'Response deferred (defer ACK)',
             botId: clientId,
           );
         }
 
         if (actionsJson.isNotEmpty) {
           appendBotDebugLog(
-            'Actions à exécuter: ${actionsJson.length}',
+            'Actions to execute: ${actionsJson.length}',
             botId: clientId,
           );
           try {
             final actions = actionsJson.map(Action.fromJson).toList();
             appendBotDebugLog(
-              'Actions converties en Action objects: ${actions.length}',
+              'Actions converted to Action objects: ${actions.length}',
               botId: clientId,
             );
             final actionResults = await handleActions(
@@ -287,7 +287,7 @@ Future<void> handleLocalCommands(
               },
             );
             appendBotDebugLog(
-              'Actions exécutées, résultats: ${actionResults.length}',
+              'Actions executed, results: ${actionResults.length}',
               botId: clientId,
             );
             for (final entry in actionResults.entries) {
@@ -304,10 +304,7 @@ Future<void> handleLocalCommands(
               botId: clientId,
             );
           } catch (e, st) {
-            appendBotDebugLog(
-              'Erreur lors de l\'exécution des actions: $e',
-              botId: clientId,
-            );
+            appendBotDebugLog('Error executing actions: $e', botId: clientId);
             appendBotDebugLog('Stack: $st', botId: clientId);
           }
         }
@@ -327,7 +324,7 @@ Future<void> handleLocalCommands(
           },
         );
       } catch (error, stackTrace) {
-        appendBotLog('Erreur workflow commande: $error', botId: clientId);
+        appendBotLog('Command workflow error: $error', botId: clientId);
         appendBotDebugLog('$stackTrace', botId: clientId);
         final errorText = 'An error occurred while executing this command.';
 
@@ -349,7 +346,7 @@ Future<void> handleLocalCommands(
           }
         } catch (sendError) {
           appendBotLog(
-            'Impossible d\'envoyer le message d\'erreur: $sendError',
+            'Failed to send error message: $sendError',
             botId: clientId,
           );
         }
@@ -358,8 +355,8 @@ Future<void> handleLocalCommands(
       return;
     } else {
       await interaction.respond(MessageBuilder(content: "Command not found"));
-      appendBotLog('Commande introuvable', botId: clientId);
-      await _emitTaskLogToMain('Commande introuvable', botId: clientId);
+      appendBotLog('Command not found', botId: clientId);
+      await _emitTaskLogToMain('Command not found', botId: clientId);
       return;
     }
   } else if (interaction is MessageComponentInteraction) {

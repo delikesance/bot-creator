@@ -189,6 +189,11 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
             ? existing!['scope'].toString()
             : null) ??
         _scopes.first;
+    String valueType =
+        (existing?['valueType']?.toString().isNotEmpty == true
+            ? existing!['valueType'].toString()
+            : null) ??
+        'string';
 
     final save = await showDialog<bool>(
       context: context,
@@ -231,11 +236,32 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: valueType,
+                        decoration: const InputDecoration(
+                          labelText: 'Value Type',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'string',
+                            child: Text('String'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'number',
+                            child: Text('Number'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setInner(() => valueType = v);
+                        },
+                      ),
+                      const SizedBox(height: 8),
                       TextField(
                         controller: valueCtrl,
                         decoration: const InputDecoration(
-                          labelText: 'Valeur par défaut',
-                          hintText: 'Optionnel',
+                          labelText: 'Default value',
+                          hintText: 'Optional',
                           border: OutlineInputBorder(),
                         ),
                       ),
@@ -273,6 +299,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
       newKey,
       scope,
       _parseLooseVariableValue(valueCtrl.text),
+      valueType: valueType,
     );
     await _load();
   }
@@ -448,6 +475,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
         final key = def['key']?.toString() ?? '';
         final scope = def['scope']?.toString() ?? '';
         final defaultValue = def['defaultValue']?.toString() ?? '';
+        final valueType = def['valueType']?.toString() ?? 'string';
         final refKey = _toScopedReferenceKey(key);
 
         return ListTile(
@@ -458,6 +486,16 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                 label: Text(scope, style: const TextStyle(fontSize: 11)),
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
+              ),
+              const SizedBox(width: 4),
+              Chip(
+                label: Text(valueType, style: const TextStyle(fontSize: 11)),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                backgroundColor:
+                    valueType == 'number'
+                        ? Colors.blue.withAlpha(40)
+                        : Colors.grey.withAlpha(40),
               ),
               const SizedBox(width: 8),
               Expanded(

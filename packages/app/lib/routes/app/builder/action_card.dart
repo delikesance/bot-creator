@@ -1227,13 +1227,7 @@ class ActionCard extends StatelessWidget {
               action.type == BotCreatorActionType.getScopedVariable ||
               action.type == BotCreatorActionType.removeScopedVariable ||
               action.type == BotCreatorActionType.renameScopedVariable ||
-              action.type == BotCreatorActionType.listScopedVariableIndex ||
-              action.type == BotCreatorActionType.pushScopedArrayElement ||
-              action.type == BotCreatorActionType.popScopedArrayElement ||
-              action.type == BotCreatorActionType.removeScopedArrayElement ||
-              action.type == BotCreatorActionType.getScopedArrayElement ||
-              action.type == BotCreatorActionType.getScopedArrayLength ||
-              action.type == BotCreatorActionType.listScopedArrayElements;
+              action.type == BotCreatorActionType.listScopedVariableIndex;
 
           return _VariableKeyParameterField(
             label: _formatParameterName(paramDef.key),
@@ -2436,12 +2430,6 @@ class ActionCard extends StatelessWidget {
       case BotCreatorActionType.getScopedVariable:
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.listScopedVariableIndex:
-      case BotCreatorActionType.pushScopedArrayElement:
-      case BotCreatorActionType.popScopedArrayElement:
-      case BotCreatorActionType.removeScopedArrayElement:
-      case BotCreatorActionType.getScopedArrayElement:
-      case BotCreatorActionType.getScopedArrayLength:
-      case BotCreatorActionType.listScopedArrayElements:
         return paramKey == 'key';
       case BotCreatorActionType.renameScopedVariable:
         return paramKey == 'oldKey' || paramKey == 'newKey';

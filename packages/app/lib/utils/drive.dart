@@ -643,31 +643,29 @@ Future<String> uploadAppData(DriveApi drive, AppManager appm) async {
 
 Future<String> downloadAppData(DriveApi drive, AppManager appm) async {
   try {
-    debugPrint('[DownloadAppData] Démarrage du téléchargement des données...');
+    debugPrint('[DownloadAppData] Starting data download...');
 
     final latest = await getLatestBackupSnapshot(drive);
     debugPrint(
-      '[DownloadAppData] Dernier snapshot trouvé: ${latest?.snapshotId}',
+      '[DownloadAppData] Latest snapshot found: ${latest?.snapshotId}',
     );
 
     if (latest != null) {
-      debugPrint(
-        '[DownloadAppData] Restauration du snapshot: ${latest.snapshotId}',
-      );
+      debugPrint('[DownloadAppData] Restoring snapshot: ${latest.snapshotId}');
       await restoreBackupSnapshot(drive, appm, snapshotId: latest.snapshotId);
-      debugPrint('[DownloadAppData] Snapshot restauré avec succès');
+      debugPrint('[DownloadAppData] Snapshot restored successfully');
       return 'Recuperation terminee (${latest.snapshotId})';
     }
 
     // Legacy fallback for old flat backups stored at appDataFolder root.
     debugPrint(
-      '[DownloadAppData] Aucun snapshot trouvé, tentative import legacy...',
+      '[DownloadAppData] No snapshot found, attempting legacy import...',
     );
     final legacyResult = await _downloadLegacyFlatBackup(drive, appm);
-    debugPrint('[DownloadAppData] Import legacy: $legacyResult');
+    debugPrint('[DownloadAppData] Legacy import result: $legacyResult');
     return legacyResult;
   } catch (e, st) {
-    debugPrint('[DownloadAppData] ERREUR: $e');
+    debugPrint('[DownloadAppData] ERROR: $e');
     debugPrintStack(stackTrace: st);
     return 'Echec de la recuperation : $e';
   }
@@ -827,13 +825,13 @@ Future<String> restoreBackupSnapshot(
   AppManager appm, {
   required String snapshotId,
 }) async {
-  debugPrint('[RestoreSnapshot] Restauration du snapshot: $snapshotId');
+  debugPrint('[RestoreSnapshot] Restoring snapshot: $snapshotId');
 
   final root = await _findBackupsRootFolder(drive);
   if (root == null || root.id == null) {
     throw Exception('No backups folder found.');
   }
-  debugPrint('[RestoreSnapshot] Dossier de sauvegarde trouvé: ${root.id}');
+  debugPrint('[RestoreSnapshot] Backup folder found: ${root.id}');
 
   final snapshotFolder = await _findNamedChild(
     drive,
@@ -845,7 +843,7 @@ Future<String> restoreBackupSnapshot(
     throw Exception('Snapshot not found: $snapshotId');
   }
   final snapshotFolderId = snapshotFolder!.id!;
-  debugPrint('[RestoreSnapshot] Dossier snapshot trouvé: $snapshotFolderId');
+  debugPrint('[RestoreSnapshot] Snapshot folder found: $snapshotFolderId');
 
   final archiveFile = await _findNamedChild(
     drive,
@@ -858,25 +856,19 @@ Future<String> restoreBackupSnapshot(
       tempDir.path,
       'bot_creator_restore_${DateTime.now().microsecondsSinceEpoch}.zip',
     );
-    debugPrint(
-      '[RestoreSnapshot] Téléchargement de l\'archive: ${archiveFile!.id}',
-    );
+    debugPrint('[RestoreSnapshot] Downloading archive: ${archiveFile!.id}');
     await downloadFile(drive, fileId: archiveFile.id!, filePath: archivePath);
-    debugPrint('[RestoreSnapshot] Archive téléchargée: $archivePath');
+    debugPrint('[RestoreSnapshot] Archive downloaded: $archivePath');
 
     final localRootPath = await appm.path;
     final localAppsDir = manager.Directory('$localRootPath/apps');
-    debugPrint(
-      '[RestoreSnapshot] Création du répertoire: ${localAppsDir.path}',
-    );
+    debugPrint('[RestoreSnapshot] Creating directory: ${localAppsDir.path}');
     await _recreateDirectoryWithRetry(localAppsDir);
 
     try {
-      debugPrint(
-        '[RestoreSnapshot] Extraction du ZIP vers: ${localAppsDir.path}',
-      );
+      debugPrint('[RestoreSnapshot] Extracting ZIP to: ${localAppsDir.path}');
       extractFileToDisk(archivePath, localAppsDir.path);
-      debugPrint('[RestoreSnapshot] ZIP extrait avec succès');
+      debugPrint('[RestoreSnapshot] ZIP extracted successfully');
     } finally {
       final archiveLocal = manager.File(archivePath);
       await _deleteFileWithRetry(archiveLocal);

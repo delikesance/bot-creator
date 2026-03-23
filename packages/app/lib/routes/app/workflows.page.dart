@@ -1100,7 +1100,8 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
           VariableSuggestion(
             name: '$scope.${_toScopedReferenceName(storageKey)}',
             kind:
-                definition['defaultValue'] is num
+                (definition['valueType']?.toString() == 'number' ||
+                        definition['defaultValue'] is num)
                     ? VariableSuggestionKind.numeric
                     : VariableSuggestionKind.unknown,
           ),

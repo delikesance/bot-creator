@@ -237,16 +237,14 @@ class AppManager implements BotDataStore {
   Stream<List<dynamic>> getAppStream() => _appsStreamController.stream;
 
   Future<void> refreshApps() async {
-    debugPrint('[AppManager] Rafraîchissement de la liste des apps...');
+    debugPrint('[AppManager] Refreshing app list...');
     final apps = await getAllApps();
-    debugPrint(
-      '[AppManager] Apps chargées depuis le disque: ${apps.length} app(s)',
-    );
+    debugPrint('[AppManager] Apps loaded from disk: ${apps.length} app(s)');
     for (final app in apps) {
       debugPrint('[AppManager]   - ${app['name'] ?? 'Unknown'} (${app['id']})');
     }
     _appsStreamController.add(apps);
-    debugPrint('[AppManager] Stream actualisé avec ${apps.length} app(s)');
+    debugPrint('[AppManager] Stream updated with ${apps.length} app(s)');
   }
 
   Future<void> clearLogs(String id) async {
@@ -594,8 +592,9 @@ class AppManager implements BotDataStore {
     String botId,
     String key,
     String scope,
-    dynamic defaultValue,
-  ) async {
+    dynamic defaultValue, {
+    String valueType = 'string',
+  }) async {
     final normalizedKey = _normalizeScopedStorageKey(key);
     if (normalizedKey.isEmpty) {
       return;
@@ -608,6 +607,7 @@ class AppManager implements BotDataStore {
         'key': normalizedKey,
         'scope': scope,
         'defaultValue': defaultValue,
+        'valueType': valueType,
       };
       final idx = defs.indexWhere(
         (e) =>

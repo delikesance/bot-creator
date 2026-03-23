@@ -792,7 +792,7 @@ class SqliteVariableStore implements VariableDatabase {
   }
 
   List<dynamic>? _toList(dynamic value) {
-    if (value is List) return value;
+    if (value is List) return List<dynamic>.from(value);
     return null;
   }
 
