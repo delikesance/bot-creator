@@ -9,17 +9,18 @@ import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/bot_payload_builder.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
+import 'package:bot_creator/utils/ads_placement_policy.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
+import 'package:bot_creator/widgets/native_ad_slot.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
-
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -40,7 +41,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final Map<String, AnimationController> _pulseControllers = {};
 
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
-
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -169,9 +169,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         throw Exception(
           AppStrings.tr(
             'error_with_details',
-            params: {
-              'error': 'Maximum active bots reached (5)',
-            },
+            params: {'error': 'Maximum active bots reached (5)'},
           ),
         );
       }
@@ -304,9 +302,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             // Continuer sans vérification sur les plateformes non supportées.
           }
 
-          await initForegroundService(
-            eventIntervalMs: 5000,
-          );
+          await initForegroundService(eventIntervalMs: 5000);
           await startMobileBotSession(botId: botId, token: token);
 
           try {
@@ -374,7 +370,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (!_supportsForegroundTask || !mounted) {
       return;
     }
-
 
     if (!await AdRewardService.shouldOfferRewardedAd()) {
       return;
@@ -455,7 +450,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -569,6 +563,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ),
                         ],
                       ),
+                    ),
+                  if (AdsPlacementPolicy.isPlacementEnabled(
+                        NativeAdPlacement.homeBots,
+                      ) &&
+                      apps.length >= AdsPlacementPolicy.listInterval)
+                    const NativeAdSlot(
+                      placement: NativeAdPlacement.homeBots,
+                      height: 118,
+                      margin: EdgeInsets.only(bottom: 12),
                     ),
                   Expanded(
                     child: GridView.builder(

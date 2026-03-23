@@ -96,6 +96,16 @@ Exemple pour `httpRequest` avec `key: "monHttp"` :
 | `((monHttp.body.$.champ))`              | Extraction JSONPath depuis le corps     |
 | `((monHttp.body.$.liste[0].propriete))` | Extraction JSONPath avec index de liste |
 
+Exemple pour `listScopedVariableIndex` avec `key: "classement"` :
+
+| Variable                                  | Valeur                                        |
+|-------------------------------------------|-----------------------------------------------|
+| `((classement.items))`                    | Liste JSON paginée des entrées trouvées       |
+| `((classement.count))`                    | Nombre d'éléments retournés                   |
+| `((classement.total))`                    | Nombre total d'éléments indexés               |
+| `((classement.items.$[0].contextId))`     | Contexte du premier élément                   |
+| `((classement.items.$[0].value))`         | Valeur du premier élément                     |
+
 ---
 
 ## 4. Cas d'usage pour les URLs d'embed

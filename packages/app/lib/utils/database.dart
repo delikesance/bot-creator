@@ -16,6 +16,7 @@ class AppManager implements BotDataStore {
       StreamController<List<dynamic>>.broadcast();
   List<dynamic> _apps = [];
   late SqliteVariableStore _variableStore;
+  final Map<String, Future<void>> _appWriteChains = <String, Future<void>>{};
 
   AppManager._internal() {
     unawaited(_init());
@@ -67,77 +68,87 @@ class AppManager implements BotDataStore {
     String token, {
     Map<String, bool>? intents,
   }) async {
-    final path = await _path();
-    final file = File("$path/apps/${user.id}.json");
-    final allAppsFile = File("$path/apps/all_apps.json");
-    final avatarUri = makeAvatarUrl(
-      user.id.toString(),
-      avatarId: user.avatarHash,
-      discriminator: user.discriminator,
-    );
+    final botId = user.id.toString();
+    return await _enqueueAppWrite(botId, () async {
+      final path = await _path();
+      final file = File("$path/apps/$botId.json");
+      final allAppsFile = File("$path/apps/all_apps.json");
+      final avatarUri = makeAvatarUrl(
+        botId,
+        avatarId: user.avatarHash,
+        discriminator: user.discriminator,
+      );
 
-    // Load existing app data to preserve intents if not provided
-    Map<String, dynamic>? existingData;
-    if (await file.exists()) {
-      final existingContent = await file.readAsString();
-      if (existingContent.isNotEmpty) {
-        existingData = jsonDecode(existingContent) as Map<String, dynamic>;
+      Map<String, dynamic> existingData = <String, dynamic>{};
+      if (await file.exists()) {
+        final existingContent = await file.readAsString();
+        if (existingContent.isNotEmpty) {
+          existingData = Map<String, dynamic>.from(
+            jsonDecode(existingContent) as Map<String, dynamic>,
+          );
+        }
       }
-    }
 
-    final data = {
-      "name": user.username,
-      "id": user.id.toString(),
-      "avatar": avatarUri,
-      "token": token,
-      "createdAt":
-          existingData?["createdAt"] ?? DateTime.now().toIso8601String(),
-      "intents": intents ?? existingData?["intents"] ?? {},
-      "globalVariables": Map<String, dynamic>.from(
-        (existingData?["globalVariables"] as Map?)?.cast<String, dynamic>() ??
-            const {},
-      ),
-      "scopedVariables": Map<String, dynamic>.from(
-        (existingData?["scopedVariables"] as Map?)?.cast<String, dynamic>() ??
-            const {},
-      ),
-      "workflows": List<Map<String, dynamic>>.from(
-        _coerceWorkflowList(existingData?["workflows"]),
-      ),
-      "statuses": List<Map<String, dynamic>>.from(
-        (existingData?["statuses"] as List?)?.whereType<Map>().map(
-              (status) => Map<String, dynamic>.from(status),
-            ) ??
-            const <Map<String, dynamic>>[],
-      ),
-      "activities": List<Map<String, dynamic>>.from(
-        ((existingData?["activities"] ?? existingData?["statuses"]) as List?)
-                ?.whereType<Map>()
-                .map((activity) => Map<String, dynamic>.from(activity)) ??
-            const <Map<String, dynamic>>[],
-      ),
-    };
+      final data =
+          Map<String, dynamic>.from(existingData)
+            ..['name'] = user.username
+            ..['id'] = botId
+            ..['avatar'] = avatarUri
+            ..['token'] = token
+            ..['createdAt'] =
+                existingData['createdAt'] ?? DateTime.now().toIso8601String()
+            ..['intents'] = intents ?? existingData['intents'] ?? {}
+            ..['globalVariables'] = Map<String, dynamic>.from(
+              (existingData['globalVariables'] as Map?)
+                      ?.cast<String, dynamic>() ??
+                  const {},
+            )
+            ..['scopedVariables'] = Map<String, dynamic>.from(
+              (existingData['scopedVariables'] as Map?)
+                      ?.cast<String, dynamic>() ??
+                  const {},
+            )
+            ..['scopedVariableDefinitions'] = List<Map<String, dynamic>>.from(
+              ((existingData['scopedVariableDefinitions']) as List?)
+                      ?.whereType<Map>()
+                      .map((entry) => Map<String, dynamic>.from(entry)) ??
+                  const <Map<String, dynamic>>[],
+            )
+            ..['workflows'] = List<Map<String, dynamic>>.from(
+              _coerceWorkflowList(existingData['workflows']),
+            )
+            ..['statuses'] = List<Map<String, dynamic>>.from(
+              (existingData['statuses'] as List?)?.whereType<Map>().map(
+                    (status) => Map<String, dynamic>.from(status),
+                  ) ??
+                  const <Map<String, dynamic>>[],
+            )
+            ..['activities'] = List<Map<String, dynamic>>.from(
+              ((existingData['activities'] ?? existingData['statuses'])
+                          as List?)
+                      ?.whereType<Map>()
+                      .map((activity) => Map<String, dynamic>.from(activity)) ??
+                  const <Map<String, dynamic>>[],
+            );
 
-    await file.writeAsString(jsonEncode(data));
-    if (!await allAppsFile.exists()) await allAppsFile.create(recursive: true);
+      await _writeAppToDisk(botId, data);
+      if (!await allAppsFile.exists())
+        await allAppsFile.create(recursive: true);
 
-    final appsList = await getAllApps();
-    final index = appsList.indexWhere((a) => a['id'] == user.id.toString());
-    if (index >= 0) {
-      appsList[index]['name'] = user.username;
-      appsList[index]['avatar'] = avatarUri;
-    } else {
-      appsList.add({
-        "name": user.username,
-        "avatar": avatarUri,
-        "id": user.id.toString(),
-      });
-    }
+      final appsList = await getAllApps();
+      final index = appsList.indexWhere((a) => a['id'] == botId);
+      if (index >= 0) {
+        appsList[index]['name'] = user.username;
+        appsList[index]['avatar'] = avatarUri;
+      } else {
+        appsList.add({'name': user.username, 'avatar': avatarUri, 'id': botId});
+      }
 
-    await allAppsFile.writeAsString(jsonEncode(appsList));
-    _apps = appsList;
-    _appsStreamController.add(appsList);
-    return file;
+      await allAppsFile.writeAsString(jsonEncode(appsList));
+      _apps = appsList;
+      _appsStreamController.add(appsList);
+      return file;
+    });
   }
 
   Future<void> deleteApp(String id) async {
@@ -260,12 +271,50 @@ class AppManager implements BotDataStore {
   }
 
   Future<void> saveApp(String id, Map<String, dynamic> data) async {
+    await _enqueueAppWrite(id, () => _writeAppToDisk(id, data));
+  }
+
+  Future<void> _writeAppToDisk(String id, Map<String, dynamic> data) async {
     final path = await _path();
     final file = File("$path/apps/$id.json");
     if (!await file.exists()) {
       await file.create(recursive: true);
     }
     await file.writeAsString(jsonEncode(data));
+  }
+
+  Future<T> _enqueueAppWrite<T>(String id, Future<T> Function() action) {
+    final completer = Completer<T>();
+    final previous = _appWriteChains[id] ?? Future<void>.value();
+    late final Future<void> next;
+    next = previous
+        .catchError((_) {})
+        .then((_) async {
+          try {
+            final result = await action();
+            completer.complete(result);
+          } catch (error, stackTrace) {
+            completer.completeError(error, stackTrace);
+          }
+        })
+        .whenComplete(() {
+          if (identical(_appWriteChains[id], next)) {
+            _appWriteChains.remove(id);
+          }
+        });
+    _appWriteChains[id] = next;
+    return completer.future;
+  }
+
+  Future<void> _mutateApp(
+    String id,
+    void Function(Map<String, dynamic> data) mutate,
+  ) async {
+    await _enqueueAppWrite(id, () async {
+      final appData = Map<String, dynamic>.from(await getApp(id));
+      mutate(appData);
+      await _writeAppToDisk(id, appData);
+    });
   }
 
   Future<void> updateGuildCount(String id, int count) async {
@@ -301,14 +350,14 @@ class AppManager implements BotDataStore {
 
   @override
   Future<void> setGlobalVariable(String id, String key, dynamic value) async {
-    final appData = Map<String, dynamic>.from(await getApp(id));
-    final globals = Map<String, dynamic>.from(
-      (appData['globalVariables'] as Map?)?.cast<String, dynamic>() ??
-          const <String, dynamic>{},
-    );
-    globals[key] = value;
-    appData['globalVariables'] = globals;
-    await saveApp(id, appData);
+    await _mutateApp(id, (appData) {
+      final globals = Map<String, dynamic>.from(
+        (appData['globalVariables'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      );
+      globals[key] = value;
+      appData['globalVariables'] = globals;
+    });
   }
 
   @override
@@ -326,30 +375,30 @@ class AppManager implements BotDataStore {
     if (oldKey == newKey) {
       return;
     }
-    final appData = Map<String, dynamic>.from(await getApp(id));
-    final globals = Map<String, dynamic>.from(
-      (appData['globalVariables'] as Map?)?.cast<String, dynamic>() ??
-          const <String, dynamic>{},
-    );
-    if (!globals.containsKey(oldKey)) {
-      return;
-    }
-    final previous = globals.remove(oldKey);
-    globals[newKey] = previous;
-    appData['globalVariables'] = globals;
-    await saveApp(id, appData);
+    await _mutateApp(id, (appData) {
+      final globals = Map<String, dynamic>.from(
+        (appData['globalVariables'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      );
+      if (!globals.containsKey(oldKey)) {
+        return;
+      }
+      final previous = globals.remove(oldKey);
+      globals[newKey] = previous;
+      appData['globalVariables'] = globals;
+    });
   }
 
   @override
   Future<void> removeGlobalVariable(String id, String key) async {
-    final appData = Map<String, dynamic>.from(await getApp(id));
-    final globals = Map<String, dynamic>.from(
-      (appData['globalVariables'] as Map?)?.cast<String, dynamic>() ??
-          const <String, dynamic>{},
-    );
-    globals.remove(key);
-    appData['globalVariables'] = globals;
-    await saveApp(id, appData);
+    await _mutateApp(id, (appData) {
+      final globals = Map<String, dynamic>.from(
+        (appData['globalVariables'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      );
+      globals.remove(key);
+      appData['globalVariables'] = globals;
+    });
   }
 
   @override
@@ -409,6 +458,105 @@ class AppManager implements BotDataStore {
     await _variableStore.removeScopedVariable(id, scope, contextId, key);
   }
 
+  @override
+  Future<void> pushScopedArrayElement(
+    String id,
+    String scope,
+    String contextId,
+    String key,
+    dynamic element,
+  ) async {
+    await _variableStore.pushScopedArrayElement(
+      id,
+      scope,
+      contextId,
+      key,
+      element,
+    );
+  }
+
+  @override
+  Future<dynamic> popScopedArrayElement(
+    String id,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    return await _variableStore.popScopedArrayElement(
+      id,
+      scope,
+      contextId,
+      key,
+    );
+  }
+
+  @override
+  Future<dynamic> removeScopedArrayElement(
+    String id,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  ) async {
+    return await _variableStore.removeScopedArrayElement(
+      id,
+      scope,
+      contextId,
+      key,
+      index,
+    );
+  }
+
+  @override
+  Future<dynamic> getScopedArrayElement(
+    String id,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  ) async {
+    return await _variableStore.getScopedArrayElement(
+      id,
+      scope,
+      contextId,
+      key,
+      index,
+    );
+  }
+
+  @override
+  Future<int> getScopedArrayLength(
+    String id,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    return await _variableStore.getScopedArrayLength(id, scope, contextId, key);
+  }
+
+  @override
+  Future<Map<String, dynamic>> queryScopedArray(
+    String id,
+    String scope,
+    String contextId,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+    String? filter,
+  }) async {
+    return await _variableStore.queryScopedArray(
+      id,
+      scope,
+      contextId,
+      key,
+      offset: offset,
+      limit: limit,
+      descending: descending,
+      filter: filter,
+    );
+  }
+
   String _normalizeScopedStorageKey(String key) {
     final trimmed = key.trim();
     if (trimmed.startsWith('bc_') && trimmed.length > 3) {
@@ -452,46 +600,71 @@ class AppManager implements BotDataStore {
     if (normalizedKey.isEmpty) {
       return;
     }
-    final data = Map<String, dynamic>.from(await getApp(botId));
-    final defs = List<dynamic>.from(
-      (data['scopedVariableDefinitions'] as List?) ?? const [],
-    );
-    final entry = <String, dynamic>{
-      'key': normalizedKey,
-      'scope': scope,
-      'defaultValue': defaultValue,
-    };
-    final idx = defs.indexWhere(
-      (e) =>
-          e is Map &&
-          _normalizeScopedStorageKey((e['key'] ?? '').toString()) ==
-              normalizedKey &&
-          (e['scope'] ?? '').toString().trim() == scope.trim(),
-    );
-    if (idx >= 0) {
-      defs[idx] = entry;
-    } else {
-      defs.add(entry);
-    }
-    data['scopedVariableDefinitions'] = defs;
-    await saveApp(botId, data);
+    await _mutateApp(botId, (data) {
+      final defs = List<dynamic>.from(
+        (data['scopedVariableDefinitions'] as List?) ?? const [],
+      );
+      final entry = <String, dynamic>{
+        'key': normalizedKey,
+        'scope': scope,
+        'defaultValue': defaultValue,
+      };
+      final idx = defs.indexWhere(
+        (e) =>
+            e is Map &&
+            _normalizeScopedStorageKey((e['key'] ?? '').toString()) ==
+                normalizedKey &&
+            (e['scope'] ?? '').toString().trim() == scope.trim(),
+      );
+      if (idx >= 0) {
+        defs[idx] = entry;
+      } else {
+        defs.add(entry);
+      }
+      data['scopedVariableDefinitions'] = defs;
+    });
   }
 
   /// Removes a scoped variable definition from the bot JSON.
-  Future<void> removeScopedVariableDefinition(String botId, String key) async {
+  Future<void> removeScopedVariableDefinition(
+    String botId,
+    String key, {
+    String? scope,
+  }) async {
     final normalizedKey = _normalizeScopedStorageKey(key);
-    final data = Map<String, dynamic>.from(await getApp(botId));
-    final defs = List<dynamic>.from(
-      (data['scopedVariableDefinitions'] as List?) ?? const [],
+    await _mutateApp(botId, (data) {
+      final defs = List<dynamic>.from(
+        (data['scopedVariableDefinitions'] as List?) ?? const [],
+      );
+      defs.removeWhere(
+        (e) =>
+            e is Map &&
+            _normalizeScopedStorageKey((e['key'] ?? '').toString()) ==
+                normalizedKey &&
+            (scope == null ||
+                (e['scope'] ?? '').toString().trim() == scope.trim()),
+      );
+      data['scopedVariableDefinitions'] = defs;
+    });
+  }
+
+  @override
+  Future<Map<String, dynamic>> queryScopedVariableIndex(
+    String botId,
+    String scope,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+  }) async {
+    return await _variableStore.queryScopedVariableIndex(
+      botId,
+      scope,
+      _normalizeScopedStorageKey(key),
+      offset: offset,
+      limit: limit,
+      descending: descending,
     );
-    defs.removeWhere(
-      (e) =>
-          e is Map &&
-          _normalizeScopedStorageKey((e['key'] ?? '').toString()) ==
-              normalizedKey,
-    );
-    data['scopedVariableDefinitions'] = defs;
-    await saveApp(botId, data);
   }
 
   Future<Map<String, dynamic>> listScopedValuesForKey(

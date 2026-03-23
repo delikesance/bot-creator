@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart';
 import 'package:bot_creator_shared/bot/variable_database.dart';
@@ -67,6 +68,10 @@ class SqliteCliVariableStore implements VariableDatabase {
     _db.execute('''
       CREATE INDEX IF NOT EXISTS idx_bot_lookup 
       ON variables(bot_id, scope, context_id_1, context_id_2)
+    ''');
+    _db.execute('''
+      CREATE INDEX IF NOT EXISTS idx_scope_key_lookup
+      ON variables(bot_id, scope, key)
     ''');
 
     await _migrateScopeConstraintIfNeeded();
@@ -250,9 +255,16 @@ class SqliteCliVariableStore implements VariableDatabase {
     final result = <String, dynamic>{};
 
     final stmt = _db.prepare(
-      'SELECT key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ?',
+      'SELECT key, value_raw, value_type FROM variables WHERE ${_scopedContextWhereClause(includeKey: false)}',
     );
-    final rows = stmt.select([botId, scope, ctx1, ctx2]);
+    final rows = stmt.select(
+      _scopedContextWhereArgs(
+        botId: botId,
+        scope: scope,
+        ctx1: ctx1,
+        ctx2: ctx2,
+      ),
+    );
 
     for (final row in rows) {
       final key = row['key'] as String;
@@ -278,9 +290,17 @@ class SqliteCliVariableStore implements VariableDatabase {
     final (ctx1, ctx2) = _parseContextId(scope, contextId);
 
     final stmt = _db.prepare(
-      'SELECT value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ? LIMIT 1',
+      'SELECT value_raw, value_type FROM variables WHERE ${_scopedContextWhereClause(includeKey: true)} LIMIT 1',
     );
-    final rows = stmt.select([botId, scope, ctx1, ctx2, key]);
+    final rows = stmt.select(
+      _scopedContextWhereArgs(
+        botId: botId,
+        scope: scope,
+        ctx1: ctx1,
+        ctx2: ctx2,
+        key: key,
+      ),
+    );
 
     if (rows.isEmpty) {
       stmt.dispose();
@@ -345,9 +365,19 @@ class SqliteCliVariableStore implements VariableDatabase {
     final now = DateTime.now().millisecondsSinceEpoch;
 
     final stmt = _db.prepare(
-      'UPDATE variables SET key = ?, updated_at = ? WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
+      'UPDATE variables SET key = ?, updated_at = ? WHERE ${_scopedContextWhereClause(includeKey: true)}',
     );
-    stmt.execute([newKey, now, botId, scope, ctx1, ctx2, oldKey]);
+    stmt.execute([
+      newKey,
+      now,
+      ..._scopedContextWhereArgs(
+        botId: botId,
+        scope: scope,
+        ctx1: ctx1,
+        ctx2: ctx2,
+        key: oldKey,
+      ),
+    ]);
     stmt.dispose();
   }
 
@@ -362,9 +392,17 @@ class SqliteCliVariableStore implements VariableDatabase {
     final (ctx1, ctx2) = _parseContextId(scope, contextId);
 
     final stmt = _db.prepare(
-      'DELETE FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND context_id_2 IS ? AND key = ?',
+      'DELETE FROM variables WHERE ${_scopedContextWhereClause(includeKey: true)}',
     );
-    stmt.execute([botId, scope, ctx1, ctx2, key]);
+    stmt.execute(
+      _scopedContextWhereArgs(
+        botId: botId,
+        scope: scope,
+        ctx1: ctx1,
+        ctx2: ctx2,
+        key: key,
+      ),
+    );
     stmt.dispose();
   }
 
@@ -421,6 +459,63 @@ class SqliteCliVariableStore implements VariableDatabase {
   }
 
   @override
+  Future<Map<String, dynamic>> queryScopedVariableIndex(
+    String botId,
+    String scope,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+  }) async {
+    await init();
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit.clamp(1, 25);
+
+    final stmt = _db.prepare(
+      'SELECT context_id_1, context_id_2, key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND key = ?',
+    );
+    final rows = stmt.select([botId, scope, key]);
+    stmt.dispose();
+
+    final items = rows
+      .map((row) {
+        final contextId =
+            scope == 'guildMember'
+                ? _composeGuildMemberContextId(
+                  (row['context_id_1'] ?? '').toString(),
+                  (row['context_id_2'] ?? '').toString(),
+                )
+                : (row['context_id_1'] ?? '').toString();
+        return <String, dynamic>{
+          'contextId': contextId,
+          'key': (row['key'] ?? '').toString(),
+          'value': _deserializeValue(
+            (row['value_raw'] ?? '').toString(),
+            (row['value_type'] ?? 'string').toString(),
+          ),
+        };
+      })
+      .where((entry) => (entry['contextId'] ?? '').toString().isNotEmpty)
+      .toList(growable: true)..sort(
+      (a, b) => _compareVariableValues(a['value'], b['value'], descending),
+    );
+
+    final total = items.length;
+    final end =
+        (safeOffset + safeLimit) > total ? total : (safeOffset + safeLimit);
+    final paged =
+        safeOffset >= total
+            ? const <Map<String, dynamic>>[]
+            : items.sublist(safeOffset, end);
+
+    return <String, dynamic>{
+      'items': paged,
+      'count': paged.length,
+      'total': total,
+    };
+  }
+
+  @override
   Future<void> deleteAllForBot(String botId) async {
     await init();
 
@@ -449,19 +544,48 @@ class SqliteCliVariableStore implements VariableDatabase {
     return (contextId, null);
   }
 
+  String _scopedContextWhereClause({required bool includeKey}) {
+    final keyClause = includeKey ? ' AND key = ?' : '';
+    return 'bot_id = ? AND scope = ? AND context_id_1 = ? AND '
+        '((? = 1 AND context_id_2 IS NULL) OR context_id_2 = ?)$keyClause';
+  }
+
+  List<Object?> _scopedContextWhereArgs({
+    required String botId,
+    required String scope,
+    required String ctx1,
+    required String? ctx2,
+    String? key,
+  }) {
+    return <Object?>[
+      botId,
+      scope,
+      ctx1,
+      ctx2 == null ? 1 : 0,
+      ctx2 ?? '',
+      if (key != null) key,
+    ];
+  }
+
   /// Serialize dynamic value to (string, type).
   (String, String) _serializeValue(dynamic value) {
-    if (value is num) {
-      return (value.toString(), 'number');
+    final normalized = _normalizeVariableValue(value);
+    if (normalized == null) {
+      return ('null', 'null');
     }
-    if (value is String) {
-      final numValue = num.tryParse(value);
-      if (numValue != null) {
-        return (value, 'number');
-      }
-      return (value, 'string');
+    if (normalized is bool) {
+      return (normalized.toString(), 'bool');
     }
-    return (value.toString(), 'string');
+    if (normalized is List || normalized is Map<String, dynamic>) {
+      return (jsonEncode(normalized), 'json');
+    }
+    if (normalized is num) {
+      return (normalized.toString(), 'number');
+    }
+    if (normalized is String) {
+      return (normalized, 'string');
+    }
+    return (normalized.toString(), 'string');
   }
 
   /// Deserialize value from (string, type).
@@ -469,6 +593,234 @@ class SqliteCliVariableStore implements VariableDatabase {
     if (valueType == 'number') {
       return num.tryParse(valueRaw) ?? valueRaw;
     }
+    if (valueType == 'bool') {
+      return valueRaw.toLowerCase() == 'true';
+    }
+    if (valueType == 'null') {
+      return null;
+    }
+    if (valueType == 'json') {
+      try {
+        return _normalizeVariableValue(jsonDecode(valueRaw));
+      } catch (_) {
+        return valueRaw;
+      }
+    }
     return valueRaw;
+  }
+
+  dynamic _normalizeVariableValue(dynamic value) {
+    if (value == null || value is num || value is bool || value is String) {
+      return value;
+    }
+    if (value is List) {
+      return value.map(_normalizeVariableValue).toList(growable: false);
+    }
+    if (value is Map) {
+      return value.map(
+        (key, value) =>
+            MapEntry(key.toString(), _normalizeVariableValue(value)),
+      );
+    }
+    return value.toString();
+  }
+
+  String _composeGuildMemberContextId(String ctx1, String ctx2) {
+    if (ctx1.isEmpty) {
+      return '';
+    }
+    return ctx2.isEmpty ? ctx1 : '$ctx1:$ctx2';
+  }
+
+  int _compareVariableValues(dynamic left, dynamic right, bool descending) {
+    final normalized = _compareNormalized(left, right);
+    return descending ? -normalized : normalized;
+  }
+
+  int _compareNormalized(dynamic left, dynamic right) {
+    if (left is num && right is num) {
+      return left.compareTo(right);
+    }
+    if (left is bool && right is bool) {
+      return (left ? 1 : 0).compareTo(right ? 1 : 0);
+    }
+    final leftText = _valueToComparableString(left);
+    final rightText = _valueToComparableString(right);
+    return leftText.compareTo(rightText);
+  }
+
+  String _valueToComparableString(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value.toLowerCase();
+    if (value is List || value is Map) return jsonEncode(value).toLowerCase();
+    return value.toString().toLowerCase();
+  }
+
+  @override
+  Future<void> pushScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    dynamic element,
+  ) async {
+    await init();
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current) ?? [];
+    list.add(element);
+    await setScopedVariable(botId, scope, contextId, key, list);
+  }
+
+  @override
+  Future<dynamic> popScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    await init();
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current);
+    if (list == null || list.isEmpty) {
+      return null;
+    }
+    final popped = list.removeLast();
+    await setScopedVariable(botId, scope, contextId, key, list);
+    return popped;
+  }
+
+  @override
+  Future<dynamic> removeScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  ) async {
+    await init();
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current);
+    if (list == null || index < 0 || index >= list.length) {
+      return null;
+    }
+    final removed = list.removeAt(index);
+    await setScopedVariable(botId, scope, contextId, key, list);
+    return removed;
+  }
+
+  @override
+  Future<dynamic> getScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  ) async {
+    await init();
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current);
+    if (list == null || index < 0 || index >= list.length) {
+      return null;
+    }
+    return list[index];
+  }
+
+  @override
+  Future<int> getScopedArrayLength(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    await init();
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current);
+    return list?.length ?? 0;
+  }
+
+  @override
+  Future<Map<String, dynamic>> queryScopedArray(
+    String botId,
+    String scope,
+    String contextId,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+    String? filter,
+  }) async {
+    await init();
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current) ?? [];
+
+    // Apply filter
+    List<dynamic> filtered = list;
+    if (filter != null && filter.trim().isNotEmpty) {
+      filtered = _applyArrayFilter(list, filter.trim());
+    }
+
+    // Sort
+    filtered.sort((a, b) => _compareVariableValues(a, b, descending));
+
+    // Paginate
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit < 1 ? 1 : (limit > 25 ? 25 : limit);
+    final start = safeOffset;
+    final end = (safeOffset + safeLimit).clamp(0, filtered.length);
+    final items = filtered.sublist(start, end);
+
+    return {'items': items, 'count': items.length, 'total': filtered.length};
+  }
+
+  List<dynamic> _applyArrayFilter(List<dynamic> list, String filter) {
+    if (filter.isEmpty) return list;
+
+    final result = <dynamic>[];
+    for (final item in list) {
+      if (_matchesArrayFilter(item, filter)) {
+        result.add(item);
+      }
+    }
+    return result;
+  }
+
+  bool _matchesArrayFilter(dynamic item, String filter) {
+    if (filter.startsWith('> ')) {
+      final value = num.tryParse(filter.substring(2));
+      if (value == null || item is! num) return false;
+      return item > value;
+    }
+    if (filter.startsWith('< ')) {
+      final value = num.tryParse(filter.substring(2));
+      if (value == null || item is! num) return false;
+      return item < value;
+    }
+    if (filter.startsWith('>= ')) {
+      final value = num.tryParse(filter.substring(3));
+      if (value == null || item is! num) return false;
+      return item >= value;
+    }
+    if (filter.startsWith('<= ')) {
+      final value = num.tryParse(filter.substring(3));
+      if (value == null || item is! num) return false;
+      return item <= value;
+    }
+    if (filter.startsWith('== ')) {
+      final valueStr = filter.substring(3);
+      if (item is String) return item == valueStr;
+      final value = num.tryParse(valueStr);
+      if (value == null) return false;
+      return item == value;
+    }
+    if (filter.startsWith('contains ')) {
+      final search = filter.substring(9);
+      return item.toString().toLowerCase().contains(search.toLowerCase());
+    }
+    return false;
+  }
+
+  List<dynamic>? _toList(dynamic value) {
+    if (value is List) return value;
+    return null;
   }
 }

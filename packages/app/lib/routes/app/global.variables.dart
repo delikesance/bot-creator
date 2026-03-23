@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
@@ -35,6 +37,47 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
 
   bool get _isScopedMode => _mode == _VariableMode.scoped;
 
+  dynamic _parseLooseVariableValue(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+
+    final number = num.tryParse(trimmed);
+    if (number != null) {
+      return number;
+    }
+
+    if (trimmed == 'true') {
+      return true;
+    }
+    if (trimmed == 'false') {
+      return false;
+    }
+
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+        (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+        trimmed == 'null') {
+      try {
+        return jsonDecode(trimmed);
+      } catch (_) {
+        return raw;
+      }
+    }
+
+    return raw;
+  }
+
+  String _formatVariableValue(dynamic value) {
+    if (value == null) {
+      return 'null';
+    }
+    if (value is List || value is Map) {
+      return const JsonEncoder.withIndent('  ').convert(value);
+    }
+    return value.toString();
+  }
+
   String _toScopedReferenceKey(String rawKey) {
     final key = rawKey.trim();
     if (key.isEmpty) {
@@ -67,7 +110,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
   Future<void> _editGlobalVariable({String? key}) async {
     final keyCtrl = TextEditingController(text: key ?? '');
     final valueCtrl = TextEditingController(
-      text: key != null ? (_globalVariables[key]?.toString() ?? '') : '',
+      text: key != null ? _formatVariableValue(_globalVariables[key]) : '',
     );
 
     final save = await showDialog<bool>(
@@ -119,7 +162,11 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
     final nextKey = keyCtrl.text.trim();
     if (nextKey.isEmpty) return;
 
-    await appManager.setGlobalVariable(widget.botId, nextKey, valueCtrl.text);
+    await appManager.setGlobalVariable(
+      widget.botId,
+      nextKey,
+      _parseLooseVariableValue(valueCtrl.text),
+    );
     await _load();
   }
 
@@ -135,7 +182,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
     final oldKey = existing?['key']?.toString();
     final keyCtrl = TextEditingController(text: oldKey ?? '');
     final valueCtrl = TextEditingController(
-      text: (existing?['defaultValue'] ?? '').toString(),
+      text: _formatVariableValue(existing?['defaultValue']),
     );
     String scope =
         (existing?['scope']?.toString().isNotEmpty == true
@@ -214,20 +261,34 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
 
     // If the key was renamed, delete the old entry first.
     if (oldKey != null && oldKey != newKey) {
-      await appManager.removeScopedVariableDefinition(widget.botId, oldKey);
+      await appManager.removeScopedVariableDefinition(
+        widget.botId,
+        oldKey,
+        scope: existing?['scope']?.toString(),
+      );
     }
 
     await appManager.setScopedVariableDefinition(
       widget.botId,
       newKey,
       scope,
-      valueCtrl.text,
+      _parseLooseVariableValue(valueCtrl.text),
     );
     await _load();
   }
 
   Future<void> _deleteScopedDefinition(String key) async {
-    await appManager.removeScopedVariableDefinition(widget.botId, key);
+    final existing = _scopedDefinitions
+        .cast<Map<String, dynamic>?>()
+        .firstWhere(
+          (entry) => (entry?['key'] ?? '').toString() == key,
+          orElse: () => null,
+        );
+    await appManager.removeScopedVariableDefinition(
+      widget.botId,
+      key,
+      scope: existing?['scope']?.toString(),
+    );
     await _load();
   }
 
@@ -411,7 +472,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    '= $defaultValue',
+                    '= ${_formatVariableValue(defaultValue)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 12),

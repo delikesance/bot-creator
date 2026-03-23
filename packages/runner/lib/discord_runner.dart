@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -517,7 +518,9 @@ class DiscordRunner {
     };
     final globalVars = await store.getGlobalVariables(botId);
     for (final entry in globalVars.entries) {
-      runtimeVariables['global.${entry.key}'] = entry.value.toString();
+      runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
+        entry.value,
+      );
     }
 
     final guildContextId =
@@ -629,7 +632,7 @@ class DiscordRunner {
       }
 
       final canonicalKey = rawKey.startsWith('bc_') ? rawKey : 'bc_$rawKey';
-      final value = entry.value.toString();
+      final value = _runtimeVariableValueToString(entry.value);
 
       // Canonical reference form for scoped placeholders.
       runtimeVariables['$scope.$canonicalKey'] = value;
@@ -664,7 +667,9 @@ class DiscordRunner {
     final runtimeVariables = await generateKeyValues(interaction);
     final globalVars = await store.getGlobalVariables(botId);
     for (final entry in globalVars.entries) {
-      runtimeVariables['global.${entry.key}'] = entry.value.toString();
+      runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
+        entry.value,
+      );
     }
 
     final guildContextId = runtimeVariables['guildId'];
@@ -817,6 +822,19 @@ class DiscordRunner {
         isEphemeral: isEphemeral,
       );
     }
+  }
+
+  String _runtimeVariableValueToString(dynamic value) {
+    if (value == null) {
+      return '';
+    }
+    if (value is String) {
+      return value;
+    }
+    if (value is List || value is Map) {
+      return jsonEncode(value);
+    }
+    return value.toString();
   }
 
   Future<void> _safeRespond(

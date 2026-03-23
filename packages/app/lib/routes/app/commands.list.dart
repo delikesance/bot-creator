@@ -1,7 +1,9 @@
 import 'package:bot_creator/routes/app/command.create.dart';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/ads_placement_policy.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/widgets/native_ad_slot.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
 
@@ -37,6 +39,51 @@ class _AppCommandsPageState extends State<AppCommandsPage>
       return null;
     }
     return Snowflake(parsed);
+  }
+
+  Widget _buildCommandCard(Map<String, dynamic> command) {
+    final commandId = (command['id'] ?? '').toString();
+    final snowflake = _toSnowflake(commandId);
+
+    return Card(
+      child: ListTile(
+        trailing: const Icon(Icons.arrow_forward_ios_outlined),
+        title: Text(
+          (command['name'] ?? 'unknown').toString(),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          (command['description'] ?? '').toString(),
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w400),
+        ),
+        onTap: () async {
+          if (snowflake == null) {
+            if (!mounted) {
+              return;
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invalid local command id.')),
+            );
+            return;
+          }
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (context) => CommandCreatePage(
+                    client: widget.client,
+                    botId: widget.botId,
+                    id: snowflake,
+                  ),
+            ),
+          );
+          if (!mounted) {
+            return;
+          }
+          setState(() {});
+        },
+      ),
+    );
   }
 
   @override
@@ -75,6 +122,9 @@ class _AppCommandsPageState extends State<AppCommandsPage>
               }
 
               final commands = snapshot.data ?? const <Map<String, dynamic>>[];
+              final adsEnabled = AdsPlacementPolicy.isPlacementEnabled(
+                NativeAdPlacement.commandsList,
+              );
               if (commands.isEmpty) {
                 return Center(child: Text(AppStrings.t('commands_empty')));
               }
@@ -82,65 +132,36 @@ class _AppCommandsPageState extends State<AppCommandsPage>
               return Center(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: contentMaxWidth),
-                  child: ListView.separated(
+                  child: ListView.builder(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 16,
                     ),
-                    itemCount: commands.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
+                    itemCount:
+                        commands.length +
+                        (adsEnabled
+                            ? AdsPlacementPolicy.adCountForContentLength(
+                              commands.length,
+                            )
+                            : 0),
                     itemBuilder: (context, index) {
-                      final command = commands[index];
-                      final commandId = (command['id'] ?? '').toString();
-                      final snowflake = _toSnowflake(commandId);
-                      return Card(
-                        child: ListTile(
-                          trailing: const Icon(
-                            Icons.arrow_forward_ios_outlined,
-                          ),
-                          title: Text(
-                            (command['name'] ?? 'unknown').toString(),
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          subtitle: Text(
-                            (command['description'] ?? '').toString(),
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          onTap: () async {
-                            if (snowflake == null) {
-                              if (!mounted) {
-                                return;
-                              }
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Invalid local command id.'),
-                                ),
-                              );
-                              return;
-                            }
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder:
-                                    (context) => CommandCreatePage(
-                                      client: widget.client,
-                                      botId: widget.botId,
-                                      id: snowflake,
-                                    ),
-                              ),
-                            );
-                            if (!mounted) {
-                              return;
-                            }
-                            setState(() {});
-                          },
-                        ),
+                      if (adsEnabled &&
+                          AdsPlacementPolicy.isAdSlotIndex(index)) {
+                        return const NativeAdSlot(
+                          placement: NativeAdPlacement.commandsList,
+                          height: 110,
+                        );
+                      }
+
+                      final command =
+                          adsEnabled
+                              ? commands[AdsPlacementPolicy.contentIndexForMixedIndex(
+                                index,
+                              )]
+                              : commands[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: _buildCommandCard(command),
                       );
                     },
                   ),

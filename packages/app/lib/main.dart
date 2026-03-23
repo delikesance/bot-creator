@@ -17,6 +17,7 @@ import 'routes/onboarding.dart';
 import 'utils/app_diagnostics.dart';
 import 'utils/database.dart';
 import 'utils/analytics.dart';
+import 'utils/ad_native_service.dart';
 import 'utils/ad_reward_service.dart';
 import 'utils/i18n.dart';
 import 'utils/onboarding_manager.dart';
@@ -178,6 +179,7 @@ Future<void> _bootstrapAndRunApp() async {
   }
 
   await AdRewardService.initialize();
+  await AdNativeService.initialize();
 
   try {
     appManager = AppManager();

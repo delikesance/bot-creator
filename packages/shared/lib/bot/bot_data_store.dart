@@ -57,6 +57,73 @@ abstract class BotDataStore {
     String key,
   );
 
+  /// Lists scoped variable entries for a [scope]+[key] index with pagination.
+  Future<Map<String, dynamic>> queryScopedVariableIndex(
+    String botId,
+    String scope,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+  });
+
+  // Array operations
+
+  /// Push an element to the end of a scoped array.
+  Future<void> pushScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    dynamic element,
+  );
+
+  /// Pop the last element from a scoped array.
+  Future<dynamic> popScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  );
+
+  /// Remove an element at [index] from a scoped array.
+  Future<dynamic> removeScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  );
+
+  /// Get an element at [index] from a scoped array.
+  Future<dynamic> getScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  );
+
+  /// Get the length of a scoped array.
+  Future<int> getScopedArrayLength(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  );
+
+  /// List elements of a scoped array with pagination, sorting, and filtering.
+  Future<Map<String, dynamic>> queryScopedArray(
+    String botId,
+    String scope,
+    String contextId,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+    String? filter,
+  });
+
   /// Finds a workflow by name (case-insensitive), or null if not found.
   Future<Map<String, dynamic>?> getWorkflowByName(String botId, String name);
 }

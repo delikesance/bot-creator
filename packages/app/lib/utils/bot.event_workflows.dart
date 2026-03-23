@@ -562,7 +562,9 @@ Future<void> _executeLocalEventWorkflow(
   };
   final globalVars = await manager.getGlobalVariables(botId);
   for (final entry in globalVars.entries) {
-    runtimeVariables['global.${entry.key}'] = entry.value;
+    runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
+      entry.value,
+    );
   }
 
   applyWorkflowInvocationContext(

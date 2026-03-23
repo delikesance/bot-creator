@@ -251,6 +251,13 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.getScopedVariable:
         case BotCreatorActionType.removeScopedVariable:
         case BotCreatorActionType.renameScopedVariable:
+        case BotCreatorActionType.listScopedVariableIndex:
+        case BotCreatorActionType.pushScopedArrayElement:
+        case BotCreatorActionType.popScopedArrayElement:
+        case BotCreatorActionType.removeScopedArrayElement:
+        case BotCreatorActionType.getScopedArrayElement:
+        case BotCreatorActionType.getScopedArrayLength:
+        case BotCreatorActionType.listScopedArrayElements:
         case BotCreatorActionType.setGlobalVariable:
         case BotCreatorActionType.getGlobalVariable:
         case BotCreatorActionType.removeGlobalVariable:

@@ -81,14 +81,13 @@ dynamic _extractJsonPath(dynamic data, String rawPath) {
 }
 
 String? _resolveComputedVariable(String key, Map<String, String> updates) {
-  final marker = '.body.';
-  final markerIndex = key.indexOf(marker);
+  final markerIndex = key.lastIndexOf('.\$');
   if (markerIndex == -1) {
     return null;
   }
 
-  final bodyVariableKey = key.substring(0, markerIndex + '.body'.length);
-  final jsonPathRaw = key.substring(markerIndex + marker.length);
+  final bodyVariableKey = key.substring(0, markerIndex);
+  final jsonPathRaw = key.substring(markerIndex + 1);
   if (!jsonPathRaw.startsWith(r'$')) {
     return null;
   }
@@ -120,7 +119,10 @@ String? _resolveComputedVariable(String key, Map<String, String> updates) {
   return jsonEncode(extracted);
 }
 
-String resolveTemplatePlaceholders(String initial, Map<String, String> updates) {
+String resolveTemplatePlaceholders(
+  String initial,
+  Map<String, String> updates,
+) {
   final placeholderRegex = RegExp(r'\(\((.*?)\)\)', caseSensitive: false);
 
   return initial.replaceAllMapped(placeholderRegex, (match) {

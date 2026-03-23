@@ -79,6 +79,20 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return AppStrings.t('action_name_removeScopedVariable');
       case BotCreatorActionType.renameScopedVariable:
         return AppStrings.t('action_name_renameScopedVariable');
+      case BotCreatorActionType.listScopedVariableIndex:
+        return AppStrings.t('action_name_listScopedVariableIndex');
+      case BotCreatorActionType.pushScopedArrayElement:
+        return AppStrings.t('action_name_pushScopedArrayElement');
+      case BotCreatorActionType.popScopedArrayElement:
+        return AppStrings.t('action_name_popScopedArrayElement');
+      case BotCreatorActionType.removeScopedArrayElement:
+        return AppStrings.t('action_name_removeScopedArrayElement');
+      case BotCreatorActionType.getScopedArrayElement:
+        return AppStrings.t('action_name_getScopedArrayElement');
+      case BotCreatorActionType.getScopedArrayLength:
+        return AppStrings.t('action_name_getScopedArrayLength');
+      case BotCreatorActionType.listScopedArrayElements:
+        return AppStrings.t('action_name_listScopedArrayElements');
       case BotCreatorActionType.runWorkflow:
         return AppStrings.t('action_name_runWorkflow');
       case BotCreatorActionType.respondWithMessage:
@@ -218,6 +232,13 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
       case BotCreatorActionType.getScopedVariable:
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.renameScopedVariable:
+      case BotCreatorActionType.listScopedVariableIndex:
+      case BotCreatorActionType.pushScopedArrayElement:
+      case BotCreatorActionType.popScopedArrayElement:
+      case BotCreatorActionType.removeScopedArrayElement:
+      case BotCreatorActionType.getScopedArrayElement:
+      case BotCreatorActionType.getScopedArrayLength:
+      case BotCreatorActionType.listScopedArrayElements:
         return Icons.inventory_2;
       case BotCreatorActionType.runWorkflow:
         return Icons.account_tree;
@@ -1153,8 +1174,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'valueType',
             type: ParameterType.multiSelect,
             defaultValue: 'string',
-            hint: 'Value type: string or number',
-            options: ['string', 'number'],
+            hint: 'Value type: string, number, boolean or json',
+            options: ['string', 'number', 'boolean', 'json'],
           ),
           ParameterDefinition(
             key: 'value',
@@ -1167,6 +1188,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.number,
             defaultValue: 0,
             hint: 'Numeric value when valueType=number',
+          ),
+          ParameterDefinition(
+            key: 'boolValue',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Boolean value when valueType=boolean',
+          ),
+          ParameterDefinition(
+            key: 'jsonValue',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'JSON value when valueType=json (array/object)',
           ),
         ];
       case BotCreatorActionType.getGlobalVariable:
@@ -1216,8 +1249,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'valueType',
             type: ParameterType.multiSelect,
             defaultValue: 'string',
-            hint: 'Value type: string or number',
-            options: ['string', 'number'],
+            hint: 'Value type: string, number, boolean or json',
+            options: ['string', 'number', 'boolean', 'json'],
           ),
           ParameterDefinition(
             key: 'value',
@@ -1230,6 +1263,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.number,
             defaultValue: 0,
             hint: 'Numeric value when valueType=number',
+          ),
+          ParameterDefinition(
+            key: 'boolValue',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Boolean value when valueType=boolean',
+          ),
+          ParameterDefinition(
+            key: 'jsonValue',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'JSON value when valueType=json (array/object)',
           ),
         ];
       case BotCreatorActionType.getScopedVariable:
@@ -1297,6 +1342,253 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             defaultValue: '',
             hint: 'New key (must start with bc_)',
             required: true,
+          ),
+        ];
+      case BotCreatorActionType.listScopedVariableIndex:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'user',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped variable key to index (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'order',
+            type: ParameterType.multiSelect,
+            defaultValue: 'desc',
+            hint: 'Sort order by value',
+            options: ['desc', 'asc'],
+          ),
+          ParameterDefinition(
+            key: 'offset',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Pagination offset (>= 0)',
+            minValue: 0,
+            allowDynamic: true,
+          ),
+          ParameterDefinition(
+            key: 'limit',
+            type: ParameterType.number,
+            defaultValue: 25,
+            hint: 'Maximum items to return (1..25)',
+            minValue: 1,
+            maxValue: 25,
+            allowDynamic: false,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional runtime alias for the JSON items list',
+          ),
+        ];
+      case BotCreatorActionType.pushScopedArrayElement:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped array key (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'element',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Element to add to the array (supports dynamic values)',
+            allowDynamic: true,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional runtime alias for the result',
+          ),
+        ];
+      case BotCreatorActionType.popScopedArrayElement:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped array key (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Runtime alias for the popped element',
+          ),
+        ];
+      case BotCreatorActionType.removeScopedArrayElement:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped array key (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'index',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Array index to remove (0-based, supports dynamic)',
+            minValue: 0,
+            allowDynamic: true,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Runtime alias for the removed element',
+          ),
+        ];
+      case BotCreatorActionType.getScopedArrayElement:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped array key (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'index',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Array index to retrieve (0-based, supports dynamic)',
+            minValue: 0,
+            allowDynamic: true,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Runtime alias for the element',
+          ),
+        ];
+      case BotCreatorActionType.getScopedArrayLength:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped array key (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Runtime alias for the array length (number)',
+          ),
+        ];
+      case BotCreatorActionType.listScopedArrayElements:
+        return [
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'guild',
+            hint: 'Scope: guild, user, channel, guildMember, message',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Scoped array key (must start with bc_)',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'offset',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Pagination offset (>= 0)',
+            minValue: 0,
+            allowDynamic: true,
+          ),
+          ParameterDefinition(
+            key: 'limit',
+            type: ParameterType.number,
+            defaultValue: 25,
+            hint: 'Maximum items to return (1..25)',
+            minValue: 1,
+            maxValue: 25,
+            allowDynamic: false,
+          ),
+          ParameterDefinition(
+            key: 'order',
+            type: ParameterType.multiSelect,
+            defaultValue: 'desc',
+            hint: 'Sort order by value',
+            options: ['desc', 'asc'],
+          ),
+          ParameterDefinition(
+            key: 'filter',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional filter (e.g., ">5", "contains:text", "==value")',
+            allowDynamic: true,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint:
+                'Optional runtime alias for {items: [...], count: N, total: N}',
           ),
         ];
       case BotCreatorActionType.runWorkflow:

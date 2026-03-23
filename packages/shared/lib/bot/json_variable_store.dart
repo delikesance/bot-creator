@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'variable_database.dart';
 
 /// In-memory implementation of [VariableDatabase] backed by Dart Maps.
@@ -157,6 +159,51 @@ class JsonVariableStore implements VariableDatabase {
   }
 
   @override
+  Future<Map<String, dynamic>> queryScopedVariableIndex(
+    String botId,
+    String scope,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+  }) async {
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit.clamp(1, 25);
+    final byScope =
+        _scopedVariables[scope] ?? const <String, Map<String, dynamic>>{};
+
+    final items = <Map<String, dynamic>>[];
+    for (final entry in byScope.entries) {
+      if (!entry.value.containsKey(key)) {
+        continue;
+      }
+      items.add(<String, dynamic>{
+        'contextId': entry.key,
+        'key': key,
+        'value': entry.value[key],
+      });
+    }
+
+    items.sort(
+      (a, b) => _compareVariableValues(a['value'], b['value'], descending),
+    );
+
+    final total = items.length;
+    final end =
+        (safeOffset + safeLimit) > total ? total : (safeOffset + safeLimit);
+    final paged =
+        safeOffset >= total
+            ? const <Map<String, dynamic>>[]
+            : items.sublist(safeOffset, end);
+
+    return <String, dynamic>{
+      'items': paged,
+      'count': paged.length,
+      'total': total,
+    };
+  }
+
+  @override
   Future<void> deleteAllForBot(String botId) async {
     _globalVariables.clear();
     _scopedVariables.clear();
@@ -164,13 +211,181 @@ class JsonVariableStore implements VariableDatabase {
 
   /// Normalize variable value: preserve numbers, coerce others to strings.
   static dynamic _normalizeVariableValue(dynamic value) {
-    if (value is num) return value;
-    if (value is String) {
-      final numValue = num.tryParse(value);
-      return numValue ?? value;
+    if (value == null || value is num || value is bool || value is String) {
+      return value;
     }
-    if (value == null) return '';
+    if (value is List) {
+      return value.map(_normalizeVariableValue).toList(growable: false);
+    }
+    if (value is Map) {
+      return value.map(
+        (key, value) =>
+            MapEntry(key.toString(), _normalizeVariableValue(value)),
+      );
+    }
     return value.toString();
+  }
+
+  @override
+  Future<void> pushScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    dynamic element,
+  ) async {
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current) ?? [];
+    list.add(element);
+    await setScopedVariable(botId, scope, contextId, key, list);
+  }
+
+  @override
+  Future<dynamic> popScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current);
+    if (list == null || list.isEmpty) {
+      return null;
+    }
+    final popped = list.removeLast();
+    await setScopedVariable(botId, scope, contextId, key, list);
+    return popped;
+  }
+
+  @override
+  Future<dynamic> removeScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  ) async {
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current);
+    if (list == null || index < 0 || index >= list.length) {
+      return null;
+    }
+    final removed = list.removeAt(index);
+    await setScopedVariable(botId, scope, contextId, key, list);
+    return removed;
+  }
+
+  @override
+  Future<dynamic> getScopedArrayElement(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+    int index,
+  ) async {
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current);
+    if (list == null || index < 0 || index >= list.length) {
+      return null;
+    }
+    return list[index];
+  }
+
+  @override
+  Future<int> getScopedArrayLength(
+    String botId,
+    String scope,
+    String contextId,
+    String key,
+  ) async {
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current);
+    return list?.length ?? 0;
+  }
+
+  @override
+  Future<Map<String, dynamic>> queryScopedArray(
+    String botId,
+    String scope,
+    String contextId,
+    String key, {
+    int offset = 0,
+    int limit = 25,
+    bool descending = true,
+    String? filter,
+  }) async {
+    final current = await getScopedVariable(botId, scope, contextId, key);
+    final list = _toList(current) ?? [];
+
+    // Apply filter
+    List<dynamic> filtered = list;
+    if (filter != null && filter.trim().isNotEmpty) {
+      filtered = _applyArrayFilter(list, filter.trim());
+    }
+
+    // Sort
+    filtered.sort((a, b) => _compareVariableValues(a, b, descending));
+
+    // Paginate
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit < 1 ? 1 : (limit > 25 ? 25 : limit);
+    final start = safeOffset;
+    final end = (safeOffset + safeLimit).clamp(0, filtered.length);
+    final items = filtered.sublist(start, end);
+
+    return {'items': items, 'count': items.length, 'total': filtered.length};
+  }
+
+  List<dynamic> _applyArrayFilter(List<dynamic> list, String filter) {
+    if (filter.isEmpty) return list;
+
+    final result = <dynamic>[];
+    for (final item in list) {
+      if (_matchesArrayFilter(item, filter)) {
+        result.add(item);
+      }
+    }
+    return result;
+  }
+
+  bool _matchesArrayFilter(dynamic item, String filter) {
+    if (filter.startsWith('> ')) {
+      final value = num.tryParse(filter.substring(2));
+      if (value == null || item is! num) return false;
+      return item > value;
+    }
+    if (filter.startsWith('< ')) {
+      final value = num.tryParse(filter.substring(2));
+      if (value == null || item is! num) return false;
+      return item < value;
+    }
+    if (filter.startsWith('>= ')) {
+      final value = num.tryParse(filter.substring(3));
+      if (value == null || item is! num) return false;
+      return item >= value;
+    }
+    if (filter.startsWith('<= ')) {
+      final value = num.tryParse(filter.substring(3));
+      if (value == null || item is! num) return false;
+      return item <= value;
+    }
+    if (filter.startsWith('== ')) {
+      final valueStr = filter.substring(3);
+      if (item is String) return item == valueStr;
+      final value = num.tryParse(valueStr);
+      if (value == null) return false;
+      return item == value;
+    }
+    if (filter.startsWith('contains ')) {
+      final search = filter.substring(9);
+      return item.toString().toLowerCase().contains(search.toLowerCase());
+    }
+    return false;
+  }
+
+  List<dynamic>? _toList(dynamic value) {
+    if (value is List) return value;
+    return null;
   }
 
   /// Export current state as maps (for JSON serialization, backup, etc).
@@ -187,5 +402,33 @@ class JsonVariableStore implements VariableDatabase {
       export[scope.key] = byId;
     }
     return export;
+  }
+
+  static int _compareVariableValues(
+    dynamic left,
+    dynamic right,
+    bool descending,
+  ) {
+    final normalized = _compareNormalized(left, right);
+    return descending ? -normalized : normalized;
+  }
+
+  static int _compareNormalized(dynamic left, dynamic right) {
+    if (left is num && right is num) {
+      return left.compareTo(right);
+    }
+    if (left is bool && right is bool) {
+      return (left ? 1 : 0).compareTo(right ? 1 : 0);
+    }
+    final leftText = _valueToComparableString(left);
+    final rightText = _valueToComparableString(right);
+    return leftText.compareTo(rightText);
+  }
+
+  static String _valueToComparableString(dynamic value) {
+    if (value == null) return '';
+    if (value is String) return value.toLowerCase();
+    if (value is List || value is Map) return jsonEncode(value).toLowerCase();
+    return value.toString().toLowerCase();
   }
 }

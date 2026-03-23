@@ -1,5 +1,18 @@
 part of 'bot.dart';
 
+String _runtimeVariableValueToString(dynamic value) {
+  if (value == null) {
+    return '';
+  }
+  if (value is String) {
+    return value;
+  }
+  if (value is List || value is Map) {
+    return jsonEncode(value);
+  }
+  return value.toString();
+}
+
 Future<void> _injectScopedCommandVariables({
   required AppManager manager,
   required String botId,
@@ -24,7 +37,7 @@ Future<void> _injectScopedCommandVariables({
     }
 
     final canonicalKey = rawKey.startsWith('bc_') ? rawKey : 'bc_$rawKey';
-    final value = entry.value.toString();
+    final value = _runtimeVariableValueToString(entry.value);
     runtimeVariables['$scope.$canonicalKey'] = value;
     runtimeVariables['$scope.$rawKey'] = value;
   }
@@ -55,7 +68,9 @@ Future<void> handleLocalCommands(
       final runtimeVariables = <String, String>{...listOfArgs};
       final globalVars = await manager.getGlobalVariables(clientId);
       for (final entry in globalVars.entries) {
-        runtimeVariables['global.${entry.key}'] = entry.value;
+        runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(
+          entry.value,
+        );
       }
 
       final dynamic rawInteraction = interaction;

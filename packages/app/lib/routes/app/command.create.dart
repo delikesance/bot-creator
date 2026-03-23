@@ -1986,9 +1986,37 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         ]);
       }
 
+      if (type == 'listScopedArrayElements') {
+        outputVariables.addAll([
+          'action.$actionKey.items',
+          '$actionKey.items',
+          'action.$actionKey.display',
+          '$actionKey.display',
+          'action.$actionKey.count',
+          '$actionKey.count',
+          'action.$actionKey.total',
+          '$actionKey.total',
+        ]);
+        for (var index = 0; index < 5; index++) {
+          outputVariables.add('action.$actionKey.$index');
+          outputVariables.add('$actionKey.$index');
+        }
+      }
+
       final storeAlias = _resolveActionStoreAlias(action);
       if (storeAlias.isNotEmpty) {
         outputVariables.add(storeAlias);
+        if (type == 'listScopedArrayElements') {
+          outputVariables.addAll([
+            '$storeAlias.items',
+            '$storeAlias.display',
+            '$storeAlias.count',
+            '$storeAlias.total',
+          ]);
+          for (var index = 0; index < 5; index++) {
+            outputVariables.add('$storeAlias.$index');
+          }
+        }
       }
     }
 
@@ -2085,6 +2113,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       if (actionKey.isEmpty) {
         continue;
       }
+      addSuggestion(actionKey, kind: VariableSuggestionKind.unknown);
       addSuggestion('action.$actionKey', kind: VariableSuggestionKind.unknown);
 
       final type = (action['type'] ?? '').toString();
@@ -2101,11 +2130,83 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           'action.$actionKey.jsonPath',
           kind: VariableSuggestionKind.nonNumeric,
         );
+        addSuggestion(
+          '$actionKey.status',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion(
+          '$actionKey.body',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+        addSuggestion(
+          '$actionKey.jsonPath',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+      }
+
+      if (type == 'listScopedArrayElements') {
+        addSuggestion(
+          'action.$actionKey.items',
+          kind: VariableSuggestionKind.unknown,
+        );
+        addSuggestion('$actionKey.items', kind: VariableSuggestionKind.unknown);
+        addSuggestion(
+          'action.$actionKey.display',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+        addSuggestion(
+          '$actionKey.display',
+          kind: VariableSuggestionKind.nonNumeric,
+        );
+        addSuggestion(
+          'action.$actionKey.count',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion('$actionKey.count', kind: VariableSuggestionKind.numeric);
+        addSuggestion(
+          'action.$actionKey.total',
+          kind: VariableSuggestionKind.numeric,
+        );
+        addSuggestion('$actionKey.total', kind: VariableSuggestionKind.numeric);
+        for (var index = 0; index < 5; index++) {
+          addSuggestion(
+            'action.$actionKey.$index',
+            kind: VariableSuggestionKind.unknown,
+          );
+          addSuggestion(
+            '$actionKey.$index',
+            kind: VariableSuggestionKind.unknown,
+          );
+        }
       }
 
       final storeAlias = _resolveActionStoreAlias(action);
       if (storeAlias.isNotEmpty) {
         addSuggestion(storeAlias, kind: VariableSuggestionKind.unknown);
+        if (type == 'listScopedArrayElements') {
+          addSuggestion(
+            '$storeAlias.items',
+            kind: VariableSuggestionKind.unknown,
+          );
+          addSuggestion(
+            '$storeAlias.display',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          addSuggestion(
+            '$storeAlias.count',
+            kind: VariableSuggestionKind.numeric,
+          );
+          addSuggestion(
+            '$storeAlias.total',
+            kind: VariableSuggestionKind.numeric,
+          );
+          for (var index = 0; index < 5; index++) {
+            addSuggestion(
+              '$storeAlias.$index',
+              kind: VariableSuggestionKind.unknown,
+            );
+          }
+        }
       }
     }
 

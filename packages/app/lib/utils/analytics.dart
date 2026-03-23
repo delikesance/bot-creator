@@ -70,4 +70,20 @@ class AppAnalytics {
       );
     } catch (_) {}
   }
+
+  static Future<void> logAdEvent({
+    required String action,
+    required String format,
+    required String placement,
+    Map<String, Object>? parameters,
+  }) async {
+    final merged = <String, Object>{
+      'ad_action': action,
+      'ad_format': format,
+      'ad_placement': placement,
+      if (parameters != null) ...parameters,
+    };
+
+    await logEvent(name: 'ad_event', parameters: merged);
+  }
 }

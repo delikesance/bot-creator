@@ -5,8 +5,10 @@ import 'package:bot_creator/routes/app/builder.response.dart';
 import 'package:bot_creator/routes/app/workflow_docs.page.dart';
 import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/utils/app_emoji_api.dart';
+import 'package:bot_creator/utils/ads_placement_policy.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
+import 'package:bot_creator/widgets/native_ad_slot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -1996,6 +1998,41 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
               workflowTypeEvent,
         )
         .toList(growable: false);
+    final adsEnabled = AdsPlacementPolicy.isPlacementEnabled(
+      NativeAdPlacement.workflowsList,
+    );
+    final workflowChildren = <Widget>[];
+    var displayedWorkflowsCount = 0;
+
+    void appendSection(String title, List<Map<String, dynamic>> workflows) {
+      if (workflows.isEmpty) {
+        return;
+      }
+
+      workflowChildren.add(_WorkflowSectionHeader(title: title));
+      for (final workflow in workflows) {
+        workflowChildren.add(_buildWorkflowTile(workflow));
+        displayedWorkflowsCount += 1;
+        if (adsEnabled &&
+            AdsPlacementPolicy.shouldInsertAfterContentCount(
+              displayedWorkflowsCount,
+            )) {
+          workflowChildren.add(
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: NativeAdSlot(
+                placement: NativeAdPlacement.workflowsList,
+                height: 110,
+                margin: EdgeInsets.zero,
+              ),
+            ),
+          );
+        }
+      }
+    }
+
+    appendSection(AppStrings.t('workflows_general_section'), generalWorkflows);
+    appendSection(AppStrings.t('workflows_event_section'), eventWorkflows);
 
     return Scaffold(
       appBar: AppBar(
@@ -2034,22 +2071,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
               ? const Center(child: CircularProgressIndicator())
               : _workflows.isEmpty
               ? Center(child: Text(AppStrings.t('workflows_empty')))
-              : ListView(
-                children: [
-                  if (generalWorkflows.isNotEmpty) ...[
-                    _WorkflowSectionHeader(
-                      title: AppStrings.t('workflows_general_section'),
-                    ),
-                    ...generalWorkflows.map(_buildWorkflowTile),
-                  ],
-                  if (eventWorkflows.isNotEmpty) ...[
-                    _WorkflowSectionHeader(
-                      title: AppStrings.t('workflows_event_section'),
-                    ),
-                    ...eventWorkflows.map(_buildWorkflowTile),
-                  ],
-                ],
-              ),
+              : ListView(children: workflowChildren),
     );
   }
 
