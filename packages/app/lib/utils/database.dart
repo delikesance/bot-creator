@@ -1095,6 +1095,21 @@ class AppManager implements BotDataStore {
     final rawData = Map<String, dynamic>.from(
       (normalized['data'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
+    final rawCommandType =
+        (rawData['commandType'] ?? normalized['type'] ?? 'chatInput')
+            .toString()
+            .trim()
+            .toLowerCase();
+    final commandType =
+        (rawCommandType == 'user' ||
+                rawCommandType == 'usercommand' ||
+                rawCommandType == 'user_command')
+            ? 'user'
+            : (rawCommandType == 'message' ||
+                rawCommandType == 'messagecommand' ||
+                rawCommandType == 'message_command')
+            ? 'message'
+            : 'chatInput';
 
     final legacyResponse = rawData['response'];
     final response = Map<String, dynamic>.from(
@@ -1219,8 +1234,10 @@ class AppManager implements BotDataStore {
       },
     };
 
+    normalized['type'] = commandType;
     normalized['data'] = {
       'version': 1,
+      'commandType': commandType,
       'editorMode': editorMode,
       'simpleConfig': simpleConfig,
       'defaultMemberPermissions':

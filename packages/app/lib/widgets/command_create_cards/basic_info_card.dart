@@ -4,10 +4,14 @@ import 'package:nyxx/nyxx.dart';
 class BasicInfoCard extends StatefulWidget {
   final String commandName;
   final String commandDescription;
+  final ApplicationCommandType commandType;
+  final bool canEditCommandType;
+  final bool showDescriptionField;
   final List<ApplicationIntegrationType> integrationTypes;
   final List<InteractionContextType> contexts;
   final ValueChanged<String> onNameChanged;
   final ValueChanged<String> onDescriptionChanged;
+  final ValueChanged<ApplicationCommandType> onCommandTypeChanged;
   final ValueChanged<List<ApplicationIntegrationType>>
   onIntegrationTypesChanged;
   final ValueChanged<List<InteractionContextType>> onContextsChanged;
@@ -19,10 +23,14 @@ class BasicInfoCard extends StatefulWidget {
     super.key,
     required this.commandName,
     required this.commandDescription,
+    required this.commandType,
+    required this.canEditCommandType,
+    required this.showDescriptionField,
     required this.integrationTypes,
     required this.contexts,
     required this.onNameChanged,
     required this.onDescriptionChanged,
+    required this.onCommandTypeChanged,
     required this.onIntegrationTypesChanged,
     required this.onContextsChanged,
     required this.defaultMemberPermissions,
@@ -208,6 +216,37 @@ class _BasicInfoCardState extends State<BasicInfoCard> {
                   onChanged: widget.onNameChanged,
                 );
 
+                final commandTypeField =
+                    DropdownButtonFormField<ApplicationCommandType>(
+                      initialValue: widget.commandType,
+                      decoration: const InputDecoration(
+                        labelText: 'Command Type',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: ApplicationCommandType.chatInput,
+                          child: Text('Slash Command'),
+                        ),
+                        DropdownMenuItem(
+                          value: ApplicationCommandType.user,
+                          child: Text('User Command'),
+                        ),
+                        DropdownMenuItem(
+                          value: ApplicationCommandType.message,
+                          child: Text('Message Command'),
+                        ),
+                      ],
+                      onChanged:
+                          widget.canEditCommandType
+                              ? (value) {
+                                if (value != null) {
+                                  widget.onCommandTypeChanged(value);
+                                }
+                              }
+                              : null,
+                    );
+
                 final descriptionField = TextFormField(
                   autocorrect: false,
                   maxLength: 100,
@@ -234,7 +273,7 @@ class _BasicInfoCardState extends State<BasicInfoCard> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (isWide)
+                    if (isWide && widget.showDescriptionField)
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -245,8 +284,22 @@ class _BasicInfoCardState extends State<BasicInfoCard> {
                       )
                     else ...[
                       nameField,
-                      const SizedBox(height: 12),
-                      descriptionField,
+                      if (widget.showDescriptionField) ...[
+                        const SizedBox(height: 12),
+                        descriptionField,
+                      ],
+                    ],
+                    const SizedBox(height: 12),
+                    commandTypeField,
+                    if (!widget.canEditCommandType) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Command type cannot be changed after creation.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 8),
                     Text(

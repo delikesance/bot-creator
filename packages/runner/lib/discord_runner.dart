@@ -92,17 +92,31 @@ class DiscordRunner {
 
     if (interaction is ApplicationCommandInteraction) {
       final commandId = interaction.data.id.toString();
+      final interactionType = _commandTypeToStorage(interaction.data.type);
 
       // Match by Discord command ID (same logic as bot.commands.dart)
       final commandData = _findCommand(commandId);
       if (commandData == null) {
-        _log.warning('Command $commandId not found in config');
+        _log.warning(
+          'Command $commandId (${interaction.data.name}, type=$interactionType) not found in config',
+        );
         await _safeRespond(
           interaction,
           'Command not found.',
           isEphemeral: true,
         );
         return;
+      }
+
+      final storedType = _storedCommandType(commandData);
+      if (storedType != interactionType) {
+        _log.warning(
+          'Command type mismatch for ${interaction.data.name} ($commandId): stored=$storedType, incoming=$interactionType. Executing anyway.',
+        );
+      } else {
+        _log.info(
+          'Executing ${interaction.data.name} ($commandId) as $interactionType command.',
+        );
       }
 
       await _executeCommand(
@@ -125,6 +139,46 @@ class DiscordRunner {
       }
     }
     return null;
+  }
+
+  String _storedCommandType(Map<String, dynamic> commandData) {
+    final data = Map<String, dynamic>.from(
+      (commandData['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final raw =
+        (data['commandType'] ?? commandData['type'] ?? 'chatInput')
+            .toString()
+            .trim()
+            .toLowerCase();
+
+    switch (raw) {
+      case 'user':
+      case 'usercommand':
+      case 'user_command':
+      case 'user-command':
+        return 'user';
+      case 'message':
+      case 'messagecommand':
+      case 'message_command':
+      case 'message-command':
+        return 'message';
+      case 'chatinput':
+      case 'chat_input':
+      case 'chat-input':
+      case 'slash':
+      default:
+        return 'chatInput';
+    }
+  }
+
+  String _commandTypeToStorage(ApplicationCommandType type) {
+    if (type == ApplicationCommandType.user) {
+      return 'user';
+    }
+    if (type == ApplicationCommandType.message) {
+      return 'message';
+    }
+    return 'chatInput';
   }
 
   void _registerEventWorkflowListeners() {
@@ -665,6 +719,13 @@ class DiscordRunner {
 
     // Build runtime variables from interaction
     final runtimeVariables = await generateKeyValues(interaction);
+    final interactionType = _commandTypeToStorage(interaction.data.type);
+    final storedType = _storedCommandType(commandData);
+    runtimeVariables['command.type'] = interactionType;
+    runtimeVariables['interaction.command.type'] = interactionType;
+    runtimeVariables['config.command.type'] = storedType;
+    runtimeVariables['interaction.command.name'] = interaction.data.name;
+    runtimeVariables['interaction.command.id'] = interaction.data.id.toString();
     final globalVars = await store.getGlobalVariables(botId);
     for (final entry in globalVars.entries) {
       runtimeVariables['global.${entry.key}'] = _runtimeVariableValueToString(

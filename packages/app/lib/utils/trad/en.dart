@@ -346,9 +346,9 @@ const Map<String, String> appStringsEn = {
 
   // Bot internal pages — app/settings.dart
   'bot_settings_title': 'Application Settings',
-  'bot_settings_workflow_docs': 'Workflow Documentation',
+  'bot_settings_workflow_docs': 'Documentation Center',
   'bot_settings_workflow_docs_desc':
-      'Detailed guide for entry points, call arguments, and runtime behavior.',
+      'Centralized documentation for commands, workflows, runtime variables, and execution behavior.',
   'bot_settings_app_flags': 'Application Flags',
   'bot_settings_gateway_intents': 'Gateway Intents Configuration',
   'bot_settings_gateway_intents_desc':
@@ -473,7 +473,7 @@ const Map<String, String> appStringsEn = {
       'Arguments become runtime variables as ((arg.name)) and ((workflow.arg.name)).',
   'workflows_continue': 'Continue',
   'workflows_add_arg': 'Add argument',
-  'workflows_docs_tooltip': 'Workflow Documentation',
+  'workflows_docs_tooltip': 'Open documentation center',
   'workflows_subtitle': '{count} action(s) • entry: {entry} • args: {args}',
   'workflows_event_subtitle': '{count} action(s) • Listen for: {event}',
   'workflows_general_section': 'General Workflows',
@@ -542,7 +542,7 @@ const Map<String, String> appStringsEn = {
   // Command create page
   'cmd_error_fill_fields': 'Please fill all fields',
   'cmd_variables_title': 'Command Variables',
-  'cmd_show_variables': 'Show variables',
+  'cmd_show_variables': 'Open variable documentation',
   'cmd_create_tooltip': 'Create command',
   'cmd_delete_tooltip': 'Delete command',
   'cmd_editor_mode_title': 'Editing mode',
@@ -615,4 +615,132 @@ const Map<String, String> appStringsEn = {
   'error_invalid_channel_type': 'Channel is not a text channel.',
   'error_network_timeout': 'The action timed out. Please try again.',
   'error_delete_messages_failed': 'Failed to delete messages.',
+
+  // Documentation center
+  'doc_center_title': 'Documentation Center',
+  'doc_center_search_hint':
+      'Search commands, workflows, variables, actions, intents, or examples...',
+  'doc_center_clear_search': 'Clear search',
+  'doc_center_empty': 'No documentation entry matches your search.',
+  'doc_kind_all': 'All',
+  'doc_kind_event': 'Event',
+  'doc_kind_action': 'Action',
+  'doc_kind_template': 'Template',
+  'doc_kind_runtime': 'Runtime',
+  'doc_required_intents': 'Required Intents',
+  'doc_available_variables': 'Available Variables',
+  'doc_example': 'Example',
+  'doc_common_section_best_use_cases': 'Best Use Cases',
+  'doc_common_section_important_notes': 'Important Notes',
+
+  // Docs - Template Variables
+  'doc_template_variables_title': 'Template Variables',
+  'doc_template_variables_subtitle': 'How dynamic placeholders are resolved.',
+  'doc_template_variables_summary':
+      'Runtime resolves placeholders using current event/interaction context, workflow args, and global vars.',
+  'doc_template_variables_section_sources_title': 'Variable Sources',
+  'doc_template_variables_section_sources_l1':
+      'Command variables: commandName, commandId, commandType, target.*, opts.*.',
+  'doc_template_variables_section_sources_l2':
+      'Event variables: event.*, message.*, reaction.*, voice.*, role.*, etc.',
+  'doc_template_variables_section_sources_l3':
+      'Workflow variables: workflow.name, workflow.entryPoint, arg.*, workflow.arg.*',
+  'doc_template_variables_section_sources_l4': 'Global variables: global.<key>',
+  'doc_template_variables_section_sources_l5':
+      'Action outputs: action.<key> when available.',
+  'doc_template_variables_section_builtin_title': 'Built-in Command Variables',
+  'doc_template_variables_section_types_title': 'Command Types',
+  'doc_template_variables_section_types_l1':
+      'Slash commands use commandType = chatInput and expose opts.<option> variables.',
+  'doc_template_variables_section_types_l2':
+      'User commands use commandType = user and expose target.user.* variables.',
+  'doc_template_variables_section_types_l3':
+      'Message commands use commandType = message and expose target.message.* variables.',
+  'doc_template_variables_section_types_l4':
+      'Subcommands still expose their arguments through opts.*.',
+  'doc_template_variables_section_fallbacks_title': 'Fallbacks and Paths',
+  'doc_template_variables_section_fallbacks_l1':
+      'Use ((opts.user|userName)) to fall back when an option is missing.',
+  'doc_template_variables_section_fallbacks_l2':
+      'Use JSONPath syntax on action outputs: ((myHttp.body.\$.data[0].id)).',
+  'doc_template_variables_section_fallbacks_l3':
+      'Unknown variables resolve to an empty string.',
+  'doc_template_variables_example':
+      'Hello ((target.user.username|userName))\nType: ((commandType))\nSelected reason: ((opts.reason))\nCurrent workflow: ((workflow.name))',
+
+  // Docs - Interaction Commands
+  'doc_interaction_commands_title': 'Interaction Commands',
+  'doc_interaction_commands_subtitle':
+      'Slash, user and message command runtime behavior.',
+  'doc_interaction_commands_summary':
+      'Application commands are executed through a shared interaction path, with runtime variables depending on the Discord command type.',
+  'doc_interaction_commands_section_execution_title': 'Execution Model',
+  'doc_interaction_commands_section_execution_l1':
+      'Slash, user and message commands all enter the runner as application command interactions.',
+  'doc_interaction_commands_section_execution_l2':
+      'The runner matches commands by Discord command id, then validates stored type vs incoming type.',
+  'doc_interaction_commands_section_execution_l3':
+      'A type mismatch is logged as warning but does not hard-stop execution.',
+  'doc_interaction_commands_section_per_type_title': 'Per-Type Variables',
+  'doc_interaction_commands_section_per_type_l1':
+      'chatInput: opts.* for parameters and subcommands.',
+  'doc_interaction_commands_section_per_type_l2':
+      'user: target.user.* and target.member.* when available.',
+  'doc_interaction_commands_section_per_type_l3':
+      'message: target.message.* including content and author id when resolved.',
+  'doc_interaction_commands_section_builtin_title':
+      'Built-in Command Variables',
+  'doc_interaction_commands_section_guidance_title': 'Authoring Guidance',
+  'doc_interaction_commands_section_guidance_l1':
+      'Write conditional logic against commandType or interaction.command.type.',
+  'doc_interaction_commands_section_guidance_l2':
+      'Prefer fallback syntax when sharing a template between slash and non-slash commands.',
+  'doc_interaction_commands_section_guidance_l3':
+      'Keep templates portable by avoiding event-only names inside command workflows.',
+  'doc_interaction_commands_example':
+      'Condition variable: ((commandType))\nIf user -> reply with ((target.user.username))\nIf message -> quote ((target.message.content))',
+
+  // Docs - Event: messageCreate
+  'doc_event_message_create_title': 'Event: messageCreate',
+  'doc_event_message_create_subtitle':
+      'Triggered for each newly created message.',
+  'doc_event_message_create_summary':
+      'Use this event for moderation, keyword pipelines, auto-replies, command-style parsing, and analytics.',
+  'doc_event_message_create_intent_1': 'Guild Messages',
+  'doc_event_message_create_intent_2': 'Message Content',
+  'doc_event_message_create_best_use_l1':
+      'Detect commands typed without slash commands.',
+  'doc_event_message_create_best_use_l2':
+      'Apply anti-spam filters before answering.',
+  'doc_event_message_create_best_use_l3':
+      'Route to reusable workflows based on first word or mention.',
+  'doc_event_message_create_notes_l1':
+      'If Message Content intent is off, content-dependent conditions can fail.',
+  'doc_event_message_create_notes_l2':
+      'message.content[index] is word-based and capped by runtime extraction.',
+  'doc_event_message_create_notes_l3': 'author.isBot can help avoid bot loops.',
+  'doc_event_message_create_example':
+      'Guard: ((message.isBot)) equals false\nGuard: ((message.content[0])) equals !ticket\nThen: runWorkflow -> ticket_manager entry=create',
+
+  // Docs - Runtime execution flow
+  'doc_runtime_execution_flow_title': 'Runtime Execution Flow',
+  'doc_runtime_execution_flow_subtitle':
+      'How event workflows are selected and executed.',
+  'doc_runtime_execution_flow_summary':
+      'When an event arrives, runtime matches configured workflows by eventTrigger.event then executes actions with context variables.',
+  'doc_runtime_execution_flow_section_pipeline_title': 'Pipeline',
+  'doc_runtime_execution_flow_section_pipeline_l1': '1) Receive gateway event.',
+  'doc_runtime_execution_flow_section_pipeline_l2':
+      '2) Build context variables map.',
+  'doc_runtime_execution_flow_section_pipeline_l3':
+      '3) Match workflows by event name.',
+  'doc_runtime_execution_flow_section_pipeline_l4':
+      '4) Merge global variables.',
+  'doc_runtime_execution_flow_section_pipeline_l5':
+      '5) Execute actions sequentially with conditions.',
+  'doc_runtime_execution_flow_section_parity_title': 'Parity Rule',
+  'doc_runtime_execution_flow_section_parity_l1':
+      'Variables should be identical between local app runtime and runner runtime.',
+  'doc_runtime_execution_flow_section_parity_l2':
+      'Use same variable names in conditions to stay portable.',
 };

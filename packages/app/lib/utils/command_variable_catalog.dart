@@ -1,0 +1,225 @@
+import 'package:bot_creator/types/variable_suggestion.dart';
+
+class CommandVariableCatalogEntry {
+  const CommandVariableCatalogEntry({
+    required this.name,
+    required this.description,
+    required this.kind,
+  });
+
+  final String name;
+  final String description;
+  final VariableSuggestionKind kind;
+}
+
+const List<CommandVariableCatalogEntry> commandBuiltinVariableCatalog =
+    <CommandVariableCatalogEntry>[
+      CommandVariableCatalogEntry(
+        name: 'guildName',
+        description: 'Name of the guild.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guildId',
+        description: 'ID of the guild.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'channelName',
+        description: 'Name of the current channel.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'channelId',
+        description: 'ID of the current channel.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'userName',
+        description: 'Display name of the user who invoked the command.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'userId',
+        description: 'ID of the user who invoked the command.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'userTag',
+        description: 'Discord tag or discriminator of the invoking user.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'userAvatar',
+        description: 'Avatar URL of the invoking user.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guildIcon',
+        description: 'Guild icon URL when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guildCount',
+        description: 'Approximate member count of the guild.',
+        kind: VariableSuggestionKind.numeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'commandName',
+        description: 'Registered name of the executed command.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'commandId',
+        description: 'Discord ID of the executed command.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'commandType',
+        description: 'Normalized command type: chatInput, user, or message.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'commandTypeValue',
+        description: 'Raw Discord numeric value of the command type.',
+        kind: VariableSuggestionKind.numeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'command.type',
+        description: 'Alias of commandType for portable conditions.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'interaction.command.type',
+        description: 'Nested alias of the current Discord command type.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.id',
+        description: 'Selected target ID for user or message commands.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.user.id',
+        description: 'Target user ID for user commands.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.user.username',
+        description: 'Username of the selected target user.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.user.tag',
+        description:
+            'Discord tag or discriminator of the selected target user.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.user.avatar',
+        description: 'Avatar URL of the selected target user.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.userName',
+        description: 'Shortcut alias for the selected target user name.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.userAvatar',
+        description: 'Shortcut alias for the selected target user avatar.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.member.id',
+        description: 'Guild member ID of the selected target when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.member.nick',
+        description: 'Guild nickname of the selected target when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.message.id',
+        description: 'ID of the selected target message.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.message.channelId',
+        description: 'Channel ID containing the selected target message.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.message.content',
+        description: 'Content of the selected target message when resolved.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.message.author.id',
+        description: 'Author ID of the selected target message when resolved.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.messageId',
+        description: 'Shortcut alias for the selected target message ID.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.messageContent',
+        description: 'Shortcut alias for the selected target message content.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'opts',
+        description:
+            'Root container for slash-command options and resolved values.',
+        kind: VariableSuggestionKind.unknown,
+      ),
+    ];
+
+const List<String> commandTemplateReferenceVariables = <String>[
+  'commandName',
+  'commandId',
+  'commandType',
+  'commandTypeValue',
+  'command.type',
+  'interaction.command.type',
+  'opts.<option>',
+  'opts.<option>.id',
+  'opts.<option>.avatar',
+  'target.id',
+  'target.user.id',
+  'target.user.username',
+  'target.user.avatar',
+  'target.message.id',
+  'target.message.content',
+  'target.message.author.id',
+  'global.<key>',
+  'workflow.name',
+  'workflow.entryPoint',
+  'arg.<key>',
+  'action.<key>',
+];
+
+const List<String> interactionCommandReferenceVariables = <String>[
+  'commandType',
+  'interaction.command.type',
+  'opts.*',
+  'target.user.*',
+  'target.message.*',
+];
+
+List<String> get commandBuiltinVariableNames => commandBuiltinVariableCatalog
+    .map((entry) => entry.name)
+    .toList(growable: false);
+
+List<String> get commandBuiltinVariableDocumentationLines =>
+    commandBuiltinVariableCatalog
+        .map((entry) => '${entry.name}: ${entry.description}')
+        .toList(growable: false);
+
+List<VariableSuggestion> get builtinCommandVariableSuggestions =>
+    commandBuiltinVariableCatalog
+        .map((entry) => VariableSuggestion(name: entry.name, kind: entry.kind))
+        .toList(growable: false);

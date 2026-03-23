@@ -26,8 +26,12 @@ Ces variables sont générées à partir de l'interaction Discord, quelle que so
 | `((channelName))`     | Nom du salon                                                    | `général`                                            |
 | `((channelId))`       | ID Snowflake du salon                                           | `111122223333444455`                                 |
 | `((channelType))`     | Type de salon (`GuildTextChannel`, `DmChannel`, …)              | `GuildTextChannel`                                   |
-| `((commandName))`     | Nom de la commande slash exécutée                               | `stats`                                              |
+| `((commandName))`     | Nom de la commande exécutée (slash, user ou message)            | `stats`                                              |
 | `((commandId))`       | ID Snowflake de la commande                                     | `555566667777888899`                                 |
+| `((commandType))`     | Type logique de la commande (`chatInput`, `user`, `message`)    | `user`                                               |
+| `((commandTypeValue))`| Valeur brute Discord du type (`1`, `2`, `3`)                    | `2`                                                  |
+| `((command.type))`    | Alias textuel du type de commande                               | `message`                                            |
+| `((interaction.command.type))` | Alias textuel orienté runtime                           | `chatInput`                                          |
 
 ---
 
@@ -80,6 +84,70 @@ Le préfixe `opts.` est **toujours présent**, y compris pour les sous-commandes
 
 Les options des sous-commandes sont également préfixées `opts.` (le nom de la sous-commande
 elle-même est stocké dans `listOfArgs[subCommandName]` **sans** le préfixe `opts.`).
+
+Exemple :
+
+```
+/moderation ban user:@John reason:"spam"
+```
+
+Variables disponibles :
+
+```
+((opts.user))
+((opts.user.id))
+((opts.reason))
+```
+
+---
+
+## 2.1 Variables de cible pour les commandes `user`
+
+Ces variables sont présentes quand `((commandType)) == user`.
+
+| Variable | Valeur |
+|----------|--------|
+| `((target.id))` | ID de la cible Discord |
+| `((interaction.target.id))` | Alias de l'ID cible |
+| `((target.user.id))` | ID de l'utilisateur ciblé |
+| `((target.user.username))` | Username de l'utilisateur ciblé |
+| `((target.user.tag))` | Discriminant/tag de l'utilisateur ciblé |
+| `((target.user.avatar))` | URL avatar de l'utilisateur ciblé |
+| `((target.userName))` | Alias court de `target.user.username` |
+| `((target.userAvatar))` | Alias court de `target.user.avatar` |
+| `((target.member.id))` | ID membre si la cible est résolue dans le serveur |
+| `((target.member.nick))` | Surnom de membre si disponible |
+
+Exemple :
+
+```
+Profil ciblé : ((target.user.username))
+Avatar : ((target.user.avatar))
+```
+
+---
+
+## 2.2 Variables de cible pour les commandes `message`
+
+Ces variables sont présentes quand `((commandType)) == message`.
+
+| Variable | Valeur |
+|----------|--------|
+| `((target.id))` | ID de la cible Discord |
+| `((interaction.target.id))` | Alias de l'ID cible |
+| `((target.message.id))` | ID du message ciblé |
+| `((target.message.channelId))` | ID du salon du message ciblé |
+| `((target.message.content))` | Contenu du message ciblé |
+| `((target.message.author.id))` | ID de l'auteur du message ciblé |
+| `((target.messageId))` | Alias court de `target.message.id` |
+| `((target.messageContent))` | Alias court de `target.message.content` |
+
+Exemple :
+
+```
+Citation : ((target.message.content))
+Auteur : ((target.message.author.id))
+```
 
 ---
 
@@ -170,6 +238,18 @@ Option <X> de type user :
 
 Option <X> de type string/int/bool/number :
   ((opts.X))          valeur brute
+
+Commande User :
+  ((commandType))             user
+  ((target.user.id))          ID cible
+  ((target.user.username))    username cible
+  ((target.user.avatar))      avatar cible
+
+Commande Message :
+  ((commandType))             message
+  ((target.message.id))       ID du message cible
+  ((target.message.content))  contenu du message cible
+  ((target.message.author.id)) ID auteur du message cible
 
 Fallback (séparateur |) :
   ((opts.X|userName)) → opts.X si défini, sinon userName

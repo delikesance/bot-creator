@@ -2,10 +2,12 @@ import 'dart:convert';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/builder.response.dart';
+import 'package:bot_creator/routes/app/workflow_docs.page.dart';
 import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/app_emoji_api.dart';
 import 'package:bot_creator/utils/bot.dart';
+import 'package:bot_creator/utils/command_variable_catalog.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:bot_creator/widgets/command_create_cards/basic_info_card.dart';
@@ -16,6 +18,12 @@ import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nyxx/nyxx.dart';
+
+part 'command.create.variable_suggestions.dart';
+part 'command.create.serialization.dart';
+part 'command.create.simple_mode.dart';
+part 'command.create.workflow.dart';
+part 'command.create.validation.dart';
 
 class CommandCreatePage extends StatefulWidget {
   final NyxxRest? client;
@@ -38,6 +46,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
   String _commandName = "";
   String _commandDescription = "";
+  ApplicationCommandType _commandType = ApplicationCommandType.chatInput;
   List<CommandOptionBuilder> _options = [];
   String _response = "";
   final TextEditingController _responseController = TextEditingController();
@@ -104,6 +113,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
   bool get _isSimpleMode => _editorMode == _editorModeSimple;
 
+  bool get _supportsCommandDescription =>
+      _commandType == ApplicationCommandType.chatInput;
+
+  bool get _supportsCommandOptions =>
+      _commandType == ApplicationCommandType.chatInput;
+
+  bool get _supportsSimpleMode =>
+      _commandType == ApplicationCommandType.chatInput;
+
+  String get _effectiveCommandDescription =>
+      _supportsCommandDescription ? _commandDescription : '';
+
   bool get _requiresSimpleUserOption =>
       _simpleKickUser ||
       _simpleBanUser ||
@@ -113,313 +134,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
   bool get _requiresSimpleRoleOption => _simpleAddRole || _simpleRemoveRole;
 
-  Map<String, dynamic> _normalizeSimpleConfig(Map<String, dynamic> input) {
-    return {
-      'deleteMessages': input['deleteMessages'] == true,
-      'kickUser': input['kickUser'] == true,
-      'banUser': input['banUser'] == true,
-      'muteUser': input['muteUser'] == true,
-      'addRole': input['addRole'] == true,
-      'removeRole': input['removeRole'] == true,
-      'sendMessage': input['sendMessage'] == true,
-      'sendMessageText': (input['sendMessageText'] ?? '').toString(),
-    };
+  List<CommandOptionBuilder> get _effectiveOptions {
+    if (!_supportsCommandOptions) {
+      return <CommandOptionBuilder>[];
+    }
+    return _isSimpleMode ? _buildSimpleModeOptions() : _options;
   }
-
-  void _applySimpleConfig(Map<String, dynamic> config) {
-    final normalized = _normalizeSimpleConfig(config);
-    _simpleDeleteMessages = normalized['deleteMessages'] == true;
-    _simpleKickUser = normalized['kickUser'] == true;
-    _simpleBanUser = normalized['banUser'] == true;
-    _simpleMuteUser = normalized['muteUser'] == true;
-    _simpleAddRole = normalized['addRole'] == true;
-    _simpleRemoveRole = normalized['removeRole'] == true;
-    _simpleSendMessage = normalized['sendMessage'] == true;
-    _simpleSendMessageController.text =
-        (normalized['sendMessageText'] ?? '').toString();
-  }
-
-  Map<String, dynamic> _currentSimpleConfig() {
-    return _normalizeSimpleConfig({
-      'deleteMessages': _simpleDeleteMessages,
-      'kickUser': _simpleKickUser,
-      'banUser': _simpleBanUser,
-      'muteUser': _simpleMuteUser,
-      'addRole': _simpleAddRole,
-      'removeRole': _simpleRemoveRole,
-      'sendMessage': _simpleSendMessage,
-      'sendMessageText': _simpleSendMessageController.text,
-    });
-  }
-
-  List<CommandOptionBuilder> _buildSimpleModeOptions() {
-    final options = <CommandOptionBuilder>[];
-
-    if (_requiresSimpleUserOption) {
-      options.add(
-        CommandOptionBuilder(
-          type: CommandOptionType.user,
-          name: 'user',
-          description: AppStrings.t('cmd_simple_option_user_desc'),
-          isRequired: true,
-        ),
-      );
-    }
-
-    if (_requiresSimpleRoleOption) {
-      options.add(
-        CommandOptionBuilder(
-          type: CommandOptionType.role,
-          name: 'role',
-          description: AppStrings.t('cmd_simple_option_role_desc'),
-          isRequired: true,
-        ),
-      );
-    }
-
-    if (_simpleDeleteMessages) {
-      options.add(
-        CommandOptionBuilder(
-          type: CommandOptionType.integer,
-          name: 'count',
-          description: AppStrings.t('cmd_simple_option_count_desc'),
-          isRequired: false,
-          minValue: 1,
-          maxValue: 100,
-        ),
-      );
-    }
-
-    return options;
-  }
-
-  List<Map<String, dynamic>> _buildSimpleModeActions() {
-    final actions = <Map<String, dynamic>>[];
-
-    Map<String, dynamic> makeAction({
-      required String key,
-      required String type,
-      required Map<String, dynamic> payload,
-    }) {
-      return {
-        'id': key,
-        'type': type,
-        'enabled': true,
-        'key': key,
-        'depend_on': <String>[],
-        'error': {'mode': 'stop'},
-        'payload': payload,
-      };
-    }
-
-    if (_simpleDeleteMessages) {
-      actions.add(
-        makeAction(
-          key: 'delete_messages',
-          type: 'deleteMessages',
-          payload: {'channelId': '', 'messageCount': '((opts.count | 1))'},
-        ),
-      );
-    }
-
-    if (_simpleKickUser) {
-      actions.add(
-        makeAction(
-          key: 'kick_user',
-          type: 'kickUser',
-          payload: {'userId': '((opts.user.id))', 'reason': ''},
-        ),
-      );
-    }
-
-    if (_simpleBanUser) {
-      actions.add(
-        makeAction(
-          key: 'ban_user',
-          type: 'banUser',
-          payload: {
-            'userId': '((opts.user.id))',
-            'reason': '',
-            'deleteMessageDays': 0,
-          },
-        ),
-      );
-    }
-
-    if (_simpleMuteUser) {
-      actions.add(
-        makeAction(
-          key: 'mute_user',
-          type: 'muteUser',
-          payload: {
-            'userId': '((opts.user.id))',
-            'duration': '10m',
-            'reason': '',
-          },
-        ),
-      );
-    }
-
-    if (_simpleAddRole) {
-      actions.add(
-        makeAction(
-          key: 'add_role',
-          type: 'addRole',
-          payload: {
-            'userId': '((opts.user.id))',
-            'roleId': '((opts.role.id))',
-            'reason': '',
-          },
-        ),
-      );
-    }
-
-    if (_simpleRemoveRole) {
-      actions.add(
-        makeAction(
-          key: 'remove_role',
-          type: 'removeRole',
-          payload: {
-            'userId': '((opts.user.id))',
-            'roleId': '((opts.role.id))',
-            'reason': '',
-          },
-        ),
-      );
-    }
-
-    if (_simpleSendMessage) {
-      actions.add(
-        makeAction(
-          key: 'send_message',
-          type: 'sendMessage',
-          payload: {
-            'channelId': '',
-            'content': _simpleSendMessageController.text.trim(),
-          },
-        ),
-      );
-    }
-
-    return actions;
-  }
-
-  List<CommandOptionBuilder> get _effectiveOptions =>
-      _isSimpleMode ? _buildSimpleModeOptions() : _options;
 
   List<Map<String, dynamic>> get _effectiveActions =>
       _isSimpleMode ? _buildSimpleModeActions() : _actions;
 
-  List<Map<String, dynamic>> _normalizeEmbedsPayload(dynamic rawEmbeds) {
-    if (rawEmbeds is! List) {
-      return <Map<String, dynamic>>[];
-    }
-
-    return rawEmbeds
-        .whereType<Map>()
-        .map((embed) {
-          return Map<String, dynamic>.from(
-            embed.map((key, value) => MapEntry(key.toString(), value)),
-          );
-        })
-        .take(10)
-        .toList(growable: false);
-  }
-
-  Map<String, dynamic> _normalizeWorkflow(Map<String, dynamic> input) {
-    final conditional = Map<String, dynamic>.from(
-      (input['conditional'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-
-    return {
-      'autoDeferIfActions': input['autoDeferIfActions'] != false,
-      'visibility':
-          (input['visibility']?.toString().toLowerCase() == 'ephemeral')
-              ? 'ephemeral'
-              : 'public',
-      'onError': 'edit_error',
-      'conditional': {
-        'enabled': conditional['enabled'] == true,
-        'variable': (conditional['variable'] ?? '').toString(),
-        'whenTrueType': (conditional['whenTrueType'] ?? 'normal').toString(),
-        'whenFalseType': (conditional['whenFalseType'] ?? 'normal').toString(),
-        'whenTrueText': (conditional['whenTrueText'] ?? '').toString(),
-        'whenFalseText': (conditional['whenFalseText'] ?? '').toString(),
-        'whenTrueEmbeds': _normalizeEmbedsPayload(
-          conditional['whenTrueEmbeds'],
-        ),
-        'whenFalseEmbeds': _normalizeEmbedsPayload(
-          conditional['whenFalseEmbeds'],
-        ),
-        'whenTrueNormalComponents': Map<String, dynamic>.from(
-          (conditional['whenTrueNormalComponents'] as Map?)
-                  ?.cast<String, dynamic>() ??
-              const {},
-        ),
-        'whenFalseNormalComponents': Map<String, dynamic>.from(
-          (conditional['whenFalseNormalComponents'] as Map?)
-                  ?.cast<String, dynamic>() ??
-              const {},
-        ),
-        'whenTrueComponents': Map<String, dynamic>.from(
-          (conditional['whenTrueComponents'] as Map?)
-                  ?.cast<String, dynamic>() ??
-              const {},
-        ),
-        'whenFalseComponents': Map<String, dynamic>.from(
-          (conditional['whenFalseComponents'] as Map?)
-                  ?.cast<String, dynamic>() ??
-              const {},
-        ),
-        'whenTrueModal': Map<String, dynamic>.from(
-          (conditional['whenTrueModal'] as Map?)?.cast<String, dynamic>() ??
-              const {},
-        ),
-        'whenFalseModal': Map<String, dynamic>.from(
-          (conditional['whenFalseModal'] as Map?)?.cast<String, dynamic>() ??
-              const {},
-        ),
-      },
-    };
-  }
-
-  String _workflowSummary() {
-    final visibility =
-        _responseWorkflow['visibility'] == 'ephemeral' ? 'Ephemeral' : 'Public';
-    final autoDefer = _responseWorkflow['autoDeferIfActions'] != false;
-    final conditional = Map<String, dynamic>.from(
-      (_responseWorkflow['conditional'] as Map?)?.cast<String, dynamic>() ??
-          const {},
-    );
-    final conditionEnabled = conditional['enabled'] == true;
-    final conditionLabel = conditionEnabled ? 'Condition ON' : 'Condition OFF';
-
-    return '${autoDefer ? 'Auto defer if actions' : 'No auto defer'} • $visibility • $conditionLabel';
-  }
-
   String? get _botIdForConfig =>
       widget.client?.user.id.toString() ?? widget.botId;
-
-  final List<Map<String, String>> _argsList = [
-    {"name": "guildName", "description": "Name of the guild"},
-    {"name": "guildId", "description": "ID of the guild"},
-    {"name": "channelName", "description": "Name of the channel"},
-    {"name": "channelId", "description": "ID of the channel"},
-    {"name": "userName", "description": "Name of the user"},
-    {"name": "userId", "description": "ID of the user"},
-    {"name": "userTag", "description": "Tag of the user"},
-    {"name": "userAvatar", "description": "Avatar of the user"},
-    {"name": "guildIcon", "description": "Icon of the guild"},
-    {"name": "guildCount", "description": "Number of members in the guild"},
-    {"name": "commandName", "description": "Name of the command"},
-    {"name": "commandId", "description": "ID of the command"},
-    {
-      "name": "opts",
-      "description":
-          "Contain options resolved from the command (ex: opts.user.avatar) (if the opt was of type 'User' and named 'user')",
-    },
-    // Add more options as needed
-  ];
 
   @override
   void initState() {
@@ -440,6 +166,25 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     _responseController.dispose();
     _simpleSendMessageController.dispose();
     super.dispose();
+  }
+
+  void _applyStateUpdate(VoidCallback callback) {
+    if (!mounted) {
+      return;
+    }
+    setState(callback);
+  }
+
+  void _openDocumentationCenter() {
+    Navigator.push(
+      context,
+      MaterialPageRoute<void>(
+        builder:
+            (_) => const WorkflowDocumentationPage(
+              initialSearch: 'commandType target opts template variables',
+            ),
+      ),
+    );
   }
 
   Future<void> _init() async {
@@ -560,7 +305,15 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         if (!mounted) return;
         setState(() {
           _editorMode = editorMode;
-          _simpleModeLocked = editorMode == _editorModeAdvanced;
+          final savedType = _commandTypeFromText(
+            (normalizedData['commandType'] ?? commandData['type'] ?? '')
+                .toString(),
+          );
+          _commandType = savedType ?? _commandType;
+          if (!_supportsSimpleMode) {
+            _editorMode = _editorModeAdvanced;
+          }
+          _simpleModeLocked = _editorMode == _editorModeAdvanced;
           _applySimpleConfig(simpleConfig);
           _responseType = (response['type'] ?? 'normal').toString();
           _response = (response["text"] ?? "").toString();
@@ -615,6 +368,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           if (localDescription.isNotEmpty) {
             _commandDescription = localDescription;
           }
+          final localType = _commandTypeFromText(
+            (commandData['type'] ?? '').toString(),
+          );
+          if (localType != null) {
+            _commandType = localType;
+          }
           _isLoading = false;
           _isDataIncomplete = !hasFullLocalData;
         });
@@ -626,6 +385,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       setState(() {
         _commandName = currentCommand.name;
         _commandDescription = currentCommand.description;
+        _commandType = currentCommand.type;
         if (currentCommand.options != null) {
           _options =
               currentCommand.options!.map((e) {
@@ -675,6 +435,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           _defaultMemberPermissions =
               currentCommand.defaultMemberPermissions!.value.toString();
         }
+        if (!_supportsSimpleMode) {
+          _editorMode = _editorModeAdvanced;
+          _simpleModeLocked = true;
+        }
         _isLoading = false;
       });
     } else {
@@ -684,837 +448,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     }
   }
 
-  Future<void> _switchToAdvancedMode() async {
-    if (_simpleModeLocked || !_isSimpleMode) {
-      return;
-    }
-
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: Text(AppStrings.t('cmd_editor_mode_switch_adv_title')),
-                content: Text(
-                  AppStrings.t('cmd_editor_mode_switch_adv_content'),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: Text(AppStrings.t('cancel')),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: Text(
-                      AppStrings.t('cmd_editor_mode_switch_adv_confirm'),
-                    ),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
-
-    if (!confirmed || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _editorMode = _editorModeAdvanced;
-      _simpleModeLocked = true;
-    });
-  }
-
-  Widget _buildSimpleActionToggle({
-    required bool value,
-    required String title,
-    required String subtitle,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return CheckboxListTile(
-      value: value,
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      title: Text(title),
-      subtitle: Text(subtitle),
-      onChanged: (next) => onChanged(next == true),
-    );
-  }
-
-  Widget _buildEditorModeCard(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              AppStrings.t('cmd_editor_mode_title'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _isSimpleMode
-                  ? AppStrings.t('cmd_editor_mode_simple_desc')
-                  : AppStrings.t('cmd_editor_mode_advanced_desc'),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    _isSimpleMode ? Icons.auto_awesome : Icons.tune,
-                    color:
-                        _isSimpleMode
-                            ? const Color.fromRGBO(106, 15, 162, 1)
-                            : Colors.blueGrey,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _isSimpleMode
-                          ? AppStrings.t('cmd_editor_mode_simple')
-                          : AppStrings.t('cmd_editor_mode_advanced'),
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (_isSimpleMode) ...[
-              const SizedBox(height: 12),
-              FilledButton.tonalIcon(
-                onPressed: _simpleModeLocked ? null : _switchToAdvancedMode,
-                icon: const Icon(Icons.upgrade),
-                label: Text(AppStrings.t('cmd_editor_mode_switch_adv')),
-              ),
-            ] else ...[
-              const SizedBox(height: 12),
-              Text(
-                AppStrings.t('cmd_editor_mode_locked'),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSimpleActionsCard() {
-    final generatedOptionLabels = <String>[];
-    if (_requiresSimpleUserOption) {
-      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_user'));
-    }
-    if (_requiresSimpleRoleOption) {
-      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_role'));
-    }
-    if (_simpleDeleteMessages) {
-      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_count'));
-    }
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              AppStrings.t('cmd_simple_actions_title'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              AppStrings.t('cmd_simple_actions_desc'),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 12),
-            _buildSimpleActionToggle(
-              value: _simpleDeleteMessages,
-              title: AppStrings.t('cmd_simple_action_delete'),
-              subtitle: AppStrings.t('cmd_simple_action_delete_desc'),
-              onChanged: (value) {
-                setState(() {
-                  _simpleDeleteMessages = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleKickUser,
-              title: AppStrings.t('cmd_simple_action_kick'),
-              subtitle: AppStrings.t('cmd_simple_action_kick_desc'),
-              onChanged: (value) {
-                setState(() {
-                  _simpleKickUser = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleBanUser,
-              title: AppStrings.t('cmd_simple_action_ban'),
-              subtitle: AppStrings.t('cmd_simple_action_ban_desc'),
-              onChanged: (value) {
-                setState(() {
-                  _simpleBanUser = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleMuteUser,
-              title: AppStrings.t('cmd_simple_action_mute'),
-              subtitle: AppStrings.t('cmd_simple_action_mute_desc'),
-              onChanged: (value) {
-                setState(() {
-                  _simpleMuteUser = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleAddRole,
-              title: AppStrings.t('cmd_simple_action_add_role'),
-              subtitle: AppStrings.t('cmd_simple_action_add_role_desc'),
-              onChanged: (value) {
-                setState(() {
-                  _simpleAddRole = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleRemoveRole,
-              title: AppStrings.t('cmd_simple_action_remove_role'),
-              subtitle: AppStrings.t('cmd_simple_action_remove_role_desc'),
-              onChanged: (value) {
-                setState(() {
-                  _simpleRemoveRole = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleSendMessage,
-              title: AppStrings.t('cmd_simple_action_send_message'),
-              subtitle: AppStrings.t('cmd_simple_action_send_message_desc'),
-              onChanged: (value) {
-                setState(() {
-                  _simpleSendMessage = value;
-                });
-              },
-            ),
-            if (_simpleSendMessage) ...[
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _simpleSendMessageController,
-                minLines: 2,
-                maxLines: 4,
-                decoration: InputDecoration(
-                  labelText: AppStrings.t(
-                    'cmd_simple_action_send_message_label',
-                  ),
-                  hintText: AppStrings.t('cmd_simple_action_send_message_hint'),
-                  border: const OutlineInputBorder(),
-                ),
-                onChanged: (_) {
-                  if (mounted) {
-                    setState(() {});
-                  }
-                },
-              ),
-            ],
-            const SizedBox(height: 12),
-            Text(
-              AppStrings.t('cmd_simple_generated_options'),
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            if (generatedOptionLabels.isEmpty)
-              Text(
-                AppStrings.t('cmd_simple_generated_none'),
-                style: TextStyle(color: Colors.grey.shade600),
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children:
-                    generatedOptionLabels
-                        .map((label) => Chip(label: Text(label)))
-                        .toList(),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSimpleResponseCard() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              AppStrings.t('cmd_simple_response_title'),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              AppStrings.t('cmd_simple_response_desc'),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _responseController,
-              minLines: 3,
-              maxLines: 6,
-              decoration: InputDecoration(
-                hintText: AppStrings.t('cmd_simple_response_hint'),
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            _buildVariableSuggestionBar(_responseController),
-            const SizedBox(height: 12),
-            Text(
-              AppStrings.t('cmd_simple_response_embeds_title'),
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              AppStrings.t('cmd_simple_response_embeds_desc'),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const SizedBox(height: 8),
-            ResponseEmbedsEditor(
-              embeds: _responseEmbeds,
-              variableSuggestions: _actionVariableSuggestions,
-              onChanged: (embeds) {
-                setState(() {
-                  _responseEmbeds = embeds;
-                });
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Map<String, dynamic> _buildCommandDataPayload({
-    required List<Map<String, dynamic>> effectiveActions,
-  }) {
-    return {
-      "version": 1,
-      "editorMode": _editorMode,
-      "simpleConfig": _currentSimpleConfig(),
-      "defaultMemberPermissions": _defaultMemberPermissions.trim(),
-      "response": {
-        "mode": _responseEmbeds.isNotEmpty ? "embed" : "text",
-        "type": _responseType,
-        "text": _responseController.text,
-        "embed":
-            _responseEmbeds.isNotEmpty
-                ? _responseEmbeds.first
-                : {"title": "", "description": "", "url": ""},
-        "embeds": _responseEmbeds.take(10).toList(),
-        "components": _responseComponents,
-        "modal": _responseModal,
-        "workflow": _normalizeWorkflow(_responseWorkflow),
-      },
-      "actions": effectiveActions,
-    };
-  }
-
-  Map<String, dynamic> _serializeOption(CommandOptionBuilder option) {
-    return <String, dynamic>{
-      'type': _commandOptionTypeToText(option.type),
-      'name': option.name,
-      'description': option.description,
-      'required': option.isRequired,
-      if (option.minValue != null) 'minValue': option.minValue,
-      if (option.maxValue != null) 'maxValue': option.maxValue,
-      if (option.choices?.isNotEmpty == true)
-        'choices': option.choices!
-            .map((choice) => {'name': choice.name, 'value': choice.value})
-            .toList(growable: false),
-    };
-  }
-
-  List<Map<String, dynamic>> _serializeOptions(
-    List<CommandOptionBuilder> options,
-  ) {
-    return options.map(_serializeOption).toList(growable: false);
-  }
-
-  CommandOptionBuilder _deserializeOption(Map<String, dynamic> raw) {
-    final typeName = (raw['type'] ?? '').toString();
-    final type = _commandOptionTypeFromText(typeName);
-
-    final option = CommandOptionBuilder(
-      type: type,
-      name: (raw['name'] ?? '').toString(),
-      description: (raw['description'] ?? '').toString(),
-      isRequired: raw['required'] == true,
-      minValue: raw['minValue'] as num?,
-      maxValue: raw['maxValue'] as num?,
-    );
-
-    final choicesRaw = raw['choices'];
-    if (choicesRaw is List) {
-      option.choices = choicesRaw
-          .whereType<Map>()
-          .map(
-            (choice) => CommandOptionChoiceBuilder(
-              name: (choice['name'] ?? '').toString(),
-              value: (choice['value'] ?? '').toString(),
-            ),
-          )
-          .toList(growable: false);
-    }
-
-    return option;
-  }
-
-  String _normalizeScopedKeyForImport(String rawKey) {
-    final key = rawKey.trim();
-    if (key.isEmpty) {
-      return key;
-    }
-    if (key.startsWith('bc_') && key.length > 3) {
-      return key.substring(3);
-    }
-    return key;
-  }
-
-  String _toScopedReferenceName(String rawKey) {
-    final key = rawKey.trim();
-    if (key.isEmpty) {
-      return key;
-    }
-    return key.startsWith('bc_') ? key : 'bc_$key';
-  }
-
-  List<Map<String, dynamic>> _normalizeImportedScopedActionKeys(
-    List<Map<String, dynamic>> actions,
-  ) {
-    return actions
-        .map((raw) {
-          final action = Map<String, dynamic>.from(raw);
-          final type = (action['type'] ?? '').toString().trim();
-          if (type != 'setScopedVariable' &&
-              type != 'getScopedVariable' &&
-              type != 'removeScopedVariable' &&
-              type != 'renameScopedVariable') {
-            return action;
-          }
-
-          final payload = Map<String, dynamic>.from(
-            (action['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
-          );
-          if (type == 'renameScopedVariable') {
-            payload['oldKey'] = _normalizeScopedKeyForImport(
-              (payload['oldKey'] ?? '').toString(),
-            );
-            payload['newKey'] = _normalizeScopedKeyForImport(
-              (payload['newKey'] ?? '').toString(),
-            );
-          } else {
-            payload['key'] = _normalizeScopedKeyForImport(
-              (payload['key'] ?? '').toString(),
-            );
-          }
-
-          action['payload'] = payload;
-          return action;
-        })
-        .toList(growable: false);
-  }
-
-  Map<String, dynamic> _buildCommandSharePayload() {
-    final effectiveOptions = _effectiveOptions;
-    final effectiveActions = _effectiveActions;
-    final commandData = _buildCommandDataPayload(
-      effectiveActions: effectiveActions,
-    );
-
-    return <String, dynamic>{
-      'version': 1,
-      'type': 'bot_creator_command',
-      'command': <String, dynamic>{
-        'name': _commandName,
-        'description': _commandDescription,
-        'integrationTypes': _integrationTypes
-            .map(_integrationTypeToText)
-            .toList(growable: false),
-        'contexts': _contexts.map(_contextTypeToText).toList(growable: false),
-        'options': _serializeOptions(effectiveOptions),
-        'data': commandData,
-      },
-    };
-  }
-
-  String _commandOptionTypeToText(CommandOptionType type) {
-    if (type == CommandOptionType.subCommand) return 'subCommand';
-    if (type == CommandOptionType.subCommandGroup) return 'subCommandGroup';
-    if (type == CommandOptionType.string) return 'string';
-    if (type == CommandOptionType.integer) return 'integer';
-    if (type == CommandOptionType.boolean) return 'boolean';
-    if (type == CommandOptionType.user) return 'user';
-    if (type == CommandOptionType.channel) return 'channel';
-    if (type == CommandOptionType.role) return 'role';
-    if (type == CommandOptionType.mentionable) return 'mentionable';
-    if (type == CommandOptionType.number) return 'number';
-    if (type == CommandOptionType.attachment) return 'attachment';
-    return 'string';
-  }
-
-  CommandOptionType _commandOptionTypeFromText(String text) {
-    final normalized = text.trim().toLowerCase();
-    switch (normalized) {
-      case 'subcommand':
-        return CommandOptionType.subCommand;
-      case 'subcommandgroup':
-        return CommandOptionType.subCommandGroup;
-      case 'integer':
-        return CommandOptionType.integer;
-      case 'boolean':
-        return CommandOptionType.boolean;
-      case 'user':
-        return CommandOptionType.user;
-      case 'channel':
-        return CommandOptionType.channel;
-      case 'role':
-        return CommandOptionType.role;
-      case 'mentionable':
-        return CommandOptionType.mentionable;
-      case 'number':
-        return CommandOptionType.number;
-      case 'attachment':
-        return CommandOptionType.attachment;
-      case 'string':
-      default:
-        return CommandOptionType.string;
-    }
-  }
-
-  String _integrationTypeToText(ApplicationIntegrationType type) {
-    if (type == ApplicationIntegrationType.guildInstall) {
-      return 'guildInstall';
-    }
-    if (type == ApplicationIntegrationType.userInstall) {
-      return 'userInstall';
-    }
-    return 'guildInstall';
-  }
-
-  ApplicationIntegrationType? _integrationTypeFromText(String text) {
-    final normalized = text.trim().toLowerCase();
-    switch (normalized) {
-      case 'guildinstall':
-        return ApplicationIntegrationType.guildInstall;
-      case 'userinstall':
-        return ApplicationIntegrationType.userInstall;
-      default:
-        return null;
-    }
-  }
-
-  String _contextTypeToText(InteractionContextType type) {
-    if (type == InteractionContextType.guild) {
-      return 'guild';
-    }
-    if (type == InteractionContextType.botDm) {
-      return 'botDm';
-    }
-    if (type == InteractionContextType.privateChannel) {
-      return 'privateChannel';
-    }
-    return 'guild';
-  }
-
-  InteractionContextType? _contextTypeFromText(String text) {
-    final normalized = text.trim().toLowerCase();
-    switch (normalized) {
-      case 'guild':
-        return InteractionContextType.guild;
-      case 'botdm':
-        return InteractionContextType.botDm;
-      case 'privatechannel':
-        return InteractionContextType.privateChannel;
-      default:
-        return null;
-    }
-  }
-
-  Future<void> _copyCommandPayload({required bool asBase64}) async {
-    final payload = _buildCommandSharePayload();
-    final jsonText = const JsonEncoder.withIndent('  ').convert(payload);
-    final text = asBase64 ? base64Encode(utf8.encode(jsonText)) : jsonText;
-    await Clipboard.setData(ClipboardData(text: text));
-
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          asBase64 ? 'Command copied as Base64.' : 'Command copied as JSON.',
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showCommandExportOptions() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.data_object_outlined),
-                title: const Text('Export command as JSON'),
-                subtitle: const Text('Copy readable JSON to clipboard'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _copyCommandPayload(asBase64: false);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.key_outlined),
-                title: const Text('Export command as Base64'),
-                subtitle: const Text(
-                  'Copy compact Base64 payload to clipboard',
-                ),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await _copyCommandPayload(asBase64: true);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _importCommandPayload() async {
-    final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
-    final initialText = (clipboard?.text ?? '').trim();
-    final controller = TextEditingController(text: initialText);
-
-    final shouldImport = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Import command'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('Paste a command payload (JSON or Base64).'),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: controller,
-                  minLines: 6,
-                  maxLines: 12,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText: 'Command payload',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(AppStrings.t('cancel')),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Import'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (shouldImport != true) {
-      return;
-    }
-
-    final rawInput = controller.text.trim();
-    if (rawInput.isEmpty) {
-      return;
-    }
-
-    dynamic decoded;
-    try {
-      if (rawInput.startsWith('{') || rawInput.startsWith('[')) {
-        decoded = jsonDecode(rawInput);
-      } else {
-        final jsonText = utf8.decode(base64Decode(rawInput));
-        decoded = jsonDecode(jsonText);
-      }
-    } catch (_) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid command payload format.')),
-      );
-      return;
-    }
-
-    if (decoded is! Map) {
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid command payload structure.')),
-      );
-      return;
-    }
-
-    final map = Map<String, dynamic>.from(decoded);
-    final commandRoot =
-        map['command'] is Map
-            ? Map<String, dynamic>.from(
-              (map['command'] as Map).cast<String, dynamic>(),
-            )
-            : map;
-
-    final commandDataRaw =
-        commandRoot['data'] is Map
-            ? Map<String, dynamic>.from(
-              (commandRoot['data'] as Map).cast<String, dynamic>(),
-            )
-            : commandRoot;
-
-    final normalizedData = appManager.normalizeCommandData(<String, dynamic>{
-      'data': commandDataRaw,
-    });
-    final normalizedPayload = Map<String, dynamic>.from(
-      normalizedData['data'] as Map? ?? const {},
-    );
-
-    final response = Map<String, dynamic>.from(
-      (normalizedPayload['response'] as Map?)?.cast<String, dynamic>() ??
-          const {},
-    );
-
-    final optionsRaw =
-        (commandRoot['options'] as List?) ??
-        (commandDataRaw['options'] as List?) ??
-        const [];
-    final importedOptions = optionsRaw
-        .whereType<Map>()
-        .map((entry) => _deserializeOption(Map<String, dynamic>.from(entry)))
-        .toList(growable: false);
-
-    final integrationTypeNames =
-        ((commandRoot['integrationTypes'] as List?) ?? const [])
-            .map((entry) => entry.toString())
-            .toSet();
-    final importedIntegrationTypes = integrationTypeNames
-        .map(_integrationTypeFromText)
-        .whereType<ApplicationIntegrationType>()
-        .toList(growable: false);
-
-    final contextNames =
-        ((commandRoot['contexts'] as List?) ?? const [])
-            .map((entry) => entry.toString())
-            .toSet();
-    final importedContexts = contextNames
-        .map(_contextTypeFromText)
-        .whereType<InteractionContextType>()
-        .toList(growable: false);
-
-    if (!mounted) {
-      return;
-    }
-    setState(() {
-      _commandName = (commandRoot['name'] ?? '').toString();
-      _commandDescription = (commandRoot['description'] ?? '').toString();
-
-      final persistedEditorMode =
-          (normalizedPayload['editorMode'] ?? _editorModeAdvanced)
-              .toString()
-              .toLowerCase();
-      _editorMode =
-          persistedEditorMode == _editorModeSimple
-              ? _editorModeSimple
-              : _editorModeAdvanced;
-      _simpleModeLocked = _editorMode == _editorModeAdvanced;
-
-      final simpleConfig = _normalizeSimpleConfig(
-        Map<String, dynamic>.from(
-          (normalizedPayload['simpleConfig'] as Map?)
-                  ?.cast<String, dynamic>() ??
-              const {},
-        ),
-      );
-      _applySimpleConfig(simpleConfig);
-
-      _defaultMemberPermissions =
-          (normalizedPayload['defaultMemberPermissions'] ?? '')
-              .toString()
-              .trim();
-
-      _responseType = (response['type'] ?? 'normal').toString();
-      _response = (response['text'] ?? '').toString();
-      _responseController.text = _response;
-      _responseEmbeds = _normalizeEmbedsPayload(response['embeds']);
-      _responseComponents = Map<String, dynamic>.from(
-        (response['components'] as Map?)?.cast<String, dynamic>() ?? const {},
-      );
-      _responseModal = Map<String, dynamic>.from(
-        (response['modal'] as Map?)?.cast<String, dynamic>() ?? const {},
-      );
-      _responseWorkflow = _normalizeWorkflow(
-        Map<String, dynamic>.from(
-          (response['workflow'] as Map?)?.cast<String, dynamic>() ??
-              _defaultWorkflow(),
-        ),
-      );
-
-      _actions = _normalizeImportedScopedActionKeys(
-        List<Map<String, dynamic>>.from(
-          (normalizedPayload['actions'] as List?)?.whereType<Map>().map(
-                (entry) => Map<String, dynamic>.from(entry),
-              ) ??
-              const <Map<String, dynamic>>[],
-        ),
-      );
-
-      if (importedOptions.isNotEmpty) {
-        _options = importedOptions;
-      }
-      if (importedIntegrationTypes.isNotEmpty) {
-        _integrationTypes = importedIntegrationTypes;
-      }
-      if (importedContexts.isNotEmpty) {
-        _contexts = importedContexts;
-      }
-
-      _isDataIncomplete = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Command imported into editor.')),
-    );
-  }
-
   Future<void> _updateOrCreate() async {
     // check if any field is empty
-    if (_commandName.isEmpty || _commandDescription.isEmpty) {
+    if (_commandName.isEmpty ||
+        (_supportsCommandDescription && _commandDescription.isEmpty)) {
       final dialog = AlertDialog(
         title: Text(AppStrings.t('error')),
         content: Text(AppStrings.t('cmd_error_fill_fields')),
@@ -1579,7 +516,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     Future<void> saveLocal(String commandId) async {
       final localPayload = <String, dynamic>{
         'name': _commandName,
-        'description': _commandDescription,
+        'description': _effectiveCommandDescription,
+        'type': _commandTypeToText(_commandType),
         'id': commandId,
         'updatedAt': DateTime.now().toIso8601String(),
         'data': commandData,
@@ -1606,11 +544,20 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     try {
       if (widget.id.isZero) {
         // Create a new command
-        final commandBuilder = ApplicationCommandBuilder(
-          name: _commandName,
-          description: _commandDescription,
-          type: ApplicationCommandType.chatInput,
-        );
+        final ApplicationCommandBuilder commandBuilder;
+        if (_commandType == ApplicationCommandType.user) {
+          commandBuilder = ApplicationCommandBuilder.user(name: _commandName);
+        } else if (_commandType == ApplicationCommandType.message) {
+          commandBuilder = ApplicationCommandBuilder.message(
+            name: _commandName,
+          );
+        } else {
+          commandBuilder = ApplicationCommandBuilder.chatInput(
+            name: _commandName,
+            description: _commandDescription,
+            options: effectiveOptions,
+          );
+        }
 
         final parsedPermissions = _parseDefaultMemberPermissions(
           _defaultMemberPermissions,
@@ -1621,16 +568,24 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         if (_contexts.isNotEmpty) {
           commandBuilder.contexts = _contexts;
         }
-        if (effectiveOptions.isNotEmpty) {
-          commandBuilder.options = effectiveOptions;
-        }
         await createCommand(client, commandBuilder, data: commandData);
       } else {
         // Update the existing command
-        final commandBuilder = ApplicationCommandUpdateBuilder(
-          name: _commandName,
-          description: _commandDescription,
-        );
+        final ApplicationCommandUpdateBuilder commandBuilder;
+        if (_commandType == ApplicationCommandType.user) {
+          commandBuilder = ApplicationCommandUpdateBuilder.user(
+            name: _commandName,
+          );
+        } else if (_commandType == ApplicationCommandType.message) {
+          commandBuilder = ApplicationCommandUpdateBuilder.message(
+            name: _commandName,
+          );
+        } else {
+          commandBuilder = ApplicationCommandUpdateBuilder.chatInput(
+            name: _commandName,
+            description: _commandDescription,
+          );
+        }
         final parsedPermissions = _parseDefaultMemberPermissions(
           _defaultMemberPermissions,
         );
@@ -1641,10 +596,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         } else {
           commandBuilder.contexts = [];
         }
-        if (effectiveOptions.isNotEmpty) {
-          commandBuilder.options = effectiveOptions;
-        } else {
-          commandBuilder.options = [];
+        if (_commandType == ApplicationCommandType.chatInput) {
+          if (effectiveOptions.isNotEmpty) {
+            commandBuilder.options = effectiveOptions;
+          } else {
+            commandBuilder.options = [];
+          }
         }
 
         await updateCommand(
@@ -1678,602 +635,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     }
   }
 
-  String? _validateName(String? value) {
-    if (value!.isEmpty) {
-      return "Please enter a command name";
-    }
-    if (value.length > 32) {
-      return "Command name must be at most 32 characters long";
-    }
-    if (value.contains(" ")) {
-      return "Command name cannot contain spaces";
-    }
-    if (value.contains(RegExp(r'[^a-zA-Z0-9_]'))) {
-      return "Command name can only contain letters, numbers, and underscores";
-    }
-    if (value.startsWith("_")) {
-      return "Command name cannot start with an underscore";
-    }
-    if (value.startsWith("!")) {
-      return "Command name cannot start with an exclamation mark";
-    }
-    if (value.startsWith("/")) {
-      return "Command name cannot start with a slash";
-    }
-    if (value.startsWith("#")) {
-      return "Command name cannot start with a hash";
-    }
-    if (value.startsWith("@")) {
-      return "Command name cannot start with an at sign";
-    }
-    if (value.startsWith("&")) {
-      return "Command name cannot start with an ampersand";
-    }
-    if (value.startsWith("%")) {
-      return "Command name cannot start with a percent sign";
-    }
-    return null; // No error
-  }
-
-  bool _validateCommandInputs() {
-    final nameError = _validateName(_commandName);
-    if (nameError != null) {
-      showDialog(
-        context: context,
-        builder:
-            (context) => AlertDialog(
-              title: Text(AppStrings.t('error')),
-              content: Text(nameError),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(AppStrings.t('ok')),
-                ),
-              ],
-            ),
-      );
-      return false;
-    }
-
-    return true;
-  }
-
-  Permissions? _parseDefaultMemberPermissions(String raw) {
-    final trimmed = raw.trim();
-    if (trimmed.isEmpty) {
-      return null;
-    }
-    final parsed = int.tryParse(trimmed);
-    if (parsed == null || parsed < 0) {
-      throw Exception(
-        'Invalid default member permissions bitfield. Use a positive integer or leave empty.',
-      );
-    }
-    return Permissions(parsed);
-  }
-
-  Future<void> _refreshPersistedVariableNames() async {
-    final botId = _botIdForConfig;
-    if (botId == null || botId.trim().isEmpty) {
-      return;
-    }
-
-    try {
-      final globals = await appManager.getGlobalVariables(botId);
-      _persistedGlobalVariableNames =
-          globals.keys
-              .map((key) => 'global.$key')
-              .where((name) => name.trim().isNotEmpty)
-              .toSet();
-
-      final scopedDefinitions = await appManager.getScopedVariableDefinitions(
-        botId,
-      );
-      final scopedNames = <String>{};
-      for (final definition in scopedDefinitions) {
-        final scope = (definition['scope'] ?? '').toString().trim();
-        final storageKey = (definition['key'] ?? '').toString().trim();
-        if (scope.isEmpty || storageKey.isEmpty) {
-          continue;
-        }
-        scopedNames.add('$scope.${_toScopedReferenceName(storageKey)}');
-      }
-      _scopedVariableSuggestionNames =
-          scopedNames.isEmpty
-              ? <String>{
-                'guild.bc_key',
-                'user.bc_key',
-                'channel.bc_key',
-                'guildMember.bc_key',
-                'message.bc_key',
-              }
-              : scopedNames;
-    } catch (_) {
-      // Keep editor resilient if local persistence is temporarily unavailable.
-      _persistedGlobalVariableNames = <String>{};
-      _scopedVariableSuggestionNames = <String>{
-        'guild.bc_key',
-        'user.bc_key',
-        'channel.bc_key',
-        'guildMember.bc_key',
-        'message.bc_key',
-      };
-    }
-  }
-
-  List<String> get _variableNames {
-    final base = _argsList
-        .map((e) => e['name'])
-        .whereType<String>()
-        .toList(growable: true);
-
-    for (final option in _effectiveOptions) {
-      final optionName = option.name;
-      if (optionName.isEmpty) {
-        continue;
-      }
-
-      base.add('opts.$optionName');
-
-      switch (option.type) {
-        case CommandOptionType.user:
-        case CommandOptionType.mentionable:
-          base.addAll(['opts.$optionName.id', 'opts.$optionName.avatar']);
-          break;
-        case CommandOptionType.channel:
-          base.addAll(['opts.$optionName.id', 'opts.$optionName.type']);
-          break;
-        case CommandOptionType.role:
-          base.add('opts.$optionName.id');
-          break;
-        default:
-          break;
-      }
-    }
-
-    base.addAll(_actionOutputVariableNames());
-    base.addAll(_persistedGlobalVariableNames);
-    base.addAll(_scopedVariableSuggestionNames);
-
-    return base.toSet().toList(growable: false)..sort();
-  }
-
-  String _resolveActionKey(Map<String, dynamic> action, int index) {
-    final rootKey = (action['key'] ?? '').toString().trim();
-    if (rootKey.isNotEmpty) {
-      return rootKey;
-    }
-
-    final parameters = Map<String, dynamic>.from(
-      (action['parameters'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-    final parametersKey = (parameters['key'] ?? '').toString().trim();
-    if (parametersKey.isNotEmpty) {
-      return parametersKey;
-    }
-
-    final payload = Map<String, dynamic>.from(
-      (action['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-    final payloadKey = (payload['key'] ?? '').toString().trim();
-    if (payloadKey.isNotEmpty) {
-      return payloadKey;
-    }
-
-    return 'action_$index';
-  }
-
-  String _readActionStringParameter(Map<String, dynamic> action, String key) {
-    final rootValue = (action[key] ?? '').toString().trim();
-    if (rootValue.isNotEmpty) {
-      return rootValue;
-    }
-
-    final parameters = Map<String, dynamic>.from(
-      (action['parameters'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-    final parametersValue = (parameters[key] ?? '').toString().trim();
-    if (parametersValue.isNotEmpty) {
-      return parametersValue;
-    }
-
-    final payload = Map<String, dynamic>.from(
-      (action['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-    return (payload[key] ?? '').toString().trim();
-  }
-
-  bool _looksLikeTemplateValue(String value) {
-    return value.contains('((') || value.contains('))');
-  }
-
-  String _resolveActionStoreAlias(Map<String, dynamic> action) {
-    final type = (action['type'] ?? '').toString().trim();
-    final explicitStoreAs = _readActionStringParameter(action, 'storeAs');
-    if (explicitStoreAs.isNotEmpty &&
-        !_looksLikeTemplateValue(explicitStoreAs)) {
-      return explicitStoreAs;
-    }
-
-    if (type == 'getGlobalVariable') {
-      final key = _readActionStringParameter(action, 'key');
-      if (key.isNotEmpty && !_looksLikeTemplateValue(key)) {
-        return 'global.$key';
-      }
-    }
-
-    if (type == 'getScopedVariable') {
-      final scope = _readActionStringParameter(action, 'scope');
-      final key = _readActionStringParameter(action, 'key');
-      if (scope.isNotEmpty && key.isNotEmpty) {
-        if (!_looksLikeTemplateValue(scope) && !_looksLikeTemplateValue(key)) {
-          return '$scope.${_toScopedReferenceName(key)}';
-        }
-      }
-    }
-
-    return '';
-  }
-
-  List<Map<String, dynamic>> _flattenActionTree(
-    List<Map<String, dynamic>> actions,
-  ) {
-    final flattened = <Map<String, dynamic>>[];
-
-    void visit(List<Map<String, dynamic>> current) {
-      for (final rawAction in current) {
-        final action = Map<String, dynamic>.from(rawAction);
-        flattened.add(action);
-
-        final payload = Map<String, dynamic>.from(
-          (action['payload'] as Map?)?.cast<String, dynamic>() ??
-              (action['parameters'] as Map?)?.cast<String, dynamic>() ??
-              const {},
-        );
-
-        for (final branchKey in const ['thenActions', 'elseActions']) {
-          final nestedRaw = payload[branchKey];
-          if (nestedRaw is! List) {
-            continue;
-          }
-
-          final nested = nestedRaw
-              .whereType<Map>()
-              .map((entry) => Map<String, dynamic>.from(entry))
-              .toList(growable: false);
-          if (nested.isNotEmpty) {
-            visit(nested);
-          }
-        }
-      }
-    }
-
-    visit(actions);
-    return flattened;
-  }
-
-  List<String> _actionOutputVariableNames() {
-    final outputVariables = <String>{};
-
-    final actions = _flattenActionTree(_effectiveActions);
-    for (var i = 0; i < actions.length; i++) {
-      final action = actions[i];
-      final actionKey = _resolveActionKey(action, i);
-      if (actionKey.isEmpty) {
-        continue;
-      }
-
-      outputVariables.add('action.$actionKey');
-
-      final type = (action['type'] ?? '').toString();
-      if (type == 'deleteMessages') {
-        outputVariables.addAll([
-          'action.$actionKey.count',
-          '$actionKey.count',
-          'action.$actionKey.deleteItself',
-          '$actionKey.deleteItself',
-        ]);
-      }
-
-      if (type == 'httpRequest') {
-        outputVariables.addAll([
-          'action.$actionKey.status',
-          'action.$actionKey.body',
-          'action.$actionKey.jsonPath',
-          '$actionKey.status',
-          '$actionKey.body',
-          '$actionKey.jsonPath',
-        ]);
-      }
-
-      final storeAlias = _resolveActionStoreAlias(action);
-      if (storeAlias.isNotEmpty) {
-        outputVariables.add(storeAlias);
-      }
-    }
-
-    return outputVariables.toList(growable: false)..sort();
-  }
-
-  List<VariableSuggestion> get _actionVariableSuggestions {
-    final suggestionsByName = <String, VariableSuggestion>{};
-
-    void addSuggestion(String name, {required VariableSuggestionKind kind}) {
-      final existing = suggestionsByName[name];
-      if (existing == null) {
-        suggestionsByName[name] = VariableSuggestion(name: name, kind: kind);
-        return;
-      }
-
-      if (existing.kind == VariableSuggestionKind.numeric ||
-          existing.kind == kind) {
-        return;
-      }
-
-      if (kind == VariableSuggestionKind.numeric) {
-        suggestionsByName[name] = VariableSuggestion(name: name, kind: kind);
-      }
-    }
-
-    for (final arg in _argsList) {
-      final name = (arg['name'] ?? '').toString().trim();
-      if (name.isEmpty) {
-        continue;
-      }
-
-      addSuggestion(
-        name,
-        kind:
-            name == 'guildCount'
-                ? VariableSuggestionKind.numeric
-                : VariableSuggestionKind.nonNumeric,
-      );
-    }
-
-    for (final option in _effectiveOptions) {
-      final optionName = option.name.trim();
-      if (optionName.isEmpty) {
-        continue;
-      }
-
-      addSuggestion('opts.$optionName', kind: VariableSuggestionKind.unknown);
-
-      switch (option.type) {
-        case CommandOptionType.integer:
-        case CommandOptionType.number:
-          addSuggestion(
-            'opts.$optionName',
-            kind: VariableSuggestionKind.numeric,
-          );
-          break;
-        case CommandOptionType.user:
-        case CommandOptionType.mentionable:
-          addSuggestion(
-            'opts.$optionName.id',
-            kind: VariableSuggestionKind.nonNumeric,
-          );
-          addSuggestion(
-            'opts.$optionName.avatar',
-            kind: VariableSuggestionKind.nonNumeric,
-          );
-          break;
-        case CommandOptionType.channel:
-          addSuggestion(
-            'opts.$optionName.id',
-            kind: VariableSuggestionKind.nonNumeric,
-          );
-          addSuggestion(
-            'opts.$optionName.type',
-            kind: VariableSuggestionKind.nonNumeric,
-          );
-          break;
-        case CommandOptionType.role:
-          addSuggestion(
-            'opts.$optionName.id',
-            kind: VariableSuggestionKind.nonNumeric,
-          );
-          break;
-        default:
-          break;
-      }
-    }
-
-    final actions = _flattenActionTree(_effectiveActions);
-    for (var i = 0; i < actions.length; i++) {
-      final action = actions[i];
-      final actionKey = _resolveActionKey(action, i);
-      if (actionKey.isEmpty) {
-        continue;
-      }
-      addSuggestion(actionKey, kind: VariableSuggestionKind.unknown);
-      addSuggestion('action.$actionKey', kind: VariableSuggestionKind.unknown);
-
-      final type = (action['type'] ?? '').toString();
-      if (type == 'httpRequest') {
-        addSuggestion(
-          'action.$actionKey.status',
-          kind: VariableSuggestionKind.numeric,
-        );
-        addSuggestion(
-          'action.$actionKey.body',
-          kind: VariableSuggestionKind.nonNumeric,
-        );
-        addSuggestion(
-          'action.$actionKey.jsonPath',
-          kind: VariableSuggestionKind.nonNumeric,
-        );
-        addSuggestion(
-          '$actionKey.status',
-          kind: VariableSuggestionKind.numeric,
-        );
-        addSuggestion(
-          '$actionKey.body',
-          kind: VariableSuggestionKind.nonNumeric,
-        );
-        addSuggestion(
-          '$actionKey.jsonPath',
-          kind: VariableSuggestionKind.nonNumeric,
-        );
-      }
-
-      final storeAlias = _resolveActionStoreAlias(action);
-      if (storeAlias.isNotEmpty) {
-        addSuggestion(storeAlias, kind: VariableSuggestionKind.unknown);
-      }
-    }
-
-    addSuggestion('workflow.name', kind: VariableSuggestionKind.nonNumeric);
-    addSuggestion(
-      'workflow.entryPoint',
-      kind: VariableSuggestionKind.nonNumeric,
-    );
-    addSuggestion('workflow.args', kind: VariableSuggestionKind.nonNumeric);
-    addSuggestion('arg.yourArg', kind: VariableSuggestionKind.unknown);
-    addSuggestion('workflow.arg.yourArg', kind: VariableSuggestionKind.unknown);
-
-    for (final name in _persistedGlobalVariableNames) {
-      addSuggestion(name, kind: VariableSuggestionKind.unknown);
-    }
-
-    for (final name in _scopedVariableSuggestionNames) {
-      addSuggestion(name, kind: VariableSuggestionKind.unknown);
-    }
-
-    final suggestions = suggestionsByName.values.toList(growable: false)
-      ..sort((a, b) => a.name.compareTo(b.name));
-
-    return suggestions;
-  }
-
-  String _currentVariableQuery(TextEditingController controller) {
-    final selection = controller.selection;
-    final cursor = selection.baseOffset;
-    if (cursor < 0) {
-      return '';
-    }
-
-    final beforeCursor = controller.text.substring(0, cursor);
-    final start = beforeCursor.lastIndexOf('((');
-    if (start == -1) {
-      return '';
-    }
-
-    final alreadyClosed = beforeCursor.substring(start).contains('))');
-    if (alreadyClosed) {
-      return '';
-    }
-
-    final raw = beforeCursor.substring(start + 2);
-    final parts = raw.split('|');
-    return parts.last.trimLeft();
-  }
-
-  void _insertVariable(TextEditingController controller, String variableName) {
-    final selection = controller.selection;
-    final cursor = selection.baseOffset;
-    if (cursor < 0) {
-      return;
-    }
-
-    final beforeCursor = controller.text.substring(0, cursor);
-    final afterCursor = controller.text.substring(cursor);
-    final start = beforeCursor.lastIndexOf('((');
-    if (start == -1) {
-      final token = '(($variableName))';
-      final nextText = '$beforeCursor$token$afterCursor';
-      final nextCursor = beforeCursor.length + token.length;
-      controller.value = TextEditingValue(
-        text: nextText,
-        selection: TextSelection.collapsed(offset: nextCursor),
-      );
-      return;
-    }
-
-    final rawInner = beforeCursor.substring(start + 2);
-    final parts = rawInner.split('|');
-    final prefixParts =
-        parts.length > 1 ? parts.sublist(0, parts.length - 1) : <String>[];
-    final previous =
-        prefixParts.map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
-    final merged = [...previous, variableName];
-    final inner = merged.join(' | ');
-
-    final newBefore = '${beforeCursor.substring(0, start)}(($inner))';
-    final nextText = '$newBefore$afterCursor';
-    final nextCursor = newBefore.length;
-
-    controller.value = TextEditingValue(
-      text: nextText,
-      selection: TextSelection.collapsed(offset: nextCursor),
-    );
-  }
-
-  Widget _buildVariableSuggestionBar(TextEditingController controller) {
-    final query = _currentVariableQuery(controller).trim();
-    final cursor = controller.selection.baseOffset;
-    if (cursor < 0) {
-      return const SizedBox.shrink();
-    }
-
-    final beforeCursor = controller.text.substring(0, cursor);
-    final start = beforeCursor.lastIndexOf('((');
-    if (start == -1) {
-      return const SizedBox.shrink();
-    }
-
-    final inner = beforeCursor.substring(start + 2);
-    final inFallbackMode = inner.contains('|');
-
-    if (query.isEmpty && !inFallbackMode) {
-      return const SizedBox.shrink();
-    }
-
-    final suggestions =
-        _variableNames
-            .where((name) => name.toLowerCase().contains(query.toLowerCase()))
-            .take(8)
-            .toList();
-
-    if (suggestions.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (inFallbackMode)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  'Fallback mode: next variable is used if previous is empty.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
-              ),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children:
-                  suggestions
-                      .map(
-                        (name) => ActionChip(
-                          label: Text('(($name))'),
-                          onPressed: () => _insertVariable(controller, name),
-                        ),
-                      )
-                      .toList(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Card helper removed.
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -2291,60 +652,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             icon: const Icon(Icons.copy_all_outlined),
           ),
           IconButton(
-            onPressed: () {
-              final dialogFullscren = Dialog.fullscreen(
-                child: Scaffold(
-                  appBar: AppBar(
-                    title: Text(AppStrings.t('cmd_variables_title')),
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ),
-                  body: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    spacing: 2.0,
-                    children: [
-                      const SizedBox(height: 20),
-                      Card(
-                        child: const Padding(
-                          padding: EdgeInsets.all(8.0),
-                          child: Text(
-                            "You can use the following arguments in your command response.\nThey will be replaced with the actual values when the command is executed.\nFor example, if you use ((userName)) in your response, it will be replaced with the name of the user who executed the command.\nYou can also use every command option as an argument. (be sure to use the correct name)",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(1.0),
-                          itemCount: _argsList.length,
-                          itemBuilder: (context, index) {
-                            final arg = _argsList[index];
-                            return ListTile(
-                              title: Text(arg["name"]!),
-                              subtitle: Text(arg["description"]!),
-                              style: ListTileStyle.list,
-                              leading: const Icon(Icons.code),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              );
-
-              showDialog(
-                context: context,
-                builder: (context) => dialogFullscren,
-              );
-            },
+            onPressed: _openDocumentationCenter,
             tooltip: AppStrings.t('cmd_show_variables'),
             icon: const Icon(Icons.info_outline),
           ),
@@ -2494,6 +802,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               _commandDescription.isNotEmpty
                                   ? Text(_commandDescription)
                                   : null,
+                          trailing: IconButton(
+                            icon: const Icon(Icons.menu_book_outlined),
+                            tooltip: AppStrings.t('cmd_show_variables'),
+                            onPressed: _openDocumentationCenter,
+                          ),
                         ),
                       ),
                     ] else
@@ -2504,10 +817,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                             BasicInfoCard(
                               commandName: _commandName,
                               commandDescription: _commandDescription,
+                              commandType: _commandType,
+                              canEditCommandType: widget.id.isZero,
+                              showDescriptionField: _supportsCommandDescription,
                               integrationTypes: _integrationTypes,
                               contexts: _contexts,
-                              defaultMemberPermissions:
-                                  _defaultMemberPermissions,
                               onNameChanged: (val) {
                                 setState(() {
                                   _commandName = val;
@@ -2516,6 +830,16 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               onDescriptionChanged: (val) {
                                 setState(() {
                                   _commandDescription = val;
+                                });
+                              },
+                              onCommandTypeChanged: (val) {
+                                setState(() {
+                                  _commandType = val;
+                                  if (!_supportsSimpleMode) {
+                                    _editorMode = _editorModeAdvanced;
+                                  }
+                                  _simpleModeLocked =
+                                      _editorMode == _editorModeAdvanced;
                                 });
                               },
                               onIntegrationTypesChanged: (val) {
@@ -2533,11 +857,23 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                   _defaultMemberPermissions = value;
                                 });
                               },
+                              defaultMemberPermissions:
+                                  _defaultMemberPermissions,
                               nameValidator: _validateName,
                             ),
                             const SizedBox(height: 12),
-                            _buildEditorModeCard(context),
-                            const SizedBox(height: 12),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: _openDocumentationCenter,
+                                icon: const Icon(Icons.menu_book_outlined),
+                                label: Text(AppStrings.t('cmd_show_variables')),
+                              ),
+                            ),
+                            if (_supportsSimpleMode) ...[
+                              _buildEditorModeCard(context),
+                              const SizedBox(height: 12),
+                            ],
                             if (_isSimpleMode) ...[
                               _buildSimpleActionsCard(),
                               const SizedBox(height: 12),
@@ -2585,43 +921,45 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 },
                                 workflowSummary: _workflowSummary(),
                               ),
-                              const SizedBox(height: 16),
-                              Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      const Text(
-                                        "Command Options",
-                                        style: TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
+                              if (_supportsCommandOptions) ...[
+                                const SizedBox(height: 16),
+                                Card(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        const Text(
+                                          'Command Options',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        "Slash-command parameters",
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey.shade600,
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Slash-command parameters',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey.shade600,
+                                          ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      OptionWidget(
-                                        initialOptions: _options,
-                                        onChange: (options) {
-                                          setState(() {
-                                            _options = options;
-                                          });
-                                        },
-                                      ),
-                                    ],
+                                        const SizedBox(height: 12),
+                                        OptionWidget(
+                                          initialOptions: _options,
+                                          onChange: (options) {
+                                            setState(() {
+                                              _options = options;
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 16),
+                                const SizedBox(height: 16),
+                              ],
                               ActionsCard(
                                 actions: _actions,
                                 onActionsChanged: (val) {
