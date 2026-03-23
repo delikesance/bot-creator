@@ -1,6 +1,8 @@
+import 'package:bot_creator/utils/command_variable_catalog.dart';
+import 'package:bot_creator/utils/i18n.dart';
 import 'package:flutter/material.dart';
 
-enum _DocKind { event, action, template, runtime }
+enum DocKind { event, action, template, runtime }
 
 class _DocSection {
   const _DocSection({required this.title, required this.lines});
@@ -23,7 +25,7 @@ class _DocEntry {
   });
 
   final String id;
-  final _DocKind kind;
+  final DocKind kind;
   final String title;
   final String subtitle;
   final String summary;
@@ -34,7 +36,14 @@ class _DocEntry {
 }
 
 class WorkflowDocumentationPage extends StatefulWidget {
-  const WorkflowDocumentationPage({super.key});
+  const WorkflowDocumentationPage({
+    super.key,
+    this.initialSearch = '',
+    this.initialKind,
+  });
+
+  final String initialSearch;
+  final DocKind? initialKind;
 
   @override
   State<WorkflowDocumentationPage> createState() =>
@@ -43,17 +52,119 @@ class WorkflowDocumentationPage extends StatefulWidget {
 
 class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
   final TextEditingController _searchCtrl = TextEditingController();
-  _DocKind? _kindFilter;
+  DocKind? _kindFilter;
 
-  static const List<_DocEntry> _docs = <_DocEntry>[
-    _DocEntry(
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.text = widget.initialSearch;
+    _kindFilter = widget.initialKind;
+  }
+
+  _DocEntry _buildTemplateVariablesDoc() {
+    return _DocEntry(
+      id: 'template.variables',
+      kind: DocKind.template,
+      title: AppStrings.t('doc_template_variables_title'),
+      subtitle: AppStrings.t('doc_template_variables_subtitle'),
+      summary: AppStrings.t('doc_template_variables_summary'),
+      variables: commandTemplateReferenceVariables,
+      sections: <_DocSection>[
+        _DocSection(
+          title: AppStrings.t('doc_template_variables_section_sources_title'),
+          lines: <String>[
+            AppStrings.t('doc_template_variables_section_sources_l1'),
+            AppStrings.t('doc_template_variables_section_sources_l2'),
+            AppStrings.t('doc_template_variables_section_sources_l3'),
+            AppStrings.t('doc_template_variables_section_sources_l4'),
+            AppStrings.t('doc_template_variables_section_sources_l5'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t('doc_template_variables_section_builtin_title'),
+          lines: commandBuiltinVariableDocumentationLines,
+        ),
+        _DocSection(
+          title: AppStrings.t('doc_template_variables_section_types_title'),
+          lines: <String>[
+            AppStrings.t('doc_template_variables_section_types_l1'),
+            AppStrings.t('doc_template_variables_section_types_l2'),
+            AppStrings.t('doc_template_variables_section_types_l3'),
+            AppStrings.t('doc_template_variables_section_types_l4'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t('doc_template_variables_section_fallbacks_title'),
+          lines: <String>[
+            AppStrings.t('doc_template_variables_section_fallbacks_l1'),
+            AppStrings.t('doc_template_variables_section_fallbacks_l2'),
+            AppStrings.t('doc_template_variables_section_fallbacks_l3'),
+          ],
+        ),
+      ],
+      example: AppStrings.t('doc_template_variables_example'),
+    );
+  }
+
+  _DocEntry _buildInteractionCommandsDoc() {
+    return _DocEntry(
+      id: 'runtime.interactionCommands',
+      kind: DocKind.runtime,
+      title: AppStrings.t('doc_interaction_commands_title'),
+      subtitle: AppStrings.t('doc_interaction_commands_subtitle'),
+      summary: AppStrings.t('doc_interaction_commands_summary'),
+      variables: interactionCommandReferenceVariables,
+      sections: <_DocSection>[
+        _DocSection(
+          title: AppStrings.t(
+            'doc_interaction_commands_section_execution_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_interaction_commands_section_execution_l1'),
+            AppStrings.t('doc_interaction_commands_section_execution_l2'),
+            AppStrings.t('doc_interaction_commands_section_execution_l3'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t(
+            'doc_interaction_commands_section_per_type_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_interaction_commands_section_per_type_l1'),
+            AppStrings.t('doc_interaction_commands_section_per_type_l2'),
+            AppStrings.t('doc_interaction_commands_section_per_type_l3'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t('doc_interaction_commands_section_builtin_title'),
+          lines: commandBuiltinVariableDocumentationLines,
+        ),
+        _DocSection(
+          title: AppStrings.t(
+            'doc_interaction_commands_section_guidance_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_interaction_commands_section_guidance_l1'),
+            AppStrings.t('doc_interaction_commands_section_guidance_l2'),
+            AppStrings.t('doc_interaction_commands_section_guidance_l3'),
+          ],
+        ),
+      ],
+      example: AppStrings.t('doc_interaction_commands_example'),
+    );
+  }
+
+  _DocEntry _buildMessageCreateDoc() {
+    return _DocEntry(
       id: 'event.messageCreate',
-      kind: _DocKind.event,
-      title: 'Event: messageCreate',
-      subtitle: 'Triggered for each newly created message.',
-      summary:
-          'Use this event for moderation, keyword pipelines, auto-replies, command-style parsing, and analytics.',
-      requiresIntent: <String>['Guild Messages', 'Message Content'],
+      kind: DocKind.event,
+      title: AppStrings.t('doc_event_message_create_title'),
+      subtitle: AppStrings.t('doc_event_message_create_subtitle'),
+      summary: AppStrings.t('doc_event_message_create_summary'),
+      requiresIntent: <String>[
+        AppStrings.t('doc_event_message_create_intent_1'),
+        AppStrings.t('doc_event_message_create_intent_2'),
+      ],
       variables: <String>[
         'event.name',
         'timestamp',
@@ -76,30 +187,64 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
       ],
       sections: <_DocSection>[
         _DocSection(
-          title: 'Best Use Cases',
+          title: AppStrings.t('doc_common_section_best_use_cases'),
           lines: <String>[
-            'Detect commands typed without slash commands.',
-            'Apply anti-spam filters before answering.',
-            'Route to reusable workflows based on first word or mention.',
+            AppStrings.t('doc_event_message_create_best_use_l1'),
+            AppStrings.t('doc_event_message_create_best_use_l2'),
+            AppStrings.t('doc_event_message_create_best_use_l3'),
           ],
         ),
         _DocSection(
-          title: 'Important Notes',
+          title: AppStrings.t('doc_common_section_important_notes'),
           lines: <String>[
-            'If Message Content intent is off, content-dependent conditions can fail.',
-            'message.content[index] is word-based and capped by runtime extraction.',
-            'author.isBot can help avoid bot loops.',
+            AppStrings.t('doc_event_message_create_notes_l1'),
+            AppStrings.t('doc_event_message_create_notes_l2'),
+            AppStrings.t('doc_event_message_create_notes_l3'),
           ],
         ),
       ],
-      example:
-          'Guard: ((message.isBot)) equals false\n'
-          'Guard: ((message.content[0])) equals !ticket\n'
-          'Then: runWorkflow -> ticket_manager entry=create',
-    ),
+      example: AppStrings.t('doc_event_message_create_example'),
+    );
+  }
+
+  _DocEntry _buildRuntimeExecutionFlowDoc() {
+    return _DocEntry(
+      id: 'runtime.executionFlow',
+      kind: DocKind.runtime,
+      title: AppStrings.t('doc_runtime_execution_flow_title'),
+      subtitle: AppStrings.t('doc_runtime_execution_flow_subtitle'),
+      summary: AppStrings.t('doc_runtime_execution_flow_summary'),
+      sections: <_DocSection>[
+        _DocSection(
+          title: AppStrings.t(
+            'doc_runtime_execution_flow_section_pipeline_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_runtime_execution_flow_section_pipeline_l1'),
+            AppStrings.t('doc_runtime_execution_flow_section_pipeline_l2'),
+            AppStrings.t('doc_runtime_execution_flow_section_pipeline_l3'),
+            AppStrings.t('doc_runtime_execution_flow_section_pipeline_l4'),
+            AppStrings.t('doc_runtime_execution_flow_section_pipeline_l5'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t(
+            'doc_runtime_execution_flow_section_parity_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_runtime_execution_flow_section_parity_l1'),
+            AppStrings.t('doc_runtime_execution_flow_section_parity_l2'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  List<_DocEntry> get _docs => <_DocEntry>[
+    _buildMessageCreateDoc(),
     _DocEntry(
       id: 'event.messageReactionAdd',
-      kind: _DocKind.event,
+      kind: DocKind.event,
       title: 'Event: messageReactionAdd',
       subtitle: 'Triggered when a user adds a reaction to a message.',
       summary:
@@ -139,7 +284,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     ),
     _DocEntry(
       id: 'event.messagePollVoteAdd',
-      kind: _DocKind.event,
+      kind: DocKind.event,
       title: 'Event: messagePollVoteAdd',
       subtitle: 'Triggered when a user votes on a poll answer.',
       summary:
@@ -173,7 +318,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     ),
     _DocEntry(
       id: 'event.voiceStateUpdate',
-      kind: _DocKind.event,
+      kind: DocKind.event,
       title: 'Event: voiceStateUpdate',
       subtitle: 'Triggered when voice state changes for a user.',
       summary:
@@ -205,7 +350,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     ),
     _DocEntry(
       id: 'event.userUpdate',
-      kind: _DocKind.event,
+      kind: DocKind.event,
       title: 'Event: userUpdate',
       subtitle: 'Triggered when user profile data changes.',
       summary:
@@ -230,7 +375,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     ),
     _DocEntry(
       id: 'event.guildAuditLogCreate',
-      kind: _DocKind.event,
+      kind: DocKind.event,
       title: 'Event: guildAuditLogCreate',
       subtitle: 'Triggered when a new audit log entry is created.',
       summary: 'High-value event for administrative security monitoring.',
@@ -253,7 +398,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     ),
     _DocEntry(
       id: 'action.stopUnless',
-      kind: _DocKind.action,
+      kind: DocKind.action,
       title: 'Action: stopUnless',
       subtitle: 'Guard clause that stops workflow when condition fails.',
       summary:
@@ -283,7 +428,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     ),
     _DocEntry(
       id: 'action.ifBlock',
-      kind: _DocKind.action,
+      kind: DocKind.action,
       title: 'Action: ifBlock',
       subtitle: 'Branch execution between THEN and ELSE nested action lists.',
       summary:
@@ -301,7 +446,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     ),
     _DocEntry(
       id: 'action.runWorkflow',
-      kind: _DocKind.action,
+      kind: DocKind.action,
       title: 'Action: runWorkflow',
       subtitle: 'Calls another workflow with entry point and arguments.',
       summary:
@@ -319,7 +464,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     ),
     _DocEntry(
       id: 'action.httpRequest',
-      kind: _DocKind.action,
+      kind: DocKind.action,
       title: 'Action: httpRequest',
       subtitle: 'Executes an external HTTP call inside a workflow.',
       summary:
@@ -335,55 +480,9 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
         ),
       ],
     ),
-    _DocEntry(
-      id: 'template.variables',
-      kind: _DocKind.template,
-      title: 'Template Variables',
-      subtitle: 'How dynamic placeholders are resolved.',
-      summary:
-          'Runtime resolves placeholders using current event/interaction context, workflow args, and global vars.',
-      sections: <_DocSection>[
-        _DocSection(
-          title: 'Variable Sources',
-          lines: <String>[
-            'Event variables: event.*, message.*, reaction.*, voice.*, role.*, etc.',
-            'Workflow variables: workflow.name, workflow.entryPoint, arg.*, workflow.arg.*',
-            'Global variables: global.<key>',
-            'Action outputs: action.<key> when available.',
-          ],
-        ),
-      ],
-      example:
-          'Hello ((author.name)), your vote is ((poll.answer.id)).\n'
-          'Current workflow: ((workflow.name))',
-    ),
-    _DocEntry(
-      id: 'runtime.executionFlow',
-      kind: _DocKind.runtime,
-      title: 'Runtime Execution Flow',
-      subtitle: 'How event workflows are selected and executed.',
-      summary:
-          'When an event arrives, runtime matches configured workflows by eventTrigger.event then executes actions with context variables.',
-      sections: <_DocSection>[
-        _DocSection(
-          title: 'Pipeline',
-          lines: <String>[
-            '1) Receive gateway event.',
-            '2) Build context variables map.',
-            '3) Match workflows by event name.',
-            '4) Merge global variables.',
-            '5) Execute actions sequentially with conditions.',
-          ],
-        ),
-        _DocSection(
-          title: 'Parity Rule',
-          lines: <String>[
-            'Variables should be identical between local app runtime and runner runtime.',
-            'Use same variable names in conditions to stay portable.',
-          ],
-        ),
-      ],
-    ),
+    _buildTemplateVariablesDoc(),
+    _buildInteractionCommandsDoc(),
+    _buildRuntimeExecutionFlowDoc(),
   ];
 
   List<_DocEntry> get _filtered {
@@ -412,28 +511,28 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
         .toList(growable: false);
   }
 
-  String _kindLabel(_DocKind kind) {
+  String _kindLabel(DocKind kind) {
     switch (kind) {
-      case _DocKind.event:
-        return 'Event';
-      case _DocKind.action:
-        return 'Action';
-      case _DocKind.template:
-        return 'Template';
-      case _DocKind.runtime:
-        return 'Runtime';
+      case DocKind.event:
+        return AppStrings.t('doc_kind_event');
+      case DocKind.action:
+        return AppStrings.t('doc_kind_action');
+      case DocKind.template:
+        return AppStrings.t('doc_kind_template');
+      case DocKind.runtime:
+        return AppStrings.t('doc_kind_runtime');
     }
   }
 
-  IconData _kindIcon(_DocKind kind) {
+  IconData _kindIcon(DocKind kind) {
     switch (kind) {
-      case _DocKind.event:
+      case DocKind.event:
         return Icons.notifications_active_outlined;
-      case _DocKind.action:
+      case DocKind.action:
         return Icons.build_circle_outlined;
-      case _DocKind.template:
+      case DocKind.template:
         return Icons.data_object_outlined;
-      case _DocKind.runtime:
+      case DocKind.runtime:
         return Icons.hub_outlined;
     }
   }
@@ -449,7 +548,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     final docs = _filtered;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Workflow Documentation')),
+      appBar: AppBar(title: Text(AppStrings.t('doc_center_title'))),
       body: Column(
         children: <Widget>[
           Padding(
@@ -463,15 +562,14 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
                     _searchCtrl.text.isEmpty
                         ? null
                         : IconButton(
-                          tooltip: 'Clear search',
+                          tooltip: AppStrings.t('doc_center_clear_search'),
                           onPressed: () {
                             _searchCtrl.clear();
                             setState(() {});
                           },
                           icon: const Icon(Icons.close),
                         ),
-                hintText:
-                    'Search event names, actions, variables, intents, or examples...',
+                hintText: AppStrings.t('doc_center_search_hint'),
                 border: const OutlineInputBorder(),
               ),
             ),
@@ -484,12 +582,12 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: ChoiceChip(
-                    label: const Text('All'),
+                    label: Text(AppStrings.t('doc_kind_all')),
                     selected: _kindFilter == null,
                     onSelected: (_) => setState(() => _kindFilter = null),
                   ),
                 ),
-                for (final kind in _DocKind.values)
+                for (final kind in DocKind.values)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: ChoiceChip(
@@ -505,9 +603,9 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
           Expanded(
             child:
                 docs.isEmpty
-                    ? const Center(
+                    ? Center(
                       child: Text(
-                        'No documentation entry matches your search.',
+                        AppStrings.t('doc_center_empty'),
                         textAlign: TextAlign.center,
                       ),
                     )
@@ -576,9 +674,9 @@ class _WorkflowDocDetailPage extends StatelessWidget {
           Text(doc.summary),
           if (doc.requiresIntent.isNotEmpty) ...<Widget>[
             const SizedBox(height: 14),
-            const Text(
-              'Required Intents',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            Text(
+              AppStrings.t('doc_required_intents'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             Wrap(
@@ -591,9 +689,9 @@ class _WorkflowDocDetailPage extends StatelessWidget {
           ],
           if (doc.variables.isNotEmpty) ...<Widget>[
             const SizedBox(height: 14),
-            const Text(
-              'Available Variables',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            Text(
+              AppStrings.t('doc_available_variables'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 6),
             _mono(doc.variables.join('\n')),
@@ -614,9 +712,9 @@ class _WorkflowDocDetailPage extends StatelessWidget {
           if (doc.example != null &&
               doc.example!.trim().isNotEmpty) ...<Widget>[
             const SizedBox(height: 14),
-            const Text(
-              'Example',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            Text(
+              AppStrings.t('doc_example'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             _mono(doc.example!),
           ],

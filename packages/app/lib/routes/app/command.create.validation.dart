@@ -1,0 +1,77 @@
+part of 'command.create.dart';
+
+extension _CommandCreateValidation on _CommandCreatePageState {
+  String? _validateName(String? value) {
+    if (value!.isEmpty) {
+      return 'Please enter a command name';
+    }
+    if (value.length > 32) {
+      return 'Command name must be at most 32 characters long';
+    }
+    if (value.contains(' ')) {
+      return 'Command name cannot contain spaces';
+    }
+    if (value.contains(RegExp(r'[^a-zA-Z0-9_]'))) {
+      return 'Command name can only contain letters, numbers, and underscores';
+    }
+    if (value.startsWith('_')) {
+      return 'Command name cannot start with an underscore';
+    }
+    if (value.startsWith('!')) {
+      return 'Command name cannot start with an exclamation mark';
+    }
+    if (value.startsWith('/')) {
+      return 'Command name cannot start with a slash';
+    }
+    if (value.startsWith('#')) {
+      return 'Command name cannot start with a hash';
+    }
+    if (value.startsWith('@')) {
+      return 'Command name cannot start with an at sign';
+    }
+    if (value.startsWith('&')) {
+      return 'Command name cannot start with an ampersand';
+    }
+    if (value.startsWith('%')) {
+      return 'Command name cannot start with a percent sign';
+    }
+    return null;
+  }
+
+  bool _validateCommandInputs() {
+    final nameError = _validateName(_commandName);
+    if (nameError != null) {
+      showDialog(
+        context: context,
+        builder:
+            (context) => AlertDialog(
+              title: Text(AppStrings.t('error')),
+              content: Text(nameError),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(AppStrings.t('ok')),
+                ),
+              ],
+            ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  Permissions? _parseDefaultMemberPermissions(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final parsed = int.tryParse(trimmed);
+    if (parsed == null || parsed < 0) {
+      throw Exception(
+        'Invalid default member permissions bitfield. Use a positive integer or leave empty.',
+      );
+    }
+    return Permissions(parsed);
+  }
+}

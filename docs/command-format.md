@@ -19,6 +19,7 @@ Chaque commande est stockée dans :
 {
   "name": "ma-commande",          // string — nom Discord de la commande
   "description": "...",           // string
+  "type": "chatInput",            // string — chatInput | user | message
   "id": "123456789",              // string (Snowflake Discord)
   "createdAt": "2025-01-01T00:00:00.000Z",   // ISO 8601 (create) | "updatedAt" (update)
   "data": { /* <CommandData> */ }
@@ -32,6 +33,7 @@ Chaque commande est stockée dans :
 ```jsonc
 {
   "version": 1,                          // int — toujours 1 actuellement
+  "commandType": "chatInput",           // string — chatInput | user | message
   "editorMode": "simple" | "advanced",   // string
   "defaultMemberPermissions": "",        // string — bitfield Discord (ex: "8" = ADMINISTRATOR)
   "simpleConfig": { /* <SimpleConfig> */ },
@@ -39,6 +41,29 @@ Chaque commande est stockée dans :
   "actions":     [ /* <Action>[] */ ]
 }
 ```
+
+> Note: `description` et `options` sont applicables uniquement aux commandes `chatInput`.
+> Pour `user` et `message`, elles sont ignorées côté création/mise à jour Discord.
+
+### 2.0 Types de commande Discord supportés
+
+| `commandType` | Type Discord | Cible | Description | Options |
+|---------------|--------------|-------|-------------|---------|
+| `chatInput`   | Slash Command | Invocation texte `/commande` | Requise | Supportées |
+| `user`        | User Command | Utilisateur ciblé | Ignorée par Discord | Ignorées |
+| `message`     | Message Command | Message ciblé | Ignorée par Discord | Ignorées |
+
+### 2.0.1 Règles d'éditeur
+
+- `chatInput` : l'éditeur affiche le nom, la description, les options, le mode simple et le mode avancé.
+- `user` : l'éditeur masque la description et les options. Le mode avancé est utilisé.
+- `message` : l'éditeur masque la description et les options. Le mode avancé est utilisé.
+
+### 2.0.2 Compatibilité legacy
+
+- Si `commandType` est absent dans `data`, la normalisation applique automatiquement `chatInput`.
+- Si le champ racine `type` est absent lui aussi, le comportement reste `chatInput`.
+- Ce fallback permet de relire les anciennes commandes sans migration manuelle.
 
 ### 2.1 `SimpleConfig`
 
@@ -214,11 +239,11 @@ ou une URL sans scheme, le champ est **silencieusement ignoré**.
 
 ```
 [Éditeur App]
-    │  commandData = { version, editorMode, simpleConfig, response, actions, … }
+  │  commandData = { version, commandType, editorMode, simpleConfig, response, actions, … }
     │
     ▼
 createCommand() / updateCommand()   (bot.dart)
-    │  Wrap : { name, description, id, createdAt, data: commandData }
+  │  Wrap : { name, description, type, id, createdAt, data: commandData }
     │
     ▼
 saveAppCommand()   (database.dart)
@@ -229,12 +254,13 @@ saveAppCommand()   (database.dart)
     │
     ▼
 normalizeCommandData()   (database.dart, au chargement dans l'éditeur)
-    │  Lit   : command['data']['editorMode'], ['simpleConfig'], ['response'], ['actions']
-    │  Écrit : normalized['data'] = { version, editorMode, simpleConfig, … }
+  │  Lit   : command['data']['commandType'], ['editorMode'], ['simpleConfig'], ['response'], ['actions']
+  │  Écrit : normalized['data'] = { version, commandType, editorMode, simpleConfig, … }
     │
     ▼
 [Runner — exécution de la commande]
-    │  generateKeyValues(interaction)   → Map<String, String> runtimeVariables
+  │  Valide : type stocké vs type reçu (log warning si désynchronisé)
+  │  generateKeyValues(interaction)   → Map<String, String> runtimeVariables
     │  resolveTemplatePlaceholders(str, runtimeVariables)  → string résolu
     │  resolveEmbedUri(raw)             → Uri? (null si invalide/vide)
     │
@@ -249,7 +275,59 @@ normalizeCommandData()   (database.dart, au chargement dans l'éditeur)
 | Piège | Explication |
 |-------|-------------|
 | `editorMode` doit être dans `data`, **pas** à la racine | `normalizeCommandData` lit `command['data']['editorMode']`. Si absent → défaut `"advanced"`. |
+| `commandType` absent | Fallback automatique vers `chatInput` pour compatibilité ascendante. |
+| `user` / `message` n'acceptent pas `description` ni `options` | L'app les masque à l'édition et ne les pousse pas dans les builders Discord. |
 | Champ URL vide après résolution → silencieusement ignoré | `resolveEmbedUri` retourne `null` si le résultat est vide ou sans scheme HTTP. |
 | Variable inconnue → remplacée par `""` | `resolveTemplatePlaceholders` remplace tout `((inconnue))` par une chaîne vide (voir [template-syntax.md](./template-syntax.md)). |
 | `embed` racine vs `embeds[]` | `embed` est le legacy (1 embed). `embeds` remplace. À la normalisation : si `embeds` est vide et `embed` non vide → `embed` est copié dans `embeds[0]`. |
 | Limite Discord | Maximum **10 embeds** par message (`embeds.take(10)`), **25 fields** par embed. |
+
+---
+
+## 5. Exemples par type
+
+### 5.1 Slash Command
+
+```jsonc
+{
+  "name": "ban",
+  "description": "Ban a member",
+  "type": "chatInput",
+  "data": {
+    "version": 1,
+    "commandType": "chatInput"
+  }
+}
+```
+
+### 5.2 User Command
+
+```jsonc
+{
+  "name": "Inspect User",
+  "description": "",
+  "type": "user",
+  "data": {
+    "version": 1,
+    "commandType": "user"
+  }
+}
+```
+
+Variables utiles à l'exécution : `((target.user.id))`, `((target.user.username))`, `((target.user.avatar))`.
+
+### 5.3 Message Command
+
+```jsonc
+{
+  "name": "Quote Message",
+  "description": "",
+  "type": "message",
+  "data": {
+    "version": 1,
+    "commandType": "message"
+  }
+}
+```
+
+Variables utiles à l'exécution : `((target.message.id))`, `((target.message.content))`, `((target.message.author.id))`.

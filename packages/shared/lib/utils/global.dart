@@ -113,6 +113,65 @@ Future<Map<String, String>> generateKeyValues(
   final command = interaction.data;
   listOfArgs["commandName"] = command.name;
   listOfArgs["commandId"] = command.id.toString();
+  final commandType = command.type;
+  final commandTypeName =
+      commandType == ApplicationCommandType.user
+          ? 'user'
+          : commandType == ApplicationCommandType.message
+          ? 'message'
+          : 'chatInput';
+  listOfArgs["commandType"] = commandTypeName;
+  listOfArgs["commandTypeValue"] = commandType.value.toString();
+  listOfArgs["command.type"] = commandTypeName;
+  listOfArgs["interaction.command.type"] = commandTypeName;
+
+  final targetId = command.targetId;
+  if (targetId != null) {
+    listOfArgs["target.id"] = targetId.toString();
+    listOfArgs["interaction.target.id"] = targetId.toString();
+  }
+
+  if (commandType == ApplicationCommandType.user && targetId != null) {
+    final resolvedUser = command.resolved?.users?[targetId];
+    if (resolvedUser != null) {
+      listOfArgs["target.user.id"] = resolvedUser.id.toString();
+      listOfArgs["target.user.username"] = resolvedUser.username;
+      listOfArgs["target.user.tag"] = resolvedUser.discriminator;
+      listOfArgs["target.user.avatar"] = makeAvatarUrl(
+        resolvedUser.id.toString(),
+        avatarId: resolvedUser.avatar.hash,
+        isAnimated: resolvedUser.avatar.isAnimated,
+        legacyFormat: "webp",
+        discriminator: resolvedUser.discriminator,
+      );
+      listOfArgs["target.userName"] = resolvedUser.username;
+      listOfArgs["target.userAvatar"] = listOfArgs["target.user.avatar"] ?? '';
+    }
+
+    final resolvedMember = command.resolved?.members?[targetId];
+    if (resolvedMember != null) {
+      listOfArgs["target.member.id"] = resolvedMember.id.toString();
+      listOfArgs["target.member.nick"] = resolvedMember.nick ?? '';
+    }
+  }
+
+  if (commandType == ApplicationCommandType.message && targetId != null) {
+    final resolvedMessage = command.resolved?.messages?[targetId];
+    if (resolvedMessage != null) {
+      listOfArgs["target.message.id"] = resolvedMessage.id.toString();
+      listOfArgs["target.message.channelId"] =
+          resolvedMessage.channelId.toString();
+      listOfArgs["target.messageId"] = resolvedMessage.id.toString();
+
+      if (resolvedMessage is Message) {
+        listOfArgs["target.message.content"] = resolvedMessage.content;
+        listOfArgs["target.message.author.id"] =
+            resolvedMessage.author.id.toString();
+        listOfArgs["target.messageContent"] = resolvedMessage.content;
+      }
+    }
+  }
+
   if (interaction.data.options is List<InteractionOption>) {
     final options = interaction.data.options as List<InteractionOption>;
     for (final option in options) {

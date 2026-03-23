@@ -355,9 +355,9 @@ const Map<String, String> appStringsFr = {
 
   // Pages internes au bot — app/settings.dart
   'bot_settings_title': 'Paramètres de l’application',
-  'bot_settings_workflow_docs': 'Documentation des workflows',
+  'bot_settings_workflow_docs': 'Centre de documentation',
   'bot_settings_workflow_docs_desc':
-      'Guide détaillé sur les points d’entrée, arguments d’appel et comportement à l’exécution.',
+      'Documentation centralisée pour les commandes, workflows, variables runtime et comportement d’exécution.',
   'bot_settings_app_flags': 'Indicateurs de l’application',
   'bot_settings_gateway_intents': 'Configuration des Gateway Intents',
   'bot_settings_gateway_intents_desc':
@@ -484,7 +484,7 @@ const Map<String, String> appStringsFr = {
       'Les arguments deviennent des variables runtime sous la forme ((arg.name)) et ((workflow.arg.name)).',
   'workflows_continue': 'Continuer',
   'workflows_add_arg': 'Ajouter un argument',
-  'workflows_docs_tooltip': 'Documentation des workflows',
+  'workflows_docs_tooltip': 'Ouvrir le centre de documentation',
   'workflows_subtitle': '{count} action(s) • entrée : {entry} • args : {args}',
   'workflows_event_subtitle': '{count} action(s) • Listen for : {event}',
   'workflows_general_section': 'Workflows generaux',
@@ -553,7 +553,7 @@ const Map<String, String> appStringsFr = {
   // Page création de commande
   'cmd_error_fill_fields': 'Veuillez remplir tous les champs',
   'cmd_variables_title': 'Variables de la commande',
-  'cmd_show_variables': 'Afficher les variables',
+  'cmd_show_variables': 'Ouvrir la documentation des variables',
   'cmd_create_tooltip': 'Créer la commande',
   'cmd_delete_tooltip': 'Supprimer la commande',
   'cmd_editor_mode_title': 'Mode d’édition',
@@ -628,4 +628,139 @@ const Map<String, String> appStringsFr = {
   'error_invalid_channel_type': 'Le salon n’est pas un salon textuel.',
   'error_network_timeout': 'L’action a expiré. Veuillez réessayer.',
   'error_delete_messages_failed': 'Échec de la suppression des messages.',
+
+  // Centre de documentation
+  'doc_center_title': 'Centre de documentation',
+  'doc_center_search_hint':
+      'Rechercher des commandes, workflows, variables, actions, intents ou exemples...',
+  'doc_center_clear_search': 'Effacer la recherche',
+  'doc_center_empty':
+      'Aucune entrée de documentation ne correspond à votre recherche.',
+  'doc_kind_all': 'Tout',
+  'doc_kind_event': 'Événement',
+  'doc_kind_action': 'Action',
+  'doc_kind_template': 'Template',
+  'doc_kind_runtime': 'Runtime',
+  'doc_required_intents': 'Intents requis',
+  'doc_available_variables': 'Variables disponibles',
+  'doc_example': 'Exemple',
+  'doc_common_section_best_use_cases': 'Cas d’usage recommandés',
+  'doc_common_section_important_notes': 'Points importants',
+
+  // Docs - Template Variables
+  'doc_template_variables_title': 'Variables de template',
+  'doc_template_variables_subtitle':
+      'Comment les placeholders dynamiques sont résolus.',
+  'doc_template_variables_summary':
+      'Le runtime résout les placeholders selon le contexte courant (événement/interaction), les arguments de workflow et les variables globales.',
+  'doc_template_variables_section_sources_title': 'Sources de variables',
+  'doc_template_variables_section_sources_l1':
+      'Variables de commande : commandName, commandId, commandType, target.*, opts.*.',
+  'doc_template_variables_section_sources_l2':
+      'Variables d’événement : event.*, message.*, reaction.*, voice.*, role.*, etc.',
+  'doc_template_variables_section_sources_l3':
+      'Variables de workflow : workflow.name, workflow.entryPoint, arg.*, workflow.arg.*',
+  'doc_template_variables_section_sources_l4':
+      'Variables globales : global.<key>',
+  'doc_template_variables_section_sources_l5':
+      'Sorties d’actions : action.<key> quand disponibles.',
+  'doc_template_variables_section_builtin_title':
+      'Variables builtin de commande',
+  'doc_template_variables_section_types_title': 'Types de commande',
+  'doc_template_variables_section_types_l1':
+      'Les commandes slash utilisent commandType = chatInput et exposent les variables opts.<option>.',
+  'doc_template_variables_section_types_l2':
+      'Les commandes user utilisent commandType = user et exposent les variables target.user.*.',
+  'doc_template_variables_section_types_l3':
+      'Les commandes message utilisent commandType = message et exposent les variables target.message.*.',
+  'doc_template_variables_section_types_l4':
+      'Les sous-commandes exposent aussi leurs arguments via opts.*.',
+  'doc_template_variables_section_fallbacks_title': 'Fallbacks et chemins',
+  'doc_template_variables_section_fallbacks_l1':
+      'Utilisez ((opts.user|userName)) pour fallback si une option est absente.',
+  'doc_template_variables_section_fallbacks_l2':
+      'Utilisez la syntaxe JSONPath sur les sorties d’actions : ((myHttp.body.\$.data[0].id)).',
+  'doc_template_variables_section_fallbacks_l3':
+      'Une variable inconnue est résolue en chaîne vide.',
+  'doc_template_variables_example':
+      'Bonjour ((target.user.username|userName))\nType : ((commandType))\nRaison sélectionnée : ((opts.reason))\nWorkflow courant : ((workflow.name))',
+
+  // Docs - Interaction Commands
+  'doc_interaction_commands_title': 'Commandes d’interaction',
+  'doc_interaction_commands_subtitle':
+      'Comportement runtime des commandes slash, user et message.',
+  'doc_interaction_commands_summary':
+      'Les commandes applicatives sont exécutées via un chemin d’interaction commun, avec des variables runtime qui dépendent du type Discord.',
+  'doc_interaction_commands_section_execution_title': 'Modèle d’exécution',
+  'doc_interaction_commands_section_execution_l1':
+      'Les commandes slash, user et message passent toutes par des interactions de commande applicative.',
+  'doc_interaction_commands_section_execution_l2':
+      'Le runner associe les commandes par id Discord, puis valide le type stocké vs le type entrant.',
+  'doc_interaction_commands_section_execution_l3':
+      'Un mismatch de type est loggé en warning mais ne bloque pas l’exécution.',
+  'doc_interaction_commands_section_per_type_title': 'Variables par type',
+  'doc_interaction_commands_section_per_type_l1':
+      'chatInput : opts.* pour les paramètres et sous-commandes.',
+  'doc_interaction_commands_section_per_type_l2':
+      'user : target.user.* et target.member.* quand disponibles.',
+  'doc_interaction_commands_section_per_type_l3':
+      'message : target.message.* incluant le contenu et l’id auteur quand résolus.',
+  'doc_interaction_commands_section_builtin_title':
+      'Variables builtin de commande',
+  'doc_interaction_commands_section_guidance_title':
+      'Recommandations d’écriture',
+  'doc_interaction_commands_section_guidance_l1':
+      'Écrivez vos conditions avec commandType ou interaction.command.type.',
+  'doc_interaction_commands_section_guidance_l2':
+      'Préférez la syntaxe de fallback pour partager un template entre slash et non-slash.',
+  'doc_interaction_commands_section_guidance_l3':
+      'Gardez des templates portables en évitant les variables propres aux events dans les workflows de commande.',
+  'doc_interaction_commands_example':
+      'Variable de condition : ((commandType))\nSi user -> répondre avec ((target.user.username))\nSi message -> citer ((target.message.content))',
+
+  // Docs - Event: messageCreate
+  'doc_event_message_create_title': 'Événement : messageCreate',
+  'doc_event_message_create_subtitle':
+      'Déclenché pour chaque nouveau message créé.',
+  'doc_event_message_create_summary':
+      'Utilisez cet événement pour la modération, les pipelines de mots-clés, les auto-réponses, le parsing style commande et l’analytics.',
+  'doc_event_message_create_intent_1': 'Guild Messages',
+  'doc_event_message_create_intent_2': 'Message Content',
+  'doc_event_message_create_best_use_l1':
+      'Détecter des commandes tapées sans slash command.',
+  'doc_event_message_create_best_use_l2':
+      'Appliquer des filtres anti-spam avant de répondre.',
+  'doc_event_message_create_best_use_l3':
+      'Router vers des workflows réutilisables selon le premier mot ou la mention.',
+  'doc_event_message_create_notes_l1':
+      'Si l’intent Message Content est désactivé, les conditions basées sur le contenu peuvent échouer.',
+  'doc_event_message_create_notes_l2':
+      'message.content[index] est basé sur les mots et limité par l’extraction runtime.',
+  'doc_event_message_create_notes_l3':
+      'author.isBot aide à éviter les boucles entre bots.',
+  'doc_event_message_create_example':
+      'Guard: ((message.isBot)) equals false\nGuard: ((message.content[0])) equals !ticket\nThen: runWorkflow -> ticket_manager entry=create',
+
+  // Docs - Runtime execution flow
+  'doc_runtime_execution_flow_title': 'Flux d’exécution runtime',
+  'doc_runtime_execution_flow_subtitle':
+      'Comment les workflows d’événement sont sélectionnés et exécutés.',
+  'doc_runtime_execution_flow_summary':
+      'Quand un événement arrive, le runtime associe les workflows via eventTrigger.event puis exécute les actions avec les variables de contexte.',
+  'doc_runtime_execution_flow_section_pipeline_title': 'Pipeline',
+  'doc_runtime_execution_flow_section_pipeline_l1':
+      '1) Réception de l’événement gateway.',
+  'doc_runtime_execution_flow_section_pipeline_l2':
+      '2) Construction de la map de variables de contexte.',
+  'doc_runtime_execution_flow_section_pipeline_l3':
+      '3) Matching des workflows par nom d’événement.',
+  'doc_runtime_execution_flow_section_pipeline_l4':
+      '4) Fusion des variables globales.',
+  'doc_runtime_execution_flow_section_pipeline_l5':
+      '5) Exécution séquentielle des actions avec conditions.',
+  'doc_runtime_execution_flow_section_parity_title': 'Règle de parité',
+  'doc_runtime_execution_flow_section_parity_l1':
+      'Les variables doivent être identiques entre runtime local app et runtime runner.',
+  'doc_runtime_execution_flow_section_parity_l2':
+      'Utilisez les mêmes noms de variables dans les conditions pour rester portable.',
 };

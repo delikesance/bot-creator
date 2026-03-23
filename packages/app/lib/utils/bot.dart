@@ -501,6 +501,7 @@ Future<void> createCommand(
     final Map<String, dynamic> commandData = {
       'name': command.name,
       'description': command.description,
+      'type': _commandTypeToStorage(command.type),
       'id': command.id.toString(),
       'createdAt': DateTime.now().toIso8601String(),
     };
@@ -528,6 +529,7 @@ Future<void> updateCommand(
     final Map<String, dynamic> commandData = {
       'name': command.name,
       'description': command.description,
+      'type': _commandTypeToStorage(command.type),
       'id': command.id.toString(),
       'updatedAt': DateTime.now().toIso8601String(),
     };
@@ -543,4 +545,14 @@ Future<void> updateCommand(
   } catch (e) {
     throw Exception('Failed to update command: $e');
   }
+}
+
+String _commandTypeToStorage(ApplicationCommandType type) {
+  if (type == ApplicationCommandType.user) {
+    return 'user';
+  }
+  if (type == ApplicationCommandType.message) {
+    return 'message';
+  }
+  return 'chatInput';
 }
