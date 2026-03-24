@@ -122,7 +122,7 @@ void main() {
       );
     });
 
-    test('serializes autocomplete config and omits static choices', () {
+    test('serializes autocomplete config with mode metadata', () {
       final option = CommandOptionBuilder(
           type: CommandOptionType.string,
           name: 'country',
@@ -145,9 +145,11 @@ void main() {
 
       expect(serialized['autocomplete'], <String, dynamic>{
         'enabled': true,
+        'mode': 'workflow',
         'workflow': 'country_search',
         'entryPoint': 'main',
         'arguments': <String, dynamic>{'dataset': 'countries'},
+        'staticChoices': <Map<String, dynamic>>[],
       });
       expect(serialized.containsKey('choices'), isFalse);
       expect(isCommandOptionAutocompleteEnabled(deserialized), isTrue);
@@ -155,9 +157,11 @@ void main() {
         getCommandOptionAutocompleteConfig(deserialized),
         <String, dynamic>{
           'enabled': true,
+          'mode': 'workflow',
           'workflow': 'country_search',
           'entryPoint': 'main',
           'arguments': <String, dynamic>{'dataset': 'countries'},
+          'staticChoices': <Map<String, dynamic>>[],
         },
       );
       expect(deserialized.choices, isNull);
@@ -181,9 +185,11 @@ void main() {
         expect(isCommandOptionAutocompleteEnabled(option), isTrue);
         expect(getCommandOptionAutocompleteConfig(option), <String, dynamic>{
           'enabled': true,
+          'mode': 'workflow',
           'workflow': 'rank_search',
           'entryPoint': 'main',
           'arguments': <String, dynamic>{'dataset': ' ladder '},
+          'staticChoices': <Map<String, dynamic>>[],
         });
       },
     );
