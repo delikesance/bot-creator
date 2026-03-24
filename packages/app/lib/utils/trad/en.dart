@@ -246,6 +246,9 @@ const Map<String, String> appStringsEn = {
   'action_name_removeScopedVariable': 'Remove Scoped Variable',
   'action_name_renameScopedVariable': 'Rename Scoped Variable',
   'action_name_listScopedVariableIndex': 'List Scoped Variable Index',
+  'action_name_appendArrayElement': 'Append Array Element',
+  'action_name_removeArrayElement': 'Remove Array Element',
+  'action_name_queryArray': 'Query Array',
 
   'action_name_runWorkflow': 'Run Workflow',
   'action_name_respondWithMessage': 'Respond with Message',
@@ -255,6 +258,7 @@ const Map<String, String> appStringsEn = {
   'action_name_listenForButtonClick': 'Listen for Button Click',
   'action_name_listenForSelectMenu': 'Listen for Select Menu',
   'action_name_listenForModalSubmit': 'Listen for Modal Submit',
+  'action_name_respondWithAutocomplete': 'Respond with Autocomplete',
   'action_name_stopUnless': 'Stop Unless Condition',
   'action_name_ifBlock': 'IF / ELSE Block',
   'action_name_calculate': 'Calculate',
@@ -569,6 +573,14 @@ const Map<String, String> appStringsEn = {
   'cmd_simple_actions_title': 'Simplified actions',
   'cmd_simple_actions_desc':
       'Select what this command should do. Options are generated automatically.',
+  'cmd_simple_group_moderation_title': 'Moderation',
+  'cmd_simple_group_moderation_desc':
+      'Member and moderation actions with guided options.',
+  'cmd_simple_group_messages_title': 'Messages',
+  'cmd_simple_group_messages_desc':
+      'Message and channel actions that work in the current context.',
+  'cmd_simple_group_utility_title': 'Utility',
+  'cmd_simple_group_utility_desc': 'Helpful extras such as invites and polls.',
   'cmd_simple_action_delete': 'Delete messages',
   'cmd_simple_action_delete_desc':
       'Delete messages in the current channel (optional /count).',
@@ -576,8 +588,14 @@ const Map<String, String> appStringsEn = {
   'cmd_simple_action_kick_desc': 'Kick the selected /user from the server.',
   'cmd_simple_action_ban': 'Ban user',
   'cmd_simple_action_ban_desc': 'Ban the selected /user from the server.',
+  'cmd_simple_action_unban': 'Unban user',
+  'cmd_simple_action_unban_desc':
+      'Unban a user with a provided /user_id string.',
   'cmd_simple_action_mute': 'Mute user',
   'cmd_simple_action_mute_desc': 'Temporarily mute the selected /user.',
+  'cmd_simple_action_unmute': 'Unmute user',
+  'cmd_simple_action_unmute_desc':
+      'Remove the timeout from the selected /user.',
   'cmd_simple_action_add_role': 'Add role',
   'cmd_simple_action_add_role_desc':
       'Give the selected /role to the selected /user.',
@@ -587,25 +605,101 @@ const Map<String, String> appStringsEn = {
   'cmd_simple_action_send_message': 'Send message',
   'cmd_simple_action_send_message_desc':
       'Send an additional message in the current channel.',
+  'cmd_simple_action_pin': 'Pin message',
+  'cmd_simple_action_pin_desc':
+      'Pin a message in the current channel using /message_id.',
+  'cmd_simple_action_unpin': 'Unpin message',
+  'cmd_simple_action_unpin_desc':
+      'Unpin a message in the current channel using /message_id.',
+  'cmd_simple_action_create_invite': 'Create invite',
+  'cmd_simple_action_create_invite_desc':
+      'Create an invite for the current channel or an optional /channel.',
+  'cmd_simple_action_create_poll': 'Create poll',
+  'cmd_simple_action_create_poll_desc':
+      'Create a poll with a dynamic /question and fixed answer choices.',
   'cmd_simple_action_send_message_label': 'Action message',
   'cmd_simple_action_send_message_hint':
       'Message sent by the Send Message action',
+  'cmd_simple_execution_title': 'Execution settings',
+  'cmd_simple_execution_desc':
+      'Fine-tune the generated actions without leaving simplified mode.',
+  'cmd_simple_action_reason_label': 'Audit log reason',
+  'cmd_simple_action_reason_hint':
+      'Optional reason shared by moderation actions',
+  'cmd_simple_action_delete_default_count_label': 'Default delete count',
+  'cmd_simple_action_delete_default_count_hint':
+      'Used when /count is not provided',
+  'cmd_simple_action_ban_delete_days_label': 'Ban delete message days',
+  'cmd_simple_action_ban_delete_days_hint':
+      '0 to 7 days of recent messages to delete',
+  'cmd_simple_action_mute_duration_label': 'Mute duration',
+  'cmd_simple_action_mute_duration_hint':
+      'Examples: 10m, 2h, 1d, or raw seconds',
   'cmd_simple_generated_options': 'Generated command options',
   'cmd_simple_generated_none':
       'No options generated yet. Select at least one action.',
   'cmd_simple_option_user': '/user (User)',
   'cmd_simple_option_role': '/role (Role)',
   'cmd_simple_option_count': '/count (Integer)',
+  'cmd_simple_option_user_id': '/user_id (Text)',
+  'cmd_simple_option_message_id': '/message_id (Text)',
+  'cmd_simple_option_channel': '/channel (Channel)',
+  'cmd_simple_option_question': '/question (Text)',
   'cmd_simple_option_user_desc': 'Target user',
   'cmd_simple_option_role_desc': 'Target role',
   'cmd_simple_option_count_desc': 'Number of messages to delete',
+  'cmd_simple_option_user_id_desc': 'User ID to unban',
+  'cmd_simple_option_message_id_desc': 'Message ID to target',
+  'cmd_simple_option_channel_desc':
+      'Optional channel override for invite creation',
+  'cmd_simple_option_question_desc': 'Poll question',
+  'cmd_simple_invite_settings_title': 'Invite settings',
+  'cmd_simple_invite_settings_desc':
+      'Defaults used by the generated Create Invite action.',
+  'cmd_simple_invite_max_age_label': 'Invite expiry (seconds)',
+  'cmd_simple_invite_max_age_hint': '0 for no expiry, up to 604800',
+  'cmd_simple_invite_max_uses_label': 'Max uses',
+  'cmd_simple_invite_max_uses_hint': '0 for unlimited uses',
+  'cmd_simple_invite_temporary_label': 'Temporary membership',
+  'cmd_simple_invite_temporary_desc':
+      'Members are removed if they leave before getting a role.',
+  'cmd_simple_invite_unique_label': 'Force unique invite',
+  'cmd_simple_invite_unique_desc':
+      'Always create a new invite instead of reusing an existing one.',
+  'cmd_simple_poll_settings_title': 'Poll settings',
+  'cmd_simple_poll_settings_desc':
+      'Defaults used by the generated Create Poll action.',
+  'cmd_simple_poll_answers_label': 'Poll answers',
+  'cmd_simple_poll_answers_hint':
+      'One answer per line, or use commas. Minimum 2, maximum 10.',
+  'cmd_simple_poll_duration_label': 'Poll duration (hours)',
+  'cmd_simple_poll_duration_hint': 'From 1 to 168 hours',
+  'cmd_simple_poll_multiselect_label': 'Allow multiple answers',
+  'cmd_simple_poll_multiselect_desc': 'Users can select more than one choice.',
   'cmd_simple_response_title': 'Final response',
   'cmd_simple_response_desc':
       'Message sent back to the user after actions are executed.',
+  'cmd_simple_response_visibility_label': 'Response visibility',
+  'cmd_simple_response_visibility_public': 'Public',
+  'cmd_simple_response_visibility_ephemeral': 'Ephemeral',
   'cmd_simple_response_hint': 'Done ✅',
   'cmd_simple_response_embeds_title': 'Response embeds',
   'cmd_simple_response_embeds_desc':
       'Optional embeds sent with the final response.',
+  'cmd_simple_conflict_ban_unban':
+      'Ban user and Unban user cannot be enabled together in simplified mode.',
+  'cmd_simple_conflict_mute_unmute':
+      'Mute user and Unmute user cannot be enabled together in simplified mode.',
+  'cmd_simple_conflict_pin_unpin':
+      'Pin message and Unpin message cannot be enabled together in simplified mode.',
+  'cmd_simple_invite_max_age_invalid':
+      'Invite expiry must be a number between 0 and 604800 seconds.',
+  'cmd_simple_invite_max_uses_invalid':
+      'Invite max uses must be a number between 0 and 1000000.',
+  'cmd_simple_poll_answers_invalid':
+      'Poll answers must contain between 2 and 10 non-empty choices.',
+  'cmd_simple_poll_duration_invalid':
+      'Poll duration must be a number between 1 and 168 hours.',
   'cmd_simple_send_message_required':
       'Please fill the action message before saving.',
 
@@ -670,11 +764,11 @@ const Map<String, String> appStringsEn = {
   'doc_template_variables_section_fallbacks_l1':
       'Use ((opts.user|userName)) to fall back when an option is missing.',
   'doc_template_variables_section_fallbacks_l2':
-      'Use JSONPath syntax on action outputs: ((myHttp.body.\$.data[0].id)).',
+      'Use JSONPath syntax on action outputs: ((myHttp.body.\$.data[0].id)); arrays and objects stay queryable.',
   'doc_template_variables_section_fallbacks_l3':
-      'Unknown variables resolve to an empty string.',
+      'Functions like length(...), join(...), formatEach(...), and embedFields(...) are also supported; unknown variables still resolve to an empty string.',
   'doc_template_variables_example':
-      'Hello ((target.user.username|userName))\nType: ((commandType))\nSelected reason: ((opts.reason))\nCurrent workflow: ((workflow.name))',
+      'Hello ((target.user.username|userName))\nPlayers: ((join(scores.items.\$, ", ")))\nFields JSON: ((embedFields(scores.items.\$, "{name}", "{score}", true)))',
 
   // Docs - Interaction Commands
   'doc_interaction_commands_title': 'Interaction Commands',
@@ -702,11 +796,11 @@ const Map<String, String> appStringsEn = {
   'doc_interaction_commands_section_guidance_l1':
       'Write conditional logic against commandType or interaction.command.type.',
   'doc_interaction_commands_section_guidance_l2':
-      'Prefer fallback syntax when sharing a template between slash and non-slash commands.',
+      'Prefer fallback syntax when sharing a template between slash and non-slash commands, and use autocomplete.query inside dedicated autocomplete workflows.',
   'doc_interaction_commands_section_guidance_l3':
-      'Keep templates portable by avoiding event-only names inside command workflows.',
+      'Keep templates portable by avoiding event-only names inside command workflows; dynamic autocomplete requires a general workflow ending with respondWithAutocomplete.',
   'doc_interaction_commands_example':
-      'Condition variable: ((commandType))\nIf user -> reply with ((target.user.username))\nIf message -> quote ((target.message.content))',
+      'Autocomplete workflow:\nquery = ((autocomplete.query))\nqueryArray -> items=((httpSearch.body))\nrespondWithAutocomplete -> label={name} value={id}',
 
   // Docs - Event: messageCreate
   'doc_event_message_create_title': 'Event: messageCreate',

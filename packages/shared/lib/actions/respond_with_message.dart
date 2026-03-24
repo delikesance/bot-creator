@@ -2,6 +2,7 @@ import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator_shared/types/component.dart';
 import 'package:bot_creator_shared/actions/send_component_v2.dart';
 import 'package:bot_creator_shared/utils/component_workflow_bindings.dart';
+import 'package:bot_creator_shared/utils/embed_fields.dart';
 
 Future<Map<String, dynamic>> respondWithMessageAction(
   Interaction interaction, {
@@ -124,20 +125,12 @@ Future<Map<String, dynamic>> respondWithMessageAction(
         embed.thumbnail = EmbedThumbnailBuilder(url: Uri.parse(thumbnailUrl));
       }
 
-      final fieldList =
-          (embedJson['fields'] as List?)?.whereType<Map>() ?? const [];
-      for (final fieldJson in fieldList.take(25)) {
-        final name = resolve((fieldJson['name'] ?? '').toString());
-        final value = resolve((fieldJson['value'] ?? '').toString());
-        if (name.isNotEmpty && value.isNotEmpty) {
-          (embed.fields ??= []).add(
-            EmbedFieldBuilder(
-              name: name,
-              value: value,
-              isInline: fieldJson['inline'] == true,
-            ),
-          );
-        }
+      final resolvedFields = buildResolvedEmbedFields(
+        embedJson: embedJson,
+        resolve: resolve,
+      );
+      if (resolvedFields.isNotEmpty) {
+        embed.fields = resolvedFields;
       }
 
       embeds.add(embed);

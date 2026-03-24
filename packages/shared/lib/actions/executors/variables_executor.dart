@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
+import 'package:bot_creator_shared/utils/command_autocomplete.dart';
+import 'package:bot_creator_shared/utils/template_resolver.dart';
 import 'package:nyxx/nyxx.dart';
 
 import '../../types/action.dart';
@@ -148,14 +150,12 @@ String? _resolveScopeContextId({
     case 'user':
       return fromVariables('userId') ?? interactionUserId();
     case 'guildMember':
-      {
-        final guild = fromVariables('guildId') ?? fromSnowflake(guildId);
-        final user = fromVariables('userId') ?? interactionUserId();
-        if (guild == null || user == null) {
-          return null;
-        }
-        return '$guild:$user';
+      final guild = fromVariables('guildId') ?? fromSnowflake(guildId);
+      final user = fromVariables('userId') ?? interactionUserId();
+      if (guild == null || user == null) {
+        return null;
       }
+      return '$guild:$user';
     case 'message':
       return fromVariables('messageId') ??
           fromVariables('message.id') ??
@@ -163,6 +163,345 @@ String? _resolveScopeContextId({
     default:
       return null;
   }
+}
+
+dynamic _deepCloneJsonValue(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  return jsonDecode(jsonEncode(value));
+}
+
+String _normalizeJsonPath(dynamic rawPath) {
+  final text = (rawPath ?? '').toString().trim();
+  return text.isEmpty ? r'$' : text;
+}
+
+String _normalizeVariableTarget(Map<String, dynamic> payload) {
+  final explicit = (payload['target'] ?? '').toString().trim().toLowerCase();
+  if (explicit == 'global' || explicit == 'scoped') {
+    return explicit;
+  }
+  return (payload['scope'] ?? '').toString().trim().isNotEmpty
+      ? 'scoped'
+      : 'global';
+}
+
+({String scope, String contextId, String storageKey, String referenceKey})
+_resolveScopedBinding({
+  required Map<String, dynamic> payload,
+  required String Function(String input) resolveValue,
+  required Map<String, String> variables,
+  required Snowflake? guildId,
+  required Snowflake? fallbackChannelId,
+  required Interaction? interaction,
+}) {
+  final scope = resolveValue((payload['scope'] ?? '').toString()).trim();
+  if (!_supportedVariableScopes.contains(scope)) {
+    throw Exception(
+      'scope is required and must be one of ${_supportedVariableScopes.join(', ')}',
+    );
+  }
+
+  final rawKey = resolveValue((payload['key'] ?? '').toString()).trim();
+  final storageKey = _scopedStorageKey(rawKey);
+  final referenceKey = _scopedReferenceKey(rawKey);
+  final contextId = _resolveScopeContextId(
+    scope: scope,
+    variables: variables,
+    guildId: guildId,
+    channelId: fallbackChannelId,
+    interaction: interaction,
+  );
+  if (contextId == null || contextId.trim().isEmpty) {
+    throw Exception('Unable to resolve context ID for scope "$scope"');
+  }
+
+  return (
+    scope: scope,
+    contextId: contextId,
+    storageKey: storageKey,
+    referenceKey: referenceKey,
+  );
+}
+
+Future<dynamic> _readPersistedVariable({
+  required BotDataStore store,
+  required String botId,
+  required String target,
+  required Map<String, dynamic> payload,
+  required String Function(String input) resolveValue,
+  required Map<String, String> variables,
+  required Snowflake? guildId,
+  required Snowflake? fallbackChannelId,
+  required Interaction? interaction,
+}) async {
+  if (target == 'global') {
+    final key = resolveValue((payload['key'] ?? '').toString()).trim();
+    if (key.isEmpty) {
+      throw Exception('key is required for global variables');
+    }
+    return store.getGlobalVariable(botId, key);
+  }
+
+  final binding = _resolveScopedBinding(
+    payload: payload,
+    resolveValue: resolveValue,
+    variables: variables,
+    guildId: guildId,
+    fallbackChannelId: fallbackChannelId,
+    interaction: interaction,
+  );
+  return store.getScopedVariable(
+    botId,
+    binding.scope,
+    binding.contextId,
+    binding.storageKey,
+  );
+}
+
+Future<void> _writePersistedVariable({
+  required BotDataStore store,
+  required String botId,
+  required String target,
+  required Map<String, dynamic> payload,
+  required String Function(String input) resolveValue,
+  required Map<String, String> variables,
+  required Snowflake? guildId,
+  required Snowflake? fallbackChannelId,
+  required Interaction? interaction,
+  required dynamic value,
+}) async {
+  if (target == 'global') {
+    final key = resolveValue((payload['key'] ?? '').toString()).trim();
+    if (key.isEmpty) {
+      throw Exception('key is required for global variables');
+    }
+    await store.setGlobalVariable(botId, key, value);
+    variables['global.$key'] = _stringifyRuntimeValue(value);
+    return;
+  }
+
+  final binding = _resolveScopedBinding(
+    payload: payload,
+    resolveValue: resolveValue,
+    variables: variables,
+    guildId: guildId,
+    fallbackChannelId: fallbackChannelId,
+    interaction: interaction,
+  );
+  await store.setScopedVariable(
+    botId,
+    binding.scope,
+    binding.contextId,
+    binding.storageKey,
+    value,
+  );
+  final runtimeValue = _stringifyRuntimeValue(value);
+  variables['${binding.scope}.${binding.referenceKey}'] = runtimeValue;
+  if ((payload['key'] ?? '').toString().trim() != binding.referenceKey) {
+    variables['${binding.scope}.${(payload['key'] ?? '').toString().trim()}'] =
+        runtimeValue;
+  }
+}
+
+void _storeArrayOutputs({
+  required String resultKey,
+  required Map<String, String> variables,
+  required List<dynamic> items,
+  dynamic removed,
+}) {
+  final itemsJson = jsonEncode(items);
+  final length = items.length.toString();
+  variables['action.$resultKey.items'] = itemsJson;
+  variables['$resultKey.items'] = itemsJson;
+  variables['action.$resultKey.length'] = length;
+  variables['$resultKey.length'] = length;
+  if (removed != null) {
+    final removedValue = _stringifyRuntimeValue(removed);
+    variables['action.$resultKey.removed'] = removedValue;
+    variables['$resultKey.removed'] = removedValue;
+  }
+}
+
+void _storePagedOutputs({
+  required String resultKey,
+  required Map<String, String> variables,
+  required List<dynamic> items,
+  required int total,
+}) {
+  final itemsJson = jsonEncode(items);
+  variables['action.$resultKey.items'] = itemsJson;
+  variables['$resultKey.items'] = itemsJson;
+  variables['action.$resultKey.count'] = items.length.toString();
+  variables['$resultKey.count'] = items.length.toString();
+  variables['action.$resultKey.total'] = total.toString();
+  variables['$resultKey.total'] = total.toString();
+}
+
+bool _mutateJsonPathList(
+  dynamic root,
+  String rawPath,
+  List<dynamic> Function(List<dynamic>? current) update,
+) {
+  final path = _normalizeJsonPath(rawPath);
+  if (path == r'$') {
+    if (root is! List<dynamic>) {
+      final next = update(null);
+      if (root is List) {
+        root
+          ..clear()
+          ..addAll(next);
+      }
+      return false;
+    }
+    final next = update(root);
+    root
+      ..clear()
+      ..addAll(next);
+    return true;
+  }
+
+  final segments = parseJsonPathSegments(path);
+  if (segments == null || segments.isEmpty) {
+    return false;
+  }
+
+  dynamic current = root;
+  for (var index = 0; index < segments.length - 1; index++) {
+    final segment = segments[index];
+    final nextSegment = segments[index + 1];
+    if (segment is String) {
+      if (current is! Map) {
+        return false;
+      }
+      if (!current.containsKey(segment) || current[segment] == null) {
+        current[segment] =
+            nextSegment is int ? <dynamic>[] : <String, dynamic>{};
+      }
+      current = current[segment];
+      continue;
+    }
+
+    if (segment is int) {
+      if (current is! List || segment < 0 || segment >= current.length) {
+        return false;
+      }
+      current = current[segment];
+    }
+  }
+
+  final last = segments.last;
+  if (last is String) {
+    if (current is! Map) {
+      return false;
+    }
+    final next = update(
+      current[last] is List ? List<dynamic>.from(current[last] as List) : null,
+    );
+    current[last] = next;
+    return true;
+  }
+
+  if (last is int) {
+    if (current is! List || last < 0 || last >= current.length) {
+      return false;
+    }
+    final currentValue = current[last];
+    final next = update(
+      currentValue is List ? List<dynamic>.from(currentValue) : null,
+    );
+    current[last] = next;
+    return true;
+  }
+
+  return false;
+}
+
+List<dynamic> _ensureUpdatedArray(dynamic root, String rawPath) {
+  if (_normalizeJsonPath(rawPath) == r'$') {
+    if (root is List) {
+      return List<dynamic>.from(root);
+    }
+    return const <dynamic>[];
+  }
+
+  final extracted = extractJsonPathValue(root, rawPath);
+  if (extracted is List) {
+    return List<dynamic>.from(extracted);
+  }
+  return const <dynamic>[];
+}
+
+List<dynamic> _extractArrayFromJsonInput(String input, String rawPath) {
+  final decoded = decodeJsonStringIfNeeded(input);
+  final target =
+      _normalizeJsonPath(rawPath) == r'$'
+          ? decoded
+          : extractJsonPathValue(decoded, rawPath);
+  if (target is List) {
+    return List<dynamic>.from(target);
+  }
+  return <dynamic>[];
+}
+
+bool _matchesFilter({
+  required String candidate,
+  required String operator,
+  required String expected,
+}) {
+  final op = operator.trim().toLowerCase();
+  final leftLower = candidate.toLowerCase();
+  final rightLower = expected.toLowerCase();
+
+  switch (op) {
+    case 'contains':
+      return leftLower.contains(rightLower);
+    case 'equals':
+      final leftNum = num.tryParse(candidate);
+      final rightNum = num.tryParse(expected);
+      if (leftNum != null && rightNum != null) {
+        return leftNum == rightNum;
+      }
+      return candidate == expected;
+    case 'startswith':
+      return leftLower.startsWith(rightLower);
+    case 'endswith':
+      return leftLower.endsWith(rightLower);
+    case 'gt':
+    case 'gte':
+    case 'lt':
+    case 'lte':
+      final leftNum = num.tryParse(candidate);
+      final rightNum = num.tryParse(expected);
+      if (leftNum == null || rightNum == null) {
+        return false;
+      }
+      switch (op) {
+        case 'gt':
+          return leftNum > rightNum;
+        case 'gte':
+          return leftNum >= rightNum;
+        case 'lt':
+          return leftNum < rightNum;
+        case 'lte':
+          return leftNum <= rightNum;
+        default:
+          return false;
+      }
+    default:
+      return false;
+  }
+}
+
+int _compareSortValues(String left, String right, bool descending) {
+  final leftNum = num.tryParse(left);
+  final rightNum = num.tryParse(right);
+  final comparison =
+      leftNum != null && rightNum != null
+          ? leftNum.compareTo(rightNum)
+          : left.toLowerCase().compareTo(right.toLowerCase());
+  return descending ? -comparison : comparison;
 }
 
 Future<bool> executeVariablesAction({
@@ -190,7 +529,6 @@ Future<bool> executeVariablesAction({
       final rawKey = resolveValue((payload['key'] ?? '').toString()).trim();
       final storageKey = _scopedStorageKey(rawKey);
       final referenceKey = _scopedReferenceKey(rawKey);
-
       final contextId = _resolveScopeContextId(
         scope: scope,
         variables: variables,
@@ -223,7 +561,6 @@ Future<bool> executeVariablesAction({
       final rawKey = resolveValue((payload['key'] ?? '').toString()).trim();
       final storageKey = _scopedStorageKey(rawKey);
       final referenceKey = _scopedReferenceKey(rawKey);
-
       final contextId = _resolveScopeContextId(
         scope: scope,
         variables: variables,
@@ -276,7 +613,6 @@ Future<bool> executeVariablesAction({
       final rawKey = resolveValue((payload['key'] ?? '').toString()).trim();
       final storageKey = _scopedStorageKey(rawKey);
       final referenceKey = _scopedReferenceKey(rawKey);
-
       final contextId = _resolveScopeContextId(
         scope: scope,
         variables: variables,
@@ -315,7 +651,6 @@ Future<bool> executeVariablesAction({
       final newStorageKey = _scopedStorageKey(newRawKey);
       final oldReferenceKey = _scopedReferenceKey(oldRawKey);
       final newReferenceKey = _scopedReferenceKey(newRawKey);
-
       final contextId = _resolveScopeContextId(
         scope: scope,
         variables: variables,
@@ -415,24 +750,308 @@ Future<bool> executeVariablesAction({
             ) ??
             const <Map<String, dynamic>>[],
       );
-      final itemsJson = jsonEncode(items);
-      final count = (page['count'] ?? items.length).toString();
-      final total = (page['total'] ?? items.length).toString();
-
-      variables['action.$resultKey.items'] = itemsJson;
-      variables['$resultKey.items'] = itemsJson;
-      variables['action.$resultKey.count'] = count;
-      variables['$resultKey.count'] = count;
-      variables['action.$resultKey.total'] = total;
-      variables['$resultKey.total'] = total;
+      _storePagedOutputs(
+        resultKey: resultKey,
+        variables: variables,
+        items: items,
+        total: (page['total'] ?? items.length) as int,
+      );
 
       final storeAs =
           resolveValue((payload['storeAs'] ?? '').toString()).trim();
       if (storeAs.isNotEmpty) {
-        variables[storeAs] = itemsJson;
+        variables[storeAs] = jsonEncode(items);
       }
 
-      results[resultKey] = itemsJson;
+      results[resultKey] = jsonEncode(items);
+      return true;
+
+    case BotCreatorActionType.appendArrayElement:
+      final target = _normalizeVariableTarget(payload);
+      final path = _normalizeJsonPath(
+        resolveValue((payload['path'] ?? r'$').toString()),
+      );
+      final rootValue = await _readPersistedVariable(
+        store: store,
+        botId: botId,
+        target: target,
+        payload: payload,
+        resolveValue: resolveValue,
+        variables: variables,
+        guildId: guildId,
+        fallbackChannelId: fallbackChannelId,
+        interaction: interaction,
+      );
+      final clonedRoot =
+          path == r'$'
+              ? <dynamic>[]
+              : (_deepCloneJsonValue(rootValue) ?? <String, dynamic>{});
+      final element = _resolveVariableValuePayload(payload, resolveValue);
+      if (path == r'$') {
+        final list =
+            rootValue is List ? List<dynamic>.from(rootValue) : <dynamic>[];
+        list.add(element);
+        await _writePersistedVariable(
+          store: store,
+          botId: botId,
+          target: target,
+          payload: payload,
+          resolveValue: resolveValue,
+          variables: variables,
+          guildId: guildId,
+          fallbackChannelId: fallbackChannelId,
+          interaction: interaction,
+          value: list,
+        );
+        _storeArrayOutputs(
+          resultKey: resultKey,
+          variables: variables,
+          items: list,
+        );
+        results[resultKey] = jsonEncode(list);
+        return true;
+      }
+
+      _mutateJsonPathList(clonedRoot, path, (current) {
+        final next = List<dynamic>.from(current ?? const <dynamic>[]);
+        next.add(element);
+        return next;
+      });
+      final updated = _ensureUpdatedArray(clonedRoot, path);
+      await _writePersistedVariable(
+        store: store,
+        botId: botId,
+        target: target,
+        payload: payload,
+        resolveValue: resolveValue,
+        variables: variables,
+        guildId: guildId,
+        fallbackChannelId: fallbackChannelId,
+        interaction: interaction,
+        value: clonedRoot,
+      );
+      _storeArrayOutputs(
+        resultKey: resultKey,
+        variables: variables,
+        items: updated,
+      );
+      results[resultKey] = jsonEncode(updated);
+      return true;
+
+    case BotCreatorActionType.removeArrayElement:
+      final target = _normalizeVariableTarget(payload);
+      final path = _normalizeJsonPath(
+        resolveValue((payload['path'] ?? r'$').toString()),
+      );
+      final index = int.tryParse(
+        resolveValue((payload['index'] ?? '').toString()).trim(),
+      );
+      if (index == null) {
+        throw Exception('index is required for removeArrayElement');
+      }
+
+      final rootValue = await _readPersistedVariable(
+        store: store,
+        botId: botId,
+        target: target,
+        payload: payload,
+        resolveValue: resolveValue,
+        variables: variables,
+        guildId: guildId,
+        fallbackChannelId: fallbackChannelId,
+        interaction: interaction,
+      );
+      dynamic removed;
+      if (path == r'$') {
+        final list =
+            rootValue is List ? List<dynamic>.from(rootValue) : <dynamic>[];
+        if (index >= 0 && index < list.length) {
+          removed = list.removeAt(index);
+        }
+        await _writePersistedVariable(
+          store: store,
+          botId: botId,
+          target: target,
+          payload: payload,
+          resolveValue: resolveValue,
+          variables: variables,
+          guildId: guildId,
+          fallbackChannelId: fallbackChannelId,
+          interaction: interaction,
+          value: list,
+        );
+        _storeArrayOutputs(
+          resultKey: resultKey,
+          variables: variables,
+          items: list,
+          removed: removed,
+        );
+        results[resultKey] = jsonEncode(list);
+        return true;
+      }
+
+      final clonedRoot = _deepCloneJsonValue(rootValue) ?? <String, dynamic>{};
+      _mutateJsonPathList(clonedRoot, path, (current) {
+        final next = List<dynamic>.from(current ?? const <dynamic>[]);
+        if (index >= 0 && index < next.length) {
+          removed = next.removeAt(index);
+        }
+        return next;
+      });
+      final updated = _ensureUpdatedArray(clonedRoot, path);
+      await _writePersistedVariable(
+        store: store,
+        botId: botId,
+        target: target,
+        payload: payload,
+        resolveValue: resolveValue,
+        variables: variables,
+        guildId: guildId,
+        fallbackChannelId: fallbackChannelId,
+        interaction: interaction,
+        value: clonedRoot,
+      );
+      _storeArrayOutputs(
+        resultKey: resultKey,
+        variables: variables,
+        items: updated,
+        removed: removed,
+      );
+      results[resultKey] = jsonEncode(updated);
+      return true;
+
+    case BotCreatorActionType.queryArray:
+      final input = resolveValue((payload['input'] ?? '').toString());
+      final path = _normalizeJsonPath(
+        resolveValue((payload['path'] ?? r'$').toString()),
+      );
+      final items = _extractArrayFromJsonInput(input, path);
+      final filterTemplate =
+          (payload['filterTemplate'] ?? '{value}').toString();
+      final filterOperator =
+          resolveValue((payload['filterOperator'] ?? '').toString()).trim();
+      final filterValue =
+          resolveValue((payload['filterValue'] ?? '').toString()).trim();
+      final sortTemplate = (payload['sortTemplate'] ?? '{value}').toString();
+      final order =
+          resolveValue(
+            (payload['order'] ?? 'asc').toString(),
+          ).trim().toLowerCase();
+      final offset =
+          int.tryParse(
+            resolveValue((payload['offset'] ?? '0').toString()).trim(),
+          ) ??
+          0;
+      final limit =
+          int.tryParse(
+            resolveValue((payload['limit'] ?? '25').toString()).trim(),
+          ) ??
+          25;
+
+      var working = List<dynamic>.from(items);
+      if (filterOperator.isNotEmpty && filterValue.isNotEmpty) {
+        working = working
+            .where((item) {
+              final candidate = resolveItemTemplate(
+                filterTemplate,
+                item,
+                variables,
+              );
+              return _matchesFilter(
+                candidate: candidate,
+                operator: filterOperator,
+                expected: filterValue,
+              );
+            })
+            .toList(growable: false);
+      }
+
+      working.sort((left, right) {
+        final leftValue = resolveItemTemplate(sortTemplate, left, variables);
+        final rightValue = resolveItemTemplate(sortTemplate, right, variables);
+        return _compareSortValues(leftValue, rightValue, order == 'desc');
+      });
+
+      final safeOffset = offset < 0 ? 0 : offset;
+      final safeLimit = limit < 1 ? 1 : (limit > 100 ? 100 : limit);
+      final start = safeOffset.clamp(0, working.length);
+      final end = (start + safeLimit).clamp(start, working.length);
+      final page = working.sublist(start, end);
+
+      _storePagedOutputs(
+        resultKey: resultKey,
+        variables: variables,
+        items: page,
+        total: working.length,
+      );
+      final storeAs =
+          resolveValue((payload['storeAs'] ?? '').toString()).trim();
+      if (storeAs.isNotEmpty) {
+        variables[storeAs] = jsonEncode(page);
+      }
+      results[resultKey] = jsonEncode(page);
+      return true;
+
+    case BotCreatorActionType.respondWithAutocomplete:
+      if (interaction is! ApplicationCommandAutocompleteInteraction) {
+        throw Exception(
+          'respondWithAutocomplete requires an autocomplete interaction context',
+        );
+      }
+
+      final itemsInput = resolveValue((payload['items'] ?? '').toString());
+      final path = _normalizeJsonPath(
+        resolveValue((payload['path'] ?? r'$').toString()),
+      );
+      final items = _extractArrayFromJsonInput(itemsInput, path);
+      final labelTemplate = (payload['labelTemplate'] ?? '{value}').toString();
+      final valueTemplate = (payload['valueTemplate'] ?? '{value}').toString();
+
+      final focused =
+          variables['autocomplete.optionType']?.trim().toLowerCase() ??
+          commandOptionTypeToText(
+            findFocusedInteractionOption(interaction.data.options)?.type ??
+                CommandOptionType.string,
+          ).toLowerCase();
+
+      final builders = <CommandOptionChoiceBuilder<dynamic>>[];
+      for (final item in items) {
+        if (builders.length >= 25) {
+          break;
+        }
+        final label =
+            resolveItemTemplate(labelTemplate, item, variables).trim();
+        final rawValue =
+            resolveItemTemplate(valueTemplate, item, variables).trim();
+        if (label.isEmpty || rawValue.isEmpty) {
+          continue;
+        }
+
+        dynamic typedValue;
+        switch (focused) {
+          case 'integer':
+            typedValue = int.tryParse(rawValue);
+            break;
+          case 'number':
+            typedValue = double.tryParse(rawValue);
+            break;
+          default:
+            typedValue = rawValue;
+            break;
+        }
+
+        if (typedValue == null) {
+          continue;
+        }
+
+        builders.add(
+          CommandOptionChoiceBuilder<dynamic>(name: label, value: typedValue),
+        );
+      }
+
+      await interaction.respond(builders);
+      results[resultKey] = 'RESPONDED';
+      results['__stopped__'] = 'AUTOCOMPLETE';
       return true;
 
     case BotCreatorActionType.setGlobalVariable:

@@ -248,6 +248,9 @@ const Map<String, String> appStringsFr = {
   'action_name_removeScopedVariable': 'Supprimer une variable scopée',
   'action_name_renameScopedVariable': 'Renommer une variable scopée',
   'action_name_listScopedVariableIndex': 'Lister un index de variable scopée',
+  'action_name_appendArrayElement': 'Ajouter un élément à un tableau',
+  'action_name_removeArrayElement': 'Retirer un élément de tableau',
+  'action_name_queryArray': 'Interroger un tableau',
 
   'action_name_runWorkflow': 'Exécuter un workflow',
   'action_name_respondWithMessage': 'Répondre avec un message',
@@ -257,6 +260,7 @@ const Map<String, String> appStringsFr = {
   'action_name_listenForButtonClick': 'Écouter un clic bouton',
   'action_name_listenForSelectMenu': 'Écouter un menu de sélection',
   'action_name_listenForModalSubmit': 'Écouter une soumission de modal',
+  'action_name_respondWithAutocomplete': 'Répondre avec un auto-complete',
   'action_name_stopUnless': 'Arrêter sauf si condition',
   'action_name_ifBlock': 'Bloc SI / SINON',
   'action_name_calculate': 'Calculer',
@@ -582,6 +586,15 @@ const Map<String, String> appStringsFr = {
   'cmd_simple_actions_title': 'Actions simplifiées',
   'cmd_simple_actions_desc':
       'Sélectionnez ce que la commande doit faire. Les options sont générées automatiquement.',
+  'cmd_simple_group_moderation_title': 'Modération',
+  'cmd_simple_group_moderation_desc':
+      'Actions de modération et de gestion des membres avec options guidées.',
+  'cmd_simple_group_messages_title': 'Messages',
+  'cmd_simple_group_messages_desc':
+      'Actions liées aux messages et au salon courant.',
+  'cmd_simple_group_utility_title': 'Utilitaires',
+  'cmd_simple_group_utility_desc':
+      'Fonctions utiles comme les invitations et les sondages.',
   'cmd_simple_action_delete': 'Supprimer des messages',
   'cmd_simple_action_delete_desc':
       'Supprime des messages dans le salon courant (option /count).',
@@ -589,9 +602,14 @@ const Map<String, String> appStringsFr = {
   'cmd_simple_action_kick_desc': 'Expulse le /user sélectionné du serveur.',
   'cmd_simple_action_ban': 'Bannir un utilisateur',
   'cmd_simple_action_ban_desc': 'Bannit le /user sélectionné du serveur.',
+  'cmd_simple_action_unban': 'Débannir un utilisateur',
+  'cmd_simple_action_unban_desc':
+      'Débannit un utilisateur via une chaîne /user_id.',
   'cmd_simple_action_mute': 'Rendre muet un utilisateur',
   'cmd_simple_action_mute_desc':
       'Rend temporairement muet le /user sélectionné.',
+  'cmd_simple_action_unmute': 'Retirer le mute',
+  'cmd_simple_action_unmute_desc': 'Retire le timeout du /user sélectionné.',
   'cmd_simple_action_add_role': 'Ajouter un rôle',
   'cmd_simple_action_add_role_desc':
       'Attribue le /role sélectionné au /user sélectionné.',
@@ -601,25 +619,103 @@ const Map<String, String> appStringsFr = {
   'cmd_simple_action_send_message': 'Envoyer un message',
   'cmd_simple_action_send_message_desc':
       'Envoie un message supplémentaire dans le salon courant.',
+  'cmd_simple_action_pin': 'Épingler un message',
+  'cmd_simple_action_pin_desc':
+      'Épingle un message du salon courant via /message_id.',
+  'cmd_simple_action_unpin': 'Désépingler un message',
+  'cmd_simple_action_unpin_desc':
+      'Désépingle un message du salon courant via /message_id.',
+  'cmd_simple_action_create_invite': 'Créer une invitation',
+  'cmd_simple_action_create_invite_desc':
+      'Crée une invitation pour le salon courant ou un /channel optionnel.',
+  'cmd_simple_action_create_poll': 'Créer un sondage',
+  'cmd_simple_action_create_poll_desc':
+      'Crée un sondage avec une /question dynamique et des réponses fixes.',
   'cmd_simple_action_send_message_label': 'Message de l’action',
   'cmd_simple_action_send_message_hint':
       'Message envoyé par l’action Send Message',
+  'cmd_simple_execution_title': 'Réglages d’exécution',
+  'cmd_simple_execution_desc':
+      'Affinez les actions générées sans quitter le mode simplifié.',
+  'cmd_simple_action_reason_label': 'Raison du log d’audit',
+  'cmd_simple_action_reason_hint':
+      'Raison optionnelle partagée par les actions de modération',
+  'cmd_simple_action_delete_default_count_label':
+      'Nombre par défaut à supprimer',
+  'cmd_simple_action_delete_default_count_hint':
+      'Utilisé si /count n’est pas fourni',
+  'cmd_simple_action_ban_delete_days_label':
+      'Jours de messages à supprimer au ban',
+  'cmd_simple_action_ban_delete_days_hint':
+      'De 0 à 7 jours de messages récents',
+  'cmd_simple_action_mute_duration_label': 'Durée du mute',
+  'cmd_simple_action_mute_duration_hint':
+      'Exemples : 10m, 2h, 1d, ou secondes brutes',
   'cmd_simple_generated_options': 'Options de commande générées',
   'cmd_simple_generated_none':
       'Aucune option générée pour le moment. Sélectionnez au moins une action.',
   'cmd_simple_option_user': '/user (Utilisateur)',
   'cmd_simple_option_role': '/role (Rôle)',
   'cmd_simple_option_count': '/count (Entier)',
+  'cmd_simple_option_user_id': '/user_id (Texte)',
+  'cmd_simple_option_message_id': '/message_id (Texte)',
+  'cmd_simple_option_channel': '/channel (Salon)',
+  'cmd_simple_option_question': '/question (Texte)',
   'cmd_simple_option_user_desc': 'Utilisateur ciblé',
   'cmd_simple_option_role_desc': 'Rôle ciblé',
   'cmd_simple_option_count_desc': 'Nombre de messages à supprimer',
+  'cmd_simple_option_user_id_desc': 'ID utilisateur à débannir',
+  'cmd_simple_option_message_id_desc': 'ID du message ciblé',
+  'cmd_simple_option_channel_desc': 'Salon optionnel pour créer l’invitation',
+  'cmd_simple_option_question_desc': 'Question du sondage',
+  'cmd_simple_invite_settings_title': 'Réglages de l’invitation',
+  'cmd_simple_invite_settings_desc':
+      'Valeurs par défaut utilisées par l’action Create Invite générée.',
+  'cmd_simple_invite_max_age_label': 'Expiration de l’invitation (secondes)',
+  'cmd_simple_invite_max_age_hint': '0 pour aucune expiration, jusqu’à 604800',
+  'cmd_simple_invite_max_uses_label': 'Nombre max d’utilisations',
+  'cmd_simple_invite_max_uses_hint': '0 pour illimité',
+  'cmd_simple_invite_temporary_label': 'Adhésion temporaire',
+  'cmd_simple_invite_temporary_desc':
+      'Le membre est retiré s’il quitte avant de recevoir un rôle.',
+  'cmd_simple_invite_unique_label': 'Forcer une invitation unique',
+  'cmd_simple_invite_unique_desc':
+      'Crée toujours une nouvelle invitation au lieu d’en réutiliser une.',
+  'cmd_simple_poll_settings_title': 'Réglages du sondage',
+  'cmd_simple_poll_settings_desc':
+      'Valeurs par défaut utilisées par l’action Create Poll générée.',
+  'cmd_simple_poll_answers_label': 'Réponses du sondage',
+  'cmd_simple_poll_answers_hint':
+      'Une réponse par ligne, ou séparées par des virgules. Minimum 2, maximum 10.',
+  'cmd_simple_poll_duration_label': 'Durée du sondage (heures)',
+  'cmd_simple_poll_duration_hint': 'De 1 à 168 heures',
+  'cmd_simple_poll_multiselect_label': 'Autoriser plusieurs réponses',
+  'cmd_simple_poll_multiselect_desc':
+      'Les utilisateurs peuvent sélectionner plus d’un choix.',
   'cmd_simple_response_title': 'Réponse finale',
   'cmd_simple_response_desc':
       'Message renvoyé à l’utilisateur après l’exécution des actions.',
+  'cmd_simple_response_visibility_label': 'Visibilité de la réponse',
+  'cmd_simple_response_visibility_public': 'Publique',
+  'cmd_simple_response_visibility_ephemeral': 'Éphémère',
   'cmd_simple_response_hint': 'Terminé ✅',
   'cmd_simple_response_embeds_title': 'Embeds de réponse',
   'cmd_simple_response_embeds_desc':
       'Embeds optionnels envoyés avec la réponse finale.',
+  'cmd_simple_conflict_ban_unban':
+      'Bannir un utilisateur et Débannir un utilisateur ne peuvent pas être activés ensemble en mode simplifié.',
+  'cmd_simple_conflict_mute_unmute':
+      'Rendre muet un utilisateur et Retirer le mute ne peuvent pas être activés ensemble en mode simplifié.',
+  'cmd_simple_conflict_pin_unpin':
+      'Épingler un message et Désépingler un message ne peuvent pas être activés ensemble en mode simplifié.',
+  'cmd_simple_invite_max_age_invalid':
+      'L’expiration de l’invitation doit être un nombre entre 0 et 604800 secondes.',
+  'cmd_simple_invite_max_uses_invalid':
+      'Le nombre max d’utilisations doit être un nombre entre 0 et 1000000.',
+  'cmd_simple_poll_answers_invalid':
+      'Le sondage doit contenir entre 2 et 10 réponses non vides.',
+  'cmd_simple_poll_duration_invalid':
+      'La durée du sondage doit être un nombre entre 1 et 168 heures.',
   'cmd_simple_send_message_required':
       'Veuillez renseigner le message de l’action avant de sauvegarder.',
 
@@ -688,11 +784,11 @@ const Map<String, String> appStringsFr = {
   'doc_template_variables_section_fallbacks_l1':
       'Utilisez ((opts.user|userName)) pour fallback si une option est absente.',
   'doc_template_variables_section_fallbacks_l2':
-      'Utilisez la syntaxe JSONPath sur les sorties d’actions : ((myHttp.body.\$.data[0].id)).',
+      'Utilisez la syntaxe JSONPath sur les sorties d’actions : ((myHttp.body.\$.data[0].id)) ; les tableaux et objets restent manipulables.',
   'doc_template_variables_section_fallbacks_l3':
-      'Une variable inconnue est résolue en chaîne vide.',
+      'Les fonctions length(...), join(...), formatEach(...), et embedFields(...) sont aussi supportées ; une variable inconnue reste résolue en chaîne vide.',
   'doc_template_variables_example':
-      'Bonjour ((target.user.username|userName))\nType : ((commandType))\nRaison sélectionnée : ((opts.reason))\nWorkflow courant : ((workflow.name))',
+      'Bonjour ((target.user.username|userName))\nJoueurs : ((join(scores.items.\$, ", ")))\nFields JSON : ((embedFields(scores.items.\$, "{name}", "{score}", true)))',
 
   // Docs - Interaction Commands
   'doc_interaction_commands_title': 'Commandes d’interaction',
@@ -721,11 +817,11 @@ const Map<String, String> appStringsFr = {
   'doc_interaction_commands_section_guidance_l1':
       'Écrivez vos conditions avec commandType ou interaction.command.type.',
   'doc_interaction_commands_section_guidance_l2':
-      'Préférez la syntaxe de fallback pour partager un template entre slash et non-slash.',
+      'Préférez la syntaxe de fallback pour partager un template entre slash et non-slash, et utilisez autocomplete.query dans les workflows dédiés à l’auto-complete.',
   'doc_interaction_commands_section_guidance_l3':
-      'Gardez des templates portables en évitant les variables propres aux events dans les workflows de commande.',
+      'Gardez des templates portables en évitant les variables propres aux events dans les workflows de commande ; l’auto-complete dynamique doit finir par respondWithAutocomplete.',
   'doc_interaction_commands_example':
-      'Variable de condition : ((commandType))\nSi user -> répondre avec ((target.user.username))\nSi message -> citer ((target.message.content))',
+      'Workflow d’auto-complete :\nquery = ((autocomplete.query))\nqueryArray -> items=((httpSearch.body))\nrespondWithAutocomplete -> label={name} value={id}',
 
   // Docs - Event: messageCreate
   'doc_event_message_create_title': 'Événement : messageCreate',

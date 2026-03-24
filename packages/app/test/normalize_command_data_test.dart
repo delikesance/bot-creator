@@ -1,6 +1,7 @@
 import 'dart:convert';
+
 import 'package:bot_creator/utils/normalize_command_data.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// Helper: simulate save-then-reload by JSON round-tripping.
 Map<String, dynamic> roundTrip(Map<String, dynamic> input) {
@@ -332,6 +333,108 @@ void main() {
       final result = normalizeCommandData(command);
       final embeds = result['data']['response']['embeds'] as List;
       expect(embeds.length, 10);
+    });
+  });
+
+  group('normalizeCommandData – options preservation', () {
+    test('preserves serialized options including autocomplete metadata', () {
+      final command = _makeCommand(
+        data: {
+          'options': [
+            {
+              'type': 'string',
+              'name': 'country',
+              'description': 'Country',
+              'required': false,
+              'autocomplete': {
+                'enabled': true,
+                'workflow': 'country_search',
+                'entryPoint': 'main',
+                'arguments': {'dataset': 'countries'},
+              },
+            },
+            {
+              'type': 'integer',
+              'name': 'limit',
+              'description': 'Limit',
+              'required': false,
+              'choices': [
+                {'name': 'Five', 'value': 5},
+              ],
+            },
+          ],
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final options = result['data']['options'] as List<dynamic>;
+
+      expect(options.length, 2);
+      expect(options.first, <String, dynamic>{
+        'type': 'string',
+        'name': 'country',
+        'description': 'Country',
+        'required': false,
+        'autocomplete': {
+          'enabled': true,
+          'workflow': 'country_search',
+          'entryPoint': 'main',
+          'arguments': {'dataset': 'countries'},
+        },
+      });
+      expect((options.last as Map<String, dynamic>)['choices'], [
+        {'name': 'Five', 'value': 5},
+      ]);
+    });
+
+    test('preserves expanded simple mode config fields', () {
+      final command = _makeCommand(
+        data: {
+          'editorMode': 'simple',
+          'simpleConfig': {
+            'deleteMessages': true,
+            'unbanUser': true,
+            'unmuteUser': true,
+            'pinMessage': true,
+            'createInvite': true,
+            'createPoll': true,
+            'actionReason': 'Routine moderation',
+            'deleteMessagesDefaultCount': '25',
+            'muteDuration': '2h',
+            'banDeleteMessageDays': '3',
+            'inviteMaxAge': '3600',
+            'inviteMaxUses': '5',
+            'inviteTemporary': true,
+            'inviteUnique': true,
+            'pollAnswersText': 'Yes\nNo\nMaybe',
+            'pollDurationHours': '12',
+            'pollAllowMultiselect': true,
+          },
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final simpleConfig = Map<String, dynamic>.from(
+        result['data']['simpleConfig'] as Map,
+      );
+
+      expect(simpleConfig['deleteMessages'], isTrue);
+      expect(simpleConfig['unbanUser'], isTrue);
+      expect(simpleConfig['unmuteUser'], isTrue);
+      expect(simpleConfig['pinMessage'], isTrue);
+      expect(simpleConfig['createInvite'], isTrue);
+      expect(simpleConfig['createPoll'], isTrue);
+      expect(simpleConfig['actionReason'], 'Routine moderation');
+      expect(simpleConfig['deleteMessagesDefaultCount'], '25');
+      expect(simpleConfig['muteDuration'], '2h');
+      expect(simpleConfig['banDeleteMessageDays'], '3');
+      expect(simpleConfig['inviteMaxAge'], '3600');
+      expect(simpleConfig['inviteMaxUses'], '5');
+      expect(simpleConfig['inviteTemporary'], isTrue);
+      expect(simpleConfig['inviteUnique'], isTrue);
+      expect(simpleConfig['pollAnswersText'], 'Yes\nNo\nMaybe');
+      expect(simpleConfig['pollDurationHours'], '12');
+      expect(simpleConfig['pollAllowMultiselect'], isTrue);
     });
   });
 

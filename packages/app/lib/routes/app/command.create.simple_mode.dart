@@ -1,195 +1,78 @@
 part of 'command.create.dart';
 
 extension _CommandCreateSimpleMode on _CommandCreatePageState {
+  SimpleModeConfig get _simpleModeConfig => SimpleModeConfig(
+    deleteMessages: _simpleDeleteMessages,
+    kickUser: _simpleKickUser,
+    banUser: _simpleBanUser,
+    unbanUser: _simpleUnbanUser,
+    muteUser: _simpleMuteUser,
+    unmuteUser: _simpleUnmuteUser,
+    addRole: _simpleAddRole,
+    removeRole: _simpleRemoveRole,
+    sendMessage: _simpleSendMessage,
+    pinMessage: _simplePinMessage,
+    unpinMessage: _simpleUnpinMessage,
+    createInvite: _simpleCreateInvite,
+    createPoll: _simpleCreatePoll,
+    sendMessageText: _simpleSendMessageController.text,
+    actionReason: _simpleActionReasonController.text,
+    muteDuration: _simpleMuteDurationController.text,
+    banDeleteMessageDays: _simpleBanDeleteDaysController.text,
+    deleteMessagesDefaultCount: _simpleDeleteMessagesDefaultCountController.text,
+    inviteMaxAge: _simpleInviteMaxAgeController.text,
+    inviteMaxUses: _simpleInviteMaxUsesController.text,
+    inviteTemporary: _simpleInviteTemporary,
+    inviteUnique: _simpleInviteUnique,
+    pollAnswersText: _simplePollAnswersController.text,
+    pollDurationHours: _simplePollDurationHoursController.text,
+    pollAllowMultiselect: _simplePollAllowMultiselect,
+  );
+
   Map<String, dynamic> _normalizeSimpleConfig(Map<String, dynamic> input) {
-    return {
-      'deleteMessages': input['deleteMessages'] == true,
-      'kickUser': input['kickUser'] == true,
-      'banUser': input['banUser'] == true,
-      'muteUser': input['muteUser'] == true,
-      'addRole': input['addRole'] == true,
-      'removeRole': input['removeRole'] == true,
-      'sendMessage': input['sendMessage'] == true,
-      'sendMessageText': (input['sendMessageText'] ?? '').toString(),
-    };
+    return normalizeSimpleModeConfigMap(input);
   }
 
   void _applySimpleConfig(Map<String, dynamic> config) {
-    final normalized = _normalizeSimpleConfig(config);
-    _simpleDeleteMessages = normalized['deleteMessages'] == true;
-    _simpleKickUser = normalized['kickUser'] == true;
-    _simpleBanUser = normalized['banUser'] == true;
-    _simpleMuteUser = normalized['muteUser'] == true;
-    _simpleAddRole = normalized['addRole'] == true;
-    _simpleRemoveRole = normalized['removeRole'] == true;
-    _simpleSendMessage = normalized['sendMessage'] == true;
-    _simpleSendMessageController.text =
-        (normalized['sendMessageText'] ?? '').toString();
+    final normalized = SimpleModeConfig.fromJson(_normalizeSimpleConfig(config));
+    _simpleDeleteMessages = normalized.deleteMessages;
+    _simpleKickUser = normalized.kickUser;
+    _simpleBanUser = normalized.banUser;
+    _simpleUnbanUser = normalized.unbanUser;
+    _simpleMuteUser = normalized.muteUser;
+    _simpleUnmuteUser = normalized.unmuteUser;
+    _simpleAddRole = normalized.addRole;
+    _simpleRemoveRole = normalized.removeRole;
+    _simpleSendMessage = normalized.sendMessage;
+    _simplePinMessage = normalized.pinMessage;
+    _simpleUnpinMessage = normalized.unpinMessage;
+    _simpleCreateInvite = normalized.createInvite;
+    _simpleCreatePoll = normalized.createPoll;
+    _simpleSendMessageController.text = normalized.sendMessageText;
+    _simpleActionReasonController.text = normalized.actionReason;
+    _simpleMuteDurationController.text = normalized.muteDuration;
+    _simpleBanDeleteDaysController.text = normalized.banDeleteMessageDays;
+    _simpleDeleteMessagesDefaultCountController.text =
+        normalized.deleteMessagesDefaultCount;
+    _simpleInviteMaxAgeController.text = normalized.inviteMaxAge;
+    _simpleInviteMaxUsesController.text = normalized.inviteMaxUses;
+    _simpleInviteTemporary = normalized.inviteTemporary;
+    _simpleInviteUnique = normalized.inviteUnique;
+    _simplePollAnswersController.text = normalized.pollAnswersText;
+    _simplePollDurationHoursController.text = normalized.pollDurationHours;
+    _simplePollAllowMultiselect = normalized.pollAllowMultiselect;
   }
 
   Map<String, dynamic> _currentSimpleConfig() {
-    return _normalizeSimpleConfig({
-      'deleteMessages': _simpleDeleteMessages,
-      'kickUser': _simpleKickUser,
-      'banUser': _simpleBanUser,
-      'muteUser': _simpleMuteUser,
-      'addRole': _simpleAddRole,
-      'removeRole': _simpleRemoveRole,
-      'sendMessage': _simpleSendMessage,
-      'sendMessageText': _simpleSendMessageController.text,
-    });
+    return _simpleModeConfig.toJson();
   }
 
   List<CommandOptionBuilder> _buildSimpleModeOptions() {
-    final options = <CommandOptionBuilder>[];
-
-    if (_requiresSimpleUserOption) {
-      options.add(
-        CommandOptionBuilder(
-          type: CommandOptionType.user,
-          name: 'user',
-          description: AppStrings.t('cmd_simple_option_user_desc'),
-          isRequired: true,
-        ),
-      );
-    }
-
-    if (_requiresSimpleRoleOption) {
-      options.add(
-        CommandOptionBuilder(
-          type: CommandOptionType.role,
-          name: 'role',
-          description: AppStrings.t('cmd_simple_option_role_desc'),
-          isRequired: true,
-        ),
-      );
-    }
-
-    if (_simpleDeleteMessages) {
-      options.add(
-        CommandOptionBuilder(
-          type: CommandOptionType.integer,
-          name: 'count',
-          description: AppStrings.t('cmd_simple_option_count_desc'),
-          isRequired: false,
-          minValue: 1,
-          maxValue: 100,
-        ),
-      );
-    }
-
-    return options;
+    return buildSimpleModeOptions(_simpleModeConfig, translate: AppStrings.t);
   }
 
   List<Map<String, dynamic>> _buildSimpleModeActions() {
-    final actions = <Map<String, dynamic>>[];
-
-    Map<String, dynamic> makeAction({
-      required String key,
-      required String type,
-      required Map<String, dynamic> payload,
-    }) {
-      return {
-        'id': key,
-        'type': type,
-        'enabled': true,
-        'key': key,
-        'depend_on': <String>[],
-        'error': {'mode': 'stop'},
-        'payload': payload,
-      };
-    }
-
-    if (_simpleDeleteMessages) {
-      actions.add(
-        makeAction(
-          key: 'delete_messages',
-          type: 'deleteMessages',
-          payload: {'channelId': '', 'messageCount': '((opts.count | 1))'},
-        ),
-      );
-    }
-
-    if (_simpleKickUser) {
-      actions.add(
-        makeAction(
-          key: 'kick_user',
-          type: 'kickUser',
-          payload: {'userId': '((opts.user.id))', 'reason': ''},
-        ),
-      );
-    }
-
-    if (_simpleBanUser) {
-      actions.add(
-        makeAction(
-          key: 'ban_user',
-          type: 'banUser',
-          payload: {
-            'userId': '((opts.user.id))',
-            'reason': '',
-            'deleteMessageDays': 0,
-          },
-        ),
-      );
-    }
-
-    if (_simpleMuteUser) {
-      actions.add(
-        makeAction(
-          key: 'mute_user',
-          type: 'muteUser',
-          payload: {
-            'userId': '((opts.user.id))',
-            'duration': '10m',
-            'reason': '',
-          },
-        ),
-      );
-    }
-
-    if (_simpleAddRole) {
-      actions.add(
-        makeAction(
-          key: 'add_role',
-          type: 'addRole',
-          payload: {
-            'userId': '((opts.user.id))',
-            'roleId': '((opts.role.id))',
-            'reason': '',
-          },
-        ),
-      );
-    }
-
-    if (_simpleRemoveRole) {
-      actions.add(
-        makeAction(
-          key: 'remove_role',
-          type: 'removeRole',
-          payload: {
-            'userId': '((opts.user.id))',
-            'roleId': '((opts.role.id))',
-            'reason': '',
-          },
-        ),
-      );
-    }
-
-    if (_simpleSendMessage) {
-      actions.add(
-        makeAction(
-          key: 'send_message',
-          type: 'sendMessage',
-          payload: {
-            'channelId': '',
-            'content': _simpleSendMessageController.text.trim(),
-          },
-        ),
-      );
-    }
-
-    return actions;
+    return buildSimpleModeActions(_simpleModeConfig);
   }
 
   Future<void> _switchToAdvancedMode() async {
@@ -314,17 +197,32 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
     );
   }
 
+  Widget _buildSimpleActionSection({
+    required String title,
+    required String description,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 8),
+        ...children,
+      ],
+    );
+  }
+
   Widget _buildSimpleActionsCard() {
-    final generatedOptionLabels = <String>[];
-    if (_requiresSimpleUserOption) {
-      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_user'));
-    }
-    if (_requiresSimpleRoleOption) {
-      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_role'));
-    }
-    if (_simpleDeleteMessages) {
-      generatedOptionLabels.add(AppStrings.t('cmd_simple_option_count'));
-    }
+    final config = _simpleModeConfig;
+    final generatedOptionLabels = buildSimpleModeGeneratedOptionLabels(
+      config,
+      translate: AppStrings.t,
+    );
 
     return Card(
       child: Padding(
@@ -342,75 +240,155 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 12),
-            _buildSimpleActionToggle(
-              value: _simpleDeleteMessages,
-              title: AppStrings.t('cmd_simple_action_delete'),
-              subtitle: AppStrings.t('cmd_simple_action_delete_desc'),
-              onChanged: (value) {
-                _applyStateUpdate(() {
-                  _simpleDeleteMessages = value;
-                });
-              },
+            _buildSimpleActionSection(
+              title: AppStrings.t('cmd_simple_group_moderation_title'),
+              description: AppStrings.t('cmd_simple_group_moderation_desc'),
+              children: [
+                _buildSimpleActionToggle(
+                  value: _simpleDeleteMessages,
+                  title: AppStrings.t('cmd_simple_action_delete'),
+                  subtitle: AppStrings.t('cmd_simple_action_delete_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleDeleteMessages = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleKickUser,
+                  title: AppStrings.t('cmd_simple_action_kick'),
+                  subtitle: AppStrings.t('cmd_simple_action_kick_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleKickUser = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleBanUser,
+                  title: AppStrings.t('cmd_simple_action_ban'),
+                  subtitle: AppStrings.t('cmd_simple_action_ban_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleBanUser = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleUnbanUser,
+                  title: AppStrings.t('cmd_simple_action_unban'),
+                  subtitle: AppStrings.t('cmd_simple_action_unban_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleUnbanUser = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleMuteUser,
+                  title: AppStrings.t('cmd_simple_action_mute'),
+                  subtitle: AppStrings.t('cmd_simple_action_mute_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleMuteUser = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleUnmuteUser,
+                  title: AppStrings.t('cmd_simple_action_unmute'),
+                  subtitle: AppStrings.t('cmd_simple_action_unmute_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleUnmuteUser = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleAddRole,
+                  title: AppStrings.t('cmd_simple_action_add_role'),
+                  subtitle: AppStrings.t('cmd_simple_action_add_role_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleAddRole = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleRemoveRole,
+                  title: AppStrings.t('cmd_simple_action_remove_role'),
+                  subtitle: AppStrings.t('cmd_simple_action_remove_role_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleRemoveRole = value;
+                    });
+                  },
+                ),
+              ],
             ),
-            _buildSimpleActionToggle(
-              value: _simpleKickUser,
-              title: AppStrings.t('cmd_simple_action_kick'),
-              subtitle: AppStrings.t('cmd_simple_action_kick_desc'),
-              onChanged: (value) {
-                _applyStateUpdate(() {
-                  _simpleKickUser = value;
-                });
-              },
+            const SizedBox(height: 12),
+            _buildSimpleActionSection(
+              title: AppStrings.t('cmd_simple_group_messages_title'),
+              description: AppStrings.t('cmd_simple_group_messages_desc'),
+              children: [
+                _buildSimpleActionToggle(
+                  value: _simpleSendMessage,
+                  title: AppStrings.t('cmd_simple_action_send_message'),
+                  subtitle: AppStrings.t('cmd_simple_action_send_message_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleSendMessage = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simplePinMessage,
+                  title: AppStrings.t('cmd_simple_action_pin'),
+                  subtitle: AppStrings.t('cmd_simple_action_pin_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simplePinMessage = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleUnpinMessage,
+                  title: AppStrings.t('cmd_simple_action_unpin'),
+                  subtitle: AppStrings.t('cmd_simple_action_unpin_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleUnpinMessage = value;
+                    });
+                  },
+                ),
+              ],
             ),
-            _buildSimpleActionToggle(
-              value: _simpleBanUser,
-              title: AppStrings.t('cmd_simple_action_ban'),
-              subtitle: AppStrings.t('cmd_simple_action_ban_desc'),
-              onChanged: (value) {
-                _applyStateUpdate(() {
-                  _simpleBanUser = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleMuteUser,
-              title: AppStrings.t('cmd_simple_action_mute'),
-              subtitle: AppStrings.t('cmd_simple_action_mute_desc'),
-              onChanged: (value) {
-                _applyStateUpdate(() {
-                  _simpleMuteUser = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleAddRole,
-              title: AppStrings.t('cmd_simple_action_add_role'),
-              subtitle: AppStrings.t('cmd_simple_action_add_role_desc'),
-              onChanged: (value) {
-                _applyStateUpdate(() {
-                  _simpleAddRole = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleRemoveRole,
-              title: AppStrings.t('cmd_simple_action_remove_role'),
-              subtitle: AppStrings.t('cmd_simple_action_remove_role_desc'),
-              onChanged: (value) {
-                _applyStateUpdate(() {
-                  _simpleRemoveRole = value;
-                });
-              },
-            ),
-            _buildSimpleActionToggle(
-              value: _simpleSendMessage,
-              title: AppStrings.t('cmd_simple_action_send_message'),
-              subtitle: AppStrings.t('cmd_simple_action_send_message_desc'),
-              onChanged: (value) {
-                _applyStateUpdate(() {
-                  _simpleSendMessage = value;
-                });
-              },
+            const SizedBox(height: 12),
+            _buildSimpleActionSection(
+              title: AppStrings.t('cmd_simple_group_utility_title'),
+              description: AppStrings.t('cmd_simple_group_utility_desc'),
+              children: [
+                _buildSimpleActionToggle(
+                  value: _simpleCreateInvite,
+                  title: AppStrings.t('cmd_simple_action_create_invite'),
+                  subtitle: AppStrings.t('cmd_simple_action_create_invite_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleCreateInvite = value;
+                    });
+                  },
+                ),
+                _buildSimpleActionToggle(
+                  value: _simpleCreatePoll,
+                  title: AppStrings.t('cmd_simple_action_create_poll'),
+                  subtitle: AppStrings.t('cmd_simple_action_create_poll_desc'),
+                  onChanged: (value) {
+                    _applyStateUpdate(() {
+                      _simpleCreatePoll = value;
+                    });
+                  },
+                ),
+              ],
             ),
             if (_simpleSendMessage) ...[
               const SizedBox(height: 8),
@@ -429,6 +407,234 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
                   if (mounted) {
                     _applyStateUpdate(() {});
                   }
+                },
+              ),
+            ],
+            if (config.hasAuditReasonAction) ...[
+              const SizedBox(height: 12),
+              Text(
+                AppStrings.t('cmd_simple_execution_title'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                AppStrings.t('cmd_simple_execution_desc'),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _simpleActionReasonController,
+                decoration: InputDecoration(
+                  labelText: AppStrings.t('cmd_simple_action_reason_label'),
+                  hintText: AppStrings.t('cmd_simple_action_reason_hint'),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) {
+                  if (mounted) {
+                    _applyStateUpdate(() {});
+                  }
+                },
+              ),
+            ],
+            if (config.deleteMessages) ...[
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _simpleDeleteMessagesDefaultCountController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: AppStrings.t(
+                    'cmd_simple_action_delete_default_count_label',
+                  ),
+                  hintText: AppStrings.t(
+                    'cmd_simple_action_delete_default_count_hint',
+                  ),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) {
+                  if (mounted) {
+                    _applyStateUpdate(() {});
+                  }
+                },
+              ),
+            ],
+            if (config.banUser) ...[
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _simpleBanDeleteDaysController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: AppStrings.t(
+                    'cmd_simple_action_ban_delete_days_label',
+                  ),
+                  hintText: AppStrings.t(
+                    'cmd_simple_action_ban_delete_days_hint',
+                  ),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) {
+                  if (mounted) {
+                    _applyStateUpdate(() {});
+                  }
+                },
+              ),
+            ],
+            if (config.muteUser) ...[
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _simpleMuteDurationController,
+                decoration: InputDecoration(
+                  labelText: AppStrings.t(
+                    'cmd_simple_action_mute_duration_label',
+                  ),
+                  hintText: AppStrings.t(
+                    'cmd_simple_action_mute_duration_hint',
+                  ),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) {
+                  if (mounted) {
+                    _applyStateUpdate(() {});
+                  }
+                },
+              ),
+            ],
+            if (config.createInvite) ...[
+              const SizedBox(height: 12),
+              Text(
+                AppStrings.t('cmd_simple_invite_settings_title'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                AppStrings.t('cmd_simple_invite_settings_desc'),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _simpleInviteMaxAgeController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: AppStrings.t(
+                          'cmd_simple_invite_max_age_label',
+                        ),
+                        hintText: AppStrings.t(
+                          'cmd_simple_invite_max_age_hint',
+                        ),
+                        border: const OutlineInputBorder(),
+                      ),
+                      onChanged: (_) {
+                        if (mounted) {
+                          _applyStateUpdate(() {});
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _simpleInviteMaxUsesController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: AppStrings.t(
+                          'cmd_simple_invite_max_uses_label',
+                        ),
+                        hintText: AppStrings.t(
+                          'cmd_simple_invite_max_uses_hint',
+                        ),
+                        border: const OutlineInputBorder(),
+                      ),
+                      onChanged: (_) {
+                        if (mounted) {
+                          _applyStateUpdate(() {});
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(AppStrings.t('cmd_simple_invite_temporary_label')),
+                subtitle: Text(
+                  AppStrings.t('cmd_simple_invite_temporary_desc'),
+                ),
+                value: _simpleInviteTemporary,
+                onChanged: (value) {
+                  _applyStateUpdate(() {
+                    _simpleInviteTemporary = value;
+                  });
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(AppStrings.t('cmd_simple_invite_unique_label')),
+                subtitle: Text(AppStrings.t('cmd_simple_invite_unique_desc')),
+                value: _simpleInviteUnique,
+                onChanged: (value) {
+                  _applyStateUpdate(() {
+                    _simpleInviteUnique = value;
+                  });
+                },
+              ),
+            ],
+            if (config.createPoll) ...[
+              const SizedBox(height: 12),
+              Text(
+                AppStrings.t('cmd_simple_poll_settings_title'),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                AppStrings.t('cmd_simple_poll_settings_desc'),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _simplePollAnswersController,
+                minLines: 3,
+                maxLines: 6,
+                decoration: InputDecoration(
+                  labelText: AppStrings.t('cmd_simple_poll_answers_label'),
+                  hintText: AppStrings.t('cmd_simple_poll_answers_hint'),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) {
+                  if (mounted) {
+                    _applyStateUpdate(() {});
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _simplePollDurationHoursController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: AppStrings.t('cmd_simple_poll_duration_label'),
+                  hintText: AppStrings.t('cmd_simple_poll_duration_hint'),
+                  border: const OutlineInputBorder(),
+                ),
+                onChanged: (_) {
+                  if (mounted) {
+                    _applyStateUpdate(() {});
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(AppStrings.t('cmd_simple_poll_multiselect_label')),
+                subtitle: Text(
+                  AppStrings.t('cmd_simple_poll_multiselect_desc'),
+                ),
+                value: _simplePollAllowMultiselect,
+                onChanged: (value) {
+                  _applyStateUpdate(() {
+                    _simplePollAllowMultiselect = value;
+                  });
                 },
               ),
             ],
@@ -475,6 +681,36 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _responseType,
+              decoration: InputDecoration(
+                labelText: AppStrings.t('cmd_simple_response_visibility_label'),
+                border: const OutlineInputBorder(),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: 'normal',
+                  child: Text(
+                    AppStrings.t('cmd_simple_response_visibility_public'),
+                  ),
+                ),
+                DropdownMenuItem(
+                  value: 'ephemeral',
+                  child: Text(
+                    AppStrings.t('cmd_simple_response_visibility_ephemeral'),
+                  ),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+                _applyStateUpdate(() {
+                  _responseType = value;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
             TextFormField(
               controller: _responseController,
               minLines: 3,

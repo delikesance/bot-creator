@@ -144,7 +144,7 @@ class SqliteCliVariableStore implements VariableDatabase {
     final result = <String, dynamic>{};
 
     final stmt = _db.prepare(
-      'SELECT key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ?',
+      'SELECT key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? ORDER BY updated_at ASC, id ASC',
     );
     final rows = stmt.select([botId, '_global_']);
 
@@ -166,7 +166,7 @@ class SqliteCliVariableStore implements VariableDatabase {
     await init();
 
     final stmt = _db.prepare(
-      'SELECT value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND key = ? LIMIT 1',
+      'SELECT value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND context_id_1 = ? AND key = ? ORDER BY updated_at DESC, id DESC LIMIT 1',
     );
     final rows = stmt.select([botId, '_global_', '', key]);
 
@@ -255,7 +255,7 @@ class SqliteCliVariableStore implements VariableDatabase {
     final result = <String, dynamic>{};
 
     final stmt = _db.prepare(
-      'SELECT key, value_raw, value_type FROM variables WHERE ${_scopedContextWhereClause(includeKey: false)}',
+      'SELECT key, value_raw, value_type FROM variables WHERE ${_scopedContextWhereClause(includeKey: false)} ORDER BY updated_at ASC, id ASC',
     );
     final rows = stmt.select(
       _scopedContextWhereArgs(
@@ -290,7 +290,7 @@ class SqliteCliVariableStore implements VariableDatabase {
     final (ctx1, ctx2) = _parseContextId(scope, contextId);
 
     final stmt = _db.prepare(
-      'SELECT value_raw, value_type FROM variables WHERE ${_scopedContextWhereClause(includeKey: true)} LIMIT 1',
+      'SELECT value_raw, value_type FROM variables WHERE ${_scopedContextWhereClause(includeKey: true)} ORDER BY updated_at DESC, id DESC LIMIT 1',
     );
     final rows = stmt.select(
       _scopedContextWhereArgs(

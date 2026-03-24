@@ -13,6 +13,7 @@ import '../../../widgets/component_v2_builder/component_v2_editor.dart';
 import '../../../widgets/component_v2_builder/modal_builder.dart';
 import '../../../widgets/component_v2_builder/normal_component_editor.dart';
 import '../../../types/app_emoji.dart';
+import '../../../widgets/variable_text_field.dart';
 import '../../../widgets/response_embeds_editor.dart';
 import 'action_types.dart';
 import 'action_type_extension.dart';
@@ -187,9 +188,11 @@ class ActionCard extends StatelessWidget {
     );
   }
 
-  // Parses a JSON response and returns a flat list of JSON Path dot notations
+  // Parses a JSON response and returns a flat list of JSON Path dot notations.
+  // Includes the root path (`$`) so top-level arrays can be selected directly.
   List<String> _extractPaths(dynamic data, [String currentPath = '\$']) {
-    List<String> paths = [];
+    List<String> paths =
+        currentPath == r'$' ? <String>[currentPath] : <String>[];
     if (data is Map) {
       for (final key in data.keys) {
         final newPath = '$currentPath.$key';
@@ -1227,7 +1230,9 @@ class ActionCard extends StatelessWidget {
               action.type == BotCreatorActionType.getScopedVariable ||
               action.type == BotCreatorActionType.removeScopedVariable ||
               action.type == BotCreatorActionType.renameScopedVariable ||
-              action.type == BotCreatorActionType.listScopedVariableIndex;
+              action.type == BotCreatorActionType.listScopedVariableIndex ||
+              action.type == BotCreatorActionType.appendArrayElement ||
+              action.type == BotCreatorActionType.removeArrayElement;
 
           return _VariableKeyParameterField(
             label: _formatParameterName(paramDef.key),
@@ -1306,6 +1311,22 @@ class ActionCard extends StatelessWidget {
                 },
               ),
             ],
+          );
+        }
+
+        if (action.type == BotCreatorActionType.respondWithAutocomplete &&
+            const <String>{
+              'items',
+              'labelTemplate',
+              'valueTemplate',
+            }.contains(paramDef.key)) {
+          return VariableTextField(
+            key: _parameterInputKey(paramDef.key),
+            label: _formatParameterName(paramDef.key),
+            initialValue: (currentValue ?? paramDef.defaultValue).toString(),
+            hint: _localizeHint(paramDef.hint),
+            suggestions: variableSuggestions,
+            onChanged: (newValue) => onParameterChanged(paramDef.key, newValue),
           );
         }
 
@@ -2430,6 +2451,8 @@ class ActionCard extends StatelessWidget {
       case BotCreatorActionType.getScopedVariable:
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.listScopedVariableIndex:
+      case BotCreatorActionType.appendArrayElement:
+      case BotCreatorActionType.removeArrayElement:
         return paramKey == 'key';
       case BotCreatorActionType.renameScopedVariable:
         return paramKey == 'oldKey' || paramKey == 'newKey';

@@ -1,11 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:nyxx/nyxx.dart';
+import 'package:nyxx/nyxx.dart' hide Builder;
+import 'package:bot_creator/main.dart';
+
+import '../routes/app/command_option_serialization.dart';
+import '../types/variable_suggestion.dart';
+import 'variable_text_field.dart';
 
 class OptionWidget extends StatefulWidget {
   final Function(List<CommandOptionBuilder>) onChange;
   final List<CommandOptionBuilder>? initialOptions;
+  final String? botIdForConfig;
+  final List<VariableSuggestion> variableSuggestions;
 
-  const OptionWidget({super.key, required this.onChange, this.initialOptions});
+  const OptionWidget({
+    super.key,
+    required this.onChange,
+    this.initialOptions,
+    this.botIdForConfig,
+    this.variableSuggestions = const <VariableSuggestion>[],
+  });
 
   @override
   OptionWidgetState createState() => OptionWidgetState();
@@ -31,6 +44,56 @@ class OptionWidgetState extends State<OptionWidget> {
       ];
 
   final List<CommandOptionBuilder> options = <CommandOptionBuilder>[];
+  List<String> _availableWorkflowNames = const [];
+  bool _loadingWorkflows = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialOptions != null) {
+      options.addAll(widget.initialOptions!);
+      for (final option in options) {
+        _normalizeForType(option);
+      }
+    }
+    _loadAvailableWorkflows();
+  }
+
+  @override
+  void didUpdateWidget(OptionWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.botIdForConfig != oldWidget.botIdForConfig) {
+      _loadAvailableWorkflows();
+    }
+  }
+
+  Future<void> _loadAvailableWorkflows() async {
+    final botId = widget.botIdForConfig;
+    if (botId == null || botId.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _availableWorkflowNames = const [];
+          _loadingWorkflows = false;
+        });
+      }
+      return;
+    }
+    if (mounted) setState(() => _loadingWorkflows = true);
+    try {
+      final workflows = await appManager.getWorkflows(botId);
+      if (!mounted) return;
+      final names = workflows
+        .map((w) => (w['name'] ?? '').toString().trim())
+        .where((n) => n.isNotEmpty)
+        .toList(growable: false)..sort();
+      setState(() {
+        _availableWorkflowNames = names;
+        _loadingWorkflows = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loadingWorkflows = false);
+    }
+  }
 
   bool _isHierarchyType(CommandOptionType type) {
     return _hierarchyOptionTypes.contains(type);
@@ -45,6 +108,10 @@ class OptionWidgetState extends State<OptionWidget> {
     return type == CommandOptionType.string ||
         type == CommandOptionType.integer ||
         type == CommandOptionType.number;
+  }
+
+  bool _supportsAutocomplete(CommandOptionType type) {
+    return commandOptionSupportsAutocomplete(type);
   }
 
   String _typeLabel(CommandOptionType type) {
@@ -128,6 +195,8 @@ class OptionWidgetState extends State<OptionWidget> {
       option.choices = null;
       option.minValue = null;
       option.maxValue = null;
+      option.hasAutocomplete = null;
+      setCommandOptionAutocompleteConfig(option, null);
       option.options ??= <CommandOptionBuilder>[];
 
       if (type == CommandOptionType.subCommand) {
@@ -147,6 +216,15 @@ class OptionWidgetState extends State<OptionWidget> {
     option.options = null;
 
     if (!_supportsChoices(type)) {
+      option.choices = null;
+    }
+
+    if (!_supportsAutocomplete(type)) {
+      option.hasAutocomplete = null;
+      setCommandOptionAutocompleteConfig(option, null);
+    }
+
+    if (option.hasAutocomplete == true) {
       option.choices = null;
     }
 
@@ -341,6 +419,487 @@ class OptionWidgetState extends State<OptionWidget> {
                             });
                           },
                         ),
+                      if (!_isHierarchyType(option.type) &&
+                          _supportsAutocomplete(option.type))
+                        CheckboxListTile(
+                          title: const Text('Dynamic Autocomplete'),
+                          subtitle: const Text(
+                            'Resolve choices from a workflow instead of static values.',
+                          ),
+                          value: isCommandOptionAutocompleteEnabled(option),
+                          onChanged: (bool? value) {
+                            setState(() {
+                              if (value == true) {
+                                setCommandOptionAutocompleteConfig(option, {
+                                  'enabled': true,
+                                  'mode': 'workflow',
+                                  'workflow': '',
+                                  'entryPoint': 'main',
+                                  'arguments': <String, dynamic>{},
+                                  'staticChoices': <Map<String, dynamic>>[],
+                                });
+                              } else {
+                                setCommandOptionAutocompleteConfig(
+                                  option,
+                                  null,
+                                );
+                              }
+                              _normalizeForType(option);
+                              _updateWidget();
+                            });
+                          },
+                        ),
+                      if (isCommandOptionAutocompleteEnabled(
+                        option,
+                      )) ...<Widget>[
+                        Builder(
+                          builder: (context) {
+                            final cfg =
+                                getCommandOptionAutocompleteConfig(option) ??
+                                <String, dynamic>{
+                                  'enabled': true,
+                                  'mode': 'workflow',
+                                  'workflow': '',
+                                  'entryPoint': 'main',
+                                  'arguments': <String, dynamic>{},
+                                  'staticChoices': <Map<String, dynamic>>[],
+                                };
+                            final currentMode =
+                                (cfg['mode'] ?? 'workflow').toString() ==
+                                        'static'
+                                    ? 'static'
+                                    : 'workflow';
+
+                            Map<String, dynamic> updatedCfg([
+                              Map<String, dynamic>? overrides,
+                            ]) {
+                              final base = Map<String, dynamic>.from(cfg);
+                              if (overrides != null) base.addAll(overrides);
+                              return base;
+                            }
+
+                            void saveConfig(Map<String, dynamic> newCfg) {
+                              setState(() {
+                                setCommandOptionAutocompleteConfig(
+                                  option,
+                                  newCfg,
+                                );
+                                _updateWidget();
+                              });
+                            }
+
+                            // ── Mode selector ──────────────────────────────
+                            final modeSelector = SegmentedButton<String>(
+                              segments: const [
+                                ButtonSegment(
+                                  value: 'workflow',
+                                  label: Text('Workflow'),
+                                  icon: Icon(Icons.account_tree_outlined),
+                                ),
+                                ButtonSegment(
+                                  value: 'static',
+                                  label: Text('Static Options'),
+                                  icon: Icon(Icons.list_alt_outlined),
+                                ),
+                              ],
+                              selected: {currentMode},
+                              onSelectionChanged: (Set<String> selection) {
+                                saveConfig(
+                                  updatedCfg({'mode': selection.first}),
+                                );
+                              },
+                            );
+
+                            // ── Workflow panel ─────────────────────────────
+                            Widget workflowPanel() {
+                              final currentWorkflow =
+                                  (cfg['workflow'] ?? '').toString().trim();
+                              final dropdownValue =
+                                  _availableWorkflowNames.contains(
+                                        currentWorkflow,
+                                      )
+                                      ? currentWorkflow
+                                      : null;
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: DropdownButtonFormField<String>(
+                                          initialValue: dropdownValue,
+                                          isExpanded: true,
+                                          items:
+                                              _availableWorkflowNames
+                                                  .map(
+                                                    (name) => DropdownMenuItem<
+                                                      String
+                                                    >(
+                                                      value: name,
+                                                      child: Text(name),
+                                                    ),
+                                                  )
+                                                  .toList(),
+                                          onChanged:
+                                              _loadingWorkflows
+                                                  ? null
+                                                  : (value) => saveConfig(
+                                                    updatedCfg({
+                                                      'workflow': value ?? '',
+                                                    }),
+                                                  ),
+                                          decoration: InputDecoration(
+                                            labelText: 'Autocomplete Workflow',
+                                            border: const OutlineInputBorder(),
+                                            helperText:
+                                                _loadingWorkflows
+                                                    ? 'Loading workflows…'
+                                                    : (_availableWorkflowNames
+                                                            .isEmpty
+                                                        ? 'No saved workflows found'
+                                                        : 'Select a saved workflow'),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        tooltip: 'Refresh workflows',
+                                        onPressed:
+                                            _loadingWorkflows
+                                                ? null
+                                                : _loadAvailableWorkflows,
+                                        icon: const Icon(Icons.refresh),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  TextFormField(
+                                    key: ValueKey(
+                                      'ac_workflow_manual_$currentWorkflow',
+                                    ),
+                                    initialValue: currentWorkflow,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Or type workflow name',
+                                      border: OutlineInputBorder(),
+                                      isDense: true,
+                                    ),
+                                    onChanged:
+                                        (v) => saveConfig(
+                                          updatedCfg({'workflow': v}),
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  TextFormField(
+                                    key: ValueKey('ac_ep_${cfg['workflow']}'),
+                                    decoration: const InputDecoration(
+                                      labelText: 'Entry Point',
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    initialValue:
+                                        (cfg['entryPoint'] ?? 'main')
+                                            .toString(),
+                                    onChanged:
+                                        (v) => saveConfig(
+                                          updatedCfg({
+                                            'entryPoint':
+                                                v.trim().isEmpty ? 'main' : v,
+                                          }),
+                                        ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Builder(
+                                    builder: (context) {
+                                      final args = Map<String, dynamic>.from(
+                                        cfg['arguments'] is Map
+                                            ? (cfg['arguments'] as Map).map(
+                                              (k, v) =>
+                                                  MapEntry(k.toString(), v),
+                                            )
+                                            : const {},
+                                      );
+                                      final entries = args.entries.toList();
+
+                                      void saveArgs(
+                                        Map<String, dynamic> newArgs,
+                                      ) {
+                                        saveConfig(
+                                          updatedCfg({'arguments': newArgs}),
+                                        );
+                                      }
+
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          if (entries.isNotEmpty)
+                                            const Text(
+                                              'Workflow Arguments',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                          if (entries.isNotEmpty)
+                                            const SizedBox(height: 4),
+                                          ...List.generate(entries.length, (i) {
+                                            final k = entries[i].key;
+                                            final v =
+                                                entries[i].value?.toString() ??
+                                                '';
+                                            return Padding(
+                                              padding: const EdgeInsets.only(
+                                                bottom: 6,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: TextFormField(
+                                                      key: ValueKey(
+                                                        'arg_k_${option.name}_$i',
+                                                      ),
+                                                      initialValue: k,
+                                                      decoration:
+                                                          const InputDecoration(
+                                                            labelText: 'Key',
+                                                            border:
+                                                                OutlineInputBorder(),
+                                                            isDense: true,
+                                                          ),
+                                                      onChanged: (newKey) {
+                                                        final updated = Map<
+                                                          String,
+                                                          dynamic
+                                                        >.from(args);
+                                                        updated.remove(k);
+                                                        if (newKey
+                                                            .trim()
+                                                            .isNotEmpty) {
+                                                          updated[newKey
+                                                                  .trim()] =
+                                                              v;
+                                                        }
+                                                        saveArgs(updated);
+                                                      },
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: VariableTextField(
+                                                      key: ValueKey(
+                                                        'arg_v_${option.name}_$i',
+                                                      ),
+                                                      label: 'Value',
+                                                      initialValue: v,
+                                                      suggestions:
+                                                          widget
+                                                              .variableSuggestions,
+                                                      hint:
+                                                          'Use variables/templates if needed',
+                                                      onChanged: (newVal) {
+                                                        final updated = Map<
+                                                          String,
+                                                          dynamic
+                                                        >.from(args);
+                                                        updated[k] = newVal;
+                                                        saveArgs(updated);
+                                                      },
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(
+                                                      Icons.delete_outline,
+                                                    ),
+                                                    tooltip: 'Remove',
+                                                    onPressed: () {
+                                                      final updated = Map<
+                                                        String,
+                                                        dynamic
+                                                      >.from(args)..remove(k);
+                                                      saveArgs(updated);
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }),
+                                          OutlinedButton.icon(
+                                            onPressed: () {
+                                              final updated =
+                                                  Map<String, dynamic>.from(
+                                                    args,
+                                                  );
+                                              var idx = entries.length;
+                                              var newKey = 'arg$idx';
+                                              while (updated.containsKey(
+                                                newKey,
+                                              )) {
+                                                idx++;
+                                                newKey = 'arg$idx';
+                                              }
+                                              updated[newKey] = '';
+                                              saveArgs(updated);
+                                            },
+                                            icon: const Icon(Icons.add),
+                                            label: const Text('Add Argument'),
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                ],
+                              );
+                            }
+
+                            // ── Static options panel ───────────────────────
+                            Widget staticPanel() {
+                              final staticChoices = <Map<String, dynamic>>[];
+                              if (cfg['staticChoices'] is List) {
+                                for (final raw
+                                    in cfg['staticChoices'] as List) {
+                                  if (raw is Map) {
+                                    staticChoices.add(
+                                      Map<String, dynamic>.from(
+                                        raw.map(
+                                          (k, v) => MapEntry(k.toString(), v),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                }
+                              }
+
+                              void saveChoices(
+                                List<Map<String, dynamic>> choices,
+                              ) {
+                                saveConfig(
+                                  updatedCfg({'staticChoices': choices}),
+                                );
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const Text(
+                                    'Suggestions are filtered by what the user types.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  ...List.generate(staticChoices.length, (i) {
+                                    final choice = staticChoices[i];
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            flex: 3,
+                                            child: TextFormField(
+                                              key: ValueKey(
+                                                'sc_name_${option.name}_$i',
+                                              ),
+                                              initialValue:
+                                                  (choice['name'] ?? '')
+                                                      .toString(),
+                                              decoration: InputDecoration(
+                                                labelText: 'Label ${i + 1}',
+                                                border:
+                                                    const OutlineInputBorder(),
+                                                isDense: true,
+                                              ),
+                                              onChanged: (v) {
+                                                final updated = List<
+                                                  Map<String, dynamic>
+                                                >.from(staticChoices);
+                                                updated[i] = {
+                                                  ...updated[i],
+                                                  'name': v,
+                                                };
+                                                saveChoices(updated);
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Expanded(
+                                            flex: 3,
+                                            child: TextFormField(
+                                              key: ValueKey(
+                                                'sc_val_${option.name}_$i',
+                                              ),
+                                              initialValue:
+                                                  (choice['value'] ?? '')
+                                                      .toString(),
+                                              decoration: InputDecoration(
+                                                labelText: 'Value ${i + 1}',
+                                                border:
+                                                    const OutlineInputBorder(),
+                                                isDense: true,
+                                              ),
+                                              onChanged: (v) {
+                                                final updated = List<
+                                                  Map<String, dynamic>
+                                                >.from(staticChoices);
+                                                updated[i] = {
+                                                  ...updated[i],
+                                                  'value': v,
+                                                };
+                                                saveChoices(updated);
+                                              },
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                            ),
+                                            tooltip: 'Remove',
+                                            onPressed: () {
+                                              final updated = List<
+                                                  Map<String, dynamic>
+                                                >.from(staticChoices)
+                                                ..removeAt(i);
+                                              saveChoices(updated);
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: OutlinedButton.icon(
+                                      onPressed: () {
+                                        final updated = [
+                                          ...staticChoices,
+                                          {
+                                            'name':
+                                                'Option ${staticChoices.length + 1}',
+                                            'value':
+                                                'option_${staticChoices.length + 1}',
+                                          },
+                                        ];
+                                        saveChoices(updated);
+                                      },
+                                      icon: const Icon(Icons.add),
+                                      label: const Text('Add Option'),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                modeSelector,
+                                const SizedBox(height: 10),
+                                if (currentMode == 'workflow')
+                                  workflowPanel()
+                                else
+                                  staticPanel(),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                      ],
                       if (_isNumericType(option.type)) ...<Widget>[
                         Row(
                           children: <Widget>[
@@ -510,7 +1069,10 @@ class OptionWidgetState extends State<OptionWidget> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      if (_supportsChoices(option.type)) ...<Widget>[
+                      if (_supportsChoices(option.type) &&
+                          !isCommandOptionAutocompleteEnabled(
+                            option,
+                          )) ...<Widget>[
                         if (option.choices != null)
                           ListView.builder(
                             physics: const NeverScrollableScrollPhysics(),
@@ -672,18 +1234,6 @@ class OptionWidgetState extends State<OptionWidget> {
           ),
       ],
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.initialOptions == null) {
-      return;
-    }
-    options.addAll(widget.initialOptions!);
-    for (final option in options) {
-      _normalizeForType(option);
-    }
   }
 
   @override

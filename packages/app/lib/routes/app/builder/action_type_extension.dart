@@ -81,6 +81,12 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return AppStrings.t('action_name_renameScopedVariable');
       case BotCreatorActionType.listScopedVariableIndex:
         return AppStrings.t('action_name_listScopedVariableIndex');
+      case BotCreatorActionType.appendArrayElement:
+        return AppStrings.t('action_name_appendArrayElement');
+      case BotCreatorActionType.removeArrayElement:
+        return AppStrings.t('action_name_removeArrayElement');
+      case BotCreatorActionType.queryArray:
+        return AppStrings.t('action_name_queryArray');
       case BotCreatorActionType.runWorkflow:
         return AppStrings.t('action_name_runWorkflow');
       case BotCreatorActionType.respondWithMessage:
@@ -97,6 +103,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return AppStrings.t('action_name_listenForSelectMenu');
       case BotCreatorActionType.listenForModalSubmit:
         return AppStrings.t('action_name_listenForModalSubmit');
+      case BotCreatorActionType.respondWithAutocomplete:
+        return AppStrings.t('action_name_respondWithAutocomplete');
       case BotCreatorActionType.stopUnless:
         return AppStrings.t('action_name_stopUnless');
       case BotCreatorActionType.ifBlock:
@@ -223,6 +231,9 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.renameScopedVariable:
       case BotCreatorActionType.listScopedVariableIndex:
+      case BotCreatorActionType.appendArrayElement:
+      case BotCreatorActionType.removeArrayElement:
+      case BotCreatorActionType.queryArray:
         return Icons.inventory_2;
       case BotCreatorActionType.runWorkflow:
         return Icons.account_tree;
@@ -240,6 +251,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.list_alt;
       case BotCreatorActionType.listenForModalSubmit:
         return Icons.dynamic_form;
+      case BotCreatorActionType.respondWithAutocomplete:
+        return Icons.tune;
       case BotCreatorActionType.stopUnless:
         return Icons.filter_alt;
       case BotCreatorActionType.ifBlock:
@@ -1400,6 +1413,182 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'Optional runtime alias for the JSON items list',
           ),
         ];
+      case BotCreatorActionType.appendArrayElement:
+        return [
+          ParameterDefinition(
+            key: 'target',
+            type: ParameterType.multiSelect,
+            defaultValue: 'global',
+            hint: 'Target variable container',
+            options: ['global', 'scoped'],
+          ),
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'guild',
+            hint: 'Scope when target=scoped',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Variable key containing the array',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'path',
+            type: ParameterType.string,
+            defaultValue: r'$',
+            hint: 'JSON path to the target array inside the stored value',
+          ),
+          ParameterDefinition(
+            key: 'valueType',
+            type: ParameterType.multiSelect,
+            defaultValue: 'string',
+            hint: 'Element type: string, number, boolean or json',
+            options: ['string', 'number', 'boolean', 'json'],
+          ),
+          ParameterDefinition(
+            key: 'element',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'String element value',
+          ),
+          ParameterDefinition(
+            key: 'numberValue',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Numeric element value',
+          ),
+          ParameterDefinition(
+            key: 'boolValue',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Boolean element value',
+          ),
+          ParameterDefinition(
+            key: 'jsonValue',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'JSON element value (array/object)',
+          ),
+        ];
+      case BotCreatorActionType.removeArrayElement:
+        return [
+          ParameterDefinition(
+            key: 'target',
+            type: ParameterType.multiSelect,
+            defaultValue: 'global',
+            hint: 'Target variable container',
+            options: ['global', 'scoped'],
+          ),
+          ParameterDefinition(
+            key: 'scope',
+            type: ParameterType.multiSelect,
+            defaultValue: 'guild',
+            hint: 'Scope when target=scoped',
+            options: ['guild', 'user', 'channel', 'guildMember', 'message'],
+          ),
+          ParameterDefinition(
+            key: 'key',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Variable key containing the array',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'path',
+            type: ParameterType.string,
+            defaultValue: r'$',
+            hint: 'JSON path to the target array inside the stored value',
+          ),
+          ParameterDefinition(
+            key: 'index',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Array index to remove',
+            minValue: 0,
+          ),
+        ];
+      case BotCreatorActionType.queryArray:
+        return [
+          ParameterDefinition(
+            key: 'input',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Template resolving to a JSON array or JSON object',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'path',
+            type: ParameterType.string,
+            defaultValue: r'$',
+            hint: 'Optional JSON path to extract the array from input',
+          ),
+          ParameterDefinition(
+            key: 'filterTemplate',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Item template used for filtering, ex: {name}',
+          ),
+          ParameterDefinition(
+            key: 'filterOperator',
+            type: ParameterType.multiSelect,
+            defaultValue: 'contains',
+            hint: 'Filter operator',
+            options: [
+              'contains',
+              'equals',
+              'startsWith',
+              'endsWith',
+              'gt',
+              'gte',
+              'lt',
+              'lte',
+            ],
+          ),
+          ParameterDefinition(
+            key: 'filterValue',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Value compared against filterTemplate',
+          ),
+          ParameterDefinition(
+            key: 'sortTemplate',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional item template used for sorting',
+          ),
+          ParameterDefinition(
+            key: 'order',
+            type: ParameterType.multiSelect,
+            defaultValue: 'asc',
+            hint: 'Sort order',
+            options: ['asc', 'desc'],
+          ),
+          ParameterDefinition(
+            key: 'offset',
+            type: ParameterType.number,
+            defaultValue: 0,
+            hint: 'Pagination offset',
+            minValue: 0,
+          ),
+          ParameterDefinition(
+            key: 'limit',
+            type: ParameterType.number,
+            defaultValue: 25,
+            hint: 'Maximum number of items to return',
+            minValue: 1,
+            maxValue: 100,
+          ),
+          ParameterDefinition(
+            key: 'storeAs',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Optional alias storing the paged array as JSON',
+          ),
+        ];
       case BotCreatorActionType.runWorkflow:
         return [
           ParameterDefinition(
@@ -1644,6 +1833,34 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'Listener TTL in minutes (max 60)',
             minValue: 1,
             maxValue: 60,
+          ),
+        ];
+      case BotCreatorActionType.respondWithAutocomplete:
+        return [
+          ParameterDefinition(
+            key: 'items',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'Template resolving to a JSON array',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'path',
+            type: ParameterType.string,
+            defaultValue: r'$',
+            hint: 'Optional JSON path to the array inside items',
+          ),
+          ParameterDefinition(
+            key: 'labelTemplate',
+            type: ParameterType.string,
+            defaultValue: '{value}',
+            hint: 'Rendered label for each autocomplete choice',
+          ),
+          ParameterDefinition(
+            key: 'valueTemplate',
+            type: ParameterType.string,
+            defaultValue: '{value}',
+            hint: 'Rendered value for each autocomplete choice',
           ),
         ];
       case BotCreatorActionType.stopUnless:

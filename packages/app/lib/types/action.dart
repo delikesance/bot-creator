@@ -36,6 +36,9 @@ enum BotCreatorActionType {
   removeScopedVariable,
   renameScopedVariable,
   listScopedVariableIndex,
+  appendArrayElement,
+  removeArrayElement,
+  queryArray,
   runWorkflow,
   // Logic & Flow actions
   stopUnless,
@@ -45,6 +48,7 @@ enum BotCreatorActionType {
   respondWithComponentV2,
   respondWithModal,
   editInteractionMessage,
+  respondWithAutocomplete,
   listenForButtonClick,
   listenForSelectMenu,
   listenForModalSubmit,

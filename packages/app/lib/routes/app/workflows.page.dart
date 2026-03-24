@@ -617,6 +617,42 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
           kind: VariableSuggestionKind.unknown,
         ),
       ],
+      const VariableSuggestion(
+        name: 'autocomplete.query',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      const VariableSuggestion(
+        name: 'autocomplete.optionName',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      const VariableSuggestion(
+        name: 'autocomplete.optionType',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      const VariableSuggestion(
+        name: 'length(source)',
+        kind: VariableSuggestionKind.unknown,
+      ),
+      const VariableSuggestion(
+        name: 'at(source, 0)',
+        kind: VariableSuggestionKind.unknown,
+      ),
+      const VariableSuggestion(
+        name: 'slice(source, 0, 10)',
+        kind: VariableSuggestionKind.unknown,
+      ),
+      const VariableSuggestion(
+        name: 'join(source, ", ")',
+        kind: VariableSuggestionKind.unknown,
+      ),
+      const VariableSuggestion(
+        name: 'formatEach(source, "{value}", ", ")',
+        kind: VariableSuggestionKind.unknown,
+      ),
+      const VariableSuggestion(
+        name: 'embedFields(source, "{name}", "{value}", true)',
+        kind: VariableSuggestionKind.unknown,
+      ),
     ];
 
     if (workflowType == workflowTypeEvent) {

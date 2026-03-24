@@ -172,6 +172,137 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
     );
   }
 
+  void _addActionOutputSuggestions(
+    Map<String, VariableSuggestion> bucket,
+    ActionItem action,
+    String resultKey,
+  ) {
+    final type = action.type;
+
+    if (type == BotCreatorActionType.httpRequest) {
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.status',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.body',
+        VariableSuggestionKind.nonNumeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.jsonPath',
+        VariableSuggestionKind.nonNumeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.status',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.body',
+        VariableSuggestionKind.nonNumeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.jsonPath',
+        VariableSuggestionKind.nonNumeric,
+      );
+    }
+
+    if (type == BotCreatorActionType.appendArrayElement) {
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.length',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.length',
+        VariableSuggestionKind.numeric,
+      );
+    }
+
+    if (type == BotCreatorActionType.removeArrayElement) {
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.length',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.length',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.removed',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.removed',
+        VariableSuggestionKind.unknown,
+      );
+    }
+
+    if (type == BotCreatorActionType.queryArray ||
+        type == BotCreatorActionType.listScopedVariableIndex) {
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.count',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.count',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.total',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.total',
+        VariableSuggestionKind.numeric,
+      );
+    }
+  }
+
   List<VariableSuggestion> _buildMergedVariableSuggestions() {
     final merged = <String, VariableSuggestion>{};
     for (final item in widget.variableSuggestions) {
@@ -197,6 +328,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         'action.$resultKey',
         VariableSuggestionKind.unknown,
       );
+      _addActionOutputSuggestions(merged, action, resultKey);
     }
 
     return merged.values.toList(growable: false);
@@ -370,6 +502,9 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.removeScopedVariable:
       case BotCreatorActionType.renameScopedVariable:
       case BotCreatorActionType.listScopedVariableIndex:
+      case BotCreatorActionType.appendArrayElement:
+      case BotCreatorActionType.removeArrayElement:
+      case BotCreatorActionType.queryArray:
         return 'HTTP & Variables';
       case BotCreatorActionType.runWorkflow:
         return 'Workflows';
@@ -385,6 +520,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.listenForButtonClick:
       case BotCreatorActionType.listenForSelectMenu:
       case BotCreatorActionType.listenForModalSubmit:
+      case BotCreatorActionType.respondWithAutocomplete:
         return 'Interactions';
       case BotCreatorActionType.calculate:
         return 'Logic & Flow';
@@ -573,6 +709,12 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Rename a scoped variable key';
       case BotCreatorActionType.listScopedVariableIndex:
         return 'List indexed scoped values sorted by value with offset and limit';
+      case BotCreatorActionType.appendArrayElement:
+        return 'Append a new element into a global or scoped JSON array';
+      case BotCreatorActionType.removeArrayElement:
+        return 'Remove one element from a global or scoped JSON array by index';
+      case BotCreatorActionType.queryArray:
+        return 'Filter, sort and page any runtime JSON array';
       case BotCreatorActionType.runWorkflow:
         return 'Execute a saved workflow (supports entry point + arguments)';
       case BotCreatorActionType.respondWithMessage:
@@ -589,6 +731,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Register a workflow to run when a select menu is used';
       case BotCreatorActionType.listenForModalSubmit:
         return 'Register a workflow to run when a modal is submitted';
+      case BotCreatorActionType.respondWithAutocomplete:
+        return 'Reply to a Discord autocomplete interaction with up to 25 dynamic choices';
       case BotCreatorActionType.stopUnless:
         return 'Stop the workflow if a condition is not met (guard/filter)';
       case BotCreatorActionType.ifBlock:
