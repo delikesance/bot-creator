@@ -527,7 +527,7 @@ class OptionWidgetState extends State<OptionWidget> {
                                     children: [
                                       Expanded(
                                         child: DropdownButtonFormField<String>(
-                                          value: dropdownValue,
+                                          initialValue: dropdownValue,
                                           isExpanded: true,
                                           items:
                                               _availableWorkflowNames
