@@ -13,10 +13,14 @@ import 'package:bot_creator_runner/stores/sqlite_cli_variable_store.dart';
 /// Global variables are mutable at runtime (actions can set/remove them).
 /// Workflows are read from the config.
 class RunnerDataStore implements BotDataStore {
+  static final Map<String, JsonVariableStore> _fallbackStoresByDir =
+      <String, JsonVariableStore>{};
+
   final String botId;
   final List<Map<String, dynamic>> _workflows;
   final Map<String, dynamic> _seedGlobalVariables;
   final Map<String, Map<String, Map<String, dynamic>>> _seedScopedVariables;
+  final String _variablesDir;
   late JsonVariableStore _jsonFallbackStore;
   SqliteCliVariableStore? _sqliteStore;
   Future<void>? _initStoreFuture;
@@ -26,11 +30,15 @@ class RunnerDataStore implements BotDataStore {
     : botId = 'runner',
       _workflows = List<Map<String, dynamic>>.from(config.workflows),
       _seedGlobalVariables = Map<String, dynamic>.from(config.globalVariables),
-      _seedScopedVariables = _cloneScopedVariables(config.scopedVariables) {
+      _seedScopedVariables = _cloneScopedVariables(config.scopedVariables),
+      _variablesDir = _resolveRunnerVariablesDirStatic() {
     // JSON fallback remains available if SQLite fails to initialize.
-    _jsonFallbackStore = JsonVariableStore.fromMaps(
-      globalVariables: _seedGlobalVariables,
-      scopedVariables: _seedScopedVariables,
+    _jsonFallbackStore = _fallbackStoresByDir.putIfAbsent(
+      _variablesDir,
+      () => JsonVariableStore.fromMaps(
+        globalVariables: _seedGlobalVariables,
+        scopedVariables: _seedScopedVariables,
+      ),
     );
 
     _initStoreFuture = _initializePrimaryStore();
@@ -38,14 +46,14 @@ class RunnerDataStore implements BotDataStore {
 
   Future<void> _initializePrimaryStore() async {
     try {
-      _sqliteStore = SqliteCliVariableStore(_resolveRunnerVariablesDir());
+      _sqliteStore = SqliteCliVariableStore(_variablesDir);
       await _sqliteStore!.init();
     } catch (_) {
       _sqliteStore = null;
     }
   }
 
-  String _resolveRunnerVariablesDir() {
+  static String _resolveRunnerVariablesDirStatic() {
     final configured =
         (Platform.environment['BOT_CREATOR_DATA_DIR'] ?? '').trim();
     if (configured.isNotEmpty) {
