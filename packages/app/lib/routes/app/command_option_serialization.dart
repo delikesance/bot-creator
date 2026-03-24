@@ -63,6 +63,10 @@ Map<String, dynamic>? normalizeCommandOptionAutocompleteConfig(dynamic raw) {
   final source = Map<String, dynamic>.from(
     raw.map((key, value) => MapEntry(key.toString(), value)),
   );
+
+  final rawMode = (source['mode'] ?? '').toString().trim();
+  final mode = rawMode == 'static' ? 'static' : 'workflow';
+
   final workflow = (source['workflow'] ?? '').toString().trim();
   final entryPoint = (source['entryPoint'] ?? 'main').toString().trim();
   final arguments = <String, dynamic>{};
@@ -82,20 +86,49 @@ Map<String, dynamic>? normalizeCommandOptionAutocompleteConfig(dynamic raw) {
     }
   }
 
+  final staticChoices = <Map<String, dynamic>>[];
+  if (source['staticChoices'] is List) {
+    for (final raw in (source['staticChoices'] as List)) {
+      if (raw is! Map) continue;
+      final entry = Map<String, dynamic>.from(
+        raw.map((k, v) => MapEntry(k.toString(), v)),
+      );
+      final name = (entry['name'] ?? '').toString().trim();
+      if (name.isEmpty) continue;
+      final value = entry['value'];
+      staticChoices.add({
+        'name': name,
+        'value':
+            value is num
+                ? value
+                : (value?.toString().trim().isEmpty ?? true)
+                ? name
+                : value.toString().trim(),
+      });
+    }
+  }
+
   final enabled =
       source['enabled'] == true ||
       (source['enabled'] == null &&
-          (workflow.isNotEmpty || arguments.isNotEmpty));
+          (workflow.isNotEmpty ||
+              arguments.isNotEmpty ||
+              staticChoices.isNotEmpty));
 
-  if (!enabled && workflow.isEmpty && arguments.isEmpty) {
+  if (!enabled &&
+      workflow.isEmpty &&
+      arguments.isEmpty &&
+      staticChoices.isEmpty) {
     return null;
   }
 
   return <String, dynamic>{
     'enabled': enabled,
+    'mode': mode,
     'workflow': workflow,
     'entryPoint': entryPoint.isEmpty ? 'main' : entryPoint,
     'arguments': arguments,
+    'staticChoices': staticChoices,
   };
 }
 
@@ -109,9 +142,11 @@ Map<String, dynamic>? getCommandOptionAutocompleteConfig(
   if (option.hasAutocomplete == true) {
     return <String, dynamic>{
       'enabled': true,
+      'mode': 'workflow',
       'workflow': '',
       'entryPoint': 'main',
       'arguments': <String, dynamic>{},
+      'staticChoices': <Map<String, dynamic>>[],
     };
   }
   return null;

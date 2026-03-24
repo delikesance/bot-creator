@@ -351,6 +351,35 @@ Future<void> _handleLocalCommandAutocomplete(
       return;
     }
 
+    // Static options mode: filter pre-defined choices by user query.
+    if ((autocompleteConfig['mode'] ?? 'workflow').toString() == 'static') {
+      final focusedOption = findFocusedOption(interaction.data.options);
+      final query =
+          (focusedOption?.value?.toString() ?? '').toLowerCase().trim();
+      final rawChoices = autocompleteConfig['staticChoices'];
+      final choices = <CommandOptionChoiceBuilder<dynamic>>[];
+      if (rawChoices is List) {
+        for (final raw in rawChoices) {
+          if (raw is! Map) continue;
+          final name = (raw['name'] ?? '').toString().trim();
+          if (name.isEmpty) continue;
+          if (query.isNotEmpty && !name.toLowerCase().contains(query)) {
+            continue;
+          }
+          final value = raw['value'];
+          choices.add(
+            CommandOptionChoiceBuilder<dynamic>(
+              name: name,
+              value: value is num ? value : (value?.toString() ?? name),
+            ),
+          );
+          if (choices.length >= 25) break;
+        }
+      }
+      await interaction.respond(choices);
+      return;
+    }
+
     final workflowName =
         (autocompleteConfig['workflow'] ?? '').toString().trim();
     if (workflowName.isEmpty) {

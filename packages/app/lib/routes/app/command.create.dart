@@ -1393,6 +1393,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                         const SizedBox(height: 12),
                                         OptionWidget(
                                           initialOptions: _options,
+                                          botIdForConfig: _botIdForConfig,
+                                          variableSuggestions:
+                                              _actionVariableSuggestions,
                                           onChange: (options) {
                                             setState(() {
                                               _applyOptionsUpdate(options);

@@ -172,6 +172,137 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
     );
   }
 
+  void _addActionOutputSuggestions(
+    Map<String, VariableSuggestion> bucket,
+    ActionItem action,
+    String resultKey,
+  ) {
+    final type = action.type;
+
+    if (type == BotCreatorActionType.httpRequest) {
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.status',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.body',
+        VariableSuggestionKind.nonNumeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.jsonPath',
+        VariableSuggestionKind.nonNumeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.status',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.body',
+        VariableSuggestionKind.nonNumeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.jsonPath',
+        VariableSuggestionKind.nonNumeric,
+      );
+    }
+
+    if (type == BotCreatorActionType.appendArrayElement) {
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.length',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.length',
+        VariableSuggestionKind.numeric,
+      );
+    }
+
+    if (type == BotCreatorActionType.removeArrayElement) {
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.length',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.length',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.removed',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.removed',
+        VariableSuggestionKind.unknown,
+      );
+    }
+
+    if (type == BotCreatorActionType.queryArray ||
+        type == BotCreatorActionType.listScopedVariableIndex) {
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.items',
+        VariableSuggestionKind.unknown,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.count',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.count',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        'action.$resultKey.total',
+        VariableSuggestionKind.numeric,
+      );
+      _addSuggestionIfMissing(
+        bucket,
+        '$resultKey.total',
+        VariableSuggestionKind.numeric,
+      );
+    }
+  }
+
   List<VariableSuggestion> _buildMergedVariableSuggestions() {
     final merged = <String, VariableSuggestion>{};
     for (final item in widget.variableSuggestions) {
@@ -197,6 +328,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         'action.$resultKey',
         VariableSuggestionKind.unknown,
       );
+      _addActionOutputSuggestions(merged, action, resultKey);
     }
 
     return merged.values.toList(growable: false);
