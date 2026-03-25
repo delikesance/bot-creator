@@ -89,15 +89,13 @@ const welcomeTemplate = BotTemplate(
           'type': 'normal',
           'embed': {
             'title': '📊 ((guildName))',
-            'description':
-                '**Members:** ((guildCount))\n**ID:** ((guildId))',
+            'description': '**Members:** ((guildCount))\n**ID:** ((guildId))',
             'color': 3447003,
           },
           'embeds': [
             {
               'title': '📊 ((guildName))',
-              'description':
-                  '**Members:** ((guildCount))\n**ID:** ((guildId))',
+              'description': '**Members:** ((guildCount))\n**ID:** ((guildId))',
               'color': 3447003,
             },
           ],
