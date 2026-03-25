@@ -259,23 +259,72 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
             borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
             border: Border.all(color: Colors.indigo.shade200),
           ),
-          child: Row(
-            children: [
-              Icon(Icons.dynamic_form, color: Colors.indigo.shade600, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                'Modal Builder',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.indigo.shade700,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '${_inputs.length}/5 inputs',
-                style: TextStyle(color: Colors.indigo.shade400, fontSize: 12),
-              ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 360) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.dynamic_form,
+                          color: Colors.indigo.shade600,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Modal Builder',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo.shade700,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${_inputs.length}/5 inputs',
+                      style: TextStyle(
+                        color: Colors.indigo.shade400,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                children: [
+                  Icon(
+                    Icons.dynamic_form,
+                    color: Colors.indigo.shade600,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Modal Builder',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.indigo.shade700,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '${_inputs.length}/5 inputs',
+                    style: TextStyle(
+                      color: Colors.indigo.shade400,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
         Container(
