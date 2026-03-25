@@ -17,6 +17,7 @@ import 'routes/onboarding.dart';
 import 'utils/app_diagnostics.dart';
 import 'utils/database.dart';
 import 'utils/analytics.dart';
+import 'utils/ad_consent_service.dart';
 import 'utils/ad_native_service.dart';
 import 'utils/ad_reward_service.dart';
 import 'utils/i18n.dart';
@@ -152,17 +153,6 @@ Future<void> _bootstrapAndRunApp() async {
     firebaseReady: firebaseReady,
   );
 
-  try {
-    await AppAnalytics.setCollectionEnabled(true);
-  } catch (error, stack) {
-    await AppDiagnostics.logError(
-      'Analytics collection setup failed',
-      error,
-      stack,
-      fatal: false,
-    );
-  }
-
   await AdRewardService.initialize();
   await AdNativeService.initialize();
 
@@ -192,10 +182,40 @@ Future<void> _bootstrapAndRunApp() async {
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_requestTrackingAndEnableAnalytics());
+    });
+  }
+
+  Future<void> _requestTrackingAndEnableAnalytics() async {
+    await AdConsentService.requestTrackingTransparencyIfNeeded();
+    try {
+      await AppAnalytics.setCollectionEnabled(true);
+    } catch (error, stack) {
+      unawaited(
+        AppDiagnostics.logError(
+          'Analytics collection setup failed',
+          error,
+          stack,
+          fatal: false,
+        ),
+      );
+    }
+  }
+
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
@@ -205,7 +225,7 @@ class MyApp extends StatelessWidget {
     final onboardingManager = context.read<OnboardingManager>();
 
     return MaterialApp(
-      navigatorKey: navigatorKey,
+      navigatorKey: MyApp.navigatorKey,
       title: AppStrings.t('app_title'),
       locale: Locale(localeProvider.locale.code),
       supportedLocales: const [Locale('en'), Locale('fr')],
