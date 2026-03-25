@@ -44,7 +44,9 @@ Map<String, String> buildInteractionRuntimeVariables(dynamic interaction) {
   final userId =
       _idString(_safeRead(interaction, () => interaction?.user?.id)) != ''
           ? _idString(_safeRead(interaction, () => interaction?.user?.id))
-          : _idString(_safeRead(interaction, () => interaction?.member?.user?.id));
+          : _idString(
+            _safeRead(interaction, () => interaction?.member?.user?.id),
+          );
   final channelId = _idString(
     _safeRead(interaction, () => interaction?.channelId) ??
         _safeRead(interaction, () => interaction?.channel?.id),
@@ -53,7 +55,9 @@ Map<String, String> buildInteractionRuntimeVariables(dynamic interaction) {
     _safeRead(interaction, () => interaction?.guildId) ??
         _safeRead(interaction, () => interaction?.guild?.id),
   );
-  final messageId = _idString(_safeRead(interaction, () => interaction?.message?.id));
+  final messageId = _idString(
+    _safeRead(interaction, () => interaction?.message?.id),
+  );
 
   final kind =
       interaction is MessageComponentInteraction
