@@ -1,4 +1,3 @@
-import 'package:bot_creator_shared/bot/bot_template.dart';
 import 'package:bot_creator_shared/bot/builtin_templates.dart';
 import 'package:test/test.dart';
 

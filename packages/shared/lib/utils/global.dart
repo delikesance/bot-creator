@@ -237,7 +237,7 @@ Map<String, String> extractChannelRuntimeDetails(dynamic channel) {
     'channel.kind': channel.runtimeType.toString(),
   };
 
-  void _trySet(String key, Object? Function() accessor) {
+  void trySet(String key, Object? Function() accessor) {
     try {
       final value = accessor();
       final str = (value ?? '').toString();
@@ -249,24 +249,24 @@ Map<String, String> extractChannelRuntimeDetails(dynamic channel) {
     }
   }
 
-  _trySet('channel.topic', () => channel.topic);
-  _trySet('channel.parentId', () => _asSnowflake(channel.parentId));
-  _trySet('channel.position', () => channel.position);
-  _trySet('channel.nsfw', () => ((channel.isNsfw ?? false) == true).toString());
-  _trySet('channel.slowmode', () => channel.rateLimitPerUser);
-  _trySet('channel.bitrate', () => channel.bitrate);
-  _trySet('channel.userLimit', () => channel.userLimit);
-  _trySet('channel.categoryId', () => _asSnowflake(channel.parentId));
-  _trySet(
+  trySet('channel.topic', () => channel.topic);
+  trySet('channel.parentId', () => _asSnowflake(channel.parentId));
+  trySet('channel.position', () => channel.position);
+  trySet('channel.nsfw', () => ((channel.isNsfw ?? false) == true).toString());
+  trySet('channel.slowmode', () => channel.rateLimitPerUser);
+  trySet('channel.bitrate', () => channel.bitrate);
+  trySet('channel.userLimit', () => channel.userLimit);
+  trySet('channel.categoryId', () => _asSnowflake(channel.parentId));
+  trySet(
     'channel.thread.archived',
     () => ((channel.isArchived ?? false) == true).toString(),
   );
-  _trySet(
+  trySet(
     'channel.thread.locked',
     () => ((channel.isLocked ?? false) == true).toString(),
   );
-  _trySet('channel.thread.ownerId', () => _asSnowflake(channel.ownerId));
-  _trySet(
+  trySet('channel.thread.ownerId', () => _asSnowflake(channel.ownerId));
+  trySet(
     'channel.thread.autoArchiveDuration',
     () => channel.autoArchiveDuration,
   );
@@ -281,7 +281,7 @@ Map<String, String> extractGuildRuntimeDetails(dynamic guild) {
 
   final details = <String, String>{'guild.kind': guild.runtimeType.toString()};
 
-  void _trySet(String key, Object? Function() accessor) {
+  void trySet(String key, Object? Function() accessor) {
     try {
       final value = accessor();
       final str = (value ?? '').toString();
@@ -303,21 +303,21 @@ Map<String, String> extractGuildRuntimeDetails(dynamic guild) {
     }
   } catch (_) {}
 
-  _trySet('guild.ownerId', () => _asSnowflake(guild.ownerId));
-  _trySet('guild.description', () => guild.description);
-  _trySet('guild.vanityUrlCode', () => guild.vanityUrlCode);
-  _trySet('guild.preferredLocale', () => guild.preferredLocale);
-  _trySet('guild.verificationLevel', () => guild.verificationLevel);
-  _trySet('guild.mfaLevel', () => guild.mfaLevel);
-  _trySet('guild.nsfwLevel', () => guild.nsfwLevel);
-  _trySet('guild.premiumTier', () => guild.premiumTier);
-  _trySet(
+  trySet('guild.ownerId', () => _asSnowflake(guild.ownerId));
+  trySet('guild.description', () => guild.description);
+  trySet('guild.vanityUrlCode', () => guild.vanityUrlCode);
+  trySet('guild.preferredLocale', () => guild.preferredLocale);
+  trySet('guild.verificationLevel', () => guild.verificationLevel);
+  trySet('guild.mfaLevel', () => guild.mfaLevel);
+  trySet('guild.nsfwLevel', () => guild.nsfwLevel);
+  trySet('guild.premiumTier', () => guild.premiumTier);
+  trySet(
     'guild.premiumSubscriptionCount',
     () => guild.premiumSubscriptionCount,
   );
   details['guild.features'] = featureList.join(',');
   details['guild.features.count'] = featureList.length.toString();
-  _trySet(
+  trySet(
     'guild.memberCount',
     () => guild.memberCount ?? guild.approximateMemberCount,
   );
