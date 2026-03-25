@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Widget _buildPage() {
+  Widget buildPage() {
     return const MaterialApp(
       home: CommandResponseWorkflowPage(
         initialWorkflow: <String, dynamic>{
@@ -28,7 +28,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(_buildPage());
+    await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
     expect(find.byTooltip('Save'), findsOneWidget);
@@ -46,7 +46,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(_buildPage());
+    await tester.pumpWidget(buildPage());
     await tester.pumpAndSettle();
 
     expect(find.text('Save'), findsOneWidget);
