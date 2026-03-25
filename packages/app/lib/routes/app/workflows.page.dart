@@ -1358,25 +1358,20 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
 
     ensureEventSelection();
 
-    final saveInfo = await showDialog<bool>(
-      context: context,
-      builder:
-          (context) => StatefulBuilder(
-            builder: (context, setDialogState) {
-              final screenWidth = MediaQuery.of(context).size.width;
-              final compactDialog = screenWidth < 600;
+    final isCompactScreen = MediaQuery.of(context).size.width < 600;
 
-              return AlertDialog(
-                insetPadding: EdgeInsets.symmetric(
-                  horizontal: compactDialog ? 12 : 40,
-                  vertical: 24,
-                ),
-                title: Text(
-                  initial == null
-                      ? AppStrings.t('workflows_create')
-                      : AppStrings.t('workflows_edit'),
-                ),
-                content: SizedBox(
+    Future<bool?> openEditorDialog({required bool compactDialog}) {
+      return showDialog<bool>(
+        context: context,
+        builder:
+            (context) => StatefulBuilder(
+              builder: (context, setDialogState) {
+                final titleText =
+                    initial == null
+                        ? AppStrings.t('workflows_create')
+                        : AppStrings.t('workflows_edit');
+
+                final formContent = SizedBox(
                   width: double.maxFinite,
                   child: SingleChildScrollView(
                     child: Column(
@@ -1828,21 +1823,102 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                       ],
                     ),
                   ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: Text(AppStrings.t('cancel')),
+                );
+
+                if (compactDialog) {
+                  final maxHeight = MediaQuery.of(context).size.height * 0.92;
+                  return Dialog(
+                    insetPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 12,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: maxHeight),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 6, 6),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    titleText,
+                                    style:
+                                        Theme.of(context).textTheme.titleLarge,
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: AppStrings.t('cancel'),
+                                  onPressed:
+                                      () => Navigator.pop(context, false),
+                                  icon: const Icon(Icons.close),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: formContent,
+                            ),
+                          ),
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed:
+                                        () => Navigator.pop(context, false),
+                                    child: Text(AppStrings.t('cancel')),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed:
+                                        () => Navigator.pop(context, true),
+                                    child: Text(
+                                      AppStrings.t('workflows_continue'),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                return AlertDialog(
+                  insetPadding: const EdgeInsets.symmetric(
+                    horizontal: 40,
+                    vertical: 24,
                   ),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: Text(AppStrings.t('workflows_continue')),
-                  ),
-                ],
-              );
-            },
-          ),
-    );
+                  title: Text(titleText),
+                  content: formContent,
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: Text(AppStrings.t('cancel')),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: Text(AppStrings.t('workflows_continue')),
+                    ),
+                  ],
+                );
+              },
+            ),
+      );
+    }
+
+    final saveInfo = await openEditorDialog(compactDialog: isCompactScreen);
 
     if (saveInfo != true) {
       return;
@@ -1997,59 +2073,125 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
     final controller = TextEditingController(text: initialText);
     var overwrite = true;
 
-    final shouldImport = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(AppStrings.t('workflows_import_title')),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(AppStrings.t('workflows_import_desc')),
-                    const SizedBox(height: 10),
-                    TextField(
-                      controller: controller,
-                      minLines: 6,
-                      maxLines: 12,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: AppStrings.t('workflows_import_input_hint'),
+    Widget importForm(StateSetter setDialogState, {bool compact = false}) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(AppStrings.t('workflows_import_desc')),
+          const SizedBox(height: 10),
+          TextField(
+            controller: controller,
+            minLines: compact ? 8 : 6,
+            maxLines: compact ? 14 : 12,
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              hintText: AppStrings.t('workflows_import_input_hint'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(AppStrings.t('workflows_import_overwrite')),
+            value: overwrite,
+            onChanged: (value) {
+              setDialogState(() {
+                overwrite = value;
+              });
+            },
+          ),
+        ],
+      );
+    }
+
+    final compactImport = MediaQuery.of(context).size.width < 600;
+
+    final shouldImport =
+        compactImport
+            ? await showModalBottomSheet<bool>(
+              context: context,
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (context) {
+                return StatefulBuilder(
+                  builder: (context, setDialogState) {
+                    final bottomInset =
+                        MediaQuery.of(context).viewInsets.bottom;
+                    return Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        12,
+                        12,
+                        12,
+                        12 + bottomInset,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(AppStrings.t('workflows_import_overwrite')),
-                      value: overwrite,
-                      onChanged: (value) {
-                        setDialogState(() {
-                          overwrite = value;
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: Text(AppStrings.t('cancel')),
-                ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: Text(AppStrings.t('workflows_import_action')),
-                ),
-              ],
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            AppStrings.t('workflows_import_title'),
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 10),
+                          Flexible(
+                            child: SingleChildScrollView(
+                              child: importForm(setDialogState, compact: true),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: OutlinedButton(
+                                  onPressed:
+                                      () => Navigator.pop(context, false),
+                                  child: Text(AppStrings.t('cancel')),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: Text(
+                                    AppStrings.t('workflows_import_action'),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            )
+            : await showDialog<bool>(
+              context: context,
+              builder: (context) {
+                return StatefulBuilder(
+                  builder: (context, setDialogState) {
+                    return AlertDialog(
+                      title: Text(AppStrings.t('workflows_import_title')),
+                      content: SizedBox(
+                        width: double.maxFinite,
+                        child: importForm(setDialogState),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: Text(AppStrings.t('cancel')),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: Text(AppStrings.t('workflows_import_action')),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
             );
-          },
-        );
-      },
-    );
 
     if (shouldImport != true) {
       return;
