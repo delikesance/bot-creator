@@ -257,18 +257,27 @@ class _CommandResponseWorkflowPageState
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.of(context).size.width < 420;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Response Workflow'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, _buildResult()),
-            child: const Text('Save'),
-          ),
+          if (compact)
+            IconButton(
+              tooltip: 'Save',
+              onPressed: () => Navigator.pop(context, _buildResult()),
+              icon: const Icon(Icons.check),
+            )
+          else
+            TextButton(
+              onPressed: () => Navigator.pop(context, _buildResult()),
+              child: const Text('Save'),
+            ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(compact ? 12 : 16),
         children: [
           Card(
             child: Padding(
