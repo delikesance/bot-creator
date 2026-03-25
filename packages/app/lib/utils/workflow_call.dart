@@ -183,6 +183,7 @@ Map<String, String> resolveWorkflowCallArguments(
 Map<String, String> resolveWorkflowInvocationArguments({
   required List<WorkflowArgumentDefinition> definitions,
   required Map<String, String> providedArguments,
+  bool enforceRequired = true,
 }) {
   if (definitions.isEmpty) {
     return Map<String, String>.from(providedArguments);
@@ -198,7 +199,7 @@ Map<String, String> resolveWorkflowInvocationArguments({
     final fromProvided = providedByLowercase[definition.name.toLowerCase()];
     final value =
         fromProvided != null ? fromProvided.value : definition.defaultValue;
-    if (definition.required && value.trim().isEmpty) {
+    if (enforceRequired && definition.required && value.trim().isEmpty) {
       throw Exception(
         'Missing required workflow argument "${definition.name}"',
       );
@@ -221,10 +222,12 @@ void applyWorkflowInvocationContext({
   required String entryPoint,
   required List<WorkflowArgumentDefinition> definitions,
   required Map<String, String> providedArguments,
+  bool enforceRequired = true,
 }) {
   final args = resolveWorkflowInvocationArguments(
     definitions: definitions,
     providedArguments: providedArguments,
+    enforceRequired: enforceRequired,
   );
 
   variables['workflow.name'] = workflowName;
