@@ -7,6 +7,15 @@ import 'package:bot_creator_shared/bot/bot_template.dart';
 import 'package:bot_creator_shared/bot/builtin_templates.dart';
 import 'package:flutter/material.dart';
 
+/// Const icon mapping so Flutter's icon tree-shaker can resolve them
+/// statically (dynamic `IconData(codePoint)` breaks AOT builds).
+const Map<String, IconData> _templateIcons = {
+  'welcome': Icons.waving_hand,
+  'moderation': Icons.shield,
+  'utility': Icons.build,
+  'fun': Icons.casino,
+};
+
 /// Gallery page that displays built-in bot templates and lets the user apply
 /// them to the current bot.
 class TemplateGalleryPage extends StatelessWidget {
@@ -255,7 +264,7 @@ class _TemplateCardState extends State<_TemplateCard> {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(
-                  IconData(template.iconCodePoint, fontFamily: 'MaterialIcons'),
+                  _templateIcons[template.id] ?? Icons.smart_toy,
                   size: 28,
                   color: colorScheme.onPrimaryContainer,
                 ),
