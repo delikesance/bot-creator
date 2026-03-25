@@ -306,6 +306,7 @@ class _CommandResponseWorkflowPageState
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     initialValue: _visibility,
+                    isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Visibility',
                       border: OutlineInputBorder(),
@@ -314,7 +315,10 @@ class _CommandResponseWorkflowPageState
                       DropdownMenuItem(value: 'public', child: Text('Public')),
                       DropdownMenuItem(
                         value: 'ephemeral',
-                        child: Text('Ephemeral (only command user)'),
+                        child: Text(
+                          'Ephemeral (only command user)',
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                     onChanged: (value) {
