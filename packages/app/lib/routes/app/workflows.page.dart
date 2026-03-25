@@ -1985,6 +1985,93 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
   }
 
   Future<void> _deleteWorkflow(String name) async {
+    final isCompactScreen = MediaQuery.of(context).size.width < 600;
+    final shouldDelete =
+        isCompactScreen
+            ? await showModalBottomSheet<bool>(
+              context: context,
+              useSafeArea: true,
+              builder: (sheetContext) {
+                final colorScheme = Theme.of(sheetContext).colorScheme;
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        AppStrings.t('workflows_delete_title'),
+                        style: Theme.of(sheetContext).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        AppStrings.tr(
+                          'workflows_delete_confirm',
+                          params: {'name': name},
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed:
+                                  () => Navigator.pop(sheetContext, false),
+                              child: Text(AppStrings.t('cancel')),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: colorScheme.error,
+                                foregroundColor: colorScheme.onError,
+                              ),
+                              onPressed:
+                                  () => Navigator.pop(sheetContext, true),
+                              child: Text(AppStrings.t('delete')),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            )
+            : await showDialog<bool>(
+              context: context,
+              builder:
+                  (dialogContext) => AlertDialog.adaptive(
+                    title: Text(AppStrings.t('workflows_delete_title')),
+                    content: Text(
+                      AppStrings.tr(
+                        'workflows_delete_confirm',
+                        params: {'name': name},
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: Text(AppStrings.t('cancel')),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        child: Text(
+                          AppStrings.t('delete'),
+                          style: TextStyle(
+                            color: Theme.of(dialogContext).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+            );
+
+    if (shouldDelete != true) {
+      return;
+    }
+
     await appManager.deleteWorkflow(widget.botId, name);
     await _load();
   }
@@ -2454,6 +2541,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
     return Column(
       children: [
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 6,
+          ),
           leading: Icon(
             workflowType == workflowTypeEvent
                 ? Icons.notifications_active_outlined
@@ -2493,7 +2584,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                       }
                     },
                     itemBuilder:
-                        (context) => const [
+                        (context) => [
                           PopupMenuItem<String>(
                             value: 'edit',
                             child: Row(
@@ -2508,9 +2599,17 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                             value: 'delete',
                             child: Row(
                               children: [
-                                Icon(Icons.delete_outline),
+                                Icon(
+                                  Icons.delete_outline,
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
                                 SizedBox(width: 8),
-                                Text('Delete'),
+                                Text(
+                                  'Delete',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -2526,7 +2625,11 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                       ),
                       IconButton(
                         onPressed: () => _deleteWorkflow(name),
-                        icon: const Icon(Icons.delete_outline),
+                        tooltip: AppStrings.t('delete'),
+                        icon: Icon(
+                          Icons.delete_outline,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ],
                   ),

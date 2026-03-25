@@ -55,14 +55,34 @@ class ReplyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isCompact = MediaQuery.of(context).size.width < 420;
     final routeColor =
         activeRouteIsGrouped
             ? Theme.of(context).colorScheme.secondary
             : Theme.of(context).colorScheme.primary;
 
+    Future<void> openWorkflowEditor() async {
+      final nextWorkflow = await Navigator.push<Map<String, dynamic>>(
+        context,
+        MaterialPageRoute(
+          builder:
+              (context) => CommandResponseWorkflowPage(
+                initialWorkflow: normalizeWorkflow(responseWorkflow),
+                variableSuggestions: variableSuggestions,
+                emojiSuggestions: emojiSuggestions,
+                botIdForConfig: botIdForConfig,
+              ),
+        ),
+      );
+
+      if (nextWorkflow != null) {
+        onWorkflowChanged(normalizeWorkflow(nextWorkflow));
+      }
+    }
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(isCompact ? 12 : 16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -121,6 +141,34 @@ class ReplyCard extends StatelessWidget {
                   icon: Icons.web_asset,
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Response Workflow',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    workflowSummary,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  ),
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: openWorkflowEditor,
+                    icon: const Icon(Icons.account_tree_outlined),
+                    label: const Text('Configure Response Workflow'),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
             if (responseType == 'normal') ...[
@@ -182,34 +230,6 @@ class ReplyCard extends StatelessWidget {
                 botIdForConfig: botIdForConfig,
               ),
             ],
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () async {
-                final nextWorkflow = await Navigator.push<Map<String, dynamic>>(
-                  context,
-                  MaterialPageRoute(
-                    builder:
-                        (context) => CommandResponseWorkflowPage(
-                          initialWorkflow: normalizeWorkflow(responseWorkflow),
-                          variableSuggestions: variableSuggestions,
-                          emojiSuggestions: emojiSuggestions,
-                          botIdForConfig: botIdForConfig,
-                        ),
-                  ),
-                );
-
-                if (nextWorkflow != null) {
-                  onWorkflowChanged(normalizeWorkflow(nextWorkflow));
-                }
-              },
-              icon: const Icon(Icons.account_tree_outlined),
-              label: const Text('Configure Response Workflow'),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              workflowSummary,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
           ],
         ),
       ),
