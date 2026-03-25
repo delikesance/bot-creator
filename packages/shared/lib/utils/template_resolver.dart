@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:math';
+
+final _random = Random();
 
 class _ResolvedExpression {
   const _ResolvedExpression({required this.found, this.value});
@@ -608,6 +611,26 @@ dynamic _applyFunction(
         format: args.length >= 2 ? args[1] : 'webp',
         size: args.length >= 3 ? args[2] : 1024,
       );
+    case 'random':
+      // random() → random bool ("true" or "")
+      return _random.nextBool() ? 'true' : '';
+    case 'randomchoice':
+      // randomchoice("a", "b", "c") → picks one at random
+      if (args.isEmpty) {
+        return null;
+      }
+      return args[_random.nextInt(args.length)];
+    case 'randomint':
+      // randomint(min, max) → random integer in [min, max]
+      if (args.length < 2) {
+        return null;
+      }
+      final min = _coerceInt(args[0]);
+      final max = _coerceInt(args[1]);
+      if (min == null || max == null || max < min) {
+        return null;
+      }
+      return min + _random.nextInt(max - min + 1);
     default:
       return null;
   }

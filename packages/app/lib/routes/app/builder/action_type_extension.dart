@@ -545,9 +545,15 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
           ),
           ParameterDefinition(
             key: 'embeds',
+            type: ParameterType.embeds,
+            defaultValue: null,
+            hint: 'Optional embeds to replace the current message embeds',
+          ),
+          ParameterDefinition(
+            key: 'clearEmbeds',
             type: ParameterType.boolean,
             defaultValue: false,
-            hint: 'Update embeds',
+            hint: 'Remove all embeds from the message',
           ),
           ParameterDefinition(
             key: 'componentV2',
@@ -1677,6 +1683,18 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'New text content (leave empty to keep current)',
+          ),
+          ParameterDefinition(
+            key: 'embeds',
+            type: ParameterType.embeds,
+            defaultValue: null,
+            hint: 'Optional embeds to replace the current interaction embeds',
+          ),
+          ParameterDefinition(
+            key: 'clearEmbeds',
+            type: ParameterType.boolean,
+            defaultValue: false,
+            hint: 'Remove all embeds from the interaction message',
           ),
           ParameterDefinition(
             key: 'components',

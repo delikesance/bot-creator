@@ -34,16 +34,16 @@ const welcomeTemplate = BotTemplate(
           'text': '',
           'type': 'normal',
           'embed': {
-            'title': '👋 Hello {{user.username}}!',
+            'title': '👋 Hello ((userName))!',
             'description':
-                'Welcome to **{{guild.name}}**! We are glad to have you here.',
+                'Welcome to **((guildName))**! We are glad to have you here.',
             'color': 5793266,
           },
           'embeds': [
             {
-              'title': '👋 Hello {{user.username}}!',
+              'title': '👋 Hello ((userName))!',
               'description':
-                  'Welcome to **{{guild.name}}**! We are glad to have you here.',
+                  'Welcome to **((guildName))**! We are glad to have you here.',
               'color': 5793266,
             },
           ],
@@ -88,16 +88,14 @@ const welcomeTemplate = BotTemplate(
           'text': '',
           'type': 'normal',
           'embed': {
-            'title': '📊 {{guild.name}}',
-            'description':
-                '**Members:** {{guild.memberCount}}\n**Created:** {{guild.id}}',
+            'title': '📊 ((guildName))',
+            'description': '**Members:** ((guildCount))\n**ID:** ((guildId))',
             'color': 3447003,
           },
           'embeds': [
             {
-              'title': '📊 {{guild.name}}',
-              'description':
-                  '**Members:** {{guild.memberCount}}\n**Created:** {{guild.id}}',
+              'title': '📊 ((guildName))',
+              'description': '**Members:** ((guildCount))\n**ID:** ((guildId))',
               'color': 3447003,
             },
           ],
@@ -141,9 +139,9 @@ const welcomeTemplate = BotTemplate(
           'type': 'sendMessage',
           'enabled': true,
           'payload': {
-            'channelId': '{{guild.systemChannelId}}',
+            'channelId': '((channelId))',
             'content':
-                '🎉 Welcome to **{{guild.name}}**, {{event.user.mention}}! You are member #{{guild.memberCount}}.',
+                '🎉 Welcome <@((member.id))>! You are now part of the server.',
           },
         },
       ],
@@ -170,7 +168,7 @@ const moderationTemplate = BotTemplate(
         'version': 1,
         'commandType': 'chatInput',
         'editorMode': 'simple',
-        'simpleConfig': {'banUser': true, 'actionReason': '{{option.reason}}'},
+        'simpleConfig': {'banUser': true, 'actionReason': '((opts.reason))'},
         'defaultMemberPermissions': '4',
         'options': [
           {
@@ -188,7 +186,7 @@ const moderationTemplate = BotTemplate(
         ],
         'response': {
           'mode': 'text',
-          'text': '🔨 {{option.target.username}} has been banned.',
+          'text': '🔨 ((opts.target)) has been banned.',
           'type': 'normal',
           'embed': {'title': '', 'description': '', 'url': ''},
           'embeds': <Map<String, dynamic>>[],
@@ -226,7 +224,7 @@ const moderationTemplate = BotTemplate(
         'version': 1,
         'commandType': 'chatInput',
         'editorMode': 'simple',
-        'simpleConfig': {'kickUser': true, 'actionReason': '{{option.reason}}'},
+        'simpleConfig': {'kickUser': true, 'actionReason': '((opts.reason))'},
         'defaultMemberPermissions': '2',
         'options': [
           {
@@ -244,7 +242,7 @@ const moderationTemplate = BotTemplate(
         ],
         'response': {
           'mode': 'text',
-          'text': '👢 {{option.target.username}} has been kicked.',
+          'text': '👢 ((opts.target)) has been kicked.',
           'type': 'normal',
           'embed': {'title': '', 'description': '', 'url': ''},
           'embeds': <Map<String, dynamic>>[],
@@ -285,7 +283,7 @@ const moderationTemplate = BotTemplate(
         'simpleConfig': {
           'muteUser': true,
           'muteDuration': '600',
-          'actionReason': '{{option.reason}}',
+          'actionReason': '((opts.reason))',
         },
         'defaultMemberPermissions': '1099511627776',
         'options': [
@@ -304,7 +302,7 @@ const moderationTemplate = BotTemplate(
         ],
         'response': {
           'mode': 'text',
-          'text': '🔇 {{option.target.username}} has been muted.',
+          'text': '🔇 ((opts.target)) has been muted.',
           'type': 'normal',
           'embed': {'title': '', 'description': '', 'url': ''},
           'embeds': <Map<String, dynamic>>[],
@@ -344,7 +342,7 @@ const moderationTemplate = BotTemplate(
         'editorMode': 'simple',
         'simpleConfig': {
           'deleteMessages': true,
-          'deleteMessagesDefaultCount': '{{option.amount}}',
+          'deleteMessagesDefaultCount': '((opts.amount))',
         },
         'defaultMemberPermissions': '8192',
         'options': [
@@ -359,7 +357,7 @@ const moderationTemplate = BotTemplate(
         ],
         'response': {
           'mode': 'text',
-          'text': '🗑️ Deleted {{option.amount}} message(s).',
+          'text': '🗑️ Deleted ((opts.amount)) message(s).',
           'type': 'normal',
           'embed': {'title': '', 'description': '', 'url': ''},
           'embeds': <Map<String, dynamic>>[],
@@ -469,15 +467,14 @@ const utilityTemplate = BotTemplate(
           'text': '',
           'type': 'normal',
           'embed': {
-            'title': '🖼️ {{option.user.username ?? user.username}}\'s avatar',
-            'image': '{{option.user.avatarUrl ?? user.avatarUrl}}',
+            'title': '🖼️ ((opts.user|userName))\'s avatar',
+            'image': '((avatar(opts.user.avatar|userAvatar)))',
             'color': 3447003,
           },
           'embeds': [
             {
-              'title':
-                  '🖼️ {{option.user.username ?? user.username}}\'s avatar',
-              'image': '{{option.user.avatarUrl ?? user.avatarUrl}}',
+              'title': '🖼️ ((opts.user|userName))\'s avatar',
+              'image': '((avatar(opts.user.avatar|userAvatar)))',
               'color': 3447003,
             },
           ],
@@ -566,8 +563,8 @@ const utilityTemplate = BotTemplate(
             'type': 'sendMessage',
             'enabled': true,
             'payload': {
-              'channelId': '{{option.channel.id ?? channel.id}}',
-              'content': '{{option.message}}',
+              'channelId': '((opts.channel.id|channelId))',
+              'content': '((opts.message))',
             },
           },
         ],
@@ -611,7 +608,7 @@ const funTemplate = BotTemplate(
             'onError': 'edit_error',
             'conditional': {
               'enabled': true,
-              'variable': '{{random.bool}}',
+              'variable': '((random()))',
               'whenTrueType': 'normal',
               'whenFalseType': 'normal',
               'whenTrueText': '🪙 **Heads!**',
@@ -708,14 +705,14 @@ const funTemplate = BotTemplate(
           'embed': {
             'title': '🎱 Magic 8-Ball',
             'description':
-                '**Q:** {{option.question}}\n**A:** {{random.choice:Yes!|No.|Maybe...|Ask again later.|Definitely!|I doubt it.|Without a doubt.|Better not tell you now.}}',
+                '**Q:** ((opts.question))\n**A:** ((randomchoice("Yes!", "No.", "Maybe...", "Ask again later.", "Definitely!", "I doubt it.", "Without a doubt.", "Better not tell you now.")))',
             'color': 1752220,
           },
           'embeds': [
             {
               'title': '🎱 Magic 8-Ball',
               'description':
-                  '**Q:** {{option.question}}\n**A:** {{random.choice:Yes!|No.|Maybe...|Ask again later.|Definitely!|I doubt it.|Without a doubt.|Better not tell you now.}}',
+                  '**Q:** ((opts.question))\n**A:** ((randomchoice("Yes!", "No.", "Maybe...", "Ask again later.", "Definitely!", "I doubt it.", "Without a doubt.", "Better not tell you now.")))',
               'color': 1752220,
             },
           ],

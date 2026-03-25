@@ -1,6 +1,7 @@
 ﻿import 'package:nyxx/nyxx.dart';
 import '../types/component.dart';
 import '../utils/component_workflow_bindings.dart';
+import '../utils/embed_fields.dart';
 import 'send_component_v2.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
@@ -33,6 +34,139 @@ Future<Map<String, String>> editMessageAction(
     }
 
     final message = await channel.messages.fetch(messageId);
+    final clearEmbeds = payload['clearEmbeds'] == true;
+    final embedsRaw =
+        (payload['embeds'] is List)
+            ? List<Map<String, dynamic>>.from(
+              (payload['embeds'] as List).whereType<Map>().map(
+                (embed) => Map<String, dynamic>.from(
+                  embed.map((key, value) => MapEntry(key.toString(), value)),
+                ),
+              ),
+            )
+            : <Map<String, dynamic>>[];
+
+    final shouldUpdateEmbeds = clearEmbeds || payload['embeds'] is List;
+    final embeds = <EmbedBuilder>[];
+    if (!clearEmbeds) {
+      for (final embedJson in embedsRaw.take(10)) {
+        embedJson.remove('video');
+        embedJson.remove('provider');
+        final embed = EmbedBuilder();
+
+        final title =
+            resolve?.call((embedJson['title'] ?? '').toString()) ??
+            (embedJson['title'] ?? '').toString();
+        final description =
+            resolve?.call((embedJson['description'] ?? '').toString()) ??
+            (embedJson['description'] ?? '').toString();
+        final url =
+            resolve?.call((embedJson['url'] ?? '').toString()) ??
+            (embedJson['url'] ?? '').toString();
+
+        if (title.isNotEmpty) embed.title = title;
+        if (description.isNotEmpty) embed.description = description;
+        if (url.isNotEmpty) embed.url = Uri.tryParse(url);
+
+        final timestamp = DateTime.tryParse(
+          resolve?.call((embedJson['timestamp'] ?? '').toString()) ??
+              (embedJson['timestamp'] ?? '').toString(),
+        );
+        if (timestamp != null) {
+          embed.timestamp = timestamp;
+        }
+
+        final colorRaw =
+            resolve?.call((embedJson['color'] ?? '').toString()) ??
+            (embedJson['color'] ?? '').toString();
+        if (colorRaw.isNotEmpty) {
+          int? colorInt;
+          if (colorRaw.startsWith('#')) {
+            colorInt = int.tryParse(colorRaw.substring(1), radix: 16);
+          } else {
+            colorInt = int.tryParse(colorRaw);
+          }
+          if (colorInt != null) {
+            embed.color = DiscordColor.fromRgb(
+              (colorInt >> 16) & 0xFF,
+              (colorInt >> 8) & 0xFF,
+              colorInt & 0xFF,
+            );
+          }
+        }
+
+        final footerJson = Map<String, dynamic>.from(
+          (embedJson['footer'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final footerText =
+            resolve?.call((footerJson['text'] ?? '').toString()) ??
+            (footerJson['text'] ?? '').toString();
+        final footerIcon =
+            resolve?.call((footerJson['icon_url'] ?? '').toString()) ??
+            (footerJson['icon_url'] ?? '').toString();
+        if (footerText.isNotEmpty || footerIcon.isNotEmpty) {
+          embed.footer = EmbedFooterBuilder(
+            text: footerText,
+            iconUrl: footerIcon.isNotEmpty ? Uri.tryParse(footerIcon) : null,
+          );
+        }
+
+        final authorJson = Map<String, dynamic>.from(
+          (embedJson['author'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final authorName =
+            resolve?.call((authorJson['name'] ?? '').toString()) ??
+            (authorJson['name'] ?? '').toString();
+        final authorUrl =
+            resolve?.call((authorJson['url'] ?? '').toString()) ??
+            (authorJson['url'] ?? '').toString();
+        final authorIcon =
+            resolve?.call(
+              (authorJson['author_icon_url'] ?? authorJson['icon_url'] ?? '')
+                  .toString(),
+            ) ??
+            (authorJson['author_icon_url'] ?? authorJson['icon_url'] ?? '')
+                .toString();
+        if (authorName.isNotEmpty) {
+          embed.author = EmbedAuthorBuilder(
+            name: authorName,
+            url: authorUrl.isNotEmpty ? Uri.tryParse(authorUrl) : null,
+            iconUrl: authorIcon.isNotEmpty ? Uri.tryParse(authorIcon) : null,
+          );
+        }
+
+        final imageJson = Map<String, dynamic>.from(
+          (embedJson['image'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final imageUrl =
+            resolve?.call((imageJson['url'] ?? '').toString()) ??
+            (imageJson['url'] ?? '').toString();
+        if (imageUrl.isNotEmpty) {
+          embed.image = EmbedImageBuilder(url: Uri.parse(imageUrl));
+        }
+
+        final thumbnailJson = Map<String, dynamic>.from(
+          (embedJson['thumbnail'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final thumbnailUrl =
+            resolve?.call((thumbnailJson['url'] ?? '').toString()) ??
+            (thumbnailJson['url'] ?? '').toString();
+        if (thumbnailUrl.isNotEmpty) {
+          embed.thumbnail = EmbedThumbnailBuilder(url: Uri.parse(thumbnailUrl));
+        }
+
+        final resolvedFields = buildResolvedEmbedFields(
+          embedJson: embedJson,
+          resolve: resolve ?? (value) => value,
+        );
+        if (resolvedFields.isNotEmpty) {
+          embed.fields = resolvedFields;
+        }
+
+        embeds.add(embed);
+      }
+    }
+
     List<ComponentBuilder>? components;
     ComponentV2Definition? definition;
     if (payload.containsKey('componentV2') && payload['componentV2'] is Map) {
@@ -51,6 +185,7 @@ Future<Map<String, String>> editMessageAction(
     await message.edit(
       MessageUpdateBuilder(
         content: content.isNotEmpty ? content : null,
+        embeds: shouldUpdateEmbeds ? embeds : null,
         components: components,
       ),
     );
