@@ -2,6 +2,7 @@
 import 'package:bot_creator_shared/utils/component_workflow_bindings.dart';
 import 'package:bot_creator_shared/types/component.dart';
 import 'package:bot_creator_shared/actions/send_component_v2.dart';
+import 'package:bot_creator_shared/utils/embed_fields.dart';
 
 /// Edit the original/deferred interaction response.
 /// Can update content, and/or components.
@@ -18,7 +19,117 @@ Future<Map<String, dynamic>> editInteractionMessageAction(
 
     final msgInteraction = interaction;
     final content = resolve((payload['content'] ?? '').toString());
+    final clearEmbeds = payload['clearEmbeds'] == true;
     final clearComponents = payload['clearComponents'] == true;
+
+    final embedsRaw =
+        (payload['embeds'] is List)
+            ? List<Map<String, dynamic>>.from(
+              (payload['embeds'] as List).whereType<Map>().map(
+                (embed) => Map<String, dynamic>.from(
+                  embed.map((key, value) => MapEntry(key.toString(), value)),
+                ),
+              ),
+            )
+            : <Map<String, dynamic>>[];
+    final shouldUpdateEmbeds = clearEmbeds || payload['embeds'] is List;
+    final embeds = <EmbedBuilder>[];
+    if (!clearEmbeds) {
+      for (final embedJson in embedsRaw.take(10)) {
+        embedJson.remove('video');
+        embedJson.remove('provider');
+        final embed = EmbedBuilder();
+
+        final title = resolve((embedJson['title'] ?? '').toString());
+        final description = resolve(
+          (embedJson['description'] ?? '').toString(),
+        );
+        final url = resolve((embedJson['url'] ?? '').toString());
+
+        if (title.isNotEmpty) embed.title = title;
+        if (description.isNotEmpty) embed.description = description;
+        if (url.isNotEmpty) embed.url = Uri.tryParse(url);
+
+        final timestamp = DateTime.tryParse(
+          resolve((embedJson['timestamp'] ?? '').toString()),
+        );
+        if (timestamp != null) {
+          embed.timestamp = timestamp;
+        }
+
+        final colorRaw = resolve((embedJson['color'] ?? '').toString());
+        if (colorRaw.isNotEmpty) {
+          int? colorInt;
+          if (colorRaw.startsWith('#')) {
+            colorInt = int.tryParse(colorRaw.substring(1), radix: 16);
+          } else {
+            colorInt = int.tryParse(colorRaw);
+          }
+          if (colorInt != null) {
+            embed.color = DiscordColor.fromRgb(
+              (colorInt >> 16) & 0xFF,
+              (colorInt >> 8) & 0xFF,
+              colorInt & 0xFF,
+            );
+          }
+        }
+
+        final footerJson = Map<String, dynamic>.from(
+          (embedJson['footer'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final footerText = resolve((footerJson['text'] ?? '').toString());
+        final footerIcon = resolve((footerJson['icon_url'] ?? '').toString());
+        if (footerText.isNotEmpty || footerIcon.isNotEmpty) {
+          embed.footer = EmbedFooterBuilder(
+            text: footerText,
+            iconUrl: footerIcon.isNotEmpty ? Uri.tryParse(footerIcon) : null,
+          );
+        }
+
+        final authorJson = Map<String, dynamic>.from(
+          (embedJson['author'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final authorName = resolve((authorJson['name'] ?? '').toString());
+        final authorUrl = resolve((authorJson['url'] ?? '').toString());
+        final authorIcon = resolve(
+          (authorJson['author_icon_url'] ?? authorJson['icon_url'] ?? '')
+              .toString(),
+        );
+        if (authorName.isNotEmpty) {
+          embed.author = EmbedAuthorBuilder(
+            name: authorName,
+            url: authorUrl.isNotEmpty ? Uri.tryParse(authorUrl) : null,
+            iconUrl: authorIcon.isNotEmpty ? Uri.tryParse(authorIcon) : null,
+          );
+        }
+
+        final imageJson = Map<String, dynamic>.from(
+          (embedJson['image'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final imageUrl = resolve((imageJson['url'] ?? '').toString());
+        if (imageUrl.isNotEmpty) {
+          embed.image = EmbedImageBuilder(url: Uri.parse(imageUrl));
+        }
+
+        final thumbnailJson = Map<String, dynamic>.from(
+          (embedJson['thumbnail'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final thumbnailUrl = resolve((thumbnailJson['url'] ?? '').toString());
+        if (thumbnailUrl.isNotEmpty) {
+          embed.thumbnail = EmbedThumbnailBuilder(url: Uri.parse(thumbnailUrl));
+        }
+
+        final resolvedFields = buildResolvedEmbedFields(
+          embedJson: embedJson,
+          resolve: resolve,
+        );
+        if (resolvedFields.isNotEmpty) {
+          embed.fields = resolvedFields;
+        }
+
+        embeds.add(embed);
+      }
+    }
 
     // Build components if defined
     List<ComponentBuilder>? actionRows;
@@ -40,6 +151,7 @@ Future<Map<String, dynamic>> editInteractionMessageAction(
 
     final builder = MessageUpdateBuilder(
       content: content.isNotEmpty ? content : null,
+      embeds: shouldUpdateEmbeds ? embeds : null,
       components: actionRows,
     );
 
