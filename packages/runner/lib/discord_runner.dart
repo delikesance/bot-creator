@@ -17,6 +17,7 @@ import 'package:nyxx/nyxx.dart';
 
 import 'command_workflow_routing.dart';
 import 'runner_data_store.dart';
+import 'stores/command_stats_store.dart';
 
 final _log = Logger('BotRunner');
 
@@ -25,12 +26,14 @@ final _log = Logger('BotRunner');
 class DiscordRunner {
   final BotConfig config;
   final RunnerDataStore store;
+  final CommandStatsStore? statsStore;
 
   NyxxGateway? _gateway;
   Timer? _statusRotationTimer;
   final Random _random = Random();
 
-  DiscordRunner(this.config) : store = RunnerDataStore(config);
+  DiscordRunner(this.config, {this.statsStore})
+    : store = RunnerDataStore(config);
 
   List<Map<String, dynamic>> get _eventWorkflows {
     final result = <Map<String, dynamic>>[];
@@ -142,6 +145,13 @@ class DiscordRunner {
         botId: botId,
         interaction: interaction,
         commandData: commandData,
+      );
+
+      // Record command usage
+      statsStore?.record(
+        botId: botId,
+        commandName: interaction.data.name,
+        guildId: interaction.guild?.id.toString() ?? '',
       );
     } else if (interaction is MessageComponentInteraction) {
       await handleComponentInteraction(client, interaction, store, botId);

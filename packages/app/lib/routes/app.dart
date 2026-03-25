@@ -1,4 +1,5 @@
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/routes/app/command_dashboard.dart';
 import 'package:bot_creator/routes/app/commands.list.dart';
 import 'package:bot_creator/routes/app/emojis.page.dart';
 import 'package:bot_creator/routes/app/global.variables.dart';
@@ -188,6 +189,12 @@ class _AppEditPageState extends State<AppEditPage>
         label: AppStrings.t('emojis_tab'),
         compactLabel: AppStrings.t('emojis_tab_short'),
         page: EmojisPage(botId: _botId),
+      ),
+      _AppPageEntry(
+        icon: Icons.bar_chart,
+        label: AppStrings.t('dashboard_title'),
+        compactLabel: AppStrings.t('dashboard_title'),
+        page: CommandDashboardPage(botId: _botId),
       ),
       _AppPageEntry(
         icon: Icons.settings,

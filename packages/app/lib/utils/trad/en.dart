@@ -845,4 +845,44 @@ const Map<String, String> appStringsEn = {
       'Variables should be identical between local app runtime and runner runtime.',
   'doc_runtime_execution_flow_section_parity_l2':
       'Use same variable names in conditions to stay portable.',
+
+  // ── Template Gallery ────────────────────────────────────────────────────
+  'template_gallery_title': 'Templates',
+  'template_gallery_subtitle':
+      'Quick-start your bot with a ready-made template.',
+  'template_gallery_apply': 'Use this template',
+  'template_gallery_apply_success':
+      '{count} command(s) and {wCount} workflow(s) added from template.',
+  'template_gallery_apply_error': 'Failed to apply template: {error}',
+  'template_gallery_commands_count': '{count} command(s)',
+  'template_gallery_workflows_count': '{count} workflow(s)',
+  'template_gallery_empty': 'No templates available.',
+  'template_gallery_already_exists':
+      'Command "{name}" already exists and was skipped.',
+  'template_welcome_name': 'Welcome Bot',
+  'template_welcome_description':
+      'Greet new members, say hello, and show server info.',
+  'template_moderation_name': 'Moderation Bot',
+  'template_moderation_description':
+      'Ban, kick, mute members and clear messages.',
+  'template_utility_name': 'Utility Bot',
+  'template_utility_description': 'Ping, avatar lookup, and bot-says commands.',
+  'template_fun_name': 'Fun Bot',
+  'template_fun_description': 'Coin flip, polls, and magic 8-ball.',
+
+  // ── Command Usage Dashboard ────────────────────────────────────────────
+  'dashboard_title': 'Dashboard',
+  'dashboard_no_data':
+      'No command usage data yet. Run your bot to start tracking.',
+  'dashboard_total': 'Total commands',
+  'dashboard_period_24h': 'Last 24h',
+  'dashboard_period_7d': 'Last 7 days',
+  'dashboard_period_30d': 'Last 30 days',
+  'dashboard_top_commands': 'Top commands',
+  'dashboard_timeline': 'Usage over time',
+  'dashboard_executions': '{count} executions',
+  'dashboard_loading': 'Loading stats...',
+  'dashboard_error': 'Could not load stats: {error}',
+  'dashboard_requires_runner':
+      'Connect to a runner to see command usage stats.',
 };

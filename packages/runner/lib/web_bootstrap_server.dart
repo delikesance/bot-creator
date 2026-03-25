@@ -26,6 +26,7 @@ class _CpuSample {
 /// GET  /metrics             → process metrics + bot runtime states
 /// GET  /bots/{id}/status    → state for one bot
 /// GET  /bots/{id}/metrics   → process metrics + one bot state
+/// GET  /bots/{id}/command-stats → command usage statistics
 /// GET  /bots                → [{id, name, syncedAt}]
 /// POST /bots/sync           → body: {botId, botName?, config: {...}}
 ///                           → {ok: true}
@@ -113,6 +114,7 @@ class RunnerWebBootstrapServer {
     final scopedStopBotId = _extractBotAction(path, action: 'stop');
     final scopedStatusBotId = _extractBotAction(path, action: 'status');
     final scopedMetricsBotId = _extractBotAction(path, action: 'metrics');
+    final scopedStatsBotId = _extractBotAction(path, action: 'command-stats');
     try {
       if (request.method == 'GET') {
         if (scopedStatusBotId != null) {
@@ -124,6 +126,10 @@ class RunnerWebBootstrapServer {
         }
         if (scopedMetricsBotId != null) {
           await _handleMetrics(request, botId: scopedMetricsBotId);
+          return;
+        }
+        if (scopedStatsBotId != null) {
+          await _handleCommandStats(request, scopedStatsBotId);
           return;
         }
         switch (path) {
@@ -400,6 +406,27 @@ class RunnerWebBootstrapServer {
   Map<String, dynamic> _buildBotStatePayload(String botId) {
     final state = _runtimeController.runtimeStateForBot(botId);
     return _runtimeStateToPayload(state);
+  }
+
+  /// GET /bots/{id}/command-stats — command usage statistics.
+  Future<void> _handleCommandStats(HttpRequest request, String botId) async {
+    final queryParams = request.uri.queryParameters;
+    final hoursRaw = int.tryParse(queryParams['hours'] ?? '');
+    final hours = (hoursRaw != null && hoursRaw > 0) ? hoursRaw : 24;
+    final sinceMs = hours * 3600000;
+
+    final store = _runtimeController.commandStatsStore;
+    final summary = store.querySummary(botId, sinceMs: sinceMs);
+    final timeline = store.queryTimeline(botId, hours: hours);
+    final total = store.totalCount(botId);
+
+    await _respondJson(request, <String, dynamic>{
+      'botId': botId,
+      'hours': hours,
+      'totalAllTime': total,
+      'commands': summary,
+      'timeline': timeline,
+    });
   }
 
   Map<String, dynamic> _runtimeStateToPayload(RunnerBotRuntimeState state) {
