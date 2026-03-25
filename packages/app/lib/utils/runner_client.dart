@@ -241,6 +241,16 @@ class RunnerClient {
     }
   }
 
+  /// Returns the runner version string, or `null` if unreachable.
+  Future<String?> getRunnerVersion() async {
+    try {
+      final json = await _get('/', includeAuth: false);
+      return json['version'] as String?;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Returns the current runner status.
   ///
   /// If [botId] is provided, this calls `/bots/{botId}/status` and adapts
