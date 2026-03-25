@@ -10,6 +10,7 @@ part 'events/guild_role_delete_event.dart';
 part 'events/guild_role_update_event.dart';
 part 'events/invite_create_event.dart';
 part 'events/invite_delete_event.dart';
+part 'events/interaction_create_event.dart';
 part 'events/message_create_event.dart';
 part 'events/message_delete_event.dart';
 part 'events/message_poll_vote_add_event.dart';

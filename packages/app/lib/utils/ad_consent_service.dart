@@ -34,7 +34,7 @@ class AdConsentService {
     _inFlightRequest = completer.future;
 
     try {
-      await _requestTrackingTransparencyIfNeeded();
+      await requestTrackingTransparencyIfNeeded();
       await _requestConsentInfoUpdate();
       await _loadAndShowConsentFormIfRequired();
 
@@ -70,7 +70,7 @@ class AdConsentService {
     }
   }
 
-  static Future<void> _requestTrackingTransparencyIfNeeded() async {
+  static Future<void> requestTrackingTransparencyIfNeeded() async {
     if (!Platform.isIOS) {
       return;
     }

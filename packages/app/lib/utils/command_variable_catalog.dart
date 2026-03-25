@@ -55,6 +55,96 @@ const List<CommandVariableCatalogEntry> commandBuiltinVariableCatalog =
         kind: VariableSuggestionKind.nonNumeric,
       ),
       CommandVariableCatalogEntry(
+        name: 'userBanner',
+        description: 'Banner URL of the invoking user when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'author.username',
+        description: 'Structured alias for the invoking author username.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'author.avatar',
+        description: 'Structured alias for the invoking author avatar URL.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'author.banner',
+        description: 'Structured alias for the invoking author banner URL.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'member.nick',
+        description: 'Guild nickname of the invoking member when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'member.avatar',
+        description: 'Guild member avatar URL when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'channel.name',
+        description: 'Structured alias for channel name.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'channel.type',
+        description: 'Structured alias for channel type.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'channel.topic',
+        description: 'Channel topic when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'channel.parentId',
+        description: 'Parent/category channel ID when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'channel.nsfw',
+        description: 'Whether channel is marked NSFW.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'channel.slowmode',
+        description: 'Slowmode rate limit in seconds when available.',
+        kind: VariableSuggestionKind.numeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guild.name',
+        description: 'Structured alias for guild name.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guild.count',
+        description: 'Structured alias for approximate guild member count.',
+        kind: VariableSuggestionKind.numeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guild.ownerId',
+        description: 'Guild owner ID when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guild.description',
+        description: 'Guild description when available.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guild.features',
+        description: 'Comma-separated list of enabled guild features.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'guild.features.count',
+        description: 'Number of enabled guild features.',
+        kind: VariableSuggestionKind.numeric,
+      ),
+      CommandVariableCatalogEntry(
         name: 'guildIcon',
         description: 'Guild icon URL when available.',
         kind: VariableSuggestionKind.nonNumeric,
@@ -100,6 +190,36 @@ const List<CommandVariableCatalogEntry> commandBuiltinVariableCatalog =
         kind: VariableSuggestionKind.nonNumeric,
       ),
       CommandVariableCatalogEntry(
+        name: 'interaction.customId',
+        description: 'Custom ID for component interactions.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'modal.customId',
+        description: 'Custom ID for modal submit interactions.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'interaction.user.username',
+        description: 'Structured alias for interaction author username.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'interaction.user.banner',
+        description: 'Structured alias for interaction author banner URL.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'interaction.channel.name',
+        description: 'Structured alias for interaction channel name.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'interaction.guild.name',
+        description: 'Structured alias for interaction guild name.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
         name: 'autocomplete.query',
         description: 'Focused autocomplete input currently typed by the user.',
         kind: VariableSuggestionKind.nonNumeric,
@@ -138,6 +258,11 @@ const List<CommandVariableCatalogEntry> commandBuiltinVariableCatalog =
       CommandVariableCatalogEntry(
         name: 'target.user.avatar',
         description: 'Avatar URL of the selected target user.',
+        kind: VariableSuggestionKind.nonNumeric,
+      ),
+      CommandVariableCatalogEntry(
+        name: 'target.user.banner',
+        description: 'Banner URL of the selected target user when available.',
         kind: VariableSuggestionKind.nonNumeric,
       ),
       CommandVariableCatalogEntry(
@@ -206,9 +331,15 @@ const List<String> commandTemplateReferenceVariables = <String>[
   'command.type',
   'interaction.command.type',
   'interaction.command.route',
+  'interaction.customId',
+  'modal.customId',
+  'modal.<inputCustomId>',
   'opts.<option>',
   'opts.<option>.id',
+  'opts.<option>.username',
+  'opts.<option>.tag',
   'opts.<option>.avatar',
+  'opts.<option>.banner',
   'autocomplete.query',
   'autocomplete.optionName',
   'autocomplete.optionType',
@@ -216,6 +347,7 @@ const List<String> commandTemplateReferenceVariables = <String>[
   'target.user.id',
   'target.user.username',
   'target.user.avatar',
+  'target.user.banner',
   'target.message.id',
   'target.message.content',
   'target.message.author.id',

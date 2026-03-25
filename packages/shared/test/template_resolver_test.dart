@@ -100,5 +100,31 @@ void main() {
         <String, dynamic>{'name': 'Bob', 'value': '12', 'inline': true},
       ]);
     });
+
+    test('rewrites avatar URL format and size', () {
+      final resolved = resolveTemplateExpressionValue(
+        'avatar(userAvatar, "png", 256)',
+        <String, String>{
+          'userAvatar':
+              'https://cdn.discordapp.com/avatars/1/abc.webp?size=1024',
+        },
+      );
+
+      expect(resolved, 'https://cdn.discordapp.com/avatars/1/abc.png?size=256');
+    });
+
+    test('rewrites banner URL with default values when args are missing', () {
+      final resolved = resolveTemplateExpressionValue(
+        'banner(userBanner)',
+        <String, String>{
+          'userBanner': 'https://cdn.discordapp.com/banners/1/def.png?size=512',
+        },
+      );
+
+      expect(
+        resolved,
+        'https://cdn.discordapp.com/banners/1/def.webp?size=1024',
+      );
+    });
   });
 }
