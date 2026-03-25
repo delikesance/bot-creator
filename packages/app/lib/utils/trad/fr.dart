@@ -909,4 +909,10 @@ const Map<String, String> appStringsFr = {
   'dashboard_error': 'Impossible de charger les stats : {error}',
   'dashboard_requires_runner':
       'Connectez un runner pour voir les statistiques d\'utilisation.',
+
+  // ── Version info ──
+  'settings_version_title': 'Version',
+  'settings_app_version': 'App',
+  'settings_runner_version': 'Runner',
+  'settings_runner_not_connected': 'Non connecté',
 };

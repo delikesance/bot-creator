@@ -16,7 +16,8 @@ RUN dart pub get
 
 # Compile to a native executable (AOT)
 WORKDIR /workspace/packages/runner
-RUN mkdir -p /out && dart compile exe bin/runner.dart -o /out/runner
+RUN VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//') && \
+    mkdir -p /out && dart compile exe bin/runner.dart -o /out/runner -DVERSION=$VERSION
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim

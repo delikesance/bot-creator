@@ -885,4 +885,10 @@ const Map<String, String> appStringsEn = {
   'dashboard_error': 'Could not load stats: {error}',
   'dashboard_requires_runner':
       'Connect to a runner to see command usage stats.',
+
+  // ── Version info ──
+  'settings_version_title': 'Version',
+  'settings_app_version': 'App',
+  'settings_runner_version': 'Runner',
+  'settings_runner_not_connected': 'Not connected',
 };

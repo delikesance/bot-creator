@@ -6,9 +6,11 @@ import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:nyxx/nyxx.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:developer' as developer;
 
 class AppSettingsPage extends StatefulWidget {
@@ -31,7 +33,9 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
   final TextEditingController _usernameController = TextEditingController();
   String? _selectedAvatarPath;
   final List<_StatusDraft> _statusDrafts = <_StatusDraft>[];
-  String _presenceStatus = 'online'; // Nouveau: statut de présence
+  String _presenceStatus = 'online';
+  String _appVersion = '';
+  String? _runnerVersion;
 
   static const List<String> _statusTypes = <String>[
     'playing',
@@ -88,6 +92,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     );
     _initIntents();
     _init();
+    _loadVersions();
   }
 
   void _initIntents() {
@@ -171,6 +176,17 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       _tokenController.text = _savedToken;
       _usernameController.text = '';
       _selectedAvatarPath = null;
+    });
+  }
+
+  Future<void> _loadVersions() async {
+    final info = await PackageInfo.fromPlatform();
+    final client = await RunnerSettings.createClient();
+    final rv = await client?.getRunnerVersion();
+    if (!mounted) return;
+    setState(() {
+      _appVersion = '${info.version}+${info.buildNumber}';
+      _runnerVersion = rv;
     });
   }
 
@@ -562,6 +578,44 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                             ),
                           );
                         },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppStrings.t('settings_version_title'),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.phone_android, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${AppStrings.t('settings_app_version')}: $_appVersion',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.dns_outlined, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '${AppStrings.t('settings_runner_version')}: ${_runnerVersion ?? AppStrings.t('settings_runner_not_connected')}',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),

@@ -14,13 +14,32 @@ class _CpuSample {
   final int timestampMs;
 }
 
+/// The semantic version of the Bot Creator Runner.
+///
+/// When compiled with `dart compile exe --define=VERSION=x.y.z`, the
+/// compile-time value is used.  For local `dart run` the version is
+/// read from `pubspec.yaml` at startup.
+final String runnerVersion = _resolveVersion();
+
+String _resolveVersion() {
+  const compiled = String.fromEnvironment('VERSION');
+  if (compiled.isNotEmpty) return compiled;
+  try {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final match = RegExp(r'version:\s*(\S+)').firstMatch(pubspec);
+    if (match != null) return match.group(1)!;
+  } catch (_) {}
+  return 'unknown';
+}
+
 /// HTTP API server for the Bot Creator Runner.
 ///
-/// All endpoints return JSON. `/health` stays public; protected endpoints use
-/// bearer auth when an API token is configured.
+/// All endpoints return JSON. `/` and `/health` stay public; protected
+/// endpoints use bearer auth when an API token is configured.
 ///
 /// Endpoints
 /// ---------
+/// GET  /                    → {name, version}
 /// GET  /health              → {ok: true}
 /// GET  /status              → {apiVersion, running, runningCount, bots: [...]}
 /// GET  /metrics             → process metrics + bot runtime states
@@ -133,6 +152,12 @@ class RunnerWebBootstrapServer {
           return;
         }
         switch (path) {
+          case '/':
+            await _respondJson(request, <String, dynamic>{
+              'name': 'Bot Creator Runner',
+              'version': runnerVersion,
+            });
+            return;
           case '/health':
             await _respondJson(request, <String, dynamic>{'ok': true});
             return;
@@ -453,7 +478,8 @@ class RunnerWebBootstrapServer {
       return false;
     }
 
-    return !(request.method == 'GET' && request.uri.path == '/health');
+    final p = request.uri.path;
+    return !(request.method == 'GET' && (p == '/health' || p == '/'));
   }
 
   bool _isAuthorized(HttpRequest request) {
