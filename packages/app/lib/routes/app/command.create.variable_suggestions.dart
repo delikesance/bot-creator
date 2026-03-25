@@ -64,7 +64,13 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
       switch (option.type) {
         case CommandOptionType.user:
         case CommandOptionType.mentionable:
-          base.addAll(['opts.$optionName.id', 'opts.$optionName.avatar']);
+          base.addAll([
+            'opts.$optionName.id',
+            'opts.$optionName.username',
+            'opts.$optionName.tag',
+            'opts.$optionName.avatar',
+            'opts.$optionName.banner',
+          ]);
           break;
         case CommandOptionType.channel:
           base.addAll(['opts.$optionName.id', 'opts.$optionName.type']);
@@ -319,7 +325,19 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
             kind: VariableSuggestionKind.nonNumeric,
           );
           addSuggestion(
+            'opts.$optionName.username',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          addSuggestion(
+            'opts.$optionName.tag',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          addSuggestion(
             'opts.$optionName.avatar',
+            kind: VariableSuggestionKind.nonNumeric,
+          );
+          addSuggestion(
+            'opts.$optionName.banner',
             kind: VariableSuggestionKind.nonNumeric,
           );
           break;
@@ -461,6 +479,8 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
       'join(source, ", ")',
       'formatEach(source, "{value}", ", ")',
       'embedFields(source, "{name}", "{value}", true)',
+      'avatar(interaction.user.avatar, "webp", 1024)',
+      'banner(interaction.user.banner, "png", 512)',
     ]) {
       addSuggestion(functionName, kind: VariableSuggestionKind.unknown);
     }

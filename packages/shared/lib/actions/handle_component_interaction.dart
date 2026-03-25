@@ -4,6 +4,7 @@ import 'package:bot_creator_shared/bot/bot_data_store.dart';
 import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart';
 import 'package:bot_creator_shared/utils/workflow_call.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'package:bot_creator_shared/types/action.dart';
 import 'package:bot_creator_shared/actions/handler.dart';
 import 'package:bot_creator_shared/actions/interaction_response.dart';
@@ -49,6 +50,7 @@ Future<void> handleComponentInteraction(
 
   // Build variables for the workflow
   final variables = <String, String>{
+    ...await generateInteractionContextKeyValues(interaction),
     'interaction.customId': customId,
     'interaction.userId': userId,
     'interaction.guildId': guildId?.toString() ?? '',
@@ -105,6 +107,7 @@ Future<void> handleModalSubmitInteraction(
 
   // Build variables: one per modal input field
   final variables = <String, String>{
+    ...await generateInteractionContextKeyValues(interaction),
     'modal.customId': customId,
     'interaction.userId': userId,
     'interaction.guildId': interaction.guildId?.toString() ?? '',

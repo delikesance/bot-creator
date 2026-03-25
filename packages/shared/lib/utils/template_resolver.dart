@@ -394,6 +394,63 @@ List<dynamic>? _coerceList(dynamic value) {
   return null;
 }
 
+const Set<String> _discordMediaFormats = <String>{
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'gif',
+};
+
+String _normalizeDiscordMediaFormat(dynamic value, {String fallback = 'webp'}) {
+  final normalized = _stringifyResolvedValue(value).trim().toLowerCase();
+  if (_discordMediaFormats.contains(normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
+int _normalizeDiscordMediaSize(dynamic value, {int fallback = 1024}) {
+  final parsed = _coerceInt(value) ?? fallback;
+  final bounded = parsed.clamp(16, 4096);
+  return bounded;
+}
+
+String _applyDiscordMediaOptions(
+  dynamic rawUrl, {
+  dynamic format,
+  dynamic size,
+}) {
+  final source = _stringifyResolvedValue(rawUrl).trim();
+  if (source.isEmpty) {
+    return '';
+  }
+
+  final uri = Uri.tryParse(source);
+  if (uri == null) {
+    return source;
+  }
+
+  final normalizedFormat = _normalizeDiscordMediaFormat(format);
+  final normalizedSize = _normalizeDiscordMediaSize(size);
+  final segments = List<String>.from(uri.pathSegments);
+  if (segments.isNotEmpty) {
+    final last = segments.last;
+    final dotIndex = last.lastIndexOf('.');
+    if (dotIndex > 0 && dotIndex < last.length - 1) {
+      segments[segments.length - 1] =
+          '${last.substring(0, dotIndex)}.$normalizedFormat';
+    }
+  }
+
+  final queryParameters = Map<String, String>.from(uri.queryParameters);
+  queryParameters['size'] = normalizedSize.toString();
+
+  return uri
+      .replace(pathSegments: segments, queryParameters: queryParameters)
+      .toString();
+}
+
 String _resolveItemPlaceholderValue(dynamic item, String rawPath) {
   final path = rawPath.trim();
   if (path.isEmpty) {
@@ -533,6 +590,24 @@ dynamic _applyFunction(
         });
       }
       return fields;
+    case 'avatar':
+      if (args.isEmpty) {
+        return null;
+      }
+      return _applyDiscordMediaOptions(
+        args.first,
+        format: args.length >= 2 ? args[1] : 'webp',
+        size: args.length >= 3 ? args[2] : 1024,
+      );
+    case 'banner':
+      if (args.isEmpty) {
+        return null;
+      }
+      return _applyDiscordMediaOptions(
+        args.first,
+        format: args.length >= 2 ? args[1] : 'webp',
+        size: args.length >= 3 ? args[2] : 1024,
+      );
     default:
       return null;
   }

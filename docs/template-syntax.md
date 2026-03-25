@@ -129,6 +129,8 @@ Exemples:
 ((join(scores.$, ", ")))
 ((formatEach(scores.$, "{name}: {score}", "\n")))
 ((embedFields(scores.$, "{name}", "{score}", true)))
+((avatar(interaction.user.avatar, "webp", 1024)))
+((banner(target.user.banner, "png", 512)))
 ```
 
 ### Fonctions V1
@@ -141,6 +143,8 @@ Exemples:
 | `join(source, separator)` | Concatène un array | `((join(tags.$, ", ")))` |
 | `formatEach(source, itemTemplate, separator)` | Formate chaque item | `((formatEach(users.$, "{name}", ", ")))` |
 | `embedFields(source, nameTemplate, valueTemplate, inline?)` | Génère un JSON array de fields d'embed | `((embedFields(scores.$, "{name}", "{score}", true)))` |
+| `avatar(url, format?, size?)` | Re-formate une URL avatar Discord | `((avatar(interaction.user.avatar, "png", 256)))` |
+| `banner(url, format?, size?)` | Re-formate une URL bannière Discord | `((banner(interaction.user.banner, "webp", 1024)))` |
 
 ---
 
@@ -267,7 +271,47 @@ Exemple ignoré:
 
 ---
 
-## 9. Comportements importants
+## 9. Exemples prêts à copier
+
+### Carte auteur (slash/component/modal)
+
+```txt
+Auteur: ((author.username|userName))
+ID: ((author.id|userId))
+Avatar 256: ((avatar(author.avatar, "png", 256)))
+Banner 1024: ((banner(author.banner, "webp", 1024)))
+```
+
+### Option user enrichie
+
+```txt
+Utilisateur ciblé: ((opts.user.username|opts.user|userName))
+Tag: ((opts.user.tag|userTag))
+Avatar: ((avatar(opts.user.avatar, "webp", 512)))
+```
+
+### Diagnostic channel avancé
+
+```txt
+Salon: ((channel.name|channelName))
+Type: ((channel.type|channelType))
+Topic: ((channel.topic|"no-topic"))
+NSFW: ((channel.nsfw|false))
+Slowmode: ((channel.slowmode|0))
+```
+
+### Diagnostic guild avancé
+
+```txt
+Serveur: ((guild.name|guildName))
+Owner: ((guild.ownerId|"unknown"))
+Features: ((guild.features|"none"))
+Feature count: ((guild.features.count|0))
+```
+
+---
+
+## 10. Comportements importants
 
 | Situation | Résultat |
 |-----------|----------|
@@ -282,7 +326,7 @@ Exemple ignoré:
 
 ---
 
-## 10. Bonnes pratiques
+## 11. Bonnes pratiques
 
 - Utilisez `formatEach(...)` pour du texte lisible à partir d'objets JSON
 - Utilisez `embedFields(...)` pour construire dynamiquement des fields

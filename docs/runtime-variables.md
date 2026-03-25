@@ -25,6 +25,32 @@ Cette V1 ajoute deux points importants:
 | `((userUsername))` | Username Discord |
 | `((userTag))` | Discriminant ou `0` |
 | `((userAvatar))` | URL avatar |
+| `((userBanner))` | URL bannière utilisateur quand disponible |
+| `((author.id))` | Alias de l'ID de l'auteur |
+| `((author.username))` | Alias du username de l'auteur |
+| `((author.tag))` | Alias du tag de l'auteur |
+| `((author.avatar))` | Alias de l'avatar de l'auteur |
+| `((author.banner))` | Alias de la bannière de l'auteur |
+| `((interaction.user.id))` | Alias runtime de l'ID auteur |
+| `((interaction.user.username))` | Alias runtime du username auteur |
+| `((interaction.user.tag))` | Alias runtime du tag auteur |
+| `((interaction.user.avatar))` | Alias runtime de l'avatar auteur |
+| `((interaction.user.banner))` | Alias runtime de la bannière auteur |
+| `((member.id))` | ID membre courant |
+| `((member.nick))` | Surnom membre courant |
+| `((member.avatar))` | Avatar membre (guild) quand disponible |
+| `((channel.name))` | Alias structuré du nom du salon |
+| `((channel.id))` | Alias structuré de l'ID du salon |
+| `((channel.type))` | Alias structuré du type du salon |
+| `((guild.name))` | Alias structuré du nom serveur |
+| `((guild.id))` | Alias structuré de l'ID serveur |
+| `((guild.count))` | Alias structuré du nombre de membres |
+| `((interaction.channel.id))` | Alias runtime channel ID |
+| `((interaction.channel.name))` | Alias runtime channel name |
+| `((interaction.channel.type))` | Alias runtime channel type |
+| `((interaction.guild.id))` | Alias runtime guild ID |
+| `((interaction.guild.name))` | Alias runtime guild name |
+| `((interaction.guild.icon))` | Alias runtime guild icon |
 | `((guildName))` | Nom du serveur |
 | `((guildId))` | ID du serveur |
 | `((guildCount))` | Nombre de membres approx. |
@@ -58,7 +84,10 @@ Chaque option expose un préfixe `opts.<nomOption>`.
 |----------|--------|
 | `((opts.<nom>))` | Username / nom |
 | `((opts.<nom>.id))` | ID utilisateur |
+| `((opts.<nom>.username))` | Username explicite |
+| `((opts.<nom>.tag))` | Tag / discriminant |
 | `((opts.<nom>.avatar))` | URL avatar |
+| `((opts.<nom>.banner))` | URL bannière quand disponible |
 
 ### Option `channel`
 
@@ -119,7 +148,47 @@ Les sous-commandes exposent aussi leurs arguments via `opts.*`.
 
 ---
 
-## 4. Variables stockées persistées
+## 4. Interactions `component` et `modal`
+
+Les listeners de composants et modals injectent maintenant le même socle
+runtime que les commandes pour l'auteur, le membre, le salon et le serveur.
+
+Variables communes utiles:
+
+| Variable | Valeur |
+|----------|--------|
+| `((interaction.customId))` | Custom ID du composant cliqué |
+| `((modal.customId))` | Custom ID du modal soumis |
+| `((interaction.user.id))` | ID utilisateur déclencheur |
+| `((interaction.user.username))` | Username déclencheur |
+| `((interaction.user.avatar))` | Avatar utilisateur |
+| `((interaction.user.banner))` | Bannière utilisateur (si disponible) |
+| `((interaction.member.nick))` | Nickname membre (si disponible) |
+| `((interaction.member.avatar))` | Avatar membre (guild) |
+| `((interaction.channel.id))` | ID salon |
+| `((interaction.channel.name))` | Nom salon |
+| `((interaction.channel.type))` | Type salon |
+| `((interaction.guild.id))` | ID serveur |
+| `((interaction.guild.name))` | Nom serveur |
+| `((interaction.guild.icon))` | URL icône serveur |
+| `((interaction.values))` | Valeurs sélectionnées (select menu, CSV) |
+| `((modal.<inputCustomId>))` | Valeur d'un champ texte du modal |
+
+Les aliases `author.*`, `user.*`, `member.*`, `channel.*`, `guild.*` sont
+aussi disponibles sur ces interactions.
+
+Champs avancés normalisés (quand disponibles):
+
+- `((channel.kind))`, `((channel.topic))`, `((channel.parentId))`, `((channel.position))`
+- `((channel.nsfw))`, `((channel.slowmode))`, `((channel.bitrate))`, `((channel.userLimit))`
+- `((channel.thread.archived))`, `((channel.thread.locked))`, `((channel.thread.ownerId))`, `((channel.thread.autoArchiveDuration))`
+- `((guild.kind))`, `((guild.ownerId))`, `((guild.description))`, `((guild.vanityUrlCode))`
+- `((guild.preferredLocale))`, `((guild.verificationLevel))`, `((guild.mfaLevel))`, `((guild.nsfwLevel))`
+- `((guild.premiumTier))`, `((guild.premiumSubscriptionCount))`, `((guild.features))`, `((guild.features.count))`, `((guild.memberCount))`
+
+---
+
+## 5. Variables stockées persistées
 
 Les variables persistées sont hydratées dans le runtime au début d'un workflow.
 
@@ -185,7 +254,7 @@ Exemples:
 
 ---
 
-## 5. Variables issues d'actions
+## 6. Variables issues d'actions
 
 Les actions avec `key` exposent souvent leurs sorties dans le runtime.
 
