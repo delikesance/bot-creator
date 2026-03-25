@@ -1363,7 +1363,14 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
       builder:
           (context) => StatefulBuilder(
             builder: (context, setDialogState) {
+              final screenWidth = MediaQuery.of(context).size.width;
+              final compactDialog = screenWidth < 600;
+
               return AlertDialog(
+                insetPadding: EdgeInsets.symmetric(
+                  horizontal: compactDialog ? 12 : 40,
+                  vertical: 24,
+                ),
                 title: Text(
                   initial == null
                       ? AppStrings.t('workflows_create')
@@ -1380,10 +1387,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _WorkflowTypeCard(
+                        if (compactDialog)
+                          Column(
+                            children: [
+                              _WorkflowTypeCard(
                                 title: AppStrings.t('workflows_type_general'),
                                 description: AppStrings.t(
                                   'workflows_type_general_desc',
@@ -1397,10 +1404,8 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                                   });
                                 },
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: _WorkflowTypeCard(
+                              const SizedBox(height: 10),
+                              _WorkflowTypeCard(
                                 title: AppStrings.t('workflows_type_event'),
                                 description: AppStrings.t(
                                   'workflows_type_event_desc',
@@ -1415,9 +1420,49 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                                   });
                                 },
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          )
+                        else
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _WorkflowTypeCard(
+                                  title: AppStrings.t('workflows_type_general'),
+                                  description: AppStrings.t(
+                                    'workflows_type_general_desc',
+                                  ),
+                                  icon: Icons.account_tree_outlined,
+                                  selected:
+                                      selectedWorkflowType ==
+                                      workflowTypeGeneral,
+                                  onTap: () {
+                                    setDialogState(() {
+                                      selectedWorkflowType =
+                                          workflowTypeGeneral;
+                                    });
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _WorkflowTypeCard(
+                                  title: AppStrings.t('workflows_type_event'),
+                                  description: AppStrings.t(
+                                    'workflows_type_event_desc',
+                                  ),
+                                  icon: Icons.notifications_active_outlined,
+                                  selected:
+                                      selectedWorkflowType == workflowTypeEvent,
+                                  onTap: () {
+                                    setDialogState(() {
+                                      selectedWorkflowType = workflowTypeEvent;
+                                      ensureEventSelection();
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
                         const SizedBox(height: 14),
                         TextField(
                           controller: nameController,
@@ -1449,22 +1494,141 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                                   ),
                                 ),
                               ),
-                              IconButton(
-                                tooltip: AppStrings.t('workflows_add_arg'),
-                                onPressed: () {
-                                  setDialogState(() {
-                                    editableArgs.add(
-                                      const _EditableWorkflowArgument(name: ''),
-                                    );
-                                  });
-                                },
-                                icon: const Icon(Icons.add),
-                              ),
+                              if (compactDialog)
+                                FilledButton.tonalIcon(
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      editableArgs.add(
+                                        const _EditableWorkflowArgument(
+                                          name: '',
+                                        ),
+                                      );
+                                    });
+                                  },
+                                  icon: const Icon(Icons.add),
+                                  label: Text(
+                                    AppStrings.t('workflows_add_arg'),
+                                  ),
+                                )
+                              else
+                                IconButton(
+                                  tooltip: AppStrings.t('workflows_add_arg'),
+                                  onPressed: () {
+                                    setDialogState(() {
+                                      editableArgs.add(
+                                        const _EditableWorkflowArgument(
+                                          name: '',
+                                        ),
+                                      );
+                                    });
+                                  },
+                                  icon: const Icon(Icons.add),
+                                ),
                             ],
                           ),
                           ...editableArgs.asMap().entries.map((entry) {
                             final index = entry.key;
                             final value = entry.value;
+                            if (compactDialog) {
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color:
+                                          Theme.of(
+                                            context,
+                                          ).colorScheme.outlineVariant,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      TextFormField(
+                                        initialValue: value.name,
+                                        decoration: InputDecoration(
+                                          labelText: AppStrings.t(
+                                            'workflows_arg_name',
+                                          ),
+                                          border: const OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                        onChanged: (next) {
+                                          editableArgs[index] =
+                                              editableArgs[index].copyWith(
+                                                name: next.trim(),
+                                              );
+                                        },
+                                      ),
+                                      const SizedBox(height: 8),
+                                      TextFormField(
+                                        initialValue: value.defaultValue,
+                                        decoration: InputDecoration(
+                                          labelText: AppStrings.t(
+                                            'workflows_arg_default',
+                                          ),
+                                          border: const OutlineInputBorder(),
+                                          isDense: true,
+                                        ),
+                                        onChanged: (next) {
+                                          editableArgs[index] =
+                                              editableArgs[index].copyWith(
+                                                defaultValue: next,
+                                              );
+                                        },
+                                      ),
+                                      const SizedBox(height: 8),
+                                      CheckboxListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        dense: false,
+                                        visualDensity: VisualDensity.standard,
+                                        controlAffinity:
+                                            ListTileControlAffinity.leading,
+                                        value: value.required,
+                                        onChanged: (next) {
+                                          editableArgs[index] =
+                                              editableArgs[index].copyWith(
+                                                required: next == true,
+                                              );
+                                          setDialogState(() {});
+                                        },
+                                        title: Text(
+                                          AppStrings.t(
+                                            'workflows_arg_required_short',
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: FilledButton.tonalIcon(
+                                          onPressed: () {
+                                            setDialogState(() {
+                                              editableArgs.removeAt(index);
+                                              if (editableArgs.isEmpty) {
+                                                editableArgs.add(
+                                                  const _EditableWorkflowArgument(
+                                                    name: '',
+                                                  ),
+                                                );
+                                              }
+                                            });
+                                          },
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                          ),
+                                          label: Text(AppStrings.t('delete')),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
@@ -2143,6 +2307,8 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
               },
             );
 
+    final compactTile = MediaQuery.of(context).size.width < 420;
+
     return Column(
       children: [
         ListTile(
@@ -2151,10 +2317,11 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                 ? Icons.notifications_active_outlined
                 : Icons.account_tree_outlined,
           ),
-          title: Row(
+          title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: Text(name)),
-              const SizedBox(width: 8),
+              const SizedBox(height: 2),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -2169,22 +2336,58 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                   ),
                 ),
               ),
+              const SizedBox(height: 6),
+              Text(subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
             ],
           ),
-          subtitle: Text(subtitle),
-          trailing: Wrap(
-            spacing: 4,
-            children: [
-              IconButton(
-                onPressed: () => _createOrEditWorkflow(initial: workflow),
-                icon: const Icon(Icons.edit_outlined),
-              ),
-              IconButton(
-                onPressed: () => _deleteWorkflow(name),
-                icon: const Icon(Icons.delete_outline),
-              ),
-            ],
-          ),
+          trailing:
+              compactTile
+                  ? PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _createOrEditWorkflow(initial: workflow);
+                      } else if (value == 'delete') {
+                        _deleteWorkflow(name);
+                      }
+                    },
+                    itemBuilder:
+                        (context) => const [
+                          PopupMenuItem<String>(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined),
+                                SizedBox(width: 8),
+                                Text('Edit'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline),
+                                SizedBox(width: 8),
+                                Text('Delete'),
+                              ],
+                            ),
+                          ),
+                        ],
+                  )
+                  : Wrap(
+                    spacing: 4,
+                    children: [
+                      IconButton(
+                        onPressed:
+                            () => _createOrEditWorkflow(initial: workflow),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        onPressed: () => _deleteWorkflow(name),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
         ),
         const Divider(height: 1),
       ],
