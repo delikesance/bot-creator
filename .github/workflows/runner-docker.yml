@@ -79,6 +79,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Resolve latest version tag
+        id: latest-tag
+        run: |
+          TAG=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          TAG=${TAG:-0.0.0}
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${TAG#v}"
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v3
@@ -100,11 +110,10 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=ref,event=tag
-            type=semver,pattern={{version}},value=${{ github.ref_name }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ github.ref_name }}
-            type=semver,pattern={{major}},value=${{ github.ref_name }}
-            type=raw,value=stable,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{version}},value=v${{ steps.latest-tag.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=v${{ steps.latest-tag.outputs.version }}
+            type=semver,pattern={{major}},value=v${{ steps.latest-tag.outputs.version }}
+            type=raw,value=stable,enable=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v') }}
             type=sha,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
 
