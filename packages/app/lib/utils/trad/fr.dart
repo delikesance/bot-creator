@@ -547,6 +547,9 @@ const Map<String, String> appStringsFr = {
   'workflows_copy_none': 'Aucun workflow à copier.',
   'workflows_copy_done_json': 'Workflows copiés en JSON.',
   'workflows_copy_done_base64': 'Workflows copiés en Base64.',
+  'workflows_delete_title': 'Supprimer le workflow',
+  'workflows_delete_confirm':
+      'Voulez-vous vraiment supprimer "{name}" ? Cette action est irréversible.',
   'workflows_export_json': 'Copier en JSON',
   'workflows_export_json_desc': 'Lisible et modifiable facilement.',
   'workflows_export_base64': 'Copier en Base64',

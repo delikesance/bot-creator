@@ -19,6 +19,8 @@ import 'action_types.dart';
 import 'action_type_extension.dart';
 import 'package:http/http.dart' as http;
 
+enum _ActionCardMenuAction { moveUp, moveDown, remove }
+
 class ActionCard extends StatelessWidget {
   final ActionItem action;
   final int index;
@@ -67,6 +69,8 @@ class ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final compactHeader = MediaQuery.of(context).size.width < 420;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
@@ -100,21 +104,84 @@ class ActionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  onPressed: onMoveUp,
-                  tooltip: 'Move up',
-                  icon: const Icon(Icons.arrow_upward),
-                ),
-                IconButton(
-                  onPressed: onMoveDown,
-                  tooltip: 'Move down',
-                  icon: const Icon(Icons.arrow_downward),
-                ),
-                IconButton(
-                  onPressed: onRemove,
-                  tooltip: 'Remove action',
-                  icon: const Icon(Icons.delete, color: Colors.red),
-                ),
+                if (compactHeader)
+                  PopupMenuButton<_ActionCardMenuAction>(
+                    tooltip: 'Action options',
+                    onSelected: (value) async {
+                      if (value == _ActionCardMenuAction.moveUp &&
+                          onMoveUp != null) {
+                        onMoveUp!();
+                      } else if (value == _ActionCardMenuAction.moveDown &&
+                          onMoveDown != null) {
+                        onMoveDown!();
+                      } else if (value == _ActionCardMenuAction.remove) {
+                        await _confirmAndRemoveAction(context);
+                      }
+                    },
+                    itemBuilder:
+                        (context) => [
+                          PopupMenuItem<_ActionCardMenuAction>(
+                            value: _ActionCardMenuAction.moveUp,
+                            enabled: onMoveUp != null,
+                            child: const Row(
+                              children: [
+                                Icon(Icons.arrow_upward),
+                                SizedBox(width: 8),
+                                Text('Move up'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem<_ActionCardMenuAction>(
+                            value: _ActionCardMenuAction.moveDown,
+                            enabled: onMoveDown != null,
+                            child: const Row(
+                              children: [
+                                Icon(Icons.arrow_downward),
+                                SizedBox(width: 8),
+                                Text('Move down'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem<_ActionCardMenuAction>(
+                            value: _ActionCardMenuAction.remove,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.delete_outline,
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Remove action',
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                  )
+                else ...[
+                  IconButton(
+                    onPressed: onMoveUp,
+                    tooltip: 'Move up',
+                    icon: const Icon(Icons.arrow_upward),
+                  ),
+                  IconButton(
+                    onPressed: onMoveDown,
+                    tooltip: 'Move down',
+                    icon: const Icon(Icons.arrow_downward),
+                  ),
+                  IconButton(
+                    onPressed: () => _confirmAndRemoveAction(context),
+                    tooltip: 'Remove action',
+                    icon: Icon(
+                      Icons.delete_outline,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 8),
@@ -186,6 +253,36 @@ class ActionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmAndRemoveAction(BuildContext context) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder:
+          (dialogContext) => AlertDialog.adaptive(
+            title: const Text('Remove action'),
+            content: const Text(
+              'This action will be removed from the workflow. Continue?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(
+                  'Remove',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ],
+          ),
+    );
+
+    if (shouldDelete == true) {
+      onRemove();
+    }
   }
 
   // Parses a JSON response and returns a flat list of JSON Path dot notations.
