@@ -456,9 +456,7 @@ Future<Map<String, String>> generateKeyValues(
   if (commandType == ApplicationCommandType.user && targetId != null) {
     final resolvedUser = command.resolved?.users?[targetId];
     User? targetUser = resolvedUser;
-    if (targetUser == null) {
-      targetUser = await _fetchUserCached(interaction.manager.client, targetId);
-    }
+    targetUser ??= await _fetchUserCached(interaction.manager.client, targetId);
     if (targetUser != null) {
       String targetBannerUrl = '';
       final dynamic dynamicTargetUser = targetUser;
