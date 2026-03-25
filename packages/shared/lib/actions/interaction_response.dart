@@ -60,7 +60,9 @@ Future<void> sendWorkflowResponse({
           : <Map<String, dynamic>>[];
 
   if (useCondition && conditionVariable.isNotEmpty) {
-    final variableValue = (runtimeVariables[conditionVariable] ?? '').trim();
+    final variableValue = conditionVariable.contains('((')
+        ? resolveTemplatePlaceholders(conditionVariable, runtimeVariables).trim()
+        : (runtimeVariables[conditionVariable] ?? '').trim();
     final conditionMatched = variableValue.isNotEmpty;
     onDebugLog?.call(
       'Condition variable=$conditionVariable matched=$conditionMatched',
