@@ -270,6 +270,7 @@ class DiscordRunner {
     registerEvent<InteractionCreateEvent>(
       gateway.onInteractionCreate,
       'interactionCreate',
+      buildContext: buildInteractionCreateEventContext,
     );
     registerEvent<ApplicationCommandPermissionsUpdateEvent>(
       gateway.onApplicationCommandPermissionsUpdate,

@@ -177,6 +177,23 @@ Variables communes utiles:
 Les aliases `author.*`, `user.*`, `member.*`, `channel.*`, `guild.*` sont
 aussi disponibles sur ces interactions.
 
+### Mode routeur permanent via event `interactionCreate`
+
+Dans un workflow event déclenché sur `interactionCreate`, les variables
+suivantes permettent de router les clics boutons/menus/modals sans listener TTL:
+
+| Variable | Valeur |
+|----------|--------|
+| `((interaction.kind))` | `button`, `select`, `modal`, `command`, `autocomplete` |
+| `((interaction.customId))` | Custom ID du composant/modal |
+| `((interaction.values))` | Valeurs du select (CSV) |
+| `((interaction.values.count))` | Nombre de valeurs sélectionnées |
+| `((modal.<inputCustomId>))` | Valeur d'un champ texte modal |
+| `((interaction.channelId))` | ID channel interaction |
+| `((interaction.guildId))` | ID guild interaction |
+| `((interaction.userId))` | ID user interaction |
+| `((interaction.messageId))` | ID message source si présent |
+
 Champs avancés normalisés (quand disponibles):
 
 - `((channel.kind))`, `((channel.topic))`, `((channel.parentId))`, `((channel.position))`
