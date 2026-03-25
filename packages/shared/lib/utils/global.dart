@@ -235,23 +235,42 @@ Map<String, String> extractChannelRuntimeDetails(dynamic channel) {
 
   final details = <String, String>{
     'channel.kind': channel.runtimeType.toString(),
-    'channel.topic': (channel.topic ?? '').toString(),
-    'channel.parentId': _asSnowflake(channel.parentId)?.toString() ?? '',
-    'channel.position': (channel.position ?? '').toString(),
-    'channel.nsfw': ((channel.isNsfw ?? false) == true).toString(),
-    'channel.slowmode': (channel.rateLimitPerUser ?? '').toString(),
-    'channel.bitrate': (channel.bitrate ?? '').toString(),
-    'channel.userLimit': (channel.userLimit ?? '').toString(),
-    'channel.categoryId': _asSnowflake(channel.parentId)?.toString() ?? '',
-    'channel.thread.archived':
-        ((channel.isArchived ?? false) == true).toString(),
-    'channel.thread.locked': ((channel.isLocked ?? false) == true).toString(),
-    'channel.thread.ownerId': _asSnowflake(channel.ownerId)?.toString() ?? '',
-    'channel.thread.autoArchiveDuration':
-        (channel.autoArchiveDuration ?? '').toString(),
   };
 
-  details.removeWhere((key, value) => value.isEmpty);
+  void _trySet(String key, Object? Function() accessor) {
+    try {
+      final value = accessor();
+      final str = (value ?? '').toString();
+      if (str.isNotEmpty) {
+        details[key] = str;
+      }
+    } catch (_) {
+      // Property not available on this channel type — skip.
+    }
+  }
+
+  _trySet('channel.topic', () => channel.topic);
+  _trySet('channel.parentId', () => _asSnowflake(channel.parentId));
+  _trySet('channel.position', () => channel.position);
+  _trySet('channel.nsfw', () => ((channel.isNsfw ?? false) == true).toString());
+  _trySet('channel.slowmode', () => channel.rateLimitPerUser);
+  _trySet('channel.bitrate', () => channel.bitrate);
+  _trySet('channel.userLimit', () => channel.userLimit);
+  _trySet('channel.categoryId', () => _asSnowflake(channel.parentId));
+  _trySet(
+    'channel.thread.archived',
+    () => ((channel.isArchived ?? false) == true).toString(),
+  );
+  _trySet(
+    'channel.thread.locked',
+    () => ((channel.isLocked ?? false) == true).toString(),
+  );
+  _trySet('channel.thread.ownerId', () => _asSnowflake(channel.ownerId));
+  _trySet(
+    'channel.thread.autoArchiveDuration',
+    () => channel.autoArchiveDuration,
+  );
+
   return details;
 }
 
@@ -260,29 +279,48 @@ Map<String, String> extractGuildRuntimeDetails(dynamic guild) {
     return const <String, String>{};
   }
 
-  final featuresRaw = guild.features;
-  final featureList =
-      featuresRaw is Iterable
-          ? featuresRaw.map((value) => value.toString()).toList(growable: false)
-          : const <String>[];
+  final details = <String, String>{'guild.kind': guild.runtimeType.toString()};
 
-  final details = <String, String>{
-    'guild.kind': guild.runtimeType.toString(),
-    'guild.ownerId': _asSnowflake(guild.ownerId)?.toString() ?? '',
-    'guild.description': (guild.description ?? '').toString(),
-    'guild.vanityUrlCode': (guild.vanityUrlCode ?? '').toString(),
-    'guild.preferredLocale': (guild.preferredLocale ?? '').toString(),
-    'guild.verificationLevel': (guild.verificationLevel ?? '').toString(),
-    'guild.mfaLevel': (guild.mfaLevel ?? '').toString(),
-    'guild.nsfwLevel': (guild.nsfwLevel ?? '').toString(),
-    'guild.premiumTier': (guild.premiumTier ?? '').toString(),
-    'guild.premiumSubscriptionCount':
-        (guild.premiumSubscriptionCount ?? '').toString(),
-    'guild.features': featureList.join(','),
-    'guild.features.count': featureList.length.toString(),
-    'guild.memberCount':
-        (guild.memberCount ?? guild.approximateMemberCount ?? '').toString(),
-  };
+  void _trySet(String key, Object? Function() accessor) {
+    try {
+      final value = accessor();
+      final str = (value ?? '').toString();
+      if (str.isNotEmpty) {
+        details[key] = str;
+      }
+    } catch (_) {
+      // Property not available on this guild type — skip.
+    }
+  }
+
+  List<String> featureList = const <String>[];
+  try {
+    final featuresRaw = guild.features;
+    if (featuresRaw is Iterable) {
+      featureList = featuresRaw
+          .map((value) => value.toString())
+          .toList(growable: false);
+    }
+  } catch (_) {}
+
+  _trySet('guild.ownerId', () => _asSnowflake(guild.ownerId));
+  _trySet('guild.description', () => guild.description);
+  _trySet('guild.vanityUrlCode', () => guild.vanityUrlCode);
+  _trySet('guild.preferredLocale', () => guild.preferredLocale);
+  _trySet('guild.verificationLevel', () => guild.verificationLevel);
+  _trySet('guild.mfaLevel', () => guild.mfaLevel);
+  _trySet('guild.nsfwLevel', () => guild.nsfwLevel);
+  _trySet('guild.premiumTier', () => guild.premiumTier);
+  _trySet(
+    'guild.premiumSubscriptionCount',
+    () => guild.premiumSubscriptionCount,
+  );
+  details['guild.features'] = featureList.join(',');
+  details['guild.features.count'] = featureList.length.toString();
+  _trySet(
+    'guild.memberCount',
+    () => guild.memberCount ?? guild.approximateMemberCount,
+  );
 
   details.removeWhere((key, value) => value.isEmpty);
   return details;
@@ -351,29 +389,33 @@ Future<Map<String, String>> generateKeyValues(
         discriminator: userFinal.discriminator,
       );
 
-      final dynamic dynamicUser = userFinal;
-      final dynamic userBanner = dynamicUser.banner;
-      userBannerUrl = makeBannerUrl(
-        userFinal.id.toString(),
-        bannerId: userBanner?.hash?.toString(),
-        isAnimated: userBanner?.isAnimated == true,
-        legacyFormat: "webp",
-      );
+      try {
+        final dynamic dynamicUser = userFinal;
+        final dynamic userBanner = dynamicUser.banner;
+        userBannerUrl = makeBannerUrl(
+          userFinal.id.toString(),
+          bannerId: userBanner?.hash?.toString(),
+          isAnimated: userBanner?.isAnimated == true,
+          legacyFormat: "webp",
+        );
+      } catch (_) {}
     }
 
-    final dynamic dynamicMember = user;
-    final dynamic memberAvatar = dynamicMember.avatar;
-    final memberAvatarHash = memberAvatar?.hash?.toString() ?? '';
-    if (memberAvatarHash.isNotEmpty && user.user != null) {
-      final userFinal = user.user!;
-      memberAvatarUrl = makeAvatarUrl(
-        userFinal.id.toString(),
-        avatarId: memberAvatarHash,
-        isAnimated: memberAvatar?.isAnimated == true,
-        legacyFormat: "webp",
-        discriminator: userFinal.discriminator,
-      );
-    }
+    try {
+      final dynamic dynamicMember = user;
+      final dynamic memberAvatar = dynamicMember.avatar;
+      final memberAvatarHash = memberAvatar?.hash?.toString() ?? '';
+      if (memberAvatarHash.isNotEmpty && user.user != null) {
+        final userFinal = user.user!;
+        memberAvatarUrl = makeAvatarUrl(
+          userFinal.id.toString(),
+          avatarId: memberAvatarHash,
+          isAnimated: memberAvatar?.isAnimated == true,
+          legacyFormat: "webp",
+          discriminator: userFinal.discriminator,
+        );
+      }
+    } catch (_) {}
   }
 
   Map<String, String> listOfArgs = {
@@ -732,29 +774,33 @@ Future<Map<String, String>> generateInteractionContextKeyValues(
             legacyFormat: 'webp',
             discriminator: user.discriminator,
           );
-  final userBannerUrl =
-      user == null
-          ? ''
-          : makeBannerUrl(
-            user.id.toString(),
-            bannerId: (user as dynamic).banner?.hash?.toString(),
-            isAnimated: (user as dynamic).banner?.isAnimated == true,
-            legacyFormat: 'webp',
-          );
+  String userBannerUrl = '';
+  try {
+    if (user != null) {
+      userBannerUrl = makeBannerUrl(
+        user.id.toString(),
+        bannerId: (user as dynamic).banner?.hash?.toString(),
+        isAnimated: (user as dynamic).banner?.isAnimated == true,
+        legacyFormat: 'webp',
+      );
+    }
+  } catch (_) {}
 
   String memberAvatarUrl = userAvatarUrl;
-  final dynamic dynamicMember = member;
-  final dynamic memberAvatar = dynamicMember?.avatar;
-  final memberAvatarHash = memberAvatar?.hash?.toString() ?? '';
-  if (memberAvatarHash.isNotEmpty && userIdText.isNotEmpty) {
-    memberAvatarUrl = makeAvatarUrl(
-      userIdText,
-      avatarId: memberAvatarHash,
-      isAnimated: memberAvatar?.isAnimated == true,
-      legacyFormat: 'webp',
-      discriminator: tag,
-    );
-  }
+  try {
+    final dynamic dynamicMember = member;
+    final dynamic memberAvatar = dynamicMember?.avatar;
+    final memberAvatarHash = memberAvatar?.hash?.toString() ?? '';
+    if (memberAvatarHash.isNotEmpty && userIdText.isNotEmpty) {
+      memberAvatarUrl = makeAvatarUrl(
+        userIdText,
+        avatarId: memberAvatarHash,
+        isAnimated: memberAvatar?.isAnimated == true,
+        legacyFormat: 'webp',
+        discriminator: tag,
+      );
+    }
+  } catch (_) {}
 
   final guildName = guild?.name ?? 'DM';
   final guildIcon = makeGuildIcon(

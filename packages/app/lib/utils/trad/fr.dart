@@ -868,4 +868,45 @@ const Map<String, String> appStringsFr = {
       'Les variables doivent être identiques entre runtime local app et runtime runner.',
   'doc_runtime_execution_flow_section_parity_l2':
       'Utilisez les mêmes noms de variables dans les conditions pour rester portable.',
+
+  // ── Galerie de templates ────────────────────────────────────────────────
+  'template_gallery_title': 'Templates',
+  'template_gallery_subtitle':
+      'Démarrez rapidement votre bot avec un template prêt à l\'emploi.',
+  'template_gallery_apply': 'Utiliser ce template',
+  'template_gallery_apply_success':
+      '{count} commande(s) et {wCount} workflow(s) ajoutés depuis le template.',
+  'template_gallery_apply_error':
+      'Impossible d\'appliquer le template : {error}',
+  'template_gallery_commands_count': '{count} commande(s)',
+  'template_gallery_workflows_count': '{count} workflow(s)',
+  'template_gallery_empty': 'Aucun template disponible.',
+  'template_gallery_already_exists':
+      'La commande "{name}" existe déjà et a été ignorée.',
+  'template_welcome_name': 'Bot d\'accueil',
+  'template_welcome_description':
+      'Accueillez les nouveaux membres, dites bonjour et affichez les infos du serveur.',
+  'template_moderation_name': 'Bot de modération',
+  'template_moderation_description':
+      'Bannir, expulser, rendre muet et supprimer des messages.',
+  'template_utility_name': 'Bot utilitaire',
+  'template_utility_description': 'Ping, affichage d\'avatar et commande say.',
+  'template_fun_name': 'Bot fun',
+  'template_fun_description': 'Pile ou face, sondages et boule magique.',
+
+  // ── Dashboard d'usage des commandes ─────────────────────────────────
+  'dashboard_title': 'Dashboard',
+  'dashboard_no_data':
+      'Aucune donnée d\'utilisation. Lancez votre bot pour commencer le suivi.',
+  'dashboard_total': 'Total commandes',
+  'dashboard_period_24h': 'Dernières 24h',
+  'dashboard_period_7d': '7 derniers jours',
+  'dashboard_period_30d': '30 derniers jours',
+  'dashboard_top_commands': 'Top commandes',
+  'dashboard_timeline': 'Utilisation dans le temps',
+  'dashboard_executions': '{count} exécutions',
+  'dashboard_loading': 'Chargement des stats...',
+  'dashboard_error': 'Impossible de charger les stats : {error}',
+  'dashboard_requires_runner':
+      'Connectez un runner pour voir les statistiques d\'utilisation.',
 };

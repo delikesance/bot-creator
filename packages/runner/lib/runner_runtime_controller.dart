@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:bot_creator_shared/bot/bot_config.dart';
 import 'package:bot_creator_runner/discord_runner.dart';
 import 'package:bot_creator_runner/runner_bot_store.dart';
+import 'package:bot_creator_runner/stores/command_stats_store.dart';
 
 class RunnerBotRuntimeState {
   const RunnerBotRuntimeState({
@@ -27,6 +28,16 @@ class RunnerRuntimeController {
     : _botStore = botStore ?? RunnerBotStore();
 
   final RunnerBotStore _botStore;
+  final CommandStatsStore _commandStatsStore = CommandStatsStore(
+    _resolveDataDir(),
+  );
+  bool _statsInitialized = false;
+
+  static String _resolveDataDir() {
+    final configured =
+        (Platform.environment['BOT_CREATOR_DATA_DIR'] ?? '').trim();
+    return configured.isNotEmpty ? configured : './data';
+  }
 
   final Map<String, DiscordRunner> _runners = <String, DiscordRunner>{};
   final Map<String, String> _botNames = <String, String>{};
@@ -40,6 +51,8 @@ class RunnerRuntimeController {
   List<String> get runningBotIds => _runners.keys.toList(growable: false);
 
   RunnerBotStore get botStore => _botStore;
+
+  CommandStatsStore get commandStatsStore => _commandStatsStore;
 
   bool isBotRunning(String botId) => _runners.containsKey(botId);
 
@@ -121,8 +134,12 @@ class RunnerRuntimeController {
       throw StateError('Bot "$botId" is already running.');
     }
 
-    final runner = DiscordRunner(config);
+    final runner = DiscordRunner(config, statsStore: _commandStatsStore);
     try {
+      if (!_statsInitialized) {
+        await _commandStatsStore.init();
+        _statsInitialized = true;
+      }
       await runner.start();
       _runners[botId] = runner;
       _botNames[botId] = (botName ?? '').trim().isEmpty ? botId : botName!;

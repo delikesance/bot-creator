@@ -422,12 +422,15 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         builder: (sheetContext) {
           return FractionallySizedBox(
             heightFactor: 0.92,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: StatefulBuilder(
-                builder: (context, setDialogState) {
-                  return selectorContent(context, setDialogState);
-                },
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: StatefulBuilder(
+                  builder: (context, setDialogState) {
+                    return selectorContent(context, setDialogState);
+                  },
+                ),
               ),
             ),
           );

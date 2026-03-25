@@ -1,4 +1,5 @@
 import 'package:bot_creator/routes/app/command.create.dart';
+import 'package:bot_creator/routes/app/template_gallery.dart';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/ads_placement_policy.dart';
@@ -93,6 +94,23 @@ class _AppCommandsPageState extends State<AppCommandsPage>
         backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
         title: Text(AppStrings.t('commands_title')),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: AppStrings.t('template_gallery_title'),
+            onPressed: () async {
+              final applied = await Navigator.push<bool>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => TemplateGalleryPage(botId: widget.botId),
+                ),
+              );
+              if (applied == true && mounted) {
+                setState(() {});
+              }
+            },
+          ),
+        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -126,7 +144,32 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                 NativeAdPlacement.commandsList,
               );
               if (commands.isEmpty) {
-                return Center(child: Text(AppStrings.t('commands_empty')));
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(AppStrings.t('commands_empty')),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: () async {
+                          final applied = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) =>
+                                      TemplateGalleryPage(botId: widget.botId),
+                            ),
+                          );
+                          if (applied == true && mounted) {
+                            setState(() {});
+                          }
+                        },
+                        icon: const Icon(Icons.auto_awesome),
+                        label: Text(AppStrings.t('template_gallery_title')),
+                      ),
+                    ],
+                  ),
+                );
               }
 
               return Center(

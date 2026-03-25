@@ -11,4 +11,6 @@ export 'package:bot_creator_shared/actions/handle_component_interaction.dart';
 export 'package:bot_creator_shared/actions/interaction_response.dart';
 export 'package:bot_creator_shared/bot/bot_data_store.dart';
 export 'package:bot_creator_shared/bot/bot_config.dart';
+export 'package:bot_creator_shared/bot/bot_template.dart';
+export 'package:bot_creator_shared/bot/builtin_templates.dart';
 export 'package:bot_creator_shared/events/event_contexts.dart';

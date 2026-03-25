@@ -336,6 +336,19 @@ class RunnerClient {
     if (rawLines is! List) return const [];
     return rawLines.map((e) => e.toString()).toList(growable: false);
   }
+
+  /// Fetches command usage statistics for [botId].
+  ///
+  /// [hours] controls the time window (default: 24).
+  Future<Map<String, dynamic>> getCommandStats(
+    String botId, {
+    int hours = 24,
+  }) async {
+    return _get(
+      '/bots/${Uri.encodeComponent(botId.trim())}/command-stats',
+      query: {'hours': hours.toString()},
+    );
+  }
 }
 
 /// Exception thrown by [RunnerClient] when the runner returns an error or
