@@ -25,7 +25,8 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libsqlite3-0 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/lib/*-linux-*/libsqlite3.so.0 /usr/lib/libsqlite3.so
 
 COPY --from=builder /out/runner /usr/local/bin/runner
 
