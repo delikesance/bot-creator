@@ -11,6 +11,7 @@ import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
 import 'package:bot_creator/utils/ads_placement_policy.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
+import 'package:bot_creator/utils/subscription_service.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:bot_creator/widgets/native_ad_slot.dart';
@@ -367,6 +368,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _maybeOfferRewardedAd() async {
     if (!_supportsForegroundTask || !mounted) {
+      return;
+    }
+
+    if (SubscriptionService.isSubscribed) {
       return;
     }
 

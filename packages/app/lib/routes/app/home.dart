@@ -11,6 +11,7 @@ import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
+import 'package:bot_creator/utils/subscription_service.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -312,6 +313,10 @@ class _AppHomePageState extends State<AppHomePage>
 
   Future<void> _maybeOfferRewardedAd() async {
     if (!_supportsForegroundTask || !mounted) {
+      return;
+    }
+
+    if (SubscriptionService.isSubscribed) {
       return;
     }
 

@@ -20,6 +20,7 @@ import 'utils/analytics.dart';
 import 'utils/ad_consent_service.dart';
 import 'utils/ad_native_service.dart';
 import 'utils/ad_reward_service.dart';
+import 'utils/subscription_service.dart';
 import 'utils/i18n.dart';
 import 'utils/onboarding_manager.dart';
 
@@ -155,6 +156,7 @@ Future<void> _bootstrapAndRunApp() async {
 
   await AdRewardService.initialize();
   await AdNativeService.initialize();
+  await SubscriptionService.initialize();
 
   try {
     appManager = AppManager();

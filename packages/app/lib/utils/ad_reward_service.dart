@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bot_creator/utils/app_diagnostics.dart';
+import 'package:bot_creator/utils/subscription_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -68,7 +69,7 @@ class AdRewardService {
   }
 
   static Future<bool> shouldOfferRewardedAd() async =>
-      _initialized && _isSupportedPlatform;
+      _initialized && _isSupportedPlatform && !SubscriptionService.isSubscribed;
 
   static void showRewardedAdNonBlocking() {
     if (!_initialized || !_isSupportedPlatform) {

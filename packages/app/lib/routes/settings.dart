@@ -3,6 +3,8 @@ import 'package:bot_creator/routes/onboarding.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
 import 'package:bot_creator/utils/app_diagnostics.dart';
+import 'package:bot_creator/utils/subscription_service.dart';
+import 'package:bot_creator/widgets/subscription_page.dart';
 import 'package:bot_creator/utils/drive.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/onboarding_manager.dart';
@@ -690,6 +692,8 @@ class _SettingPageState extends State<SettingPage> {
 
                   // ── Support Discord card ────────────────────────────────────
                   _SupportDiscordCard(),
+                  const SizedBox(height: 16),
+                  _PremiumCard(),
                   const SizedBox(height: 16),
                   _PrivacyPolicyCard(
                     checkingAdPrivacy: _checkingAdPrivacy,
@@ -2003,6 +2007,116 @@ class _SupportDiscordCard extends StatelessWidget {
                     foregroundColor: _discordColor,
                     textStyle: const TextStyle(fontWeight: FontWeight.bold),
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Premium Subscription Card ──────────────────────────────────────────────
+
+class _PremiumCard extends StatelessWidget {
+  const _PremiumCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = SubscriptionService.isSubscribed;
+
+    if (isActive) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.workspace_premium_rounded,
+                color: Colors.amber,
+                size: 28,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppStrings.t('premium_active_title'),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      AppStrings.t('premium_active_desc'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.amber.shade700, Colors.orange.shade600],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.workspace_premium_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    AppStrings.t('premium_card_title'),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                AppStrings.t('premium_card_desc'),
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.90),
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => SubscriptionPage.show(context),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.amber.shade800,
+                  ),
+                  icon: const Icon(Icons.star_rounded, size: 18),
+                  label: Text(AppStrings.t('premium_card_button')),
                 ),
               ),
             ],
