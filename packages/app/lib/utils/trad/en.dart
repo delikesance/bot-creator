@@ -100,6 +100,7 @@ const Map<String, String> appStringsEn = {
   'emojis_delete_error': 'Delete failed: {error}',
   'emojis_rename_error': 'Rename failed: {error}',
   'settings_tab': 'Settings',
+  'more_tab': 'More',
   'settings_theme_switch_light': 'Switch to light mode',
   'settings_theme_switch_dark': 'Switch to dark mode',
   'settings_appearance_title': 'Appearance & language',

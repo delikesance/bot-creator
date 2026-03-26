@@ -189,18 +189,21 @@ class _AppEditPageState extends State<AppEditPage>
         label: AppStrings.t('emojis_tab'),
         compactLabel: AppStrings.t('emojis_tab_short'),
         page: EmojisPage(botId: _botId),
+        mobileSecondary: true,
       ),
       _AppPageEntry(
         icon: Icons.bar_chart,
         label: AppStrings.t('dashboard_title'),
         compactLabel: AppStrings.t('dashboard_title'),
         page: CommandDashboardPage(botId: _botId),
+        mobileSecondary: true,
       ),
       _AppPageEntry(
         icon: Icons.settings,
         label: AppStrings.t('settings_tab'),
         compactLabel: AppStrings.t('settings_tab'),
         page: AppSettingsPage(client: client!),
+        mobileSecondary: true,
       ),
     ];
   }
@@ -345,6 +348,47 @@ class _AppEditPageState extends State<AppEditPage>
       );
     }
 
+    // Mobile: split into core (bottom nav) and secondary ("More" sheet) entries
+    final coreEntries = <int>[];
+    final secondaryEntries = <int>[];
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].mobileSecondary) {
+        secondaryEntries.add(i);
+      } else {
+        coreEntries.add(i);
+      }
+    }
+
+    final hasSecondary = secondaryEntries.isNotEmpty;
+    final moreSelected =
+        hasSecondary && secondaryEntries.contains(activeIndex);
+
+    // Bottom nav index mapping
+    int bottomIndex;
+    if (moreSelected) {
+      bottomIndex = coreEntries.length; // "More" tab index
+    } else {
+      bottomIndex = coreEntries.indexOf(activeIndex);
+      if (bottomIndex < 0) bottomIndex = 0;
+    }
+
+    final bottomItems = <BottomNavigationBarItem>[
+      ...coreEntries.map((i) {
+        final item = navItems[i];
+        return BottomNavigationBarItem(
+          icon: Icon(item.icon),
+          label: isSmallPhone ? item.compactLabel : item.label,
+          backgroundColor: colorScheme.surface,
+        );
+      }),
+      if (hasSecondary)
+        BottomNavigationBarItem(
+          icon: const Icon(Icons.more_horiz),
+          label: AppStrings.t('more_tab'),
+          backgroundColor: colorScheme.surface,
+        ),
+    ];
+
     return Scaffold(
       bottomNavigationBar: BottomNavigationBar(
         type:
@@ -356,24 +400,51 @@ class _AppEditPageState extends State<AppEditPage>
         unselectedItemColor: colorScheme.onSurfaceVariant,
         selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
         showUnselectedLabels: !isMobile,
-        currentIndex: activeIndex,
+        currentIndex: bottomIndex,
         onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
+          if (hasSecondary && index == coreEntries.length) {
+            // "More" tab tapped — show bottom sheet
+            _showMoreSheet(context, entries, secondaryEntries);
+          } else {
+            setState(() {
+              _selectedIndex = coreEntries[index];
+            });
+          }
         },
-        items:
-            navItems
-                .map(
-                  (item) => BottomNavigationBarItem(
-                    icon: Icon(item.icon),
-                    label: isSmallPhone ? item.compactLabel : item.label,
-                    backgroundColor: colorScheme.surface,
-                  ),
-                )
-                .toList(),
+        items: bottomItems,
       ),
       body: pages[activeIndex],
+    );
+  }
+
+  void _showMoreSheet(
+    BuildContext context,
+    List<_AppPageEntry> entries,
+    List<int> secondaryIndices,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final i in secondaryIndices)
+                ListTile(
+                  leading: Icon(entries[i].icon),
+                  title: Text(entries[i].label),
+                  selected: _selectedIndex == i,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    setState(() {
+                      _selectedIndex = i;
+                    });
+                  },
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -395,12 +466,14 @@ class _AppPageEntry {
   final String label;
   final String compactLabel;
   final Widget page;
+  final bool mobileSecondary;
 
   const _AppPageEntry({
     required this.icon,
     required this.label,
     required this.compactLabel,
     required this.page,
+    this.mobileSecondary = false,
   });
 }
 
