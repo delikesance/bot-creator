@@ -2003,9 +2003,9 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
       (w) => w['name'] == name,
       orElse: () => <String, dynamic>{},
     );
-    final actionCount =
-        (workflow['actions'] as List?)?.length ?? 0;
-    final extra = actionCount > 0 ? '\n\nThis will remove $actionCount action(s).' : '';
+    final actionCount = (workflow['actions'] as List?)?.length ?? 0;
+    final extra =
+        actionCount > 0 ? '\n\nThis will remove $actionCount action(s).' : '';
 
     final isCompactScreen = MediaQuery.of(context).size.width < 600;
     final shouldDelete =
@@ -2027,10 +2027,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '${AppStrings.tr(
-                          'workflows_delete_confirm',
-                          params: {'name': name},
-                        )}$extra',
+                        '${AppStrings.tr('workflows_delete_confirm', params: {'name': name})}$extra',
                       ),
                       const SizedBox(height: 14),
                       Row(
@@ -2067,10 +2064,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                   (dialogContext) => AlertDialog.adaptive(
                     title: Text(AppStrings.t('workflows_delete_title')),
                     content: Text(
-                      '${AppStrings.tr(
-                        'workflows_delete_confirm',
-                        params: {'name': name},
-                      )}$extra',
+                      '${AppStrings.tr('workflows_delete_confirm', params: {'name': name})}$extra',
                     ),
                     actions: [
                       TextButton(
@@ -2578,7 +2572,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
             children: [
               const SizedBox(height: 2),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(999),
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,

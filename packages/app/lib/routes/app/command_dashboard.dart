@@ -467,44 +467,45 @@ class _RunnerSourceBanner extends StatelessWidget {
           Icon(Icons.dns_outlined, size: 18, color: colorScheme.primary),
           const SizedBox(width: 8),
           Expanded(
-            child: runners.length > 1
-                ? DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: activeRunnerId,
-                      isDense: true,
-                      isExpanded: true,
+            child:
+                runners.length > 1
+                    ? DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: activeRunnerId,
+                        isDense: true,
+                        isExpanded: true,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onPrimaryContainer,
+                        ),
+                        items: [
+                          for (final r in runners)
+                            DropdownMenuItem(
+                              value: r.id,
+                              child: Text(
+                                AppStrings.tr(
+                                  'runner_source_label',
+                                  params: {'name': r.name ?? r.url},
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) onRunnerChanged(v);
+                        },
+                      ),
+                    )
+                    : Text(
+                      AppStrings.tr(
+                        'runner_source_label',
+                        params: {'name': label},
+                      ),
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onPrimaryContainer,
                       ),
-                      items: [
-                        for (final r in runners)
-                          DropdownMenuItem(
-                            value: r.id,
-                            child: Text(
-                              AppStrings.tr(
-                                'runner_source_label',
-                                params: {'name': r.name ?? r.url},
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                      onChanged: (v) {
-                        if (v != null) onRunnerChanged(v);
-                      },
                     ),
-                  )
-                : Text(
-                    AppStrings.tr(
-                      'runner_source_label',
-                      params: {'name': label},
-                    ),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onPrimaryContainer,
-                    ),
-                  ),
           ),
         ],
       ),

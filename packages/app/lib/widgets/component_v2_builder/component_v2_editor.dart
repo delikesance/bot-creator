@@ -87,7 +87,8 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
     _emit();
   }
 
-  String _getTitleForType(ComponentV2Type type) => ComponentNodeFactory.labelFor(type);
+  String _getTitleForType(ComponentV2Type type) =>
+      ComponentNodeFactory.labelFor(type);
 
   @override
   Widget build(BuildContext context) {
