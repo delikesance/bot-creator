@@ -1,5 +1,4 @@
 import 'package:bot_creator/types/component.dart';
-import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:bot_creator/widgets/command_create_cards/reply_card.dart';
 import 'package:bot_creator/widgets/component_v2_builder/component_v2_editor.dart';
 import 'package:bot_creator/widgets/component_v2_builder/normal_component_editor.dart';
