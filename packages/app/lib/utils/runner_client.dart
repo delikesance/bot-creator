@@ -138,6 +138,10 @@ class RunnerBotSummary {
 ///
 /// All methods throw a [RunnerClientException] if the server returns an error
 /// or if the request fails.
+///
+/// **Single-runner limitation**: This client targets a single runner URL. There
+/// is no built-in multiplexing across runners. See
+/// `docs/single-runner-coupling.md` for the migration plan.
 class RunnerClient {
   RunnerClient({
     required String baseUrl,

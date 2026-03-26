@@ -3,6 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Manages the optional "developer runner URL" used to link the app to a
 /// remote Bot Creator Runner instance via its REST API.
+///
+/// **Single-runner limitation**: Only one runner URL + token pair is stored at
+/// a time. See `docs/single-runner-coupling.md` for the multi-runner migration
+/// plan.
 class RunnerConnectionConfig {
   const RunnerConnectionConfig({required this.url, this.apiToken});
 

@@ -889,6 +889,8 @@ const Map<String, String> appStringsEn = {
   'dashboard_error': 'Could not load stats: {error}',
   'dashboard_requires_runner':
       'Connect to a runner to see command usage stats.',
+  'dashboard_single_runner_notice':
+      'Stats shown are from the currently configured runner only. If you run bots on multiple runners, this view may be incomplete.',
 
   // ── Version info ──
   'settings_version_title': 'Version',

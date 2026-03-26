@@ -124,6 +124,34 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // ── Single-runner notice ──
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: colorScheme.tertiaryContainer.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                size: 18,
+                color: colorScheme.onTertiaryContainer,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  AppStrings.t('dashboard_single_runner_notice'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.onTertiaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         // ── Period selector ──
         Row(
           children: [
