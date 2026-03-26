@@ -45,13 +45,61 @@ class _AppCommandsPageState extends State<AppCommandsPage>
   Widget _buildCommandCard(Map<String, dynamic> command) {
     final commandId = (command['id'] ?? '').toString();
     final snowflake = _toSnowflake(commandId);
+    final templateOrigin = command['templateOrigin'] as Map<String, dynamic>?;
+    final templateId =
+        (templateOrigin?['templateId'] ?? '').toString();
 
     return Card(
       child: ListTile(
         trailing: const Icon(Icons.arrow_forward_ios_outlined),
-        title: Text(
-          (command['name'] ?? 'unknown').toString(),
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                (command['name'] ?? 'unknown').toString(),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (templateId.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .tertiaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.auto_awesome,
+                      size: 12,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onTertiaryContainer,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      templateId,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onTertiaryContainer,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
         subtitle: Text(
           (command['description'] ?? '').toString(),
