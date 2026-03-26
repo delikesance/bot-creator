@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -31,6 +32,17 @@ Future<Map<String, String>> moveToVoiceChannelAction(
     if (guildId == null) {
       return {'error': 'moveToVoiceChannel requires a guild context'};
     }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.moveMembers],
+      actionLabel: 'move members in voice channels',
+    );
+    if (permError != null) {
+      return {'error': permError};
+    }
+
     final userId = _toSnowflake(resolve((payload['userId'] ?? '').toString()));
     if (userId == null) {
       return {'error': 'userId is required for moveToVoiceChannel'};
@@ -77,6 +89,17 @@ Future<Map<String, String>> disconnectFromVoiceAction(
     if (guildId == null) {
       return {'error': 'disconnectFromVoice requires a guild context'};
     }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.moveMembers],
+      actionLabel: 'disconnect members from voice',
+    );
+    if (permError != null) {
+      return {'error': permError};
+    }
+
     final userId = _toSnowflake(resolve((payload['userId'] ?? '').toString()));
     if (userId == null) {
       return {'error': 'userId is required for disconnectFromVoice'};
@@ -114,6 +137,17 @@ Future<Map<String, String>> serverMuteMemberAction(
     if (guildId == null) {
       return {'error': 'serverMuteMember requires a guild context'};
     }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.muteMembers],
+      actionLabel: 'server-mute members',
+    );
+    if (permError != null) {
+      return {'error': permError};
+    }
+
     final userId = _toSnowflake(resolve((payload['userId'] ?? '').toString()));
     if (userId == null) {
       return {'error': 'userId is required for serverMuteMember'};
@@ -152,6 +186,17 @@ Future<Map<String, String>> serverDeafenMemberAction(
     if (guildId == null) {
       return {'error': 'serverDeafenMember requires a guild context'};
     }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.deafenMembers],
+      actionLabel: 'server-deafen members',
+    );
+    if (permError != null) {
+      return {'error': permError};
+    }
+
     final userId = _toSnowflake(resolve((payload['userId'] ?? '').toString()));
     if (userId == null) {
       return {'error': 'userId is required for serverDeafenMember'};

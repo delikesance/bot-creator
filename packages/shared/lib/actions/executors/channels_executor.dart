@@ -2,6 +2,7 @@ import 'package:nyxx/nyxx.dart';
 
 import '../../types/action.dart';
 import '../create_channel.dart';
+import '../permission_checks.dart';
 import '../remove_channel.dart';
 import '../update_channel.dart';
 
@@ -44,6 +45,17 @@ Future<bool> executeChannelsAction({
       return true;
 
     case BotCreatorActionType.updateChannel:
+      if (guildId != null) {
+        final permError = await checkBotGuildPermission(
+          client,
+          guildId: guildId,
+          requiredPermissions: [Permissions.manageChannels],
+          actionLabel: 'update channels',
+        );
+        if (permError != null) {
+          throw Exception(permError);
+        }
+      }
       final result = await updateChannelAction(
         client,
         payload: payload,
@@ -56,6 +68,17 @@ Future<bool> executeChannelsAction({
       return true;
 
     case BotCreatorActionType.removeChannel:
+      if (guildId != null) {
+        final permError = await checkBotGuildPermission(
+          client,
+          guildId: guildId,
+          requiredPermissions: [Permissions.manageChannels],
+          actionLabel: 'delete channels',
+        );
+        if (permError != null) {
+          throw Exception(permError);
+        }
+      }
       final channelId = _toSnowflake(payload['channelId']);
       if (channelId == null) {
         throw Exception('Missing or invalid channelId for removeChannel');

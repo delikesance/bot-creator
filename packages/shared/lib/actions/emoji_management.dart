@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:nyxx/nyxx.dart';
 import 'package:http/http.dart' as http;
+import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -91,6 +92,16 @@ Future<Map<String, String>> createEmojiAction(
       return {'error': 'createEmoji requires a guild context'};
     }
 
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuildExpressions],
+      actionLabel: 'manage emojis',
+    );
+    if (permError != null) {
+      return {'error': permError};
+    }
+
     final name = resolve((payload['name'] ?? '').toString()).trim();
     if (name.isEmpty) {
       return {'error': 'name is required for createEmoji'};
@@ -152,6 +163,16 @@ Future<Map<String, String>> updateEmojiAction(
       return {'error': 'updateEmoji requires a guild context'};
     }
 
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuildExpressions],
+      actionLabel: 'manage emojis',
+    );
+    if (permError != null) {
+      return {'error': permError};
+    }
+
     final emojiId = _toSnowflake(
       resolve((payload['emojiId'] ?? '').toString()),
     );
@@ -200,6 +221,16 @@ Future<Map<String, String>> deleteEmojiAction(
   try {
     if (guildId == null) {
       return {'error': 'deleteEmoji requires a guild context'};
+    }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuildExpressions],
+      actionLabel: 'manage emojis',
+    );
+    if (permError != null) {
+      return {'error': permError};
     }
 
     final emojiId = _toSnowflake(

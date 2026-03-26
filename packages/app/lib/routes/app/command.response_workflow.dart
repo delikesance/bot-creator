@@ -135,23 +135,23 @@ class _CommandResponseWorkflowPageState
     );
     setState(() {
       _autoDeferIfActions = _initialSnapshot['autoDeferIfActions'] != false;
-      _visibility = (_initialSnapshot['visibility']?.toString().toLowerCase() ==
-              'ephemeral')
-          ? 'ephemeral'
-          : 'public';
+      _visibility =
+          (_initialSnapshot['visibility']?.toString().toLowerCase() ==
+                  'ephemeral')
+              ? 'ephemeral'
+              : 'public';
       _onError = 'edit_error';
       _conditionEnabled = conditional['enabled'] == true;
-      _variableController.text =
-          (conditional['variable'] ?? '').toString();
+      _variableController.text = (conditional['variable'] ?? '').toString();
       _whenTrueType = (conditional['whenTrueType'] ?? 'normal').toString();
       _whenFalseType = (conditional['whenFalseType'] ?? 'normal').toString();
-      _whenTrueController.text =
-          (conditional['whenTrueText'] ?? '').toString();
+      _whenTrueController.text = (conditional['whenTrueText'] ?? '').toString();
       _whenFalseController.text =
           (conditional['whenFalseText'] ?? '').toString();
       _whenTrueEmbeds = _normalizeEmbedsPayload(conditional['whenTrueEmbeds']);
-      _whenFalseEmbeds =
-          _normalizeEmbedsPayload(conditional['whenFalseEmbeds']);
+      _whenFalseEmbeds = _normalizeEmbedsPayload(
+        conditional['whenFalseEmbeds'],
+      );
       _whenTrueNormalComponents = Map<String, dynamic>.from(
         (conditional['whenTrueNormalComponents'] as Map?)
                 ?.cast<String, dynamic>() ??
@@ -167,8 +167,7 @@ class _CommandResponseWorkflowPageState
             const {},
       );
       _whenFalseComponents = Map<String, dynamic>.from(
-        (conditional['whenFalseComponents'] as Map?)
-                ?.cast<String, dynamic>() ??
+        (conditional['whenFalseComponents'] as Map?)?.cast<String, dynamic>() ??
             const {},
       );
       _whenTrueModal = Map<String, dynamic>.from(
@@ -186,25 +185,24 @@ class _CommandResponseWorkflowPageState
     if (!_isDirty) return true;
     final discard = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog.adaptive(
-        title: const Text('Unsaved changes'),
-        content: const Text(
-          'You have unsaved changes. Discard them?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Keep editing'),
+      builder:
+          (ctx) => AlertDialog.adaptive(
+            title: const Text('Unsaved changes'),
+            content: const Text('You have unsaved changes. Discard them?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Keep editing'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text(
+                  'Discard',
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                ),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Discard',
-              style: TextStyle(color: Theme.of(ctx).colorScheme.error),
-            ),
-          ),
-        ],
-      ),
     );
     return discard == true;
   }
@@ -268,7 +266,15 @@ class _CommandResponseWorkflowPageState
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: _variableController,
       builder: (context, value, _) {
-        final query = value.text;
+        // Strip leading (( so the user can type (( and still get results.
+        var query = value.text;
+        if (query.startsWith('((')) {
+          query = query.substring(2);
+        }
+        // Strip trailing )) when the placeholder is already closed.
+        if (query.endsWith('))')) {
+          query = query.substring(0, query.length - 2);
+        }
         final suggestions = _queryVariableSuggestions(query);
         if (suggestions.isEmpty) {
           return const SizedBox.shrink();
@@ -288,9 +294,9 @@ class _CommandResponseWorkflowPageState
               children: suggestions
                   .map((suggestion) {
                     return ActionChip(
-                      label: Text(suggestion.name),
+                      label: Text('((${suggestion.name}))'),
                       onPressed: () {
-                        _variableController.text = suggestion.name;
+                        _variableController.text = '((${suggestion.name}))';
                         _variableController.selection = TextSelection.collapsed(
                           offset: _variableController.text.length,
                         );
@@ -356,291 +362,296 @@ class _CommandResponseWorkflowPageState
         }
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: Text('Response Workflow${_isDirty ? ' •' : ''}'),
-        actions: [
-          if (_isDirty)
-            IconButton(
-              tooltip: 'Revert all changes',
-              onPressed: _revert,
-              icon: const Icon(Icons.undo),
-            ),
-          if (compact)
-            IconButton(
-              tooltip: 'Save',
-              onPressed: () => Navigator.pop(context, _buildResult()),
-              icon: const Icon(Icons.check),
-            )
-          else
-            TextButton(
-              onPressed: () => Navigator.pop(context, _buildResult()),
-              child: const Text('Save'),
-            ),
-        ],
-      ),
-      body: ListView(
-        padding: EdgeInsets.all(compact ? 12 : 16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Deferred reply',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Auto defer if actions exist'),
-                    subtitle: const Text(
-                      'Acknowledge quickly, execute actions, then edit final response.',
-                    ),
-                    value: _autoDeferIfActions,
-                    onChanged: (value) {
-                      setState(() {
-                        _autoDeferIfActions = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: _visibility,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Visibility',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'public', child: Text('Public')),
-                      DropdownMenuItem(
-                        value: 'ephemeral',
-                        child: Text(
-                          'Ephemeral (only command user)',
-                          overflow: TextOverflow.ellipsis,
+        appBar: AppBar(
+          title: Text('Response Workflow${_isDirty ? ' •' : ''}'),
+          actions: [
+            if (_isDirty)
+              IconButton(
+                tooltip: 'Revert all changes',
+                onPressed: _revert,
+                icon: const Icon(Icons.undo),
+              ),
+            if (compact)
+              IconButton(
+                tooltip: 'Save',
+                onPressed: () => Navigator.pop(context, _buildResult()),
+                icon: const Icon(Icons.check),
+              )
+            else
+              TextButton(
+                onPressed: () => Navigator.pop(context, _buildResult()),
+                child: const Text('Save'),
+              ),
+          ],
+        ),
+        body: SafeArea(
+          child: ListView(
+            padding: EdgeInsets.all(compact ? 12 : 16),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Deferred reply',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Auto defer if actions exist'),
+                        subtitle: const Text(
+                          'Acknowledge quickly, execute actions, then edit final response.',
+                        ),
+                        value: _autoDeferIfActions,
+                        onChanged: (value) {
+                          setState(() {
+                            _autoDeferIfActions = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        initialValue: _visibility,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Visibility',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'public',
+                            child: Text('Public'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'ephemeral',
+                            child: Text(
+                              'Ephemeral (only command user)',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _visibility = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      const ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.info_outline),
+                        title: Text('Error policy'),
+                        subtitle: Text(
+                          'When an action fails, edit the deferred message with an error.',
                         ),
                       ),
                     ],
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setState(() {
-                        _visibility = value;
-                      });
-                    },
                   ),
-                  const SizedBox(height: 8),
-                  const ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.info_outline),
-                    title: Text('Error policy'),
-                    subtitle: Text(
-                      'When an action fails, edit the deferred message with an error.',
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Conditional response (MVP)',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Enable condition'),
-                    subtitle: const Text(
-                      'If variable exists and is not empty => use THEN text, otherwise ELSE text.',
-                    ),
-                    value: _conditionEnabled,
-                    onChanged: (value) {
-                      setState(() {
-                        _conditionEnabled = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _variableController,
-                    decoration: const InputDecoration(
-                      labelText: 'Variable key (ex: opts.userId)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildConditionVariableSuggestions(),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'THEN Response',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildResponseTypeSelector(
-                    selected: _whenTrueType,
-                    onChanged: (value) {
-                      setState(() {
-                        _whenTrueType = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  if (_whenTrueType == 'normal') ...[
-                    VariableTextField(
-                      label: 'THEN response text (optional)',
-                      controller: _whenTrueController,
-                      maxLines: 3,
-                      suggestions: widget.variableSuggestions,
-                      emojiSuggestions: widget.emojiSuggestions,
-                      onChanged: (_) {
-                        if (mounted) {
-                          setState(() {});
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    ResponseEmbedsEditor(
-                      embeds: _whenTrueEmbeds,
-                      variableSuggestions: widget.variableSuggestions,
-                      emojiSuggestions: widget.emojiSuggestions,
-                      onChanged: (embeds) {
-                        setState(() {
-                          _whenTrueEmbeds = embeds;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    NormalComponentEditorWidget(
-                      definition: ComponentV2Definition.fromJson(
-                        _whenTrueNormalComponents,
+              const SizedBox(height: 12),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Conditional response (MVP)',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                      onChanged: (def) {
-                        setState(() {
-                          _whenTrueNormalComponents = def.toJson();
-                        });
-                      },
-                      variableSuggestions: widget.variableSuggestions,
-                      botIdForConfig: widget.botIdForConfig,
-                    ),
-                  ] else if (_whenTrueType == 'componentV2') ...[
-                    ComponentV2EditorWidget(
-                      definition: ComponentV2Definition.fromJson(
-                        _whenTrueComponents,
+                      const SizedBox(height: 8),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Enable condition'),
+                        subtitle: const Text(
+                          'If variable exists and is not empty => use THEN text, otherwise ELSE text.',
+                        ),
+                        value: _conditionEnabled,
+                        onChanged: (value) {
+                          setState(() {
+                            _conditionEnabled = value;
+                          });
+                        },
                       ),
-                      onChanged: (def) {
-                        setState(() {
-                          _whenTrueComponents = def.toJson();
-                        });
-                      },
-                      variableSuggestions: widget.variableSuggestions,
-                      botIdForConfig: widget.botIdForConfig,
-                    ),
-                  ] else if (_whenTrueType == 'modal') ...[
-                    ModalBuilderWidget(
-                      modal: ModalDefinition.fromJson(_whenTrueModal),
-                      onChanged: (def) {
-                        setState(() {
-                          _whenTrueModal = def.toJson();
-                        });
-                      },
-                      variableSuggestions: widget.variableSuggestions,
-                      botIdForConfig: widget.botIdForConfig,
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'ELSE Response',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _variableController,
+                        decoration: const InputDecoration(
+                          labelText: 'Variable key (ex: opts.userId)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildConditionVariableSuggestions(),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'THEN Response',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildResponseTypeSelector(
+                        selected: _whenTrueType,
+                        onChanged: (value) {
+                          setState(() {
+                            _whenTrueType = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      if (_whenTrueType == 'normal') ...[
+                        VariableTextField(
+                          label: 'THEN response text (optional)',
+                          controller: _whenTrueController,
+                          maxLines: 3,
+                          suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
+                          onChanged: (_) {
+                            if (mounted) {
+                              setState(() {});
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        ResponseEmbedsEditor(
+                          embeds: _whenTrueEmbeds,
+                          variableSuggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
+                          onChanged: (embeds) {
+                            setState(() {
+                              _whenTrueEmbeds = embeds;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        NormalComponentEditorWidget(
+                          definition: ComponentV2Definition.fromJson(
+                            _whenTrueNormalComponents,
+                          ),
+                          onChanged: (def) {
+                            setState(() {
+                              _whenTrueNormalComponents = def.toJson();
+                            });
+                          },
+                          variableSuggestions: widget.variableSuggestions,
+                          botIdForConfig: widget.botIdForConfig,
+                        ),
+                      ] else if (_whenTrueType == 'componentV2') ...[
+                        ComponentV2EditorWidget(
+                          definition: ComponentV2Definition.fromJson(
+                            _whenTrueComponents,
+                          ),
+                          onChanged: (def) {
+                            setState(() {
+                              _whenTrueComponents = def.toJson();
+                            });
+                          },
+                          variableSuggestions: widget.variableSuggestions,
+                          botIdForConfig: widget.botIdForConfig,
+                        ),
+                      ] else if (_whenTrueType == 'modal') ...[
+                        ModalBuilderWidget(
+                          modal: ModalDefinition.fromJson(_whenTrueModal),
+                          onChanged: (def) {
+                            setState(() {
+                              _whenTrueModal = def.toJson();
+                            });
+                          },
+                          variableSuggestions: widget.variableSuggestions,
+                          botIdForConfig: widget.botIdForConfig,
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                      const Divider(),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'ELSE Response',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildResponseTypeSelector(
+                        selected: _whenFalseType,
+                        onChanged: (value) {
+                          setState(() {
+                            _whenFalseType = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      if (_whenFalseType == 'normal') ...[
+                        VariableTextField(
+                          label: 'ELSE response text (optional)',
+                          controller: _whenFalseController,
+                          maxLines: 3,
+                          suggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
+                          onChanged: (_) {
+                            if (mounted) {
+                              setState(() {});
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        ResponseEmbedsEditor(
+                          embeds: _whenFalseEmbeds,
+                          variableSuggestions: widget.variableSuggestions,
+                          emojiSuggestions: widget.emojiSuggestions,
+                          onChanged: (embeds) {
+                            setState(() {
+                              _whenFalseEmbeds = embeds;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        NormalComponentEditorWidget(
+                          definition: ComponentV2Definition.fromJson(
+                            _whenFalseNormalComponents,
+                          ),
+                          onChanged: (def) {
+                            setState(() {
+                              _whenFalseNormalComponents = def.toJson();
+                            });
+                          },
+                          variableSuggestions: widget.variableSuggestions,
+                          botIdForConfig: widget.botIdForConfig,
+                        ),
+                      ] else if (_whenFalseType == 'componentV2') ...[
+                        ComponentV2EditorWidget(
+                          definition: ComponentV2Definition.fromJson(
+                            _whenFalseComponents,
+                          ),
+                          onChanged: (def) {
+                            setState(() {
+                              _whenFalseComponents = def.toJson();
+                            });
+                          },
+                          variableSuggestions: widget.variableSuggestions,
+                          botIdForConfig: widget.botIdForConfig,
+                        ),
+                      ] else if (_whenFalseType == 'modal') ...[
+                        ModalBuilderWidget(
+                          modal: ModalDefinition.fromJson(_whenFalseModal),
+                          onChanged: (def) {
+                            setState(() {
+                              _whenFalseModal = def.toJson();
+                            });
+                          },
+                          variableSuggestions: widget.variableSuggestions,
+                          botIdForConfig: widget.botIdForConfig,
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  _buildResponseTypeSelector(
-                    selected: _whenFalseType,
-                    onChanged: (value) {
-                      setState(() {
-                        _whenFalseType = value;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  if (_whenFalseType == 'normal') ...[
-                    VariableTextField(
-                      label: 'ELSE response text (optional)',
-                      controller: _whenFalseController,
-                      maxLines: 3,
-                      suggestions: widget.variableSuggestions,
-                      emojiSuggestions: widget.emojiSuggestions,
-                      onChanged: (_) {
-                        if (mounted) {
-                          setState(() {});
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    ResponseEmbedsEditor(
-                      embeds: _whenFalseEmbeds,
-                      variableSuggestions: widget.variableSuggestions,
-                      emojiSuggestions: widget.emojiSuggestions,
-                      onChanged: (embeds) {
-                        setState(() {
-                          _whenFalseEmbeds = embeds;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    NormalComponentEditorWidget(
-                      definition: ComponentV2Definition.fromJson(
-                        _whenFalseNormalComponents,
-                      ),
-                      onChanged: (def) {
-                        setState(() {
-                          _whenFalseNormalComponents = def.toJson();
-                        });
-                      },
-                      variableSuggestions: widget.variableSuggestions,
-                      botIdForConfig: widget.botIdForConfig,
-                    ),
-                  ] else if (_whenFalseType == 'componentV2') ...[
-                    ComponentV2EditorWidget(
-                      definition: ComponentV2Definition.fromJson(
-                        _whenFalseComponents,
-                      ),
-                      onChanged: (def) {
-                        setState(() {
-                          _whenFalseComponents = def.toJson();
-                        });
-                      },
-                      variableSuggestions: widget.variableSuggestions,
-                      botIdForConfig: widget.botIdForConfig,
-                    ),
-                  ] else if (_whenFalseType == 'modal') ...[
-                    ModalBuilderWidget(
-                      modal: ModalDefinition.fromJson(_whenFalseModal),
-                      onChanged: (def) {
-                        setState(() {
-                          _whenFalseModal = def.toJson();
-                        });
-                      },
-                      variableSuggestions: widget.variableSuggestions,
-                      botIdForConfig: widget.botIdForConfig,
-                    ),
-                  ],
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
-    ),
     );
   }
 }

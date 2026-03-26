@@ -97,7 +97,11 @@ class DiscordRunner {
 
     if (interaction is ApplicationCommandAutocompleteInteraction) {
       final commandId = interaction.data.id.toString();
-      final commandData = _findCommand(commandId);
+      final commandData = _findCommand(
+        commandId,
+        name: interaction.data.name,
+        type: _commandTypeToStorage(interaction.data.type),
+      );
       if (commandData == null) {
         await interaction.respond(
           const <CommandOptionChoiceBuilder<dynamic>>[],
@@ -116,7 +120,11 @@ class DiscordRunner {
       final interactionType = _commandTypeToStorage(interaction.data.type);
 
       // Match by Discord command ID (same logic as bot.commands.dart)
-      final commandData = _findCommand(commandId);
+      final commandData = _findCommand(
+        commandId,
+        name: interaction.data.name,
+        type: interactionType,
+      );
       if (commandData == null) {
         _log.warning(
           'Command $commandId (${interaction.data.name}, type=$interactionType) not found in config',
@@ -160,10 +168,25 @@ class DiscordRunner {
     }
   }
 
-  Map<String, dynamic>? _findCommand(String discordCommandId) {
+  Map<String, dynamic>? _findCommand(
+    String discordCommandId, {
+    String? name,
+    String? type,
+  }) {
     for (final cmd in config.commands) {
       if ((cmd['id'] ?? '').toString() == discordCommandId) {
         return cmd;
+      }
+    }
+    // Fallback: match by name+type when the local ID is a stale temp ID.
+    if (name != null) {
+      final normalizedType = (type ?? 'chatinput').toLowerCase();
+      for (final cmd in config.commands) {
+        if ((cmd['name'] ?? '').toString() == name &&
+            (cmd['type'] ?? 'chatInput').toString().toLowerCase() ==
+                normalizedType) {
+          return cmd;
+        }
       }
     }
     return null;
@@ -599,6 +622,16 @@ class DiscordRunner {
       ...context.variables,
       'workflow.type': workflowTypeEvent,
     };
+
+    // Inject guild variables (systemChannelId, etc.) for event workflows.
+    final eventGuildId = context.guildId;
+    if (eventGuildId != null && _gateway != null) {
+      try {
+        final guild = await _gateway!.guilds.fetch(eventGuildId);
+        runtimeVariables.addAll(extractGuildRuntimeDetails(guild));
+      } catch (_) {}
+    }
+
     await hydrateRuntimeVariables(
       store: store,
       botId: botId,
@@ -802,10 +835,18 @@ class DiscordRunner {
       );
     } catch (e, st) {
       _log.severe('Error executing command ${commandData['name']}: $e', e, st);
+      // Surface specific, user-safe error messages from permission checks.
+      final errorMsg = e.toString();
+      String? userMessage;
+      if (errorMsg.contains('I do not have permission') ||
+          errorMsg.contains('I cannot')) {
+        userMessage = errorMsg.replaceFirst('Exception: ', '');
+      }
       await _safeErrorResponse(
         interaction,
         didDefer: didDefer,
         isEphemeral: isEphemeral,
+        errorMessage: userMessage,
       );
     }
   }
@@ -1017,8 +1058,10 @@ class DiscordRunner {
     ApplicationCommandInteraction interaction, {
     required bool didDefer,
     required bool isEphemeral,
+    String? errorMessage,
   }) async {
-    const text = 'An error occurred while executing this command.';
+    final text =
+        errorMessage ?? 'An error occurred while executing this command.';
     try {
       if (didDefer) {
         await interaction.updateOriginalResponse(
@@ -1026,10 +1069,7 @@ class DiscordRunner {
         );
       } else {
         await interaction.respond(
-          MessageBuilder(
-            content: text,
-            flags: isEphemeral ? MessageFlags.ephemeral : null,
-          ),
+          MessageBuilder(content: text, flags: MessageFlags.ephemeral),
         );
       }
     } catch (_) {}

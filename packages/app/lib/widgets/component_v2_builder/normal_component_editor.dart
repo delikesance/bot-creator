@@ -215,7 +215,7 @@ class _NormalComponentEditorWidgetState
             .map(
               (t) => PopupMenuItem(
                 value: t,
-        child: Text(
+                child: Text(
                   t.name[0].toUpperCase() +
                       t.name
                           .substring(1)
@@ -275,14 +275,17 @@ class _NormalComponentEditorWidgetState
                 color: Colors.blue.shade600,
               ),
               const SizedBox(width: 8),
-              Text(
-                'Message Components',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue.shade700,
+              Expanded(
+                child: Text(
+                  'Message Components',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue.shade700,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 '${_components.length}/5 Action Rows',
                 style: TextStyle(color: Colors.blue.shade400, fontSize: 12),

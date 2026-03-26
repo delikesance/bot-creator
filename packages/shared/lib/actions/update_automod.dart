@@ -1,4 +1,5 @@
 ﻿import 'package:nyxx/nyxx.dart';
+import 'permission_checks.dart';
 
 const _keywordRuleName = 'BotCreator - Keyword Filter';
 const _mentionRuleName = 'BotCreator - Mention Limit';
@@ -55,6 +56,16 @@ Future<Map<String, String>> updateAutoModAction(
   try {
     if (guildId == null) {
       return {'error': 'Missing guildId', 'status': ''};
+    }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuild],
+      actionLabel: 'update automod settings',
+    );
+    if (permError != null) {
+      return {'error': permError, 'status': ''};
     }
 
     final enabledRaw = payload['enabled'];

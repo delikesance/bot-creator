@@ -321,6 +321,9 @@ Map<String, String> extractGuildRuntimeDetails(dynamic guild) {
     'guild.memberCount',
     () => guild.memberCount ?? guild.approximateMemberCount,
   );
+  trySet('guild.systemChannelId', () => _asSnowflake(guild.systemChannelId));
+  trySet('guild.rulesChannelId', () => _asSnowflake(guild.rulesChannelId));
+  trySet('guild.afkChannelId', () => _asSnowflake(guild.afkChannelId));
 
   details.removeWhere((key, value) => value.isEmpty);
   return details;

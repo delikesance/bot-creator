@@ -414,10 +414,7 @@ class _AppEditPageState extends State<AppEditPage>
 
     return Scaffold(
       bottomNavigationBar: BottomNavigationBar(
-        type:
-            isSmallPhone
-                ? BottomNavigationBarType.shifting
-                : BottomNavigationBarType.fixed,
+        type: BottomNavigationBarType.fixed,
         backgroundColor: colorScheme.surface,
         selectedItemColor: colorScheme.primary,
         unselectedItemColor: colorScheme.onSurfaceVariant,

@@ -206,126 +206,134 @@ class _BotStatsPageState extends State<BotStatsPage> {
 
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.t('bot_stats_title'))),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (canSelectBot)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: DropdownButtonFormField<String>(
-                initialValue: _selectedBotId,
-                decoration: const InputDecoration(
-                  labelText: 'Bot',
-                  border: OutlineInputBorder(),
-                  isDense: true,
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (canSelectBot)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DropdownButtonFormField<String>(
+                  initialValue: _selectedBotId,
+                  decoration: const InputDecoration(
+                    labelText: 'Bot',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: [
+                    for (final botId in knownBotIds)
+                      DropdownMenuItem<String>(
+                        value: botId,
+                        child: Text(botId),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null || value == _selectedBotId) {
+                      return;
+                    }
+                    setState(() {
+                      _selectedBotId = value;
+                      _rssBytes = getBotProcessRssBytesForBot(value);
+                      _rssEstimatedBytes = getBotEstimatedRssBytesForBot(value);
+                      _cpuPercent = getBotProcessCpuPercentForBot(value);
+                      _storageBytes = getBotProcessStorageBytesForBot(value);
+                      _ramHistory.clear();
+                      _ramEstimatedHistory.clear();
+                      _cpuHistory.clear();
+                      _storageHistory.clear();
+                      _pushMetric(_ramHistory, _rssBytes?.toDouble());
+                      _pushMetric(
+                        _ramEstimatedHistory,
+                        _rssEstimatedBytes?.toDouble(),
+                      );
+                      _pushMetric(_cpuHistory, _cpuPercent);
+                      _pushMetric(_storageHistory, _storageBytes?.toDouble());
+                    });
+                    _subscribeMetricStreams();
+                    unawaited(_syncMetricsTick());
+                  },
                 ),
-                items: [
-                  for (final botId in knownBotIds)
-                    DropdownMenuItem<String>(value: botId, child: Text(botId)),
-                ],
-                onChanged: (value) {
-                  if (value == null || value == _selectedBotId) {
-                    return;
-                  }
-                  setState(() {
-                    _selectedBotId = value;
-                    _rssBytes = getBotProcessRssBytesForBot(value);
-                    _rssEstimatedBytes = getBotEstimatedRssBytesForBot(value);
-                    _cpuPercent = getBotProcessCpuPercentForBot(value);
-                    _storageBytes = getBotProcessStorageBytesForBot(value);
-                    _ramHistory.clear();
-                    _ramEstimatedHistory.clear();
-                    _cpuHistory.clear();
-                    _storageHistory.clear();
-                    _pushMetric(_ramHistory, _rssBytes?.toDouble());
-                    _pushMetric(
-                      _ramEstimatedHistory,
-                      _rssEstimatedBytes?.toDouble(),
-                    );
-                    _pushMetric(_cpuHistory, _cpuPercent);
-                    _pushMetric(_storageHistory, _storageBytes?.toDouble());
-                  });
-                  _subscribeMetricStreams();
-                  unawaited(_syncMetricsTick());
-                },
               ),
+            _MetricCard(
+              title: AppStrings.t('bot_stats_ram_process'),
+              value: _formatBytes(_rssBytes),
+              icon: Icons.memory,
+              history: _ramHistory,
             ),
-          _MetricCard(
-            title: AppStrings.t('bot_stats_ram_process'),
-            value: _formatBytes(_rssBytes),
-            icon: Icons.memory,
-            history: _ramHistory,
-          ),
-          const SizedBox(height: 12),
-          _MetricCard(
-            title: AppStrings.t('bot_stats_ram_estimated'),
-            value: _formatBytes(_rssEstimatedBytes),
-            icon: Icons.auto_graph,
-            history: _ramEstimatedHistory,
-            subtitle: _formatBaselineText(),
-          ),
-          const SizedBox(height: 12),
-          _MetricCard(
-            title: AppStrings.t('bot_stats_cpu'),
-            value: _formatCpu(_cpuPercent),
-            icon: Icons.speed,
-            history: _cpuHistory,
-          ),
-          const SizedBox(height: 12),
-          _MetricCard(
-            title: AppStrings.t('bot_stats_storage'),
-            value: _formatBytes(_storageBytes),
-            icon: Icons.storage,
-            history: _storageHistory,
-          ),
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: _usingRemoteMetrics
-                  ? Theme.of(context)
-                        .colorScheme
-                        .primaryContainer
-                        .withValues(alpha: 0.4)
-                  : Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(10),
+            const SizedBox(height: 12),
+            _MetricCard(
+              title: AppStrings.t('bot_stats_ram_estimated'),
+              value: _formatBytes(_rssEstimatedBytes),
+              icon: Icons.auto_graph,
+              history: _ramEstimatedHistory,
+              subtitle: _formatBaselineText(),
             ),
-            child: Row(
-              children: [
-                Icon(
-                  _usingRemoteMetrics ? Icons.dns_outlined : Icons.lan,
-                  size: 18,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _usingRemoteMetrics && _runnerLabel != null
-                        ? AppStrings.tr(
+            const SizedBox(height: 12),
+            _MetricCard(
+              title: AppStrings.t('bot_stats_cpu'),
+              value: _formatCpu(_cpuPercent),
+              icon: Icons.speed,
+              history: _cpuHistory,
+            ),
+            const SizedBox(height: 12),
+            _MetricCard(
+              title: AppStrings.t('bot_stats_storage'),
+              value: _formatBytes(_storageBytes),
+              icon: Icons.storage,
+              history: _storageHistory,
+            ),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color:
+                    _usingRemoteMetrics
+                        ? Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer.withValues(alpha: 0.4)
+                        : Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _usingRemoteMetrics ? Icons.dns_outlined : Icons.lan,
+                    size: 18,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _usingRemoteMetrics && _runnerLabel != null
+                          ? AppStrings.tr(
                             'runner_source_label',
                             params: {'name': _runnerLabel!},
                           )
-                        : _usingRemoteMetrics
-                            ? AppStrings.t('bot_stats_source_runner_api')
-                            : AppStrings.t('bot_stats_source_local_hosting'),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: _usingRemoteMetrics
-                          ? Theme.of(context).colorScheme.onPrimaryContainer
-                          : null,
+                          : _usingRemoteMetrics
+                          ? AppStrings.t('bot_stats_source_runner_api')
+                          : AppStrings.t('bot_stats_source_local_hosting'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color:
+                            _usingRemoteMetrics
+                                ? Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer
+                                : null,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            AppStrings.t('bot_stats_notes'),
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            const SizedBox(height: 10),
+            Text(
+              AppStrings.t('bot_stats_notes'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

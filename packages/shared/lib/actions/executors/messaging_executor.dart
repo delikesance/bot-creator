@@ -4,6 +4,7 @@ import '../../types/action.dart';
 import '../delete_message.dart';
 import '../edit_message.dart';
 import '../get_message.dart';
+import '../permission_checks.dart';
 import '../send_message.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
@@ -34,6 +35,20 @@ Future<bool> executeMessagingAction({
 }) async {
   switch (type) {
     case BotCreatorActionType.deleteMessages:
+      if (guildId != null) {
+        final permError = await checkBotGuildPermission(
+          client,
+          guildId: guildId,
+          requiredPermissions: [
+            Permissions.manageMessages,
+            Permissions.readMessageHistory,
+          ],
+          actionLabel: 'delete messages',
+        );
+        if (permError != null) {
+          throw Exception(permError);
+        }
+      }
       final resolvedChannelIdRaw = resolveValue(
         (payload['channelId'] ?? '').toString(),
       );
@@ -130,6 +145,18 @@ Future<bool> executeMessagingAction({
       final targetType =
           (payload['targetType'] ?? 'channel').toString().trim().toLowerCase();
       final channelId = _toSnowflake(payload['channelId']) ?? fallbackChannelId;
+
+      if (targetType != 'user' && guildId != null) {
+        final permError = await checkBotGuildPermission(
+          client,
+          guildId: guildId,
+          requiredPermissions: [Permissions.sendMessages],
+          actionLabel: 'send messages',
+        );
+        if (permError != null) {
+          throw Exception(permError);
+        }
+      }
 
       if (targetType != 'user' && channelId == null) {
         throw Exception('Missing or invalid channelId for sendMessage');

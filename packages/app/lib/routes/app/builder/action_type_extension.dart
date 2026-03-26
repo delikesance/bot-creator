@@ -496,11 +496,35 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'User to DM (required when targetType=user)',
           ),
           ParameterDefinition(
+            key: 'messageMode',
+            type: ParameterType.multiSelect,
+            defaultValue: 'normal',
+            hint: 'Normal message (embeds, buttons/selects) or Component V2',
+            options: ['normal', 'componentV2'],
+          ),
+          ParameterDefinition(
             key: 'content',
             type: ParameterType.string,
             defaultValue: '',
             hint: 'Message content',
-            required: true,
+          ),
+          ParameterDefinition(
+            key: 'embeds',
+            type: ParameterType.embeds,
+            defaultValue: <Map<String, dynamic>>[],
+            hint: 'Optional embeds (same format as normal command reply)',
+          ),
+          ParameterDefinition(
+            key: 'components',
+            type: ParameterType.normalComponents,
+            defaultValue: <String, dynamic>{},
+            hint: 'Optional message components (buttons/select menus only)',
+          ),
+          ParameterDefinition(
+            key: 'componentV2',
+            type: ParameterType.componentV2,
+            defaultValue: null,
+            hint: 'Component V2 interactive elements',
           ),
           ParameterDefinition(
             key: 'mentions',
@@ -513,12 +537,6 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.boolean,
             defaultValue: false,
             hint: 'Text-to-speech',
-          ),
-          ParameterDefinition(
-            key: 'componentV2',
-            type: ParameterType.componentV2,
-            defaultValue: null,
-            hint: 'Attach Component V2 interactive elements (optional)',
           ),
         ];
       case BotCreatorActionType.editMessage:

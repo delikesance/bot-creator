@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:nyxx/nyxx.dart';
+import 'permission_checks.dart';
 
 /// Fetches current guild onboarding configuration.
 ///
@@ -11,6 +12,16 @@ Future<Map<String, String>> getGuildOnboardingAction(
   try {
     if (guildId == null) {
       return {'error': 'getGuildOnboarding requires a guild context'};
+    }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuild],
+      actionLabel: 'view guild onboarding',
+    );
+    if (permError != null) {
+      return {'error': permError};
     }
 
     final guild = await client.guilds.get(guildId);
@@ -71,6 +82,16 @@ Future<Map<String, String>> updateGuildOnboardingAction(
 }) async {
   if (guildId == null) {
     return {'error': 'updateGuildOnboarding requires a guild context'};
+  }
+
+  final permError = await checkBotGuildPermission(
+    client,
+    guildId: guildId,
+    requiredPermissions: [Permissions.manageGuild],
+    actionLabel: 'update guild onboarding',
+  );
+  if (permError != null) {
+    return {'error': permError};
   }
 
   final _ = resolve((payload['enabled'] ?? '').toString());

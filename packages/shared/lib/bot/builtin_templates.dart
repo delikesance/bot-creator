@@ -46,37 +46,31 @@ const Map<String, dynamic> _disabledConditional = {
 Map<String, dynamic> _textResponse(
   String text, {
   Map<String, dynamic> workflow = _defaultWorkflow,
-}) =>
-    {
-      'mode': 'text',
-      'text': text,
-      'type': 'normal',
-      'embed': const <String, dynamic>{
-        'title': '',
-        'description': '',
-        'url': '',
-      },
-      'embeds': const <Map<String, dynamic>>[],
-      'components': const <String, dynamic>{},
-      'modal': const <String, dynamic>{},
-      'workflow': workflow,
-    };
+}) => {
+  'mode': 'text',
+  'text': text,
+  'type': 'normal',
+  'embed': const <String, dynamic>{'title': '', 'description': '', 'url': ''},
+  'embeds': const <Map<String, dynamic>>[],
+  'components': const <String, dynamic>{},
+  'modal': const <String, dynamic>{},
+  'workflow': workflow,
+};
 
 /// Build an embed response payload.
 Map<String, dynamic> _embedResponse(
   Map<String, dynamic> embed, {
   Map<String, dynamic> workflow = _defaultWorkflow,
-}) =>
-    {
-      'mode': 'embed',
-      'text': '',
-      'type': 'normal',
-      'embed': embed,
-      'embeds': [embed],
-      'components': const <String, dynamic>{},
-      'modal': const <String, dynamic>{},
-      'workflow': workflow,
-    };
+}) => {
+  'mode': 'embed',
+  'text': '',
+  'type': 'normal',
+  'embed': embed,
+  'embeds': [embed],
+  'components': const <String, dynamic>{},
+  'modal': const <String, dynamic>{},
+  'workflow': workflow,
+};
 
 /// Build a full command data map.
 Map<String, dynamic> _commandData({
@@ -87,17 +81,16 @@ Map<String, dynamic> _commandData({
   List<Map<String, dynamic>> options = const [],
   required Map<String, dynamic> response,
   List<Map<String, dynamic>> actions = const [],
-}) =>
-    {
-      'version': 1,
-      'commandType': commandType,
-      'editorMode': editorMode,
-      'simpleConfig': simpleConfig,
-      'defaultMemberPermissions': defaultMemberPermissions,
-      if (options.isNotEmpty) 'options': options,
-      'response': response,
-      'actions': actions,
-    };
+}) => {
+  'version': 1,
+  'commandType': commandType,
+  'editorMode': editorMode,
+  'simpleConfig': simpleConfig,
+  'defaultMemberPermissions': defaultMemberPermissions,
+  if (options.isNotEmpty) 'options': options,
+  'response': response,
+  'actions': actions,
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Welcome Bot
@@ -147,8 +140,8 @@ final welcomeTemplate = BotTemplate(
           'type': 'sendMessage',
           'enabled': true,
           'payload': {
-            // Uses the guild system channel as fallback when no channelId var.
-            'channelId': '((event.guild.systemChannelId|channelId))',
+            'messageMode': 'normal',
+            'channelId': '((guild.systemChannelId|channelId))',
             'content':
                 '🎉 Welcome <@((member.id))>! You are now part of the server.',
           },
@@ -359,6 +352,7 @@ final utilityTemplate = BotTemplate(
             'type': 'sendMessage',
             'enabled': true,
             'payload': {
+              'messageMode': 'normal',
               // Fixed: opts.channel resolves to the channel ID directly.
               // The fallback channelId uses the current interaction channel.
               'channelId': '((opts.channel|channelId))',

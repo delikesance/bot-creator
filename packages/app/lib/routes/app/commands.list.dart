@@ -46,8 +46,7 @@ class _AppCommandsPageState extends State<AppCommandsPage>
     final commandId = (command['id'] ?? '').toString();
     final snowflake = _toSnowflake(commandId);
     final templateOrigin = command['templateOrigin'] as Map<String, dynamic>?;
-    final templateId =
-        (templateOrigin?['templateId'] ?? '').toString();
+    final templateId = (templateOrigin?['templateId'] ?? '').toString();
 
     return Card(
       child: ListTile(
@@ -66,14 +65,9 @@ class _AppCommandsPageState extends State<AppCommandsPage>
             if (templateId.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(left: 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 2,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .tertiaryContainer,
+                  color: Theme.of(context).colorScheme.tertiaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -82,18 +76,15 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                     Icon(
                       Icons.auto_awesome,
                       size: 12,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onTertiaryContainer,
+                      color: Theme.of(context).colorScheme.onTertiaryContainer,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       templateId,
                       style: TextStyle(
                         fontSize: 11,
-                        color: Theme.of(context)
-                            .colorScheme
-                            .onTertiaryContainer,
+                        color:
+                            Theme.of(context).colorScheme.onTertiaryContainer,
                       ),
                     ),
                   ],
@@ -150,7 +141,11 @@ class _AppCommandsPageState extends State<AppCommandsPage>
               final applied = await Navigator.push<bool>(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => TemplateGalleryPage(botId: widget.botId),
+                  builder:
+                      (_) => TemplateGalleryPage(
+                        botId: widget.botId,
+                        client: widget.client,
+                      ),
                 ),
               );
               if (applied == true && mounted) {
@@ -204,8 +199,10 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                             context,
                             MaterialPageRoute(
                               builder:
-                                  (_) =>
-                                      TemplateGalleryPage(botId: widget.botId),
+                                  (_) => TemplateGalleryPage(
+                                    botId: widget.botId,
+                                    client: widget.client,
+                                  ),
                             ),
                           );
                           if (applied == true && mounted) {

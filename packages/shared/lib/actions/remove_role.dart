@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -16,6 +17,16 @@ Future<Map<String, String>> removeRoleAction(
   try {
     if (guildId == null) {
       return {'error': 'Missing guildId', 'userId': '', 'roleId': ''};
+    }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageRoles],
+      actionLabel: 'remove roles',
+    );
+    if (permError != null) {
+      return {'error': permError, 'userId': '', 'roleId': ''};
     }
 
     final userId =

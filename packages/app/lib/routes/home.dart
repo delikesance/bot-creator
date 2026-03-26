@@ -698,7 +698,7 @@ class _BotCard extends StatelessWidget {
     final titleFontSize = compact ? 14.0 : 15.0;
     final statusFontSize = compact ? 10.5 : 11.0;
     final serverFontSize = compact ? 10.5 : 11.0;
-    final buttonVerticalPadding = compact ? 10.0 : 12.0;
+    final buttonVerticalPadding = compact ? 7.0 : 12.0;
 
     return Card(
       shape: RoundedRectangleBorder(
@@ -712,120 +712,125 @@ class _BotCard extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(contentPadding),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // ── Avatar ──────────────────────────────────────────────────────
-            avatar != null && avatar!.isNotEmpty
-                ? CircleAvatar(
-                  radius: avatarRadius,
-                  backgroundImage: NetworkImage(avatar!),
-                )
-                : Icon(Icons.account_circle, size: avatarFallbackSize),
-
-            SizedBox(height: compact ? 8 : 10),
-
-            // ── Nom ─────────────────────────────────────────────────────────
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: titleFontSize,
-                fontWeight: FontWeight.w600,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-
-            SizedBox(height: compact ? 4 : 5),
-
-            // ── Statut avec animation pulse ──────────────────────────────────
-            AnimatedBuilder(
-              animation: pulseController,
-              builder: (_, _) {
-                final opacity =
-                    isRunning ? 0.4 + 0.6 * pulseController.value : 1.0;
-                return Opacity(
-                  opacity: opacity,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isRunning ? Colors.green : Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        isRunning
-                            ? AppStrings.t('home_status_online')
-                            : AppStrings.t('home_status_offline'),
-                        style: TextStyle(
-                          fontSize: statusFontSize,
-                          fontWeight: FontWeight.w500,
-                          color: isRunning ? Colors.green : Colors.grey,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-
-            // ── Runner affinity ──────────────────────────────────────────────
-            if (runnerLabel != null) ...[
-              SizedBox(height: compact ? 3 : 4),
-              Row(
+            // ── Partie haute flexible ────────────────────────────────────────
+            Expanded(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
-                    Icons.dns_outlined,
-                    size: 13,
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      runnerLabel!,
-                      style: TextStyle(
-                        fontSize: compact ? 9.5 : 10.0,
-                        color: colorScheme.primary,
-                      ),
+                  // ── Avatar ────────────────────────────────────────────────
+                  avatar != null && avatar!.isNotEmpty
+                      ? CircleAvatar(
+                        radius: avatarRadius,
+                        backgroundImage: NetworkImage(avatar!),
+                      )
+                      : Icon(Icons.account_circle, size: avatarFallbackSize),
+
+                  SizedBox(height: compact ? 8 : 10),
+
+                  // ── Nom ───────────────────────────────────────────────────
+                  Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: titleFontSize,
+                      fontWeight: FontWeight.w600,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                ],
-              ),
-            ],
 
-            // ── Compteur de serveurs ─────────────────────────────────────────
-            if (guildCount != null && guildCount! > 0) ...[
-              SizedBox(height: compact ? 4 : 5),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.groups,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
+                  SizedBox(height: compact ? 4 : 5),
+
+                  // ── Statut avec animation pulse ────────────────────────────
+                  AnimatedBuilder(
+                    animation: pulseController,
+                    builder: (_, _) {
+                      final opacity =
+                          isRunning ? 0.4 + 0.6 * pulseController.value : 1.0;
+                      return Opacity(
+                        opacity: opacity,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isRunning ? Colors.green : Colors.grey,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              isRunning
+                                  ? AppStrings.t('home_status_online')
+                                  : AppStrings.t('home_status_offline'),
+                              style: TextStyle(
+                                fontSize: statusFontSize,
+                                fontWeight: FontWeight.w500,
+                                color: isRunning ? Colors.green : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                  const SizedBox(width: 3),
-                  Text(
-                    _serverCountLabel(),
-                    style: TextStyle(
-                      fontSize: serverFontSize,
-                      color: colorScheme.onSurfaceVariant,
+
+                  // ── Runner affinity ────────────────────────────────────────
+                  if (runnerLabel != null) ...[
+                    SizedBox(height: compact ? 3 : 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.dns_outlined,
+                          size: 13,
+                          color: colorScheme.primary,
+                        ),
+                        const SizedBox(width: 3),
+                        Flexible(
+                          child: Text(
+                            runnerLabel!,
+                            style: TextStyle(
+                              fontSize: compact ? 9.5 : 10.0,
+                              color: colorScheme.primary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                  ],
+
+                  // ── Compteur de serveurs ───────────────────────────────────
+                  if (guildCount != null && guildCount! > 0) ...[
+                    SizedBox(height: compact ? 4 : 5),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.groups,
+                          size: 16,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          _serverCountLabel(),
+                          style: TextStyle(
+                            fontSize: serverFontSize,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
-            ],
-
-            const Spacer(),
+            ),
 
             // ── Bouton Lancer / Arrêter ──────────────────────────────────────
             SizedBox(
@@ -866,7 +871,7 @@ class _BotCard extends StatelessWidget {
               ),
             ),
 
-            SizedBox(height: compact ? 6 : 8),
+            SizedBox(height: compact ? 4 : 6),
 
             // ── Ligne inférieure : Gérer + Logs ──────────────────────────────
             Row(

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:nyxx/nyxx.dart';
+import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -80,6 +81,16 @@ Future<Map<String, String>> createAutoModRuleAction(
   try {
     if (guildId == null) {
       return {'error': 'createAutoModRule requires a guild context'};
+    }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuild],
+      actionLabel: 'manage automod rules',
+    );
+    if (permError != null) {
+      return {'error': permError};
     }
 
     final name = resolve((payload['name'] ?? '').toString()).trim();
@@ -234,6 +245,16 @@ Future<Map<String, String>> deleteAutoModRuleAction(
       return {'error': 'deleteAutoModRule requires a guild context'};
     }
 
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuild],
+      actionLabel: 'delete automod rules',
+    );
+    if (permError != null) {
+      return {'error': permError};
+    }
+
     final ruleId = _toSnowflake(resolve((payload['ruleId'] ?? '').toString()));
     if (ruleId == null) {
       return {'error': 'ruleId is required for deleteAutoModRule'};
@@ -263,6 +284,16 @@ Future<Map<String, String>> listAutoModRulesAction(
   try {
     if (guildId == null) {
       return {'error': 'listAutoModRules requires a guild context'};
+    }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuild],
+      actionLabel: 'list automod rules',
+    );
+    if (permError != null) {
+      return {'error': permError};
     }
 
     final guild = await client.guilds.get(guildId);

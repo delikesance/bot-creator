@@ -888,6 +888,8 @@ const Map<String, String> appStringsFr = {
   'template_gallery_empty': 'Aucun template disponible.',
   'template_gallery_already_exists':
       'La commande "{name}" existe déjà et a été ignorée.',
+  'template_gallery_sync_warning':
+      'Commandes sauvegardées localement. Démarrez votre bot pour les enregistrer sur Discord.',
   'template_welcome_name': 'Bot d\'accueil',
   'template_welcome_description':
       'Accueillez les nouveaux membres, dites bonjour et affichez les infos du serveur.',

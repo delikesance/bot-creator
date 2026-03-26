@@ -5,6 +5,7 @@ import '../delete_webhook.dart';
 import '../edit_webhook.dart';
 import '../get_webhook.dart';
 import '../list_webhooks.dart';
+import '../permission_checks.dart';
 import '../send_webhook.dart';
 
 Future<bool> executeWebhooksAction({
@@ -44,6 +45,17 @@ Future<bool> executeWebhooksAction({
       return true;
 
     case BotCreatorActionType.listWebhooks:
+      if (fallbackGuildId != null) {
+        final permError = await checkBotGuildPermission(
+          client,
+          guildId: fallbackGuildId,
+          requiredPermissions: [Permissions.manageWebhooks],
+          actionLabel: 'list webhooks',
+        );
+        if (permError != null) {
+          throw Exception(permError);
+        }
+      }
       final result = await listWebhooksAction(
         client,
         payload: payload,

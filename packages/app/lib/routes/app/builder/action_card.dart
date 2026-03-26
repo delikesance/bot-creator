@@ -242,13 +242,19 @@ class ActionCard extends StatelessWidget {
             if (action.type == BotCreatorActionType.httpRequest)
               ..._buildHttpRequestFields(context)
             else
-              ...action.type.parameterDefinitions.map((paramDef) {
-                final currentValue = action.parameters[paramDef.key];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _buildParameterField(context, paramDef, currentValue),
-                );
-              }),
+              ...action.type.parameterDefinitions
+                  .where(_shouldShowParameter)
+                  .map((paramDef) {
+                    final currentValue = action.parameters[paramDef.key];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildParameterField(
+                        context,
+                        paramDef,
+                        currentValue,
+                      ),
+                    );
+                  }),
           ],
         ),
       ),
@@ -637,6 +643,24 @@ class ActionCard extends StatelessWidget {
         ),
       ),
     ];
+  }
+
+  /// Whether a parameter should be rendered based on the current action state.
+  /// Used to toggle between normal message fields and componentV2 fields.
+  bool _shouldShowParameter(ParameterDefinition paramDef) {
+    if (action.type == BotCreatorActionType.sendMessage) {
+      final mode = (action.parameters['messageMode'] ?? 'normal').toString();
+      if (mode == 'componentV2') {
+        // In componentV2 mode, hide normal-message fields.
+        if (paramDef.key == 'embeds' || paramDef.key == 'components') {
+          return false;
+        }
+      } else {
+        // In normal mode, hide componentV2 field.
+        if (paramDef.key == 'componentV2') return false;
+      }
+    }
+    return true;
   }
 
   Widget _buildParameterField(
