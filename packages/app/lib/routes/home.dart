@@ -33,6 +33,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Set<String> _runningBotIds = <String>{};
   bool _runnerModeEnabled = false;
 
+  /// Label du runner actif (null si local).
+  String? _activeRunnerLabel;
+
   /// Vrai pendant qu'un démarrage/arrêt est en cours.
   bool _isTogglingBot = false;
 
@@ -63,7 +66,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Future<void> _initRunningState() async {
     final runningIds = <String>{};
-    final runnerClient = await RunnerSettings.createClient(
+    final config = await RunnerSettings.getConfig();
+    final runnerClient = config?.createClient(
       getTimeout: const Duration(seconds: 30),
       postTimeout: const Duration(seconds: 90),
     );
@@ -81,6 +85,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       setState(() {
         _runningBotIds = runningIds;
         _runnerModeEnabled = true;
+        _activeRunnerLabel = config!.name ?? config.url;
       });
       _syncPulse(runningIds);
       return;
@@ -605,6 +610,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           isRunning: isRunning,
                           canToggle: canToggle,
                           isTogglingThisBot: _isTogglingBot && isRunning,
+                          runnerLabel: isRunning && _runnerModeEnabled
+                              ? _activeRunnerLabel
+                              : null,
                           pulseController: pulseCtrl,
                           onManage:
                               () => Navigator.push(
@@ -657,6 +665,7 @@ class _BotCard extends StatelessWidget {
     required this.onManage,
     required this.onToggle,
     required this.onLogs,
+    this.runnerLabel,
   });
 
   final String name;
@@ -667,6 +676,7 @@ class _BotCard extends StatelessWidget {
   final bool isRunning;
   final bool canToggle;
   final bool isTogglingThisBot;
+  final String? runnerLabel;
   final AnimationController pulseController;
   final VoidCallback onManage;
   final VoidCallback onToggle;
@@ -762,6 +772,32 @@ class _BotCard extends StatelessWidget {
                 );
               },
             ),
+
+            // ── Runner affinity ──────────────────────────────────────────────
+            if (runnerLabel != null) ...[              SizedBox(height: compact ? 3 : 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.dns_outlined,
+                    size: 13,
+                    color: colorScheme.primary,
+                  ),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      runnerLabel!,
+                      style: TextStyle(
+                        fontSize: compact ? 9.5 : 10.0,
+                        color: colorScheme.primary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
 
             // ── Compteur de serveurs ─────────────────────────────────────────
             if (guildCount != null && guildCount! > 0) ...[
