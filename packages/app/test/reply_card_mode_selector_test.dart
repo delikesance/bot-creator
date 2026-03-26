@@ -31,8 +31,7 @@ Widget _buildReplyCard({
               responseEmbeds: const [],
               onEmbedsChanged: (_) {},
               responseComponents:
-                  responseComponents ??
-                  ComponentV2Definition().toJson(),
+                  responseComponents ?? ComponentV2Definition().toJson(),
               onComponentsChanged: (_) {},
               responseModal: const {},
               onModalChanged: (_) {},
@@ -189,32 +188,30 @@ void main() {
       },
     );
 
-    testWidgets(
-      'tapping Modal Form chip switches to ModalBuilderWidget',
-      (tester) async {
-        await tester.pumpWidget(_buildReplyCard(responseType: 'normal'));
-        await tester.pumpAndSettle();
+    testWidgets('tapping Modal Form chip switches to ModalBuilderWidget', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_buildReplyCard(responseType: 'normal'));
+      await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Modal Form'));
-        await tester.pumpAndSettle();
+      await tester.tap(find.text('Modal Form'));
+      await tester.pumpAndSettle();
 
-        expect(find.byType(ModalBuilderWidget), findsOneWidget);
-      },
-    );
+      expect(find.byType(ModalBuilderWidget), findsOneWidget);
+    });
   });
 
   group('ReplyCard – normal mode components label', () {
-    testWidgets(
-      'components expansion tile uses user-friendly label',
-      (tester) async {
-        await tester.pumpWidget(_buildReplyCard(responseType: 'normal'));
-        await tester.pumpAndSettle();
+    testWidgets('components expansion tile uses user-friendly label', (
+      tester,
+    ) async {
+      await tester.pumpWidget(_buildReplyCard(responseType: 'normal'));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Buttons & Select Menus (optional)'), findsOneWidget);
-        // Old ambiguous label must be gone.
-        expect(find.text('Message Components (Buttons/Selects)'), findsNothing);
-      },
-    );
+      expect(find.text('Buttons & Select Menus (optional)'), findsOneWidget);
+      // Old ambiguous label must be gone.
+      expect(find.text('Message Components (Buttons/Selects)'), findsNothing);
+    });
   });
 
   group('ReplyCard – Layout Mode header text', () {

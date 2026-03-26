@@ -5,12 +5,31 @@ import 'package:bot_creator/types/component.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 import 'dart:convert';
 import 'package:bot_creator/widgets/variable_text_field.dart';
+import 'package:bot_creator/widgets/component_v2_builder/component_node_factory.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+
+/// Depth-based accent colours for nesting levels (0 = root).
+const _kDepthColors = [
+  Colors.blueGrey,
+  Colors.blue,
+  Colors.green,
+  Colors.orange,
+  Colors.purple,
+];
+
+Color _depthColor(int depth) =>
+    _kDepthColors[depth.clamp(0, _kDepthColors.length - 1)];
 
 class ComponentNodeEditor extends StatelessWidget {
   final ComponentNode node;
   final ValueChanged<ComponentNode> onChanged;
   final VoidCallback onRemove;
+  /// Optional: show an "up" arrow to move this node earlier in its parent list.
+  final VoidCallback? onMoveUp;
+  /// Optional: show a "down" arrow to move this node later in its parent list.
+  final VoidCallback? onMoveDown;
+  /// Nesting depth — 0 for root nodes, +1 for each level of children.
+  final int depth;
   final List<VariableSuggestion> variableSuggestions;
   final String? botIdForConfig;
 
@@ -19,50 +38,124 @@ class ComponentNodeEditor extends StatelessWidget {
     required this.node,
     required this.onChanged,
     required this.onRemove,
+    this.onMoveUp,
+    this.onMoveDown,
+    this.depth = 0,
     required this.variableSuggestions,
     this.botIdForConfig,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      shape: RoundedRectangleBorder(
-        side: BorderSide(color: Colors.blueGrey.shade200),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    final accentColor = _depthColor(depth);
+    final indent = depth * 8.0;
+    return Padding(
+      padding: EdgeInsets.only(left: indent, top: 4, bottom: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: accentColor.withValues(alpha: 0.6), width: 3),
+          ),
+        ),
+        child: Card(
+          margin: EdgeInsets.zero,
+          elevation: depth == 0 ? 1 : 0,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+            borderRadius: const BorderRadius.horizontal(
+              right: Radius.circular(8),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  _getIconForType(node.type),
-                  size: 16,
-                  color: Colors.blueGrey,
+                Row(
+                  children: [
+                    Icon(
+                      _getIconForType(node.type),
+                      size: 16,
+                      color: accentColor,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      _getTitleForType(node.type),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: depth == 0 ? 13 : 12,
+                        color: accentColor,
+                      ),
+                    ),
+                    if (depth > 0)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            'L$depth',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: accentColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    const Spacer(),
+                    if (onMoveUp != null)
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_upward, size: 14),
+                          tooltip: 'Move up',
+                          onPressed: onMoveUp,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ),
+                    if (onMoveDown != null)
+                      SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: IconButton(
+                          icon: const Icon(Icons.arrow_downward, size: 14),
+                          tooltip: 'Move down',
+                          onPressed: onMoveDown,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ),
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: Colors.red.shade400,
+                        ),
+                        tooltip: 'Remove',
+                        onPressed: onRemove,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  _getTitleForType(node.type),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                  onPressed: onRemove,
-                  constraints: const BoxConstraints(),
-                  padding: EdgeInsets.zero,
-                ),
+                const SizedBox(height: 8),
+                _buildEditorBody(context),
               ],
             ),
-            const SizedBox(height: 8),
-            _buildEditorBody(context),
-          ],
+          ),
         ),
       ),
     );
@@ -92,12 +185,7 @@ class ComponentNodeEditor extends StatelessWidget {
     };
   }
 
-  String _getTitleForType(ComponentV2Type type) {
-    return type.name[0].toUpperCase() +
-        type.name
-            .substring(1)
-            .replaceAllMapped(RegExp(r'[A-Z]'), (m) => ' ${m.group(0)}');
-  }
+  String _getTitleForType(ComponentV2Type type) => ComponentNodeFactory.labelFor(type);
 
   Widget _buildEditorBody(BuildContext context) {
     if (node is ActionRowNode) {
@@ -176,6 +264,7 @@ class ComponentNodeEditor extends StatelessWidget {
           final child = e.value;
           return ComponentNodeEditor(
             node: child,
+            depth: depth + 1,
             onChanged: (updated) {
               final newChildren = List<ComponentNode>.from(row.components);
               newChildren[idx] = updated;
@@ -188,6 +277,28 @@ class ComponentNodeEditor extends StatelessWidget {
               row.components = newChildren;
               onChanged(row);
             },
+            onMoveUp:
+                idx == 0
+                    ? null
+                    : () {
+                        final list = List<ComponentNode>.from(row.components);
+                        final tmp = list[idx - 1];
+                        list[idx - 1] = list[idx];
+                        list[idx] = tmp;
+                        row.components = list;
+                        onChanged(row);
+                      },
+            onMoveDown:
+                idx == row.components.length - 1
+                    ? null
+                    : () {
+                        final list = List<ComponentNode>.from(row.components);
+                        final tmp = list[idx + 1];
+                        list[idx + 1] = list[idx];
+                        list[idx] = tmp;
+                        row.components = list;
+                        onChanged(row);
+                      },
             variableSuggestions: variableSuggestions,
             botIdForConfig: botIdForConfig,
           );
@@ -553,6 +664,7 @@ class ComponentNodeEditor extends StatelessWidget {
           final child = e.value;
           return ComponentNodeEditor(
             node: child,
+            depth: depth + 1,
             onChanged: (updated) {
               final newChildren = List<TextDisplayNode>.from(node.components);
               newChildren[idx] = updated as TextDisplayNode;
@@ -565,6 +677,28 @@ class ComponentNodeEditor extends StatelessWidget {
               node.components = newChildren;
               onChanged(node);
             },
+            onMoveUp:
+                idx == 0
+                    ? null
+                    : () {
+                        final list = List<TextDisplayNode>.from(node.components);
+                        final tmp = list[idx - 1];
+                        list[idx - 1] = list[idx];
+                        list[idx] = tmp;
+                        node.components = list;
+                        onChanged(node);
+                      },
+            onMoveDown:
+                idx == node.components.length - 1
+                    ? null
+                    : () {
+                        final list = List<TextDisplayNode>.from(node.components);
+                        final tmp = list[idx + 1];
+                        list[idx + 1] = list[idx];
+                        list[idx] = tmp;
+                        node.components = list;
+                        onChanged(node);
+                      },
             variableSuggestions: variableSuggestions,
             botIdForConfig: botIdForConfig,
           );
@@ -586,6 +720,7 @@ class ComponentNodeEditor extends StatelessWidget {
         if (node.accessory != null)
           ComponentNodeEditor(
             node: node.accessory!,
+            depth: depth + 1,
             onChanged: (updated) {
               node.accessory = updated;
               onChanged(node);
@@ -690,6 +825,7 @@ class ComponentNodeEditor extends StatelessWidget {
           final child = e.value;
           return ComponentNodeEditor(
             node: child,
+            depth: depth + 1,
             onChanged: (updated) {
               final newChildren = List<ComponentNode>.from(node.components);
               newChildren[idx] = updated;
@@ -702,6 +838,28 @@ class ComponentNodeEditor extends StatelessWidget {
               node.components = newChildren;
               onChanged(node);
             },
+            onMoveUp:
+                idx == 0
+                    ? null
+                    : () {
+                        final list = List<ComponentNode>.from(node.components);
+                        final tmp = list[idx - 1];
+                        list[idx - 1] = list[idx];
+                        list[idx] = tmp;
+                        node.components = list;
+                        onChanged(node);
+                      },
+            onMoveDown:
+                idx == node.components.length - 1
+                    ? null
+                    : () {
+                        final list = List<ComponentNode>.from(node.components);
+                        final tmp = list[idx + 1];
+                        list[idx + 1] = list[idx];
+                        list[idx] = tmp;
+                        node.components = list;
+                        onChanged(node);
+                      },
             variableSuggestions: variableSuggestions,
             botIdForConfig: botIdForConfig,
           );
@@ -756,6 +914,7 @@ class ComponentNodeEditor extends StatelessWidget {
         if (node.component != null)
           ComponentNodeEditor(
             node: node.component!,
+            depth: depth + 1,
             onChanged: (updated) {
               node.component = updated;
               onChanged(node);
@@ -1099,81 +1258,7 @@ class ComponentNodeEditor extends StatelessWidget {
         Expanded(
           child: PopupMenuButton<ComponentV2Type>(
             tooltip: 'Add Child Component',
-            onSelected: (v) {
-              ComponentNode newNode = ActionRowNode();
-              switch (v) {
-                case ComponentV2Type.actionRow:
-                  newNode = ActionRowNode();
-                  break;
-                case ComponentV2Type.button:
-                  newNode = ButtonNode();
-                  break;
-                case ComponentV2Type.stringSelect:
-                  newNode = SelectMenuNode(
-                    type: ComponentV2Type.stringSelect,
-                    options: [SelectMenuOption(label: 'Hi', value: 'hi')],
-                  );
-                  break;
-                case ComponentV2Type.userSelect:
-                  newNode = SelectMenuNode(type: ComponentV2Type.userSelect);
-                  break;
-                case ComponentV2Type.roleSelect:
-                  newNode = SelectMenuNode(type: ComponentV2Type.roleSelect);
-                  break;
-                case ComponentV2Type.mentionableSelect:
-                  newNode = SelectMenuNode(
-                    type: ComponentV2Type.mentionableSelect,
-                  );
-                  break;
-                case ComponentV2Type.channelSelect:
-                  newNode = SelectMenuNode(type: ComponentV2Type.channelSelect);
-                  break;
-                case ComponentV2Type.section:
-                  newNode = SectionNode(components: [TextDisplayNode()]);
-                  break;
-                case ComponentV2Type.textDisplay:
-                  newNode = TextDisplayNode();
-                  break;
-                case ComponentV2Type.thumbnail:
-                  newNode = ThumbnailNode();
-                  break;
-                case ComponentV2Type.mediaGallery:
-                  newNode = MediaGalleryNode(items: [MediaGalleryItemNode()]);
-                  break;
-                case ComponentV2Type.file:
-                  newNode = FileNode();
-                  break;
-                case ComponentV2Type.separator:
-                  newNode = SeparatorNode();
-                  break;
-                case ComponentV2Type.container:
-                  newNode = ContainerNode(components: [TextDisplayNode()]);
-                  break;
-                case ComponentV2Type.label:
-                  newNode = LabelNode(
-                    label: 'Label',
-                    component: TextDisplayNode(),
-                  );
-                  break;
-                case ComponentV2Type.fileUpload:
-                  newNode = FileUploadNode();
-                  break;
-                case ComponentV2Type.radioGroup:
-                  newNode = RadioGroupNode(
-                    options: [RadioGroupOptionNode(label: 'A', value: 'a')],
-                  );
-                  break;
-                case ComponentV2Type.checkboxGroup:
-                  newNode = CheckboxGroupNode(
-                    options: [CheckboxGroupOptionNode(label: 'A', value: 'a')],
-                  );
-                  break;
-                case ComponentV2Type.checkbox:
-                  newNode = CheckboxNode();
-                  break;
-              }
-              onAdd(newNode);
-            },
+            onSelected: (v) => onAdd(ComponentNodeFactory.create(v)),
             itemBuilder: (BuildContext context) {
               return types
                   .map(
