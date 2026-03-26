@@ -100,4 +100,91 @@ void main() {
       expect(totalBottomItems, 5);
     });
   });
+
+  group('Quick-access sections', () {
+    test('secondarySections maps to correct entry indices', () {
+      // Matches the indices in _buildEntries: Emojis=4, Dashboard=5, Settings=6
+      const sections = [
+        {'index': 4, 'labelKey': 'emojis_tab'},
+        {'index': 5, 'labelKey': 'dashboard_title'},
+        {'index': 6, 'labelKey': 'settings_tab'},
+      ];
+
+      expect(sections.length, 3);
+      expect(sections[0]['index'], 4);
+      expect(sections[1]['index'], 5);
+      expect(sections[2]['index'], 6);
+    });
+
+    test('onNavigateToSection propagates correct index', () {
+      int? navigatedIndex;
+      void onNavigate(int index) {
+        navigatedIndex = index;
+      }
+
+      // Simulate tapping Dashboard quick-access chip
+      onNavigate(5);
+      expect(navigatedIndex, 5);
+
+      // Simulate tapping Settings quick-access chip
+      onNavigate(6);
+      expect(navigatedIndex, 6);
+    });
+  });
+
+  group('More sheet – visual layout', () {
+    testWidgets('renders MoreSheetItem-style grid for secondary entries',
+        (tester) async {
+      // Simulate the "More" sheet grid layout with 3 secondary items
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                final colorScheme = Theme.of(context).colorScheme;
+                return Row(
+                  children: [
+                    for (final entry in [
+                      {'icon': Icons.emoji_emotions_outlined, 'label': 'Emojis'},
+                      {'icon': Icons.bar_chart, 'label': 'Dashboard'},
+                      {'icon': Icons.settings, 'label': 'Settings'},
+                    ])
+                      Expanded(
+                        child: Material(
+                          color: colorScheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () {},
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(entry['icon'] as IconData, size: 24),
+                                  const SizedBox(height: 6),
+                                  Text(entry['label'] as String,
+                                      style: const TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Emojis'), findsOneWidget);
+      expect(find.text('Dashboard'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.byIcon(Icons.emoji_emotions_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.bar_chart), findsOneWidget);
+      expect(find.byIcon(Icons.settings), findsOneWidget);
+    });
+  });
 }

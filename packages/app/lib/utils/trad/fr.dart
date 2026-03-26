@@ -104,6 +104,7 @@ const Map<String, String> appStringsFr = {
   'emojis_rename_error': 'Échec du renommage : {error}',
   'settings_tab': 'Paramètres',
   'more_tab': 'Plus',
+  'quick_access_title': 'Accès rapide',
   'settings_theme_switch_light': 'Passer en mode clair',
   'settings_theme_switch_dark': 'Passer en mode sombre',
   'settings_appearance_title': 'Apparence et langue',

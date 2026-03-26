@@ -20,9 +20,29 @@ import 'package:nyxx/nyxx.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
 
+/// Describes a secondary section accessible via quick-actions on mobile.
+class QuickAccessSection {
+  final int index;
+  final IconData icon;
+  final String labelKey;
+
+  const QuickAccessSection({
+    required this.index,
+    required this.icon,
+    required this.labelKey,
+  });
+}
+
 class AppHomePage extends StatefulWidget {
   final NyxxRest client;
-  const AppHomePage({super.key, required this.client});
+  final ValueChanged<int>? onNavigateToSection;
+  final List<QuickAccessSection> secondarySections;
+  const AppHomePage({
+    super.key,
+    required this.client,
+    this.onNavigateToSection,
+    this.secondarySections = const [],
+  });
 
   @override
   State<AppHomePage> createState() => _AppHomePageState();
@@ -598,7 +618,34 @@ class _AppHomePageState extends State<AppHomePage>
                         indent: 20,
                         endIndent: 20,
                       ),
-                      // Sync Button
+                      // ── Quick access to secondary sections (mobile) ──
+                      if (widget.secondarySections.isNotEmpty &&
+                          widget.onNavigateToSection != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Row(
+                            children: [
+                              for (var i = 0;
+                                  i < widget.secondarySections.length;
+                                  i++) ...[
+                                if (i > 0) const SizedBox(width: 10),
+                                Expanded(
+                                  child: _QuickAccessChip(
+                                    icon: widget.secondarySections[i].icon,
+                                    label: AppStrings.t(
+                                      widget.secondarySections[i].labelKey,
+                                    ),
+                                    onTap:
+                                        () => widget.onNavigateToSection!(
+                                          widget.secondarySections[i].index,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      // Logs Button
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(44),
@@ -765,6 +812,49 @@ class _AppHomePageState extends State<AppHomePage>
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _QuickAccessChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickAccessChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 22, color: colorScheme.primary),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

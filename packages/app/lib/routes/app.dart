@@ -164,7 +164,31 @@ class _AppEditPageState extends State<AppEditPage>
         icon: Icons.home,
         label: AppStrings.t('home_tab'),
         compactLabel: AppStrings.t('home_tab'),
-        page: AppHomePage(client: client!),
+        page: AppHomePage(
+          client: client!,
+          onNavigateToSection: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          secondarySections: const [
+            QuickAccessSection(
+              index: 4,
+              icon: Icons.emoji_emotions_outlined,
+              labelKey: 'emojis_tab',
+            ),
+            QuickAccessSection(
+              index: 5,
+              icon: Icons.bar_chart,
+              labelKey: 'dashboard_title',
+            ),
+            QuickAccessSection(
+              index: 6,
+              icon: Icons.settings,
+              labelKey: 'settings_tab',
+            ),
+          ],
+        ),
       ),
       _AppPageEntry(
         icon: Icons.add_circle,
@@ -422,26 +446,68 @@ class _AppEditPageState extends State<AppEditPage>
     List<_AppPageEntry> entries,
     List<int> secondaryIndices,
   ) {
+    final colorScheme = Theme.of(context).colorScheme;
     showModalBottomSheet(
       context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (sheetContext) {
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final i in secondaryIndices)
-                ListTile(
-                  leading: Icon(entries[i].icon),
-                  title: Text(entries[i].label),
-                  selected: _selectedIndex == i,
-                  onTap: () {
-                    Navigator.pop(sheetContext);
-                    setState(() {
-                      _selectedIndex = i;
-                    });
-                  },
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Drag handle
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-            ],
+                // Section title
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4, bottom: 12),
+                    child: Text(
+                      AppStrings.t('quick_access_title'),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                // Grid of action chips
+                Row(
+                  children: [
+                    for (var idx = 0; idx < secondaryIndices.length; idx++) ...[
+                      if (idx > 0) const SizedBox(width: 12),
+                      Expanded(
+                        child: _MoreSheetItem(
+                          icon: entries[secondaryIndices[idx]].icon,
+                          label: entries[secondaryIndices[idx]].label,
+                          selected:
+                              _selectedIndex == secondaryIndices[idx],
+                          colorScheme: colorScheme,
+                          onTap: () {
+                            Navigator.pop(sheetContext);
+                            setState(() {
+                              _selectedIndex = secondaryIndices[idx];
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -475,6 +541,66 @@ class _AppPageEntry {
     required this.page,
     this.mobileSecondary = false,
   });
+}
+
+/// Visual chip for the "More" bottom sheet grid.
+class _MoreSheetItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final ColorScheme colorScheme;
+  final VoidCallback onTap;
+
+  const _MoreSheetItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.colorScheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color:
+          selected
+              ? colorScheme.primaryContainer
+              : colorScheme.surfaceContainerHigh,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 24,
+                color:
+                    selected
+                        ? colorScheme.onPrimaryContainer
+                        : colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color:
+                      selected
+                          ? colorScheme.onPrimaryContainer
+                          : colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _OfflineTokenPage extends StatefulWidget {
