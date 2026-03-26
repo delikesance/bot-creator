@@ -1985,6 +1985,14 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
   }
 
   Future<void> _deleteWorkflow(String name) async {
+    final workflow = _workflows.firstWhere(
+      (w) => w['name'] == name,
+      orElse: () => <String, dynamic>{},
+    );
+    final actionCount =
+        (workflow['actions'] as List?)?.length ?? 0;
+    final extra = actionCount > 0 ? '\n\nThis will remove $actionCount action(s).' : '';
+
     final isCompactScreen = MediaQuery.of(context).size.width < 600;
     final shouldDelete =
         isCompactScreen
@@ -2005,10 +2013,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        AppStrings.tr(
+                        '${AppStrings.tr(
                           'workflows_delete_confirm',
                           params: {'name': name},
-                        ),
+                        )}$extra',
                       ),
                       const SizedBox(height: 14),
                       Row(
@@ -2045,10 +2053,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                   (dialogContext) => AlertDialog.adaptive(
                     title: Text(AppStrings.t('workflows_delete_title')),
                     content: Text(
-                      AppStrings.tr(
+                      '${AppStrings.tr(
                         'workflows_delete_confirm',
                         params: {'name': name},
-                      ),
+                      )}$extra',
                     ),
                     actions: [
                       TextButton(

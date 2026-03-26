@@ -29,6 +29,7 @@ class CommandResponseWorkflowPage extends StatefulWidget {
 
 class _CommandResponseWorkflowPageState
     extends State<CommandResponseWorkflowPage> {
+  late Map<String, dynamic> _initialSnapshot;
   late bool _autoDeferIfActions;
   late String _visibility;
   late String _onError;
@@ -119,6 +120,93 @@ class _CommandResponseWorkflowPageState
       (conditional['whenFalseModal'] as Map?)?.cast<String, dynamic>() ??
           const {},
     );
+    _initialSnapshot = _buildResult();
+  }
+
+  bool get _isDirty {
+    final current = _buildResult();
+    return current.toString() != _initialSnapshot.toString();
+  }
+
+  void _revert() {
+    final conditional = Map<String, dynamic>.from(
+      (_initialSnapshot['conditional'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+    setState(() {
+      _autoDeferIfActions = _initialSnapshot['autoDeferIfActions'] != false;
+      _visibility = (_initialSnapshot['visibility']?.toString().toLowerCase() ==
+              'ephemeral')
+          ? 'ephemeral'
+          : 'public';
+      _onError = 'edit_error';
+      _conditionEnabled = conditional['enabled'] == true;
+      _variableController.text =
+          (conditional['variable'] ?? '').toString();
+      _whenTrueType = (conditional['whenTrueType'] ?? 'normal').toString();
+      _whenFalseType = (conditional['whenFalseType'] ?? 'normal').toString();
+      _whenTrueController.text =
+          (conditional['whenTrueText'] ?? '').toString();
+      _whenFalseController.text =
+          (conditional['whenFalseText'] ?? '').toString();
+      _whenTrueEmbeds = _normalizeEmbedsPayload(conditional['whenTrueEmbeds']);
+      _whenFalseEmbeds =
+          _normalizeEmbedsPayload(conditional['whenFalseEmbeds']);
+      _whenTrueNormalComponents = Map<String, dynamic>.from(
+        (conditional['whenTrueNormalComponents'] as Map?)
+                ?.cast<String, dynamic>() ??
+            const {},
+      );
+      _whenFalseNormalComponents = Map<String, dynamic>.from(
+        (conditional['whenFalseNormalComponents'] as Map?)
+                ?.cast<String, dynamic>() ??
+            const {},
+      );
+      _whenTrueComponents = Map<String, dynamic>.from(
+        (conditional['whenTrueComponents'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      );
+      _whenFalseComponents = Map<String, dynamic>.from(
+        (conditional['whenFalseComponents'] as Map?)
+                ?.cast<String, dynamic>() ??
+            const {},
+      );
+      _whenTrueModal = Map<String, dynamic>.from(
+        (conditional['whenTrueModal'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      );
+      _whenFalseModal = Map<String, dynamic>.from(
+        (conditional['whenFalseModal'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      );
+    });
+  }
+
+  Future<bool> _confirmDiscardIfDirty() async {
+    if (!_isDirty) return true;
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog.adaptive(
+        title: const Text('Unsaved changes'),
+        content: const Text(
+          'You have unsaved changes. Discard them?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep editing'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Discard',
+              style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+    return discard == true;
   }
 
   @override
@@ -259,10 +347,24 @@ class _CommandResponseWorkflowPageState
   Widget build(BuildContext context) {
     final compact = MediaQuery.of(context).size.width < 420;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        if (await _confirmDiscardIfDirty()) {
+          if (mounted) Navigator.pop(context);
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
-        title: const Text('Response Workflow'),
+        title: Text('Response Workflow${_isDirty ? ' •' : ''}'),
         actions: [
+          if (_isDirty)
+            IconButton(
+              tooltip: 'Revert all changes',
+              onPressed: _revert,
+              icon: const Icon(Icons.undo),
+            ),
           if (compact)
             IconButton(
               tooltip: 'Save',
@@ -538,6 +640,7 @@ class _CommandResponseWorkflowPageState
           ),
         ],
       ),
+    ),
     );
   }
 }
