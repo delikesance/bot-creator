@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bot_creator/types/component.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:bot_creator/widgets/component_v2_builder/component_node_editor.dart';
+import 'package:bot_creator/widgets/component_v2_builder/component_node_factory.dart';
 
 /// Full visual editor for a ComponentV2 message (text + recursive component nodes).
 /// Manages a [ComponentV2Definition] and notifies via [onChanged].
@@ -70,74 +71,7 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
   }
 
   void _addNode(ComponentV2Type type) {
-    ComponentNode newNode;
-    switch (type) {
-      case ComponentV2Type.actionRow:
-        newNode = ActionRowNode();
-        break;
-      case ComponentV2Type.button:
-        newNode = ButtonNode();
-        break;
-      case ComponentV2Type.stringSelect:
-        newNode = SelectMenuNode(
-          type: ComponentV2Type.stringSelect,
-          options: [SelectMenuOption(label: 'Hi', value: 'hi')],
-        );
-        break;
-      case ComponentV2Type.userSelect:
-        newNode = SelectMenuNode(type: ComponentV2Type.userSelect);
-        break;
-      case ComponentV2Type.roleSelect:
-        newNode = SelectMenuNode(type: ComponentV2Type.roleSelect);
-        break;
-      case ComponentV2Type.mentionableSelect:
-        newNode = SelectMenuNode(type: ComponentV2Type.mentionableSelect);
-        break;
-      case ComponentV2Type.channelSelect:
-        newNode = SelectMenuNode(type: ComponentV2Type.channelSelect);
-        break;
-      case ComponentV2Type.section:
-        newNode = SectionNode(components: [TextDisplayNode()]);
-        break;
-      case ComponentV2Type.textDisplay:
-        newNode = TextDisplayNode();
-        break;
-      case ComponentV2Type.thumbnail:
-        newNode = ThumbnailNode();
-        break;
-      case ComponentV2Type.mediaGallery:
-        newNode = MediaGalleryNode(items: [MediaGalleryItemNode()]);
-        break;
-      case ComponentV2Type.file:
-        newNode = FileNode();
-        break;
-      case ComponentV2Type.separator:
-        newNode = SeparatorNode();
-        break;
-      case ComponentV2Type.container:
-        newNode = ContainerNode(components: [TextDisplayNode()]);
-        break;
-      case ComponentV2Type.label:
-        newNode = LabelNode(label: 'Label', component: TextDisplayNode());
-        break;
-      case ComponentV2Type.fileUpload:
-        newNode = FileUploadNode();
-        break;
-      case ComponentV2Type.radioGroup:
-        newNode = RadioGroupNode(
-          options: [RadioGroupOptionNode(label: 'A', value: 'a')],
-        );
-        break;
-      case ComponentV2Type.checkboxGroup:
-        newNode = CheckboxGroupNode(
-          options: [CheckboxGroupOptionNode(label: 'A', value: 'a')],
-        );
-        break;
-      case ComponentV2Type.checkbox:
-        newNode = CheckboxNode();
-        break;
-    }
-    setState(() => _components.add(newNode));
+    setState(() => _components.add(ComponentNodeFactory.create(type)));
     _emit();
   }
 
@@ -153,12 +87,7 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
     _emit();
   }
 
-  String _getTitleForType(ComponentV2Type type) {
-    return type.name[0].toUpperCase() +
-        type.name
-            .substring(1)
-            .replaceAllMapped(RegExp(r'[A-Z]'), (m) => ' ${m.group(0)}');
-  }
+  String _getTitleForType(ComponentV2Type type) => ComponentNodeFactory.labelFor(type);
 
   @override
   Widget build(BuildContext context) {
@@ -182,13 +111,26 @@ class _ComponentV2EditorWidgetState extends State<ComponentV2EditorWidget> {
               ),
               const SizedBox(width: 8),
               Flexible(
-                child: Text(
-                  'Full Component V2 Builder',
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.purple.shade700,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Layout Builder',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple.shade700,
+                      ),
+                    ),
+                    Text(
+                      'Discord rich layout — containers, media, text & forms',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.purple.shade500,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),

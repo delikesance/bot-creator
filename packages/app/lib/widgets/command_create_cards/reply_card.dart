@@ -121,27 +121,7 @@ class ReplyCard extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _buildResponseTypeChip(
-                  value: 'normal',
-                  label: 'Normal Reply',
-                  icon: Icons.message,
-                ),
-                _buildResponseTypeChip(
-                  value: 'componentV2',
-                  label: 'Component V2',
-                  icon: Icons.dashboard_customize,
-                ),
-                _buildResponseTypeChip(
-                  value: 'modal',
-                  label: 'Modal Form',
-                  icon: Icons.web_asset,
-                ),
-              ],
-            ),
+            _buildResponseModeSelector(context),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
@@ -193,7 +173,11 @@ class ReplyCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               ExpansionTile(
-                title: const Text('Message Components (Buttons/Selects)'),
+                title: const Text('Buttons & Select Menus (optional)'),
+                subtitle: Text(
+                  'Add interactive buttons or dropdowns to this message',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                ),
                 collapsedBackgroundColor: Colors.grey.withValues(alpha: 0.05),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -236,19 +220,95 @@ class ReplyCard extends StatelessWidget {
     );
   }
 
-  Widget _buildResponseTypeChip({
+  /// Unified mode selector that displays each response mode with a label,
+  /// description, and icon so users understand when to use which mode.
+  Widget _buildResponseModeSelector(BuildContext context) {
+    const modes = [
+      (
+        value: 'normal',
+        label: 'Standard Message',
+        description: 'Text, embeds and optional buttons / select menus',
+        icon: Icons.message_outlined,
+      ),
+      (
+        value: 'componentV2',
+        label: 'Layout Mode',
+        description:
+            "Discord's rich layout system — containers, media, text & forms",
+        icon: Icons.dashboard_customize_outlined,
+      ),
+      (
+        value: 'modal',
+        label: 'Modal Form',
+        description: 'Pop-up dialog with text input fields',
+        icon: Icons.web_asset_outlined,
+      ),
+    ];
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final mode in modes)
+          _buildResponseModeChip(
+            context: context,
+            value: mode.value,
+            label: mode.label,
+            description: mode.description,
+            icon: mode.icon,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildResponseModeChip({
+    required BuildContext context,
     required String value,
     required String label,
+    required String description,
     required IconData icon,
   }) {
     final selected = responseType == value;
-    return ChoiceChip(
-      selected: selected,
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [Icon(icon, size: 16), const SizedBox(width: 6), Text(label)],
+    final activeColor = Theme.of(context).colorScheme.primary;
+
+    return Tooltip(
+      message: description,
+      child: ChoiceChip(
+        selected: selected,
+        showCheckmark: false,
+        avatar: Icon(
+          icon,
+          size: 16,
+          color: selected ? activeColor : Colors.grey.shade600,
+        ),
+        label: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: selected ? activeColor : null,
+              ),
+            ),
+            Text(
+              description,
+              style: TextStyle(
+                fontSize: 10,
+                color:
+                    selected
+                        ? activeColor.withValues(alpha: 0.75)
+                        : Colors.grey.shade500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+        onSelected: (_) => onResponseTypeChanged(value),
       ),
-      onSelected: (_) => onResponseTypeChanged(value),
     );
   }
 }
