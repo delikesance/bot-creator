@@ -39,20 +39,24 @@ void main() {
     ];
 
     test('core entries exclude mobileSecondary items', () {
-      final core =
-          onlineEntries.where((e) => !e.mobileSecondary).toList();
+      final core = onlineEntries.where((e) => !e.mobileSecondary).toList();
       expect(core.length, 4);
-      expect(core.map((e) => e.label), ['Home', 'Commands', 'Globals', 'Workflows']);
+      expect(core.map((e) => e.label), [
+        'Home',
+        'Commands',
+        'Globals',
+        'Workflows',
+      ]);
     });
 
     test('secondary entries contain Emojis, Dashboard, Settings', () {
-      final secondary =
-          onlineEntries.where((e) => e.mobileSecondary).toList();
+      final secondary = onlineEntries.where((e) => e.mobileSecondary).toList();
       expect(secondary.length, 3);
-      expect(
-        secondary.map((e) => e.label),
-        ['Emojis', 'Dashboard', 'Settings'],
-      );
+      expect(secondary.map((e) => e.label), [
+        'Emojis',
+        'Dashboard',
+        'Settings',
+      ]);
     });
 
     test('offline entries have no secondaries', () {
@@ -64,8 +68,7 @@ void main() {
         const _TestEntry(icon: Icons.account_tree, label: 'Workflows'),
       ];
 
-      final secondary =
-          offlineEntries.where((e) => e.mobileSecondary).toList();
+      final secondary = offlineEntries.where((e) => e.mobileSecondary).toList();
       expect(secondary, isEmpty);
     });
 
@@ -86,15 +89,15 @@ void main() {
       expect(moreSelected, isTrue);
 
       final bottomIndex =
-          moreSelected ? coreIndices.length : coreIndices.indexOf(selectedIndex);
+          moreSelected
+              ? coreIndices.length
+              : coreIndices.indexOf(selectedIndex);
       expect(bottomIndex, 4); // "More" tab is at index 4 (5th item)
     });
 
     test('bottom nav has 5 items on mobile (4 core + More)', () {
-      final coreCount =
-          onlineEntries.where((e) => !e.mobileSecondary).length;
-      final hasSecondary =
-          onlineEntries.any((e) => e.mobileSecondary);
+      final coreCount = onlineEntries.where((e) => !e.mobileSecondary).length;
+      final hasSecondary = onlineEntries.any((e) => e.mobileSecondary);
 
       final totalBottomItems = coreCount + (hasSecondary ? 1 : 0);
       expect(totalBottomItems, 5);
@@ -133,8 +136,9 @@ void main() {
   });
 
   group('More sheet – visual layout', () {
-    testWidgets('renders MoreSheetItem-style grid for secondary entries',
-        (tester) async {
+    testWidgets('renders MoreSheetItem-style grid for secondary entries', (
+      tester,
+    ) async {
       // Simulate the "More" sheet grid layout with 3 secondary items
       await tester.pumpWidget(
         MaterialApp(
@@ -145,7 +149,10 @@ void main() {
                 return Row(
                   children: [
                     for (final entry in [
-                      {'icon': Icons.emoji_emotions_outlined, 'label': 'Emojis'},
+                      {
+                        'icon': Icons.emoji_emotions_outlined,
+                        'label': 'Emojis',
+                      },
                       {'icon': Icons.bar_chart, 'label': 'Dashboard'},
                       {'icon': Icons.settings, 'label': 'Settings'},
                     ])
@@ -163,8 +170,10 @@ void main() {
                                 children: [
                                   Icon(entry['icon'] as IconData, size: 24),
                                   const SizedBox(height: 6),
-                                  Text(entry['label'] as String,
-                                      style: const TextStyle(fontSize: 12)),
+                                  Text(
+                                    entry['label'] as String,
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
                                 ],
                               ),
                             ),

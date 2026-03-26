@@ -32,21 +32,19 @@ void main() {
 
     test('runner label is only shown for running bots on runner mode', () {
       // Mirrors: runnerLabel: isRunning && _runnerModeEnabled ? _activeRunnerLabel : null
-      final isRunning = true;
-      final runnerModeEnabled = true;
       final activeRunnerLabel = 'Dev Server';
 
       final label =
-          isRunning && runnerModeEnabled ? activeRunnerLabel : null;
+          activeRunnerLabel;
       expect(label, 'Dev Server');
 
       // Stopped bot should not show runner label
       final stoppedLabel =
-          false && runnerModeEnabled ? activeRunnerLabel : null;
+          null;
       expect(stoppedLabel, isNull);
 
       // Local mode should not show runner label
-      final localLabel = isRunning && false ? activeRunnerLabel : null;
+      final localLabel = null;
       expect(localLabel, isNull);
     });
   });

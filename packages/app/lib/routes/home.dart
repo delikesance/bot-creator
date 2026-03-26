@@ -610,9 +610,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           isRunning: isRunning,
                           canToggle: canToggle,
                           isTogglingThisBot: _isTogglingBot && isRunning,
-                          runnerLabel: isRunning && _runnerModeEnabled
-                              ? _activeRunnerLabel
-                              : null,
+                          runnerLabel:
+                              isRunning && _runnerModeEnabled
+                                  ? _activeRunnerLabel
+                                  : null,
                           pulseController: pulseCtrl,
                           onManage:
                               () => Navigator.push(
@@ -774,7 +775,8 @@ class _BotCard extends StatelessWidget {
             ),
 
             // ── Runner affinity ──────────────────────────────────────────────
-            if (runnerLabel != null) ...[              SizedBox(height: compact ? 3 : 4),
+            if (runnerLabel != null) ...[
+              SizedBox(height: compact ? 3 : 4),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,

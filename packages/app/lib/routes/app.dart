@@ -384,8 +384,7 @@ class _AppEditPageState extends State<AppEditPage>
     }
 
     final hasSecondary = secondaryEntries.isNotEmpty;
-    final moreSelected =
-        hasSecondary && secondaryEntries.contains(activeIndex);
+    final moreSelected = hasSecondary && secondaryEntries.contains(activeIndex);
 
     // Bottom nav index mapping
     int bottomIndex;
@@ -492,8 +491,7 @@ class _AppEditPageState extends State<AppEditPage>
                         child: _MoreSheetItem(
                           icon: entries[secondaryIndices[idx]].icon,
                           label: entries[secondaryIndices[idx]].label,
-                          selected:
-                              _selectedIndex == secondaryIndices[idx],
+                          selected: _selectedIndex == secondaryIndices[idx],
                           colorScheme: colorScheme,
                           onTap: () {
                             Navigator.pop(sheetContext);

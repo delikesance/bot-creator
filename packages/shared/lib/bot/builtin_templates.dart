@@ -1,133 +1,141 @@
 import 'package:bot_creator_shared/bot/bot_template.dart';
 
 /// All built-in templates available in the template gallery.
-const List<BotTemplate> builtInTemplates = [
+final List<BotTemplate> builtInTemplates = [
   welcomeTemplate,
   moderationTemplate,
   utilityTemplate,
   funTemplate,
 ];
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+/// Base workflow block used by all commands (avoids verbose repetition).
+const Map<String, dynamic> _defaultWorkflow = {
+  'autoDeferIfActions': true,
+  'visibility': 'public',
+  'onError': 'edit_error',
+  'conditional': _disabledConditional,
+};
+
+const Map<String, dynamic> _ephemeralWorkflow = {
+  'autoDeferIfActions': true,
+  'visibility': 'ephemeral',
+  'onError': 'edit_error',
+  'conditional': _disabledConditional,
+};
+
+const Map<String, dynamic> _disabledConditional = {
+  'enabled': false,
+  'variable': '',
+  'whenTrueType': 'normal',
+  'whenFalseType': 'normal',
+  'whenTrueText': '',
+  'whenFalseText': '',
+  'whenTrueEmbeds': <Map<String, dynamic>>[],
+  'whenFalseEmbeds': <Map<String, dynamic>>[],
+  'whenTrueNormalComponents': <String, dynamic>{},
+  'whenFalseNormalComponents': <String, dynamic>{},
+  'whenTrueComponents': <String, dynamic>{},
+  'whenFalseComponents': <String, dynamic>{},
+  'whenTrueModal': <String, dynamic>{},
+  'whenFalseModal': <String, dynamic>{},
+};
+
+/// Build a text response payload.
+Map<String, dynamic> _textResponse(
+  String text, {
+  Map<String, dynamic> workflow = _defaultWorkflow,
+}) =>
+    {
+      'mode': 'text',
+      'text': text,
+      'type': 'normal',
+      'embed': const <String, dynamic>{
+        'title': '',
+        'description': '',
+        'url': '',
+      },
+      'embeds': const <Map<String, dynamic>>[],
+      'components': const <String, dynamic>{},
+      'modal': const <String, dynamic>{},
+      'workflow': workflow,
+    };
+
+/// Build an embed response payload.
+Map<String, dynamic> _embedResponse(
+  Map<String, dynamic> embed, {
+  Map<String, dynamic> workflow = _defaultWorkflow,
+}) =>
+    {
+      'mode': 'embed',
+      'text': '',
+      'type': 'normal',
+      'embed': embed,
+      'embeds': [embed],
+      'components': const <String, dynamic>{},
+      'modal': const <String, dynamic>{},
+      'workflow': workflow,
+    };
+
+/// Build a full command data map.
+Map<String, dynamic> _commandData({
+  String commandType = 'chatInput',
+  String editorMode = 'advanced',
+  Map<String, dynamic> simpleConfig = const {},
+  String defaultMemberPermissions = '',
+  List<Map<String, dynamic>> options = const [],
+  required Map<String, dynamic> response,
+  List<Map<String, dynamic>> actions = const [],
+}) =>
+    {
+      'version': 1,
+      'commandType': commandType,
+      'editorMode': editorMode,
+      'simpleConfig': simpleConfig,
+      'defaultMemberPermissions': defaultMemberPermissions,
+      if (options.isNotEmpty) 'options': options,
+      'response': response,
+      'actions': actions,
+    };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Welcome Bot
 // ─────────────────────────────────────────────────────────────────────────────
 
-const welcomeTemplate = BotTemplate(
+final welcomeTemplate = BotTemplate(
   id: 'welcome',
   nameKey: 'template_welcome_name',
   descriptionKey: 'template_welcome_description',
   iconCodePoint: 0xe7f2, // Icons.waving_hand
   category: 'community',
-  intents: {'guildMembers': true, 'messageContent': true},
+  intents: const {'guildMembers': true, 'messageContent': true},
   commands: [
     BotTemplateCommand(
       name: 'hello',
       description: 'Say hello to the bot',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'advanced',
-        'simpleConfig': {},
-        'defaultMemberPermissions': '',
-        'response': {
-          'mode': 'embed',
-          'text': '',
-          'type': 'normal',
-          'embed': {
-            'title': '👋 Hello ((userName))!',
-            'description':
-                'Welcome to **((guildName))**! We are glad to have you here.',
-            'color': 5793266,
-          },
-          'embeds': [
-            {
-              'title': '👋 Hello ((userName))!',
-              'description':
-                  'Welcome to **((guildName))**! We are glad to have you here.',
-              'color': 5793266,
-            },
-          ],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'public',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+      data: _commandData(
+        response: _embedResponse({
+          'title': '👋 Hello ((userName))!',
+          'description':
+              'Welcome to **((guildName))**! We are glad to have you here.',
+          'color': 5793266,
+        }),
+      ),
     ),
     BotTemplateCommand(
       name: 'serverinfo',
       description: 'Display information about this server',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'advanced',
-        'simpleConfig': {},
-        'defaultMemberPermissions': '',
-        'response': {
-          'mode': 'embed',
-          'text': '',
-          'type': 'normal',
-          'embed': {
-            'title': '📊 ((guildName))',
-            'description': '**Members:** ((guildCount))\n**ID:** ((guildId))',
-            'color': 3447003,
-          },
-          'embeds': [
-            {
-              'title': '📊 ((guildName))',
-              'description': '**Members:** ((guildCount))\n**ID:** ((guildId))',
-              'color': 3447003,
-            },
-          ],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'public',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+      data: _commandData(
+        response: _embedResponse({
+          'title': '📊 ((guildName))',
+          'description': '**Members:** ((guildCount))\n**ID:** ((guildId))',
+          'color': 3447003,
+        }),
+      ),
     ),
   ],
-  workflows: [
+  workflows: const [
     {
       'name': 'welcome_message',
       'workflowType': 'event',
@@ -139,7 +147,8 @@ const welcomeTemplate = BotTemplate(
           'type': 'sendMessage',
           'enabled': true,
           'payload': {
-            'channelId': '((channelId))',
+            // Uses the guild system channel as fallback when no channelId var.
+            'channelId': '((event.guild.systemChannelId|channelId))',
             'content':
                 '🎉 Welcome <@((member.id))>! You are now part of the server.',
           },
@@ -153,24 +162,26 @@ const welcomeTemplate = BotTemplate(
 // Moderation Bot
 // ─────────────────────────────────────────────────────────────────────────────
 
-const moderationTemplate = BotTemplate(
+final moderationTemplate = BotTemplate(
   id: 'moderation',
   nameKey: 'template_moderation_name',
   descriptionKey: 'template_moderation_description',
   iconCodePoint: 0xe8e8, // Icons.shield
   category: 'moderation',
-  intents: {'guildMembers': true, 'messageContent': true},
+  intents: const {'guildMembers': true, 'messageContent': true},
   commands: [
     BotTemplateCommand(
       name: 'ban',
       description: 'Ban a member from the server',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'simple',
-        'simpleConfig': {'banUser': true, 'actionReason': '((opts.reason))'},
-        'defaultMemberPermissions': '4',
-        'options': [
+      data: _commandData(
+        editorMode: 'simple',
+        simpleConfig: const {
+          'banUser': true,
+          'actionReason': '((opts.reason))',
+        },
+        // BAN_MEMBERS (0x4)
+        defaultMemberPermissions: '4',
+        options: const [
           {
             'type': 'user',
             'name': 'target',
@@ -184,49 +195,24 @@ const moderationTemplate = BotTemplate(
             'required': false,
           },
         ],
-        'response': {
-          'mode': 'text',
-          'text': '🔨 ((opts.target)) has been banned.',
-          'type': 'normal',
-          'embed': {'title': '', 'description': '', 'url': ''},
-          'embeds': <Map<String, dynamic>>[],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'ephemeral',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+        response: _textResponse(
+          '🔨 ((opts.target)) has been banned.',
+          workflow: _ephemeralWorkflow,
+        ),
+      ),
     ),
     BotTemplateCommand(
       name: 'kick',
       description: 'Kick a member from the server',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'simple',
-        'simpleConfig': {'kickUser': true, 'actionReason': '((opts.reason))'},
-        'defaultMemberPermissions': '2',
-        'options': [
+      data: _commandData(
+        editorMode: 'simple',
+        simpleConfig: const {
+          'kickUser': true,
+          'actionReason': '((opts.reason))',
+        },
+        // KICK_MEMBERS (0x2)
+        defaultMemberPermissions: '2',
+        options: const [
           {
             'type': 'user',
             'name': 'target',
@@ -240,53 +226,25 @@ const moderationTemplate = BotTemplate(
             'required': false,
           },
         ],
-        'response': {
-          'mode': 'text',
-          'text': '👢 ((opts.target)) has been kicked.',
-          'type': 'normal',
-          'embed': {'title': '', 'description': '', 'url': ''},
-          'embeds': <Map<String, dynamic>>[],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'ephemeral',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+        response: _textResponse(
+          '👢 ((opts.target)) has been kicked.',
+          workflow: _ephemeralWorkflow,
+        ),
+      ),
     ),
     BotTemplateCommand(
       name: 'mute',
       description: 'Timeout a member',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'simple',
-        'simpleConfig': {
+      data: _commandData(
+        editorMode: 'simple',
+        simpleConfig: const {
           'muteUser': true,
           'muteDuration': '600',
           'actionReason': '((opts.reason))',
         },
-        'defaultMemberPermissions': '1099511627776',
-        'options': [
+        // MODERATE_MEMBERS (0x10000000000)
+        defaultMemberPermissions: '1099511627776',
+        options: const [
           {
             'type': 'user',
             'name': 'target',
@@ -300,52 +258,24 @@ const moderationTemplate = BotTemplate(
             'required': false,
           },
         ],
-        'response': {
-          'mode': 'text',
-          'text': '🔇 ((opts.target)) has been muted.',
-          'type': 'normal',
-          'embed': {'title': '', 'description': '', 'url': ''},
-          'embeds': <Map<String, dynamic>>[],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'ephemeral',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+        response: _textResponse(
+          '🔇 ((opts.target)) has been muted.',
+          workflow: _ephemeralWorkflow,
+        ),
+      ),
     ),
     BotTemplateCommand(
       name: 'clear',
       description: 'Delete multiple messages at once',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'simple',
-        'simpleConfig': {
+      data: _commandData(
+        editorMode: 'simple',
+        simpleConfig: const {
           'deleteMessages': true,
           'deleteMessagesDefaultCount': '((opts.amount))',
         },
-        'defaultMemberPermissions': '8192',
-        'options': [
+        // MANAGE_MESSAGES (0x2000)
+        defaultMemberPermissions: '8192',
+        options: const [
           {
             'type': 'integer',
             'name': 'amount',
@@ -355,38 +285,11 @@ const moderationTemplate = BotTemplate(
             'max_value': 100,
           },
         ],
-        'response': {
-          'mode': 'text',
-          'text': '🗑️ Deleted ((opts.amount)) message(s).',
-          'type': 'normal',
-          'embed': {'title': '', 'description': '', 'url': ''},
-          'embeds': <Map<String, dynamic>>[],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'ephemeral',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+        response: _textResponse(
+          '🗑️ Deleted ((opts.amount)) message(s).',
+          workflow: _ephemeralWorkflow,
+        ),
+      ),
     ),
   ],
 );
@@ -395,66 +298,24 @@ const moderationTemplate = BotTemplate(
 // Utility Bot
 // ─────────────────────────────────────────────────────────────────────────────
 
-const utilityTemplate = BotTemplate(
+final utilityTemplate = BotTemplate(
   id: 'utility',
   nameKey: 'template_utility_name',
   descriptionKey: 'template_utility_description',
   iconCodePoint: 0xe86c, // Icons.build
   category: 'utility',
-  intents: {'messageContent': true},
+  intents: const {'messageContent': true},
   commands: [
     BotTemplateCommand(
       name: 'ping',
       description: 'Check if the bot is online',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'advanced',
-        'simpleConfig': {},
-        'defaultMemberPermissions': '',
-        'response': {
-          'mode': 'text',
-          'text': '🏓 Pong!',
-          'type': 'normal',
-          'embed': {'title': '', 'description': '', 'url': ''},
-          'embeds': <Map<String, dynamic>>[],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'public',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+      data: _commandData(response: _textResponse('🏓 Pong!')),
     ),
     BotTemplateCommand(
       name: 'avatar',
-      description: 'Display a user\'s avatar',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'advanced',
-        'simpleConfig': {},
-        'defaultMemberPermissions': '',
-        'options': [
+      description: "Display a user's avatar",
+      data: _commandData(
+        options: const [
           {
             'type': 'user',
             'name': 'user',
@@ -462,59 +323,20 @@ const utilityTemplate = BotTemplate(
             'required': false,
           },
         ],
-        'response': {
-          'mode': 'embed',
-          'text': '',
-          'type': 'normal',
-          'embed': {
-            'title': '🖼️ ((opts.user|userName))\'s avatar',
-            'image': '((avatar(opts.user.avatar|userAvatar)))',
-            'color': 3447003,
-          },
-          'embeds': [
-            {
-              'title': '🖼️ ((opts.user|userName))\'s avatar',
-              'image': '((avatar(opts.user.avatar|userAvatar)))',
-              'color': 3447003,
-            },
-          ],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'public',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+        response: _embedResponse({
+          'title': "🖼️ ((opts.user|userName))'s avatar",
+          'image': '((avatar(opts.user.avatar|userAvatar)))',
+          'color': 3447003,
+        }),
+      ),
     ),
     BotTemplateCommand(
       name: 'say',
       description: 'Make the bot send a message',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'advanced',
-        'simpleConfig': {},
-        'defaultMemberPermissions': '8',
-        'options': [
+      data: _commandData(
+        // ADMINISTRATOR (0x8)
+        defaultMemberPermissions: '8',
+        options: const [
           {
             'type': 'string',
             'name': 'message',
@@ -528,47 +350,23 @@ const utilityTemplate = BotTemplate(
             'required': false,
           },
         ],
-        'response': {
-          'mode': 'text',
-          'text': '✅ Message sent!',
-          'type': 'normal',
-          'embed': {'title': '', 'description': '', 'url': ''},
-          'embeds': <Map<String, dynamic>>[],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'ephemeral',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [
+        response: _textResponse(
+          '✅ Message sent!',
+          workflow: _ephemeralWorkflow,
+        ),
+        actions: const [
           {
             'type': 'sendMessage',
             'enabled': true,
             'payload': {
-              'channelId': '((opts.channel.id|channelId))',
+              // Fixed: opts.channel resolves to the channel ID directly.
+              // The fallback channelId uses the current interaction channel.
+              'channelId': '((opts.channel|channelId))',
               'content': '((opts.message))',
             },
           },
         ],
-      },
+      ),
     ),
   ],
 );
@@ -577,32 +375,31 @@ const utilityTemplate = BotTemplate(
 // Fun Bot
 // ─────────────────────────────────────────────────────────────────────────────
 
-const funTemplate = BotTemplate(
+final funTemplate = BotTemplate(
   id: 'fun',
   nameKey: 'template_fun_name',
   descriptionKey: 'template_fun_description',
   iconCodePoint: 0xe7f3, // Icons.emoji_emotions
   category: 'fun',
-  intents: {'messageContent': true},
+  intents: const {'messageContent': true},
   commands: [
     BotTemplateCommand(
       name: 'coinflip',
       description: 'Flip a coin — heads or tails',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'advanced',
-        'simpleConfig': {},
-        'defaultMemberPermissions': '',
-        'response': {
+      data: _commandData(
+        response: {
           'mode': 'text',
           'text': '',
           'type': 'normal',
-          'embed': {'title': '', 'description': '', 'url': ''},
-          'embeds': <Map<String, dynamic>>[],
-          'components': {},
-          'modal': {},
-          'workflow': {
+          'embed': const <String, dynamic>{
+            'title': '',
+            'description': '',
+            'url': '',
+          },
+          'embeds': const <Map<String, dynamic>>[],
+          'components': const <String, dynamic>{},
+          'modal': const <String, dynamic>{},
+          'workflow': const {
             'autoDeferIfActions': true,
             'visibility': 'public',
             'onError': 'edit_error',
@@ -613,34 +410,30 @@ const funTemplate = BotTemplate(
               'whenFalseType': 'normal',
               'whenTrueText': '🪙 **Heads!**',
               'whenFalseText': '🪙 **Tails!**',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
+              'whenTrueEmbeds': <Map<String, dynamic>>[],
+              'whenFalseEmbeds': <Map<String, dynamic>>[],
+              'whenTrueNormalComponents': <String, dynamic>{},
+              'whenFalseNormalComponents': <String, dynamic>{},
+              'whenTrueComponents': <String, dynamic>{},
+              'whenFalseComponents': <String, dynamic>{},
+              'whenTrueModal': <String, dynamic>{},
+              'whenFalseModal': <String, dynamic>{},
             },
           },
         },
-        'actions': [],
-      },
+      ),
     ),
     BotTemplateCommand(
       name: 'poll',
       description: 'Create a quick poll',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'simple',
-        'simpleConfig': {
+      data: _commandData(
+        editorMode: 'simple',
+        simpleConfig: const {
           'createPoll': true,
           'pollDurationHours': '24',
           'pollAllowMultiselect': false,
         },
-        'defaultMemberPermissions': '',
-        'options': [
+        options: const [
           {
             'type': 'string',
             'name': 'question',
@@ -648,49 +441,14 @@ const funTemplate = BotTemplate(
             'required': true,
           },
         ],
-        'response': {
-          'mode': 'text',
-          'text': '📊 Poll created!',
-          'type': 'normal',
-          'embed': {'title': '', 'description': '', 'url': ''},
-          'embeds': <Map<String, dynamic>>[],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'public',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+        response: _textResponse('📊 Poll created!'),
+      ),
     ),
     BotTemplateCommand(
       name: '8ball',
       description: 'Ask the magic 8-ball a question',
-      data: {
-        'version': 1,
-        'commandType': 'chatInput',
-        'editorMode': 'advanced',
-        'simpleConfig': {},
-        'defaultMemberPermissions': '',
-        'options': [
+      data: _commandData(
+        options: const [
           {
             'type': 'string',
             'name': 'question',
@@ -698,50 +456,13 @@ const funTemplate = BotTemplate(
             'required': true,
           },
         ],
-        'response': {
-          'mode': 'embed',
-          'text': '',
-          'type': 'normal',
-          'embed': {
-            'title': '🎱 Magic 8-Ball',
-            'description':
-                '**Q:** ((opts.question))\n**A:** ((randomchoice("Yes!", "No.", "Maybe...", "Ask again later.", "Definitely!", "I doubt it.", "Without a doubt.", "Better not tell you now.")))',
-            'color': 1752220,
-          },
-          'embeds': [
-            {
-              'title': '🎱 Magic 8-Ball',
-              'description':
-                  '**Q:** ((opts.question))\n**A:** ((randomchoice("Yes!", "No.", "Maybe...", "Ask again later.", "Definitely!", "I doubt it.", "Without a doubt.", "Better not tell you now.")))',
-              'color': 1752220,
-            },
-          ],
-          'components': {},
-          'modal': {},
-          'workflow': {
-            'autoDeferIfActions': true,
-            'visibility': 'public',
-            'onError': 'edit_error',
-            'conditional': {
-              'enabled': false,
-              'variable': '',
-              'whenTrueType': 'normal',
-              'whenFalseType': 'normal',
-              'whenTrueText': '',
-              'whenFalseText': '',
-              'whenTrueEmbeds': [],
-              'whenFalseEmbeds': [],
-              'whenTrueNormalComponents': {},
-              'whenFalseNormalComponents': {},
-              'whenTrueComponents': {},
-              'whenFalseComponents': {},
-              'whenTrueModal': {},
-              'whenFalseModal': {},
-            },
-          },
-        },
-        'actions': [],
-      },
+        response: _embedResponse({
+          'title': '🎱 Magic 8-Ball',
+          'description':
+              '**Q:** ((opts.question))\n**A:** ((randomchoice("Yes!", "No.", "Maybe...", "Ask again later.", "Definitely!", "I doubt it.", "Without a doubt.", "Better not tell you now.")))',
+          'color': 1752220,
+        }),
+      ),
     ),
   ],
 );
