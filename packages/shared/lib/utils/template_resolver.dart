@@ -611,8 +611,11 @@ dynamic _applyFunction(
         format: args.length >= 2 ? args[1] : 'webp',
         size: args.length >= 3 ? args[2] : 1024,
       );
+    case 'coin':
     case 'random':
-      // random() → random bool ("true" or "")
+      // coin() / random() → random bool ("true" or "")
+      // Use coin() in conditionals for true/false branching.
+      // random() is kept as a legacy alias.
       return _random.nextBool() ? 'true' : '';
     case 'randomchoice':
       // randomchoice("a", "b", "c") → picks one at random

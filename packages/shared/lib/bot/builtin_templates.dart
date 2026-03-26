@@ -405,7 +405,7 @@ final funTemplate = BotTemplate(
             'onError': 'edit_error',
             'conditional': {
               'enabled': true,
-              'variable': '((random()))',
+              'variable': '((coin()))',
               'whenTrueType': 'normal',
               'whenFalseType': 'normal',
               'whenTrueText': '🪙 **Heads!**',

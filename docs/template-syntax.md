@@ -146,6 +146,23 @@ Exemples:
 | `avatar(url, format?, size?)` | Re-formate une URL avatar Discord | `((avatar(interaction.user.avatar, "png", 256)))` |
 | `banner(url, format?, size?)` | Re-formate une URL bannière Discord | `((banner(interaction.user.banner, "webp", 1024)))` |
 
+### Fonctions de hasard (template-level)
+
+| Fonction | Rôle | Exemple |
+|----------|------|---------|
+| `coin()` | Booléen aléatoire (`"true"` ou `""`) — idéal dans les conditionnels | `((coin()))` |
+| `random()` | Alias legacy de `coin()` | `((random()))` |
+| `randomchoice(a, b, ...)` | Choisit un argument au hasard | `((randomchoice("Oui", "Non", "Peut-être")))` |
+| `randomint(min, max)` | Entier aléatoire dans `[min, max]` | `((randomint(1, 100)))` |
+
+> **Convention : template-level vs action-level**
+>
+> - Utilisez les fonctions template (`coin()`, `randomchoice()`, `randomint()`)
+>   quand le résultat est consommé **une seule fois** dans le texte ou un conditionnel.
+> - Utilisez l'action `calculate` avec l'opération `random` ou `randomFloat`
+>   quand vous devez **stocker** le résultat dans une variable et le **réutiliser**
+>   dans plusieurs actions ou workflows.
+
 ---
 
 ## 5. Placeholders d'item pour les arrays
@@ -331,6 +348,9 @@ Feature count: ((guild.features.count|0))
 - Utilisez `formatEach(...)` pour du texte lisible à partir d'objets JSON
 - Utilisez `embedFields(...)` pour construire dynamiquement des fields
 - Réservez `|` au fallback global, pas à une logique de transformation
+- Utilisez `coin()` (pas `random()`) pour les conditionnels vrai/faux
+- Utilisez `randomchoice(...)` pour choisir parmi des options en ligne
+- Utilisez l'action `calculate` + `random` pour stocker un résultat réutilisable
 - Quand une réponse HTTP renvoie un array d'objets, préférez:
 
 ```txt
