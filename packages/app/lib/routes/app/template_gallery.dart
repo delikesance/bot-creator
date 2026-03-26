@@ -2,10 +2,12 @@ import 'dart:math';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/analytics.dart';
+import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator_shared/bot/bot_template.dart';
 import 'package:bot_creator_shared/bot/builtin_templates.dart';
 import 'package:flutter/material.dart';
+import 'package:nyxx/nyxx.dart';
 
 /// Const icon mapping so Flutter's icon tree-shaker can resolve them
 /// statically (dynamic `IconData(codePoint)` breaks AOT builds).
@@ -20,8 +22,9 @@ const Map<String, IconData> _templateIcons = {
 /// them to the current bot.
 class TemplateGalleryPage extends StatelessWidget {
   final String botId;
+  final NyxxRest? client;
 
-  const TemplateGalleryPage({super.key, required this.botId});
+  const TemplateGalleryPage({super.key, required this.botId, this.client});
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +53,11 @@ class TemplateGalleryPage extends StatelessWidget {
                     ),
                   ),
                   ...builtInTemplates.map(
-                    (template) =>
-                        _TemplateCard(template: template, botId: botId),
+                    (template) => _TemplateCard(
+                      template: template,
+                      botId: botId,
+                      client: client,
+                    ),
                   ),
                 ],
               ),
@@ -62,8 +68,13 @@ class TemplateGalleryPage extends StatelessWidget {
 class _TemplateCard extends StatefulWidget {
   final BotTemplate template;
   final String botId;
+  final NyxxRest? client;
 
-  const _TemplateCard({required this.template, required this.botId});
+  const _TemplateCard({
+    required this.template,
+    required this.botId,
+    this.client,
+  });
 
   @override
   State<_TemplateCard> createState() => _TemplateCardState();
@@ -113,6 +124,7 @@ class _TemplateCardState extends State<_TemplateCard> {
 
       final skipped = <String>[];
       var addedCommands = 0;
+      final client = widget.client;
 
       for (final cmd in widget.template.commands) {
         if (existingNames.contains(cmd.name.toLowerCase())) {
@@ -120,24 +132,65 @@ class _TemplateCardState extends State<_TemplateCard> {
           continue;
         }
 
-        // Generate a unique command ID
-        final commandId =
-            DateTime.now().millisecondsSinceEpoch.toString() +
-            Random().nextInt(99999).toString();
-
-        final commandMap = <String, dynamic>{
-          'id': commandId,
-          'name': cmd.name,
-          'description': cmd.description,
-          'type': cmd.data['commandType'] ?? 'chatInput',
-          'templateOrigin': {
-            'templateId': widget.template.id,
-            'appliedAt': DateTime.now().toIso8601String(),
-          },
-          'data': Map<String, dynamic>.from(cmd.data),
+        final commandType = (cmd.data['commandType'] ?? 'chatInput').toString();
+        final templateOrigin = <String, dynamic>{
+          'templateId': widget.template.id,
+          'appliedAt': DateTime.now().toIso8601String(),
         };
+        final commandData = Map<String, dynamic>.from(cmd.data);
 
-        await appManager.saveAppCommand(widget.botId, commandId, commandMap);
+        if (client != null) {
+          // Register on Discord and save with real ID
+          try {
+            final ApplicationCommandBuilder commandBuilder;
+            if (commandType == 'user') {
+              commandBuilder = ApplicationCommandBuilder.user(name: cmd.name);
+            } else if (commandType == 'message') {
+              commandBuilder = ApplicationCommandBuilder.message(
+                name: cmd.name,
+              );
+            } else {
+              commandBuilder = ApplicationCommandBuilder.chatInput(
+                name: cmd.name,
+                description: cmd.description,
+                options: [],
+              );
+            }
+            await createCommand(client, commandBuilder, data: commandData);
+          } catch (_) {
+            // Discord registration failed — save locally with temp ID
+            final commandId =
+                DateTime.now().millisecondsSinceEpoch.toString() +
+                Random().nextInt(99999).toString();
+            final commandMap = <String, dynamic>{
+              'id': commandId,
+              'name': cmd.name,
+              'description': cmd.description,
+              'type': commandType,
+              'templateOrigin': templateOrigin,
+              'data': commandData,
+            };
+            await appManager.saveAppCommand(
+              widget.botId,
+              commandId,
+              commandMap,
+            );
+          }
+        } else {
+          // No client — save locally with temp ID
+          final commandId =
+              DateTime.now().millisecondsSinceEpoch.toString() +
+              Random().nextInt(99999).toString();
+          final commandMap = <String, dynamic>{
+            'id': commandId,
+            'name': cmd.name,
+            'description': cmd.description,
+            'type': commandType,
+            'templateOrigin': templateOrigin,
+            'data': commandData,
+          };
+          await appManager.saveAppCommand(widget.botId, commandId, commandMap);
+        }
         addedCommands++;
       }
 
@@ -220,6 +273,15 @@ class _TemplateCardState extends State<_TemplateCard> {
         ),
       );
 
+      if (client == null && addedCommands > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppStrings.t('template_gallery_sync_warning')),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+
       await AppAnalytics.logEvent(
         name: 'apply_template',
         parameters: {
@@ -257,23 +319,25 @@ class _TemplateCardState extends State<_TemplateCard> {
 
     // Find commands generated by this template.
     final commands = await appManager.listAppCommands(widget.botId);
-    final templateCommands = commands.where((cmd) {
-      final origin = cmd['templateOrigin'] as Map?;
-      return (origin?['templateId'] ?? '').toString() == templateId;
-    }).toList();
+    final templateCommands =
+        commands.where((cmd) {
+          final origin = cmd['templateOrigin'] as Map?;
+          return (origin?['templateId'] ?? '').toString() == templateId;
+        }).toList();
 
     // Find workflows generated by this template.
     final appData = await appManager.getApp(widget.botId);
     final allWorkflows = List<Map<String, dynamic>>.from(
       (appData['workflows'] as List?)?.whereType<Map>().map(
-                (w) => Map<String, dynamic>.from(w),
-              ) ??
+            (w) => Map<String, dynamic>.from(w),
+          ) ??
           const <Map<String, dynamic>>[],
     );
-    final templateWorkflows = allWorkflows.where((wf) {
-      final origin = wf['templateOrigin'] as Map?;
-      return (origin?['templateId'] ?? '').toString() == templateId;
-    }).toList();
+    final templateWorkflows =
+        allWorkflows.where((wf) {
+          final origin = wf['templateOrigin'] as Map?;
+          return (origin?['templateId'] ?? '').toString() == templateId;
+        }).toList();
 
     final totalCount = templateCommands.length + templateWorkflows.length;
 
@@ -295,32 +359,33 @@ class _TemplateCardState extends State<_TemplateCard> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(AppStrings.t('template_gallery_remove_title')),
-        content: Text(
-          AppStrings.tr(
-            'template_gallery_remove_confirm',
-            params: {
-              'name': AppStrings.t(widget.template.nameKey),
-              'commands': templateCommands.length.toString(),
-              'workflows': templateWorkflows.length.toString(),
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(AppStrings.t('cancel')),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
+      builder:
+          (ctx) => AlertDialog(
+            title: Text(AppStrings.t('template_gallery_remove_title')),
+            content: Text(
+              AppStrings.tr(
+                'template_gallery_remove_confirm',
+                params: {
+                  'name': AppStrings.t(widget.template.nameKey),
+                  'commands': templateCommands.length.toString(),
+                  'workflows': templateWorkflows.length.toString(),
+                },
+              ),
             ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(AppStrings.t('delete')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: Text(AppStrings.t('cancel')),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: Text(AppStrings.t('delete')),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
     if (confirmed != true || !mounted) return;
@@ -336,10 +401,11 @@ class _TemplateCardState extends State<_TemplateCard> {
       }
 
       if (templateWorkflows.isNotEmpty) {
-        final remaining = allWorkflows.where((wf) {
-          final origin = wf['templateOrigin'] as Map?;
-          return (origin?['templateId'] ?? '').toString() != templateId;
-        }).toList();
+        final remaining =
+            allWorkflows.where((wf) {
+              final origin = wf['templateOrigin'] as Map?;
+              return (origin?['templateId'] ?? '').toString() != templateId;
+            }).toList();
         appData['workflows'] = remaining;
         await appManager.saveApp(widget.botId, appData);
       }
@@ -363,9 +429,9 @@ class _TemplateCardState extends State<_TemplateCard> {
       Navigator.of(context).pop(true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.toString())));
       }
     } finally {
       if (mounted) {
@@ -421,7 +487,9 @@ class _TemplateCardState extends State<_TemplateCard> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
                         _InfoChip(
                           icon: Icons.code,
@@ -432,8 +500,7 @@ class _TemplateCardState extends State<_TemplateCard> {
                             },
                           ),
                         ),
-                        if (template.workflows.isNotEmpty) ...[
-                          const SizedBox(width: 8),
+                        if (template.workflows.isNotEmpty)
                           _InfoChip(
                             icon: Icons.account_tree,
                             label: AppStrings.tr(
@@ -443,7 +510,6 @@ class _TemplateCardState extends State<_TemplateCard> {
                               },
                             ),
                           ),
-                        ],
                       ],
                     ),
                   ],

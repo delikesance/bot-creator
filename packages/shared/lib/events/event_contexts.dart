@@ -102,10 +102,12 @@ Map<String, String> _inviteExtra({
   'invite.inviterId': inviterId,
 };
 
-Map<String, String> _pollVoteExtra(dynamic raw) => <String, String>{
-  'message.id': _idString(raw.messageId),
-  'poll.answer.id': (raw.answerId ?? '').toString(),
-  'poll.question': (raw.question ?? '').toString(),
+Map<String, String> _pollVoteExtra({
+  required Snowflake messageId,
+  required int answerId,
+}) => <String, String>{
+  'message.id': messageId.toString(),
+  'poll.answer.id': answerId.toString(),
 };
 
 Map<String, String> _messageContentExtra(Message message) {

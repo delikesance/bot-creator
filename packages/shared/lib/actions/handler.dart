@@ -13,6 +13,7 @@ import 'package:bot_creator_shared/actions/guild_onboarding.dart';
 import 'package:bot_creator_shared/actions/update_self_user.dart';
 import 'package:bot_creator_shared/actions/thread_management.dart';
 import 'package:bot_creator_shared/actions/channel_permissions.dart';
+import 'package:bot_creator_shared/actions/permission_checks.dart';
 import 'package:bot_creator_shared/actions/executors/messaging_executor.dart';
 import 'package:bot_creator_shared/actions/executors/moderation_roles_executor.dart';
 import 'package:bot_creator_shared/actions/executors/reactions_executor.dart';
@@ -82,6 +83,7 @@ Future<Map<String, String>> handleActions(
       resultKey: resultKey,
       results: results,
       fallbackChannelId: resolvedFallbackChannelId,
+      guildId: guildId,
     );
     if (handledByReactionsExecutor) {
       continue;
@@ -274,6 +276,15 @@ Future<Map<String, String>> handleActions(
             'Action ${action.type.name} should have been handled by an executor before switch dispatch.',
           );
         case BotCreatorActionType.pinMessage:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.manageMessages],
+              actionLabel: 'pin messages',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final result = await pinMessageAction(
             client,
             payload: action.payload,
@@ -330,6 +341,15 @@ Future<Map<String, String>> handleActions(
           results[resultKey] = result['member'] ?? '';
           break;
         case BotCreatorActionType.unpinMessage:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.manageMessages],
+              actionLabel: 'unpin messages',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final unpinResult = await unpinMessageAction(
             client,
             payload: action.payload,
@@ -343,6 +363,15 @@ Future<Map<String, String>> handleActions(
 
         // ─── Polls ────────────────────────────────────────────────────────
         case BotCreatorActionType.createPoll:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.sendMessages],
+              actionLabel: 'create polls',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final pollResult = await createPollAction(
             client,
             payload: action.payload,
@@ -358,6 +387,15 @@ Future<Map<String, String>> handleActions(
           break;
 
         case BotCreatorActionType.endPoll:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.manageMessages],
+              actionLabel: 'end polls',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final endPollResult = await endPollAction(
             client,
             payload: action.payload,
@@ -371,6 +409,15 @@ Future<Map<String, String>> handleActions(
 
         // ─── Invitations ──────────────────────────────────────────────────
         case BotCreatorActionType.createInvite:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.createInstantInvite],
+              actionLabel: 'create invites',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final ciResult = await createInviteAction(
             client,
             payload: action.payload,
@@ -386,6 +433,15 @@ Future<Map<String, String>> handleActions(
           break;
 
         case BotCreatorActionType.deleteInvite:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.manageChannels],
+              actionLabel: 'delete invites',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final diResult = await deleteInviteAction(
             client,
             payload: action.payload,
@@ -598,6 +654,15 @@ Future<Map<String, String>> handleActions(
 
         // ─── Thread management ────────────────────────────────────────────
         case BotCreatorActionType.createThread:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.createPublicThreads],
+              actionLabel: 'create threads',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final ctResult = await createThreadAction(
             client,
             payload: action.payload,
@@ -615,6 +680,15 @@ Future<Map<String, String>> handleActions(
 
         // ─── Channel permissions ──────────────────────────────────────────
         case BotCreatorActionType.editChannelPermissions:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.manageRoles],
+              actionLabel: 'edit channel permissions',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final ecpResult = await editChannelPermissionsAction(
             client,
             payload: action.payload,
@@ -628,6 +702,15 @@ Future<Map<String, String>> handleActions(
           break;
 
         case BotCreatorActionType.deleteChannelPermission:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.manageRoles],
+              actionLabel: 'delete channel permissions',
+            );
+            if (permError != null) throw Exception(permError);
+          }
           final dcpResult = await deleteChannelPermissionAction(
             client,
             payload: action.payload,

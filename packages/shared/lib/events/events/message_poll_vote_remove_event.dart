@@ -3,12 +3,11 @@ part of '../event_contexts.dart';
 EventExecutionContext buildMessagePollVoteRemoveEventContext(
   MessagePollVoteRemoveEvent event,
 ) {
-  final raw = event as dynamic;
   return _baseEventContext(
     eventName: 'messagePollVoteRemove',
-    guildId: _asSnowflake(raw.guildId),
-    channelId: _asSnowflake(raw.channelId),
-    userId: _asSnowflake(raw.userId),
-    extra: _pollVoteExtra(raw),
+    guildId: _asSnowflake(event.guildId),
+    channelId: _asSnowflake(event.channelId),
+    userId: _asSnowflake(event.userId),
+    extra: _pollVoteExtra(messageId: event.messageId, answerId: event.answerId),
   );
 }

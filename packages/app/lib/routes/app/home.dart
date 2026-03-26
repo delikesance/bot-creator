@@ -236,9 +236,44 @@ class _AppHomePageState extends State<AppHomePage>
           withLocalizations: true,
         );
 
+        // Build an index of all local commands to reconcile temp IDs.
+        final allLocal = await appManager.listAppCommands(botId);
+        final reconciledLocalIds = <String>{};
+
         for (final command in remoteCommands) {
           final commandId = command.id.toString();
-          final local = await appManager.getAppCommand(botId, commandId);
+          var local = await appManager.getAppCommand(botId, commandId);
+
+          // If no local match by Discord ID, find by name+type to reconcile
+          // commands that were created offline with a temporary ID.
+          if (local.isEmpty) {
+            final commandType =
+                command.type == ApplicationCommandType.user
+                    ? 'user'
+                    : command.type == ApplicationCommandType.message
+                    ? 'message'
+                    : 'chatinput';
+            final match = allLocal.cast<Map<String, dynamic>?>().firstWhere((
+              c,
+            ) {
+              final localId = (c!['id'] ?? '').toString();
+              if (reconciledLocalIds.contains(localId)) return false;
+              if (localId == commandId) return false;
+              final localName = (c['name'] ?? '').toString();
+              final localType =
+                  (c['type'] ?? 'chatInput').toString().toLowerCase();
+              return localName == command.name && localType == commandType;
+            }, orElse: () => null);
+
+            if (match != null) {
+              final oldId = (match['id'] ?? '').toString();
+              local = match;
+              reconciledLocalIds.add(oldId);
+              // Remove the orphaned file with the temp ID.
+              await appManager.deleteAppCommand(botId, oldId);
+            }
+          }
+
           final merged = <String, dynamic>{
             ...local,
             'id': commandId,
@@ -625,9 +660,11 @@ class _AppHomePageState extends State<AppHomePage>
                           padding: const EdgeInsets.only(bottom: 16),
                           child: Row(
                             children: [
-                              for (var i = 0;
-                                  i < widget.secondarySections.length;
-                                  i++) ...[
+                              for (
+                                var i = 0;
+                                i < widget.secondarySections.length;
+                                i++
+                              ) ...[
                                 if (i > 0) const SizedBox(width: 10),
                                 Expanded(
                                   child: _QuickAccessChip(

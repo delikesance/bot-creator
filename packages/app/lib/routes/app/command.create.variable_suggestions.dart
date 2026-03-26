@@ -481,6 +481,10 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
       'embedFields(source, "{name}", "{value}", true)',
       'avatar(interaction.user.avatar, "webp", 1024)',
       'banner(interaction.user.banner, "png", 512)',
+      'coin()',
+      'random()',
+      'randomchoice("a", "b", "c")',
+      'randomint(1, 100)',
     ]) {
       addSuggestion(functionName, kind: VariableSuggestionKind.unknown);
     }

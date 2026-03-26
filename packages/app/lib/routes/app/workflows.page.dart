@@ -653,6 +653,22 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
         name: 'embedFields(source, "{name}", "{value}", true)',
         kind: VariableSuggestionKind.unknown,
       ),
+      const VariableSuggestion(
+        name: 'coin()',
+        kind: VariableSuggestionKind.unknown,
+      ),
+      const VariableSuggestion(
+        name: 'random()',
+        kind: VariableSuggestionKind.unknown,
+      ),
+      const VariableSuggestion(
+        name: 'randomchoice("a", "b", "c")',
+        kind: VariableSuggestionKind.unknown,
+      ),
+      const VariableSuggestion(
+        name: 'randomint(1, 100)',
+        kind: VariableSuggestionKind.unknown,
+      ),
     ];
 
     if (workflowType == workflowTypeEvent) {
@@ -2582,9 +2598,8 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                     ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(999),
-                      color: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest,
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
                     ),
                     child: Text(
                       _workflowTypeBadgeLabel(workflowType),
@@ -2595,10 +2610,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                     ),
                   ),
                   if (((workflow['templateOrigin']
-                                  as Map<String, dynamic>?)?['templateId'] ??
-                              '')
-                          .toString()
-                          .isNotEmpty)
+                              as Map<String, dynamic>?)?['templateId'] ??
+                          '')
+                      .toString()
+                      .isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -2606,9 +2621,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                       ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(999),
-                        color: Theme.of(context)
-                            .colorScheme
-                            .tertiaryContainer,
+                        color: Theme.of(context).colorScheme.tertiaryContainer,
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -2616,9 +2629,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                           Icon(
                             Icons.auto_awesome,
                             size: 12,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onTertiaryContainer,
+                            color:
+                                Theme.of(
+                                  context,
+                                ).colorScheme.onTertiaryContainer,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -2628,9 +2642,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w600,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onTertiaryContainer,
+                              color:
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.onTertiaryContainer,
                             ),
                           ),
                         ],

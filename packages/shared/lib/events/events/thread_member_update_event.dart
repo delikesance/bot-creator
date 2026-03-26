@@ -3,16 +3,15 @@ part of '../event_contexts.dart';
 EventExecutionContext buildThreadMemberUpdateEventContext(
   ThreadMemberUpdateEvent event,
 ) {
-  final raw = event as dynamic;
-  final member = raw.member;
+  final member = event.member;
   return _baseEventContext(
     eventName: 'threadMemberUpdate',
-    guildId: _asSnowflake(raw.guildId),
-    channelId: _asSnowflake(raw.threadId ?? member?.id),
-    userId: _asSnowflake(member?.userId),
+    guildId: _asSnowflake(event.guildId),
+    channelId: _asSnowflake(member.threadId),
+    userId: _asSnowflake(member.userId),
     extra: <String, String>{
-      'thread.id': _idString(raw.threadId ?? member?.id),
-      'member.id': _idString(member?.userId),
+      'thread.id': _idString(member.threadId),
+      'member.id': _idString(member.userId),
     },
   );
 }

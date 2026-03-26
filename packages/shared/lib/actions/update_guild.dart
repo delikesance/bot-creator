@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -18,6 +19,16 @@ Future<Map<String, String>> updateGuildAction(
   try {
     if (guildId == null) {
       return {'error': 'Missing guildId', 'guildId': ''};
+    }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageGuild],
+      actionLabel: 'update server settings',
+    );
+    if (permError != null) {
+      return {'error': permError, 'guildId': ''};
     }
 
     final builder = GuildUpdateBuilder();

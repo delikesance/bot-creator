@@ -74,6 +74,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   /// True when editing an existing command that couldn't be fully loaded
   /// (client offline AND no local `data` block). Disables editing UI.
   bool _isDataIncomplete = false;
+
+  /// True when the command has a non-zero id but doesn't exist on Discord
+  /// (e.g. template commands saved locally). Saving will create instead of update.
+  bool _isLocalOnlyCommand = false;
   List<ApplicationIntegrationType> _integrationTypes = [
     ApplicationIntegrationType.guildInstall,
   ];
@@ -780,6 +784,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         final hasFullLocalData = data != null;
         if (!mounted) return;
         setState(() {
+          _isLocalOnlyCommand = true;
           if (localName.isNotEmpty) {
             _commandName = localName;
           }
@@ -960,8 +965,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     }
 
     try {
-      if (widget.id.isZero) {
-        // Create a new command
+      if (widget.id.isZero || _isLocalOnlyCommand) {
+        // Create a new command on Discord
         final ApplicationCommandBuilder commandBuilder;
         if (_commandType == ApplicationCommandType.user) {
           commandBuilder = ApplicationCommandBuilder.user(name: _commandName);
@@ -987,6 +992,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           commandBuilder.contexts = _contexts;
         }
         await createCommand(client, commandBuilder, data: commandData);
+        // Delete the old temp-ID file if this was a local-only command
+        if (_isLocalOnlyCommand) {
+          await appManager.deleteAppCommand(botId, widget.id.toString());
+        }
       } else {
         // Update the existing command
         final ApplicationCommandUpdateBuilder commandBuilder;

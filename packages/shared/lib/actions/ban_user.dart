@@ -1,4 +1,5 @@
 ﻿import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/actions/permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -21,6 +22,17 @@ Future<Map<String, String>> banUserAction(
     final userId = _toSnowflake(payload['userId']);
     if (userId == null) {
       return {'error': 'Missing or invalid userId', 'userId': ''};
+    }
+
+    final permError = await checkBotCanModerate(
+      client,
+      guildId: guildId,
+      targetUserId: userId,
+      requiredPermission: Permissions.banMembers,
+      actionLabel: 'ban',
+    );
+    if (permError != null) {
+      return {'error': permError, 'userId': ''};
     }
 
     final reason = payload['reason']?.toString().trim();

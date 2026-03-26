@@ -864,6 +864,8 @@ const Map<String, String> appStringsEn = {
   'template_gallery_empty': 'No templates available.',
   'template_gallery_already_exists':
       'Command "{name}" already exists and was skipped.',
+  'template_gallery_sync_warning':
+      'Commands saved locally. Start your bot to register them on Discord.',
   'template_welcome_name': 'Welcome Bot',
   'template_welcome_description':
       'Greet new members, say hello, and show server info.',

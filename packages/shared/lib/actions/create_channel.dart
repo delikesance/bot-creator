@@ -1,4 +1,5 @@
 ﻿import 'package:nyxx/nyxx.dart';
+import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -88,6 +89,16 @@ Future<Map<String, String>> createChannel(
   try {
     if (name.trim().isEmpty) {
       return {'error': 'Channel name is required', 'channelId': ''};
+    }
+
+    final permError = await checkBotGuildPermission(
+      client,
+      guildId: guildId,
+      requiredPermissions: [Permissions.manageChannels],
+      actionLabel: 'create channels',
+    );
+    if (permError != null) {
+      return {'error': permError, 'channelId': ''};
     }
 
     final guild = await client.guilds.get(guildId);
