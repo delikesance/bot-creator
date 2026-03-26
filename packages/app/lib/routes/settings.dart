@@ -183,6 +183,7 @@ class _SettingPageState extends State<SettingPage> {
     });
     try {
       final client = RunnerConnectionConfig(
+        id: '_check',
         url: url,
         apiToken: _runnerApiTokenController.text.trim(),
       ).createClient(
