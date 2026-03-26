@@ -409,15 +409,23 @@ class OptionWidgetState extends State<OptionWidget> {
                       ),
                       const SizedBox(height: 8),
                       if (!_isHierarchyType(option.type))
-                        CheckboxListTile(
-                          title: const Text('Is Required'),
-                          value: option.isRequired ?? false,
-                          onChanged: (bool? value) {
-                            setState(() {
-                              option.isRequired = value ?? false;
-                              _updateWidget();
-                            });
-                          },
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            children: [
+                              const Text('Required'),
+                              const Spacer(),
+                              Switch(
+                                value: option.isRequired ?? false,
+                                onChanged: (bool value) {
+                                  setState(() {
+                                    option.isRequired = value;
+                                    _updateWidget();
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
                         ),
                       if (!_isHierarchyType(option.type) &&
                           _supportsAutocomplete(option.type))
@@ -647,75 +655,68 @@ class OptionWidgetState extends State<OptionWidget> {
                                               padding: const EdgeInsets.only(
                                                 bottom: 6,
                                               ),
-                                              child: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: TextFormField(
-                                                      key: ValueKey(
-                                                        'arg_k_${option.name}_$i',
+                                              child: _responsiveRow(
+                                                first: TextFormField(
+                                                  key: ValueKey(
+                                                    'arg_k_${option.name}_$i',
+                                                  ),
+                                                  initialValue: k,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                        labelText: 'Key',
+                                                        border:
+                                                            OutlineInputBorder(),
+                                                        isDense: true,
                                                       ),
-                                                      initialValue: k,
-                                                      decoration:
-                                                          const InputDecoration(
-                                                            labelText: 'Key',
-                                                            border:
-                                                                OutlineInputBorder(),
-                                                            isDense: true,
-                                                          ),
-                                                      onChanged: (newKey) {
-                                                        final updated = Map<
-                                                          String,
-                                                          dynamic
-                                                        >.from(args);
-                                                        updated.remove(k);
-                                                        if (newKey
-                                                            .trim()
-                                                            .isNotEmpty) {
-                                                          updated[newKey
-                                                                  .trim()] =
-                                                              v;
-                                                        }
-                                                        saveArgs(updated);
-                                                      },
-                                                    ),
+                                                  onChanged: (newKey) {
+                                                    final updated = Map<
+                                                      String,
+                                                      dynamic
+                                                    >.from(args);
+                                                    updated.remove(k);
+                                                    if (newKey
+                                                        .trim()
+                                                        .isNotEmpty) {
+                                                      updated[newKey
+                                                              .trim()] =
+                                                          v;
+                                                    }
+                                                    saveArgs(updated);
+                                                  },
+                                                ),
+                                                second: VariableTextField(
+                                                  key: ValueKey(
+                                                    'arg_v_${option.name}_$i',
                                                   ),
-                                                  const SizedBox(width: 6),
-                                                  Expanded(
-                                                    child: VariableTextField(
-                                                      key: ValueKey(
-                                                        'arg_v_${option.name}_$i',
-                                                      ),
-                                                      label: 'Value',
-                                                      initialValue: v,
-                                                      suggestions:
-                                                          widget
-                                                              .variableSuggestions,
-                                                      hint:
-                                                          'Use variables/templates if needed',
-                                                      onChanged: (newVal) {
-                                                        final updated = Map<
-                                                          String,
-                                                          dynamic
-                                                        >.from(args);
-                                                        updated[k] = newVal;
-                                                        saveArgs(updated);
-                                                      },
-                                                    ),
+                                                  label: 'Value',
+                                                  initialValue: v,
+                                                  suggestions:
+                                                      widget
+                                                          .variableSuggestions,
+                                                  hint:
+                                                      'Use variables/templates if needed',
+                                                  onChanged: (newVal) {
+                                                    final updated = Map<
+                                                      String,
+                                                      dynamic
+                                                    >.from(args);
+                                                    updated[k] = newVal;
+                                                    saveArgs(updated);
+                                                  },
+                                                ),
+                                                trailing: IconButton(
+                                                  icon: const Icon(
+                                                    Icons.delete_outline,
                                                   ),
-                                                  IconButton(
-                                                    icon: const Icon(
-                                                      Icons.delete_outline,
-                                                    ),
-                                                    tooltip: 'Remove',
-                                                    onPressed: () {
-                                                      final updated = Map<
-                                                        String,
-                                                        dynamic
-                                                      >.from(args)..remove(k);
-                                                      saveArgs(updated);
-                                                    },
-                                                  ),
-                                                ],
+                                                  tooltip: 'Remove',
+                                                  onPressed: () {
+                                                    final updated = Map<
+                                                      String,
+                                                      dynamic
+                                                    >.from(args)..remove(k);
+                                                    saveArgs(updated);
+                                                  },
+                                                ),
                                               ),
                                             );
                                           }),
@@ -788,77 +789,70 @@ class OptionWidgetState extends State<OptionWidget> {
                                     final choice = staticChoices[i];
                                     return Padding(
                                       padding: const EdgeInsets.only(bottom: 6),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                            flex: 3,
-                                            child: TextFormField(
-                                              key: ValueKey(
-                                                'sc_name_${option.name}_$i',
-                                              ),
-                                              initialValue:
-                                                  (choice['name'] ?? '')
-                                                      .toString(),
-                                              decoration: InputDecoration(
-                                                labelText: 'Label ${i + 1}',
-                                                border:
-                                                    const OutlineInputBorder(),
-                                                isDense: true,
-                                              ),
-                                              onChanged: (v) {
-                                                final updated = List<
-                                                  Map<String, dynamic>
-                                                >.from(staticChoices);
-                                                updated[i] = {
-                                                  ...updated[i],
-                                                  'name': v,
-                                                };
-                                                saveChoices(updated);
-                                              },
-                                            ),
+                                      child: _responsiveRow(
+                                        firstFlex: 3,
+                                        secondFlex: 3,
+                                        first: TextFormField(
+                                          key: ValueKey(
+                                            'sc_name_${option.name}_$i',
                                           ),
-                                          const SizedBox(width: 6),
-                                          Expanded(
-                                            flex: 3,
-                                            child: TextFormField(
-                                              key: ValueKey(
-                                                'sc_val_${option.name}_$i',
-                                              ),
-                                              initialValue:
-                                                  (choice['value'] ?? '')
-                                                      .toString(),
-                                              decoration: InputDecoration(
-                                                labelText: 'Value ${i + 1}',
-                                                border:
-                                                    const OutlineInputBorder(),
-                                                isDense: true,
-                                              ),
-                                              onChanged: (v) {
-                                                final updated = List<
-                                                  Map<String, dynamic>
-                                                >.from(staticChoices);
-                                                updated[i] = {
-                                                  ...updated[i],
-                                                  'value': v,
-                                                };
-                                                saveChoices(updated);
-                                              },
-                                            ),
+                                          initialValue:
+                                              (choice['name'] ?? '')
+                                                  .toString(),
+                                          decoration: InputDecoration(
+                                            labelText: 'Label ${i + 1}',
+                                            border:
+                                                const OutlineInputBorder(),
+                                            isDense: true,
                                           ),
-                                          IconButton(
-                                            icon: const Icon(
-                                              Icons.delete_outline,
-                                            ),
-                                            tooltip: 'Remove',
-                                            onPressed: () {
-                                              final updated = List<
-                                                  Map<String, dynamic>
-                                                >.from(staticChoices)
-                                                ..removeAt(i);
-                                              saveChoices(updated);
-                                            },
+                                          onChanged: (v) {
+                                            final updated = List<
+                                              Map<String, dynamic>
+                                            >.from(staticChoices);
+                                            updated[i] = {
+                                              ...updated[i],
+                                              'name': v,
+                                            };
+                                            saveChoices(updated);
+                                          },
+                                        ),
+                                        second: TextFormField(
+                                          key: ValueKey(
+                                            'sc_val_${option.name}_$i',
                                           ),
-                                        ],
+                                          initialValue:
+                                              (choice['value'] ?? '')
+                                                  .toString(),
+                                          decoration: InputDecoration(
+                                            labelText: 'Value ${i + 1}',
+                                            border:
+                                                const OutlineInputBorder(),
+                                            isDense: true,
+                                          ),
+                                          onChanged: (v) {
+                                            final updated = List<
+                                              Map<String, dynamic>
+                                            >.from(staticChoices);
+                                            updated[i] = {
+                                              ...updated[i],
+                                              'value': v,
+                                            };
+                                            saveChoices(updated);
+                                          },
+                                        ),
+                                        trailing: IconButton(
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                          ),
+                                          tooltip: 'Remove',
+                                          onPressed: () {
+                                            final updated = List<
+                                                Map<String, dynamic>
+                                              >.from(staticChoices)
+                                              ..removeAt(i);
+                                            saveChoices(updated);
+                                          },
+                                        ),
                                       ),
                                     );
                                   }),
@@ -901,48 +895,43 @@ class OptionWidgetState extends State<OptionWidget> {
                         const SizedBox(height: 8),
                       ],
                       if (_isNumericType(option.type)) ...<Widget>[
-                        Row(
-                          children: <Widget>[
-                            Expanded(
-                              child: TextFormField(
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Min Value',
-                                  border: OutlineInputBorder(),
-                                ),
-                                initialValue: option.minValue?.toString(),
-                                onChanged: (String value) {
-                                  setState(() {
-                                    option.minValue =
-                                        value.isEmpty
-                                            ? null
-                                            : num.tryParse(value);
-                                    _updateWidget();
-                                  });
-                                },
-                              ),
+                        _responsiveRow(
+                          first: TextFormField(
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Min Value',
+                              border: OutlineInputBorder(),
+                              isDense: true,
                             ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextFormField(
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  labelText: 'Max Value',
-                                  border: OutlineInputBorder(),
-                                ),
-                                initialValue: option.maxValue?.toString(),
-                                onChanged: (String value) {
-                                  setState(() {
-                                    option.maxValue =
-                                        value.isEmpty
-                                            ? null
-                                            : num.tryParse(value);
-                                    _updateWidget();
-                                  });
-                                },
-                              ),
+                            initialValue: option.minValue?.toString(),
+                            onChanged: (String value) {
+                              setState(() {
+                                option.minValue =
+                                    value.isEmpty
+                                        ? null
+                                        : num.tryParse(value);
+                                _updateWidget();
+                              });
+                            },
+                          ),
+                          second: TextFormField(
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Max Value',
+                              border: OutlineInputBorder(),
+                              isDense: true,
                             ),
-                          ],
+                            initialValue: option.maxValue?.toString(),
+                            onChanged: (String value) {
+                              setState(() {
+                                option.maxValue =
+                                    value.isEmpty
+                                        ? null
+                                        : num.tryParse(value);
+                                _updateWidget();
+                              });
+                            },
+                          ),
                         ),
                         const SizedBox(height: 8),
                       ],
@@ -1233,6 +1222,48 @@ class OptionWidgetState extends State<OptionWidget> {
             ),
           ),
       ],
+    );
+  }
+
+  Widget _responsiveRow({
+    required Widget first,
+    required Widget second,
+    Widget? trailing,
+    int firstFlex = 1,
+    int secondFlex = 1,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 420;
+        if (isNarrow) {
+          return Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(child: first),
+                  if (trailing != null) trailing,
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(child: second),
+                  if (trailing != null)
+                    SizedBox(width: 40),
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(flex: firstFlex, child: first),
+            const SizedBox(width: 6),
+            Expanded(flex: secondFlex, child: second),
+            if (trailing != null) trailing,
+          ],
+        );
+      },
     );
   }
 

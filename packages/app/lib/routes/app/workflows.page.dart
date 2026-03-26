@@ -1526,11 +1526,16 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                             final value = entry.value;
                             if (compactDialog) {
                               return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.only(bottom: 8),
                                 child: Container(
-                                  padding: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    10,
+                                    6,
+                                    4,
+                                    6,
+                                  ),
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
+                                    borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
                                       color:
                                           Theme.of(
@@ -1542,23 +1547,52 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
-                                      TextFormField(
-                                        initialValue: value.name,
-                                        decoration: InputDecoration(
-                                          labelText: AppStrings.t(
-                                            'workflows_arg_name',
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              initialValue: value.name,
+                                              decoration: InputDecoration(
+                                                labelText: AppStrings.t(
+                                                  'workflows_arg_name',
+                                                ),
+                                                border:
+                                                    const OutlineInputBorder(),
+                                                isDense: true,
+                                              ),
+                                              onChanged: (next) {
+                                                editableArgs[index] =
+                                                    editableArgs[index]
+                                                        .copyWith(
+                                                          name: next.trim(),
+                                                        );
+                                              },
+                                            ),
                                           ),
-                                          border: const OutlineInputBorder(),
-                                          isDense: true,
-                                        ),
-                                        onChanged: (next) {
-                                          editableArgs[index] =
-                                              editableArgs[index].copyWith(
-                                                name: next.trim(),
-                                              );
-                                        },
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.delete_outline,
+                                              size: 20,
+                                            ),
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            tooltip: AppStrings.t('delete'),
+                                            onPressed: () {
+                                              setDialogState(() {
+                                                editableArgs.removeAt(index);
+                                                if (editableArgs.isEmpty) {
+                                                  editableArgs.add(
+                                                    const _EditableWorkflowArgument(
+                                                      name: '',
+                                                    ),
+                                                  );
+                                                }
+                                              });
+                                            },
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(height: 8),
+                                      const SizedBox(height: 6),
                                       TextFormField(
                                         initialValue: value.defaultValue,
                                         decoration: InputDecoration(
@@ -1575,48 +1609,28 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                                               );
                                         },
                                       ),
-                                      const SizedBox(height: 8),
-                                      CheckboxListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        dense: false,
-                                        visualDensity: VisualDensity.standard,
-                                        controlAffinity:
-                                            ListTileControlAffinity.leading,
-                                        value: value.required,
-                                        onChanged: (next) {
-                                          editableArgs[index] =
-                                              editableArgs[index].copyWith(
-                                                required: next == true,
-                                              );
-                                          setDialogState(() {});
-                                        },
-                                        title: Text(
-                                          AppStrings.t(
-                                            'workflows_arg_required_short',
+                                      Row(
+                                        children: [
+                                          Text(
+                                            AppStrings.t(
+                                              'workflows_arg_required_short',
+                                            ),
+                                            style: const TextStyle(
+                                              fontSize: 13,
+                                            ),
                                           ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: FilledButton.tonalIcon(
-                                          onPressed: () {
-                                            setDialogState(() {
-                                              editableArgs.removeAt(index);
-                                              if (editableArgs.isEmpty) {
-                                                editableArgs.add(
-                                                  const _EditableWorkflowArgument(
-                                                    name: '',
-                                                  ),
-                                                );
-                                              }
-                                            });
-                                          },
-                                          icon: const Icon(
-                                            Icons.delete_outline,
+                                          const Spacer(),
+                                          Switch(
+                                            value: value.required,
+                                            onChanged: (next) {
+                                              editableArgs[index] =
+                                                  editableArgs[index].copyWith(
+                                                    required: next,
+                                                  );
+                                              setDialogState(() {});
+                                            },
                                           ),
-                                          label: Text(AppStrings.t('delete')),
-                                        ),
+                                        ],
                                       ),
                                     ],
                                   ),
