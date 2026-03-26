@@ -33,6 +33,7 @@ class _BotStatsPageState extends State<BotStatsPage> {
   RunnerClient? _runnerClient;
   bool _syncInFlight = false;
   bool _usingRemoteMetrics = false;
+  String? _runnerLabel;
 
   int? _rssBytes;
   int? _rssEstimatedBytes;
@@ -60,12 +61,19 @@ class _BotStatsPageState extends State<BotStatsPage> {
   }
 
   Future<void> _initializeStatsSync() async {
-    _runnerClient = await RunnerSettings.createClient(
+    final config = await RunnerSettings.getConfig();
+    _runnerClient = config?.createClient(
       getTimeout: const Duration(seconds: 30),
       postTimeout: const Duration(seconds: 90),
     );
     if (!mounted) {
       return;
+    }
+
+    if (config != null) {
+      setState(() {
+        _runnerLabel = config.name ?? config.url;
+      });
     }
 
     if (_runnerClient == null) {
@@ -274,23 +282,37 @@ class _BotStatsPageState extends State<BotStatsPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: _usingRemoteMetrics
+                  ? Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withValues(alpha: 0.4)
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
                 Icon(
-                  _usingRemoteMetrics ? Icons.cloud_done : Icons.lan,
+                  _usingRemoteMetrics ? Icons.dns_outlined : Icons.lan,
                   size: 18,
                   color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _usingRemoteMetrics
-                        ? AppStrings.t('bot_stats_source_runner_api')
-                        : AppStrings.t('bot_stats_source_local_hosting'),
-                    style: Theme.of(context).textTheme.bodySmall,
+                    _usingRemoteMetrics && _runnerLabel != null
+                        ? AppStrings.tr(
+                            'runner_source_label',
+                            params: {'name': _runnerLabel!},
+                          )
+                        : _usingRemoteMetrics
+                            ? AppStrings.t('bot_stats_source_runner_api')
+                            : AppStrings.t('bot_stats_source_local_hosting'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: _usingRemoteMetrics
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : null,
+                    ),
                   ),
                 ),
               ],

@@ -5,11 +5,10 @@ void main() {
   group('Mobile A11y – tap targets and typography', () {
     test('BotCard compact typography meets minimum sizes', () {
       // Mirrors compact values from _BotCard.build()
-      const compact = true;
-      final titleFontSize = compact ? 14.0 : 15.0;
-      final statusFontSize = compact ? 10.5 : 11.0;
-      final serverFontSize = compact ? 10.5 : 11.0;
-      final buttonVerticalPadding = compact ? 10.0 : 12.0;
+      final titleFontSize = 14.0;
+      final statusFontSize = 10.5;
+      final serverFontSize = 10.5;
+      final buttonVerticalPadding = 10.0;
 
       // Title font >= 14sp (WCAG minimum for body text)
       expect(titleFontSize, greaterThanOrEqualTo(14.0));
@@ -90,8 +89,7 @@ void main() {
     });
 
     test('Manage/Logs button spacing prevents mis-taps', () {
-      const compact = true;
-      final spacing = compact ? 8.0 : 10.0;
+      final spacing = 8.0;
       // At least 8dp between adjacent buttons
       expect(spacing, greaterThanOrEqualTo(8.0));
     });

@@ -30,6 +30,9 @@ class _BotLogsPageState extends State<BotLogsPage> {
   Timer? _runnerPollTimer;
   List<String> _lastKnownRemoteLogs = const [];
 
+  // Runner source
+  String? _runnerLabel;
+
   @override
   void initState() {
     super.initState();
@@ -46,11 +49,15 @@ class _BotLogsPageState extends State<BotLogsPage> {
   }
 
   Future<void> _initRunnerPolling() async {
-    final client = await RunnerSettings.createClient(
+    final config = await RunnerSettings.getConfig();
+    if (!mounted || config == null) return;
+    setState(() {
+      _runnerLabel = config.name ?? config.url;
+    });
+    final client = config.createClient(
       getTimeout: const Duration(seconds: 30),
       postTimeout: const Duration(seconds: 90),
     );
-    if (!mounted || client == null) return;
     await _pollRunnerData(client);
     _runnerPollTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
       if (mounted) {
@@ -320,6 +327,51 @@ class _BotLogsPageState extends State<BotLogsPage> {
                       ),
                     ),
                   ),
+                  if (_runnerLabel != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.dns_outlined,
+                              size: 16,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                AppStrings.tr(
+                                  'logs_runner_source',
+                                  params: {'name': _runnerLabel!},
+                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onPrimaryContainer,
+                                    ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   Expanded(
                     child: StreamBuilder<List<String>>(
                       stream: getBotLogsStreamForBot(selectedBotId),

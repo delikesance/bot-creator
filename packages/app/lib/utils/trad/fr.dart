@@ -916,6 +916,10 @@ const Map<String, String> appStringsFr = {
       'Connectez un runner pour voir les statistiques d\'utilisation.',
   'dashboard_single_runner_notice':
       'Les stats affichées proviennent uniquement du runner actuellement configuré. Si vous utilisez plusieurs runners, cette vue peut être incomplète.',
+  'runner_source_label': 'Runner : {name}',
+  'runner_source_all': 'Tous les runners',
+  'runner_select_source': 'Sélectionner le runner',
+  'logs_runner_source': 'Logs de : {name}',
 
   // ── Version info ──
   'settings_version_title': 'Version',

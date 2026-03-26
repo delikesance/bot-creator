@@ -26,6 +26,9 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
   List<_CommandCount> _commands = const [];
   List<_TimelineEntry> _timeline = const [];
 
+  List<RunnerConnectionConfig> _runners = const [];
+  String? _activeRunnerId;
+
   @override
   void initState() {
     super.initState();
@@ -33,16 +36,34 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
   }
 
   Future<void> _init() async {
-    final client = await RunnerSettings.createClient();
+    final runners = await RunnerSettings.getRunners();
+    final config = await RunnerSettings.getConfig();
     if (!mounted) return;
-    if (client == null) {
+    setState(() {
+      _runners = runners;
+      _activeRunnerId = config?.id;
+    });
+
+    if (config == null) {
       setState(() {
         _noRunner = true;
         _loading = false;
       });
       return;
     }
-    _client = client;
+    _client = config.createClient();
+    await _fetchStats();
+  }
+
+  Future<void> _switchRunner(String runnerId) async {
+    final runner = _runners.where((r) => r.id == runnerId).firstOrNull;
+    if (runner == null) return;
+    setState(() {
+      _activeRunnerId = runnerId;
+      _loading = true;
+      _error = null;
+    });
+    _client = runner.createClient();
     await _fetchStats();
   }
 
@@ -124,33 +145,11 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // ── Single-runner notice ──
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: colorScheme.tertiaryContainer.withValues(alpha: 0.4),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                size: 18,
-                color: colorScheme.onTertiaryContainer,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  AppStrings.t('dashboard_single_runner_notice'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colorScheme.onTertiaryContainer,
-                  ),
-                ),
-              ),
-            ],
-          ),
+        // ── Runner source ──
+        _RunnerSourceBanner(
+          runners: _runners,
+          activeRunnerId: _activeRunnerId,
+          onRunnerChanged: _switchRunner,
         ),
         // ── Period selector ──
         Row(
@@ -435,6 +434,80 @@ class _TimelineChart extends StatelessWidget {
               }).toList(),
         );
       },
+    );
+  }
+}
+
+class _RunnerSourceBanner extends StatelessWidget {
+  const _RunnerSourceBanner({
+    required this.runners,
+    required this.activeRunnerId,
+    required this.onRunnerChanged,
+  });
+
+  final List<RunnerConnectionConfig> runners;
+  final String? activeRunnerId;
+  final ValueChanged<String> onRunnerChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final active = runners.where((r) => r.id == activeRunnerId).firstOrNull;
+    final label = active?.name ?? active?.url ?? '?';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.dns_outlined, size: 18, color: colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: runners.length > 1
+                ? DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: activeRunnerId,
+                      isDense: true,
+                      isExpanded: true,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onPrimaryContainer,
+                      ),
+                      items: [
+                        for (final r in runners)
+                          DropdownMenuItem(
+                            value: r.id,
+                            child: Text(
+                              AppStrings.tr(
+                                'runner_source_label',
+                                params: {'name': r.name ?? r.url},
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: (v) {
+                        if (v != null) onRunnerChanged(v);
+                      },
+                    ),
+                  )
+                : Text(
+                    AppStrings.tr(
+                      'runner_source_label',
+                      params: {'name': label},
+                    ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.onPrimaryContainer,
+                    ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }
