@@ -907,7 +907,8 @@ const Map<String, String> appStringsEn = {
 
   // ── Premium / Subscription ──
   'premium_card_title': 'Remove Ads',
-  'premium_card_desc': 'Subscribe to remove all ads and start your bots instantly, without any popup.',
+  'premium_card_desc':
+      'Subscribe to remove all ads and start your bots instantly, without any popup.',
   'premium_card_button': 'See plans',
   'premium_active_title': 'Premium active',
   'premium_active_desc': 'Thank you for your support! All ads are disabled.',

@@ -931,14 +931,18 @@ const Map<String, String> appStringsFr = {
 
   // ── Premium / Abonnement ──
   'premium_card_title': 'Supprimer les pubs',
-  'premium_card_desc': 'Abonnez-vous pour supprimer toutes les publicités et démarrer vos bots instantanément, sans aucune pop-up.',
+  'premium_card_desc':
+      'Abonnez-vous pour supprimer toutes les publicités et démarrer vos bots instantanément, sans aucune pop-up.',
   'premium_card_button': 'Voir les offres',
   'premium_active_title': 'Premium actif',
-  'premium_active_desc': 'Merci pour votre soutien ! Toutes les publicités sont désactivées.',
+  'premium_active_desc':
+      'Merci pour votre soutien ! Toutes les publicités sont désactivées.',
   'subscription_title': 'Supprimer les pubs',
-  'subscription_subtitle': 'Choisissez une offre pour profiter de l\'app sans publicité.',
+  'subscription_subtitle':
+      'Choisissez une offre pour profiter de l\'app sans publicité.',
   'subscription_benefit_no_ads': 'Aucune pub dans toute l\'application',
-  'subscription_benefit_fast_start': 'Bots démarrent instantanément, sans pop-up',
+  'subscription_benefit_fast_start':
+      'Bots démarrent instantanément, sans pop-up',
   'subscription_benefit_support': 'Soutenez le développement indépendant',
   'subscription_annual_title': 'Annuel',
   'subscription_monthly_title': 'Mensuel',
@@ -948,7 +952,8 @@ const Map<String, String> appStringsFr = {
   'subscription_restore': 'Restaurer les achats',
   'subscription_terms': 'Conditions d\'utilisation',
   'subscription_privacy': 'Politique de confidentialité',
-  'subscription_error': 'L\'achat n\'a pas pu être finalisé. Veuillez réessayer.',
+  'subscription_error':
+      'L\'achat n\'a pas pu être finalisé. Veuillez réessayer.',
   'subscription_restored': 'Abonnement restauré avec succès !',
   'subscription_restore_not_found': 'Aucun abonnement actif trouvé.',
 };

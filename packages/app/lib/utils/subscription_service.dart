@@ -61,9 +61,7 @@ class SubscriptionService {
       _storeAvailable = await iap.isAvailable();
       if (!_storeAvailable) {
         unawaited(
-          AppDiagnostics.logInfo(
-            'In-app purchase store not available',
-          ),
+          AppDiagnostics.logInfo('In-app purchase store not available'),
         );
         _initialized = true;
         return;
@@ -127,12 +125,10 @@ class SubscriptionService {
   // ── Purchase flow ──────────────────────────────────────────────────────────
 
   /// Start a monthly subscription purchase.
-  static Future<bool> purchaseMonthly() =>
-      _purchase(kMonthlySubscriptionId);
+  static Future<bool> purchaseMonthly() => _purchase(kMonthlySubscriptionId);
 
   /// Start an annual subscription purchase.
-  static Future<bool> purchaseAnnual() =>
-      _purchase(kAnnualSubscriptionId);
+  static Future<bool> purchaseAnnual() => _purchase(kAnnualSubscriptionId);
 
   static Future<bool> _purchase(String productId) async {
     if (!_storeAvailable) return false;
@@ -236,9 +232,7 @@ class SubscriptionService {
     if (!_isSubscribed && previouslySubscribed) {
       // No active subscription came back — mark as expired.
       await _markExpired();
-      unawaited(
-        AppDiagnostics.logInfo('Subscription expired or revoked'),
-      );
+      unawaited(AppDiagnostics.logInfo('Subscription expired or revoked'));
     }
   }
 

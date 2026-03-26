@@ -40,9 +40,10 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     });
 
     try {
-      final success = annual
-          ? await SubscriptionService.purchaseAnnual()
-          : await SubscriptionService.purchaseMonthly();
+      final success =
+          annual
+              ? await SubscriptionService.purchaseAnnual()
+              : await SubscriptionService.purchaseMonthly();
 
       if (!success && mounted) {
         setState(() => _error = AppStrings.t('subscription_error'));
@@ -70,9 +71,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
         if (SubscriptionService.isSubscribed) {
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(AppStrings.t('subscription_restored')),
-            ),
+            SnackBar(content: Text(AppStrings.t('subscription_restored'))),
           );
         } else {
           setState(
@@ -256,8 +255,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
     return 'https://play.google.com/intl/en_us/about/play-terms/';
   }
 
-  static const String _privacyUrl =
-      'https://bot-creator-f884b.web.app/privacy';
+  static const String _privacyUrl = 'https://bot-creator-f884b.web.app/privacy';
 }
 
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
@@ -274,10 +272,7 @@ class _BenefitRow extends StatelessWidget {
         Icon(icon, size: 22, color: Colors.amber),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(
-            text,
-            style: Theme.of(context).textTheme.bodyLarge,
-          ),
+          child: Text(text, style: Theme.of(context).textTheme.bodyLarge),
         ),
       ],
     );
@@ -309,9 +304,10 @@ class _PlanCard extends StatelessWidget {
       elevation: isPrimary ? 4 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: isPrimary
-            ? const BorderSide(color: Colors.amber, width: 2)
-            : BorderSide.none,
+        side:
+            isPrimary
+                ? const BorderSide(color: Colors.amber, width: 2)
+                : BorderSide.none,
       ),
       child: InkWell(
         onTap: onTap,
