@@ -2565,7 +2565,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
         ListTile(
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 6,
+            vertical: 10,
           ),
           leading: Icon(
             workflowType == workflowTypeEvent
@@ -2578,7 +2578,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
             children: [
               const SizedBox(height: 2),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(999),
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -2586,7 +2586,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                 child: Text(
                   _workflowTypeBadgeLabel(workflowType),
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -2609,6 +2609,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                         (context) => [
                           PopupMenuItem<String>(
                             value: 'edit',
+                            height: 48,
                             child: Row(
                               children: [
                                 Icon(Icons.edit_outlined),
@@ -2619,6 +2620,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                           ),
                           PopupMenuItem<String>(
                             value: 'delete',
+                            height: 48,
                             child: Row(
                               children: [
                                 Icon(
@@ -2638,7 +2640,7 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
                         ],
                   )
                   : Wrap(
-                    spacing: 4,
+                    spacing: 8,
                     children: [
                       IconButton(
                         onPressed:

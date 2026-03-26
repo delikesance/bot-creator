@@ -487,7 +487,7 @@ class _AppEditPageState extends State<AppEditPage>
                 Row(
                   children: [
                     for (var idx = 0; idx < secondaryIndices.length; idx++) ...[
-                      if (idx > 0) const SizedBox(width: 12),
+                      if (idx > 0) const SizedBox(width: 16),
                       Expanded(
                         child: _MoreSheetItem(
                           icon: entries[secondaryIndices[idx]].icon,
@@ -571,7 +571,7 @@ class _MoreSheetItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          padding: const EdgeInsets.symmetric(vertical: 18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -587,7 +587,7 @@ class _MoreSheetItem extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
                   color:
                       selected

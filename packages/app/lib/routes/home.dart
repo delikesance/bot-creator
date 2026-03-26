@@ -571,8 +571,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     child: GridView.builder(
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
                         childAspectRatio: childAspectRatio,
                       ),
                       itemCount: apps.length,
@@ -684,10 +684,10 @@ class _BotCard extends StatelessWidget {
     final avatarRadius = compact ? 30.0 : 36.0;
     final avatarFallbackSize = compact ? 60.0 : 72.0;
     final contentPadding = compact ? 9.0 : 12.0;
-    final titleFontSize = compact ? 13.5 : 15.0;
-    final statusFontSize = compact ? 9.5 : 11.0;
-    final serverFontSize = compact ? 9.5 : 11.0;
-    final buttonVerticalPadding = compact ? 6.0 : 8.0;
+    final titleFontSize = compact ? 14.0 : 15.0;
+    final statusFontSize = compact ? 10.5 : 11.0;
+    final serverFontSize = compact ? 10.5 : 11.0;
+    final buttonVerticalPadding = compact ? 10.0 : 12.0;
 
     return Card(
       shape: RoundedRectangleBorder(
@@ -711,7 +711,7 @@ class _BotCard extends StatelessWidget {
                 )
                 : Icon(Icons.account_circle, size: avatarFallbackSize),
 
-            SizedBox(height: compact ? 6 : 8),
+            SizedBox(height: compact ? 8 : 10),
 
             // ── Nom ─────────────────────────────────────────────────────────
             Text(
@@ -724,7 +724,7 @@ class _BotCard extends StatelessWidget {
               ),
             ),
 
-            SizedBox(height: compact ? 3 : 4),
+            SizedBox(height: compact ? 4 : 5),
 
             // ── Statut avec animation pulse ──────────────────────────────────
             AnimatedBuilder(
@@ -765,14 +765,14 @@ class _BotCard extends StatelessWidget {
 
             // ── Compteur de serveurs ─────────────────────────────────────────
             if (guildCount != null && guildCount! > 0) ...[
-              SizedBox(height: compact ? 3 : 4),
+              SizedBox(height: compact ? 4 : 5),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     Icons.groups,
-                    size: 13,
+                    size: 16,
                     color: colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: 3),
@@ -828,7 +828,7 @@ class _BotCard extends StatelessWidget {
               ),
             ),
 
-            SizedBox(height: compact ? 5 : 6),
+            SizedBox(height: compact ? 6 : 8),
 
             // ── Ligne inférieure : Gérer + Logs ──────────────────────────────
             Row(
@@ -848,7 +848,7 @@ class _BotCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                SizedBox(width: compact ? 5 : 6),
+                SizedBox(width: compact ? 8 : 10),
                 IconButton.filled(
                   onPressed: onLogs,
                   icon: const Icon(Icons.article_outlined, size: 18),
