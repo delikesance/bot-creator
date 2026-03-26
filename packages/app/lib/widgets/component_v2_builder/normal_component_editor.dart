@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:bot_creator/types/component.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:bot_creator/widgets/component_v2_builder/component_node_editor.dart';
+import 'package:bot_creator/widgets/component_v2_builder/component_node_factory.dart';
 
 /// Visual editor for traditional "normal" message components (only ActionRows containing Buttons/Selects).
 /// Manages a [ComponentV2Definition] but strictly limits available types.
@@ -207,40 +208,14 @@ class _NormalComponentEditorWidgetState
     return PopupMenuButton<ComponentV2Type>(
       tooltip: 'Add Component',
       onSelected: (type) {
-        ComponentNode newNode;
-        switch (type) {
-          case ComponentV2Type.button:
-            newNode = ButtonNode();
-            break;
-          case ComponentV2Type.stringSelect:
-            newNode = SelectMenuNode(
-              type: ComponentV2Type.stringSelect,
-              options: [SelectMenuOption(label: 'Hi', value: 'hi')],
-            );
-            break;
-          case ComponentV2Type.userSelect:
-            newNode = SelectMenuNode(type: ComponentV2Type.userSelect);
-            break;
-          case ComponentV2Type.roleSelect:
-            newNode = SelectMenuNode(type: ComponentV2Type.roleSelect);
-            break;
-          case ComponentV2Type.mentionableSelect:
-            newNode = SelectMenuNode(type: ComponentV2Type.mentionableSelect);
-            break;
-          case ComponentV2Type.channelSelect:
-            newNode = SelectMenuNode(type: ComponentV2Type.channelSelect);
-            break;
-          default:
-            return;
-        }
-        onAdd(newNode);
+        onAdd(ComponentNodeFactory.create(type));
       },
       itemBuilder: (context) {
         return types
             .map(
               (t) => PopupMenuItem(
                 value: t,
-                child: Text(
+        child: Text(
                   t.name[0].toUpperCase() +
                       t.name
                           .substring(1)
