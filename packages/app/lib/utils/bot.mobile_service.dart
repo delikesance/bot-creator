@@ -259,7 +259,7 @@ class DiscordBotTaskHandler extends TaskHandler {
     if (statuses.isEmpty) {
       unawaited(
         _emitTaskLogToMain(
-          'Aucun status configure pour la presence mobile',
+          'No configured status for mobile presence',
           botId: botId,
         ),
       );
@@ -373,12 +373,12 @@ class DiscordBotTaskHandler extends TaskHandler {
         ),
       );
       await _emitTaskLogToMain(
-        'Presence mobile appliquee: $type $text',
+        'Mobile presence applied: $type $text',
         botId: botId,
       );
     } catch (error) {
       await _emitTaskDebugLogToMain(
-        'Echec update presence mobile: $error',
+        'Mobile presence update failed: $error',
         botId: botId,
       );
     }
@@ -409,8 +409,8 @@ class DiscordBotTaskHandler extends TaskHandler {
         if (changed) {
           await _emitTaskLogToMain(
             persisted
-                ? 'Debug logs mobile activés'
-                : 'Debug logs mobile désactivés',
+                ? 'Mobile debug logs enabled'
+                : 'Mobile debug logs disabled',
             botId: null,
           );
         }
@@ -442,7 +442,7 @@ class DiscordBotTaskHandler extends TaskHandler {
 
     try {
       await _emitTaskLogToMain(
-        'Connexion en cours pour $trimmedBotId',
+        'Connecting for $trimmedBotId',
         botId: trimmedBotId,
       );
       final botUser = await getDiscordUser(trimmedToken);
@@ -455,8 +455,8 @@ class DiscordBotTaskHandler extends TaskHandler {
       final enabledIntentNames = _enabledIntentNames(intentsMap);
 
       await _emitTaskLogToMain(
-        'Intents runtime actifs (${enabledIntentNames.length}): '
-        '${enabledIntentNames.isEmpty ? 'aucun' : enabledIntentNames.join(', ')}',
+        'Active runtime intents (${enabledIntentNames.length}): '
+        '${enabledIntentNames.isEmpty ? 'none' : enabledIntentNames.join(', ')}',
         botId: resolvedBotId,
       );
 
