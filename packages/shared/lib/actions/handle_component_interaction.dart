@@ -9,6 +9,17 @@ import 'package:bot_creator_shared/types/action.dart';
 import 'package:bot_creator_shared/actions/handler.dart';
 import 'package:bot_creator_shared/actions/interaction_response.dart';
 
+Future<void> _safeInteractionRespond(
+  Interaction interaction,
+  String text,
+) async {
+  try {
+    await (interaction as dynamic).respond(
+      MessageBuilder(content: text, flags: MessageFlags.ephemeral),
+    );
+  } catch (_) {}
+}
+
 /// Called by the main bot event loop when a MessageComponentInteraction arrives.
 /// Looks up the listener registry and if a matching workflow is found, runs it.
 Future<void> handleComponentInteraction(
@@ -39,7 +50,10 @@ Future<void> handleComponentInteraction(
   );
 
   if (entry == null) {
-    // No listener registered for this customId â€” ignore silently
+    await _safeInteractionRespond(
+      interaction,
+      'This interaction is no longer active. Please try again.',
+    );
     return;
   }
 
@@ -98,6 +112,10 @@ Future<void> handleModalSubmitInteraction(
   );
 
   if (entry == null) {
+    await _safeInteractionRespond(
+      interaction,
+      'This modal submission has expired. Please reopen the modal and try again.',
+    );
     return;
   }
 
@@ -155,7 +173,15 @@ Future<void> _runListenerWorkflow({
 }) async {
   try {
     final workflow = await store.getWorkflowByName(botId, workflowName);
-    if (workflow == null) return;
+    if (workflow == null) {
+      if (interaction != null) {
+        await _safeInteractionRespond(
+          interaction,
+          'Workflow not found for this interaction. Please try again later.',
+        );
+      }
+      return;
+    }
 
     await hydrateRuntimeVariables(
       store: store,
@@ -225,6 +251,11 @@ Future<void> _runListenerWorkflow({
       );
     }
   } catch (e) {
-    // Swallow errors in background handlers
+    if (interaction != null) {
+      await _safeInteractionRespond(
+        interaction,
+        'An internal error prevented this interaction from completing.',
+      );
+    }
   }
 }

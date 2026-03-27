@@ -223,10 +223,11 @@ class AppManager implements BotDataStore {
         final content = await allAppsFile.readAsString();
         final decoded = content.isNotEmpty ? jsonDecode(content) : const [];
         if (decoded is List) {
-          final appsList = decoded
-              .whereType<Map>()
-              .map((raw) => Map<String, dynamic>.from(raw))
-              .toList(growable: false);
+          final appsList =
+              decoded
+                  .whereType<Map>()
+                  .map((raw) => Map<String, dynamic>.from(raw))
+                  .toList();
           if (appsList.isNotEmpty) {
             _apps = appsList;
             return appsList;

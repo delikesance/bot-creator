@@ -818,8 +818,13 @@ class DiscordRunner {
         workflow['visibility']?.toString().toLowerCase() == 'ephemeral';
 
     var didDefer = false;
+    final interactionId = interaction.id.toString();
 
     try {
+      _log.fine(
+        'Interaction $interactionId: executing command with ${actionsJson.length} action(s), shouldDefer=$shouldDefer, responseType=$responseType',
+      );
+
       if (shouldDefer) {
         int deferFlags = isEphemeral ? 64 : 0;
         if (responseType == 'componentV2' ||
@@ -843,6 +848,7 @@ class DiscordRunner {
           );
         }
         didDefer = true;
+        _log.fine('Interaction $interactionId: defer acknowledged.');
       }
 
       if (actionsJson.isNotEmpty) {
@@ -876,6 +882,7 @@ class DiscordRunner {
         onLog: (msg, {required botId}) async => _log.info(msg),
         onDebugLog: (msg, {required botId}) async => _log.fine(msg),
       );
+      _log.fine('Interaction $interactionId: sendWorkflowResponse completed.');
     } catch (e, st) {
       _log.severe('Error executing command ${commandData['name']}: $e', e, st);
       // Surface specific, user-safe error messages from permission checks.
@@ -1094,7 +1101,13 @@ class DiscordRunner {
           flags: isEphemeral ? MessageFlags.ephemeral : null,
         ),
       );
-    } catch (_) {}
+    } catch (e, st) {
+      _log.warning(
+        'Safe respond failed for ${interaction.runtimeType}: $e',
+        e,
+        st,
+      );
+    }
   }
 
   Future<void> _safeErrorResponse(
@@ -1115,7 +1128,13 @@ class DiscordRunner {
           MessageBuilder(content: text, flags: MessageFlags.ephemeral),
         );
       }
-    } catch (_) {}
+    } catch (e, st) {
+      _log.warning(
+        'Safe error response failed for ${interaction.runtimeType} (didDefer=$didDefer): $e',
+        e,
+        st,
+      );
+    }
   }
 
   Flags<GatewayIntents> _buildIntents(Map<String, bool> intentsMap) {
