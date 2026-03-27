@@ -23,9 +23,7 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    libsqlite3-0 \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/lib/*-linux-*/libsqlite3.so.0 /usr/lib/libsqlite3.so
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /out/bundle /opt/runner
 COPY --from=builder /workspace/packages/runner/pubspec.yaml /opt/runner/pubspec.yaml

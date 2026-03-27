@@ -51,6 +51,13 @@ Widget _buildReplyCard({
 }
 
 void main() {
+  Finder _modeChip(String label) {
+    return find.ancestor(
+      of: find.text(label),
+      matching: find.byType(ChoiceChip),
+    );
+  }
+
   group('ReplyCard – mode selector labels', () {
     testWidgets('shows "Standard Message" chip instead of "Normal Reply"', (
       tester,
@@ -181,7 +188,9 @@ void main() {
         await tester.pumpWidget(_buildReplyCard(responseType: 'normal'));
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('Layout Mode'));
+        final layoutModeChip = _modeChip('Layout Mode');
+        await tester.ensureVisible(layoutModeChip);
+        await tester.tap(layoutModeChip);
         await tester.pumpAndSettle();
 
         expect(find.byType(ComponentV2EditorWidget), findsOneWidget);
@@ -194,7 +203,9 @@ void main() {
       await tester.pumpWidget(_buildReplyCard(responseType: 'normal'));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Modal Form'));
+      final modalFormChip = _modeChip('Modal Form');
+      await tester.ensureVisible(modalFormChip);
+      await tester.tap(modalFormChip);
       await tester.pumpAndSettle();
 
       expect(find.byType(ModalBuilderWidget), findsOneWidget);
