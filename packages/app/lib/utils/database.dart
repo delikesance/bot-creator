@@ -732,6 +732,7 @@ class AppManager implements BotDataStore {
 
   /// Returns the list of scoped variable definitions for [botId].
   /// Each entry is { 'key': String, 'scope': String, 'defaultValue': dynamic }.
+  @override
   Future<List<Map<String, dynamic>>> getScopedVariableDefinitions(
     String botId,
   ) async {

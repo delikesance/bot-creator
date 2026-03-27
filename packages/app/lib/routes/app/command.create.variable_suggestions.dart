@@ -197,6 +197,25 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
             visit(nested);
           }
         }
+
+        final elseIfRaw = payload['elseIfConditions'];
+        if (elseIfRaw is List) {
+          for (final entry in elseIfRaw.whereType<Map>()) {
+            final elseIf = Map<String, dynamic>.from(entry);
+            final nestedRaw = elseIf['actions'];
+            if (nestedRaw is! List) {
+              continue;
+            }
+
+            final nested = nestedRaw
+                .whereType<Map>()
+                .map((item) => Map<String, dynamic>.from(item))
+                .toList(growable: false);
+            if (nested.isNotEmpty) {
+              visit(nested);
+            }
+          }
+        }
       }
     }
 

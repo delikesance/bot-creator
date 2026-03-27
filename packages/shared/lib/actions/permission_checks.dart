@@ -5,10 +5,11 @@ import 'package:nyxx/nyxx.dart';
 /// Computes the combined permissions of the bot in [guild] by merging the
 /// permissions of each of its roles (+ the @everyone role).
 Future<Permissions> _computeBotPermissions(
+  NyxxGateway client,
   Guild guild,
   Snowflake guildId,
 ) async {
-  final botMember = await guild.fetchCurrentMember();
+  final botMember = await guild.members.fetch(client.user.id);
   return _permissionsFromRoles(guild, botMember.roleIds, guildId);
 }
 
@@ -38,7 +39,7 @@ Future<String?> checkBotGuildPermission(
   required String actionLabel,
 }) async {
   final guild = await client.guilds.fetch(guildId);
-  final perms = await _computeBotPermissions(guild, guildId);
+  final perms = await _computeBotPermissions(client, guild, guildId);
 
   if (perms.isAdministrator) return null;
 
@@ -75,7 +76,7 @@ Future<String?> checkBotCanModerate(
   final guild = await client.guilds.fetch(guildId);
 
   // ── 1. Check bot permissions ──
-  final botMember = await guild.fetchCurrentMember();
+  final botMember = await guild.members.fetch(client.user.id);
   final botRoleIds = botMember.roleIds;
   final botPermissions = _permissionsFromRoles(guild, botRoleIds, guildId);
 

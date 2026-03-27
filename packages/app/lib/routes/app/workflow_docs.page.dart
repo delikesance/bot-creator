@@ -429,7 +429,8 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
       id: 'action.ifBlock',
       kind: DocKind.action,
       title: 'Action: ifBlock',
-      subtitle: 'Branch execution between THEN and ELSE nested action lists.',
+      subtitle:
+          'Branch execution between THEN, ELSE IF and ELSE nested action lists.',
       summary:
           'Use this to keep a single workflow while handling several outcomes based on runtime state.',
       sections: <_DocSection>[
@@ -437,7 +438,7 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
           title: 'Execution Model',
           lines: <String>[
             'Condition is evaluated once.',
-            'Only one branch (THEN or ELSE) executes.',
+            'The first matching branch executes: THEN, then ELSE IF blocks in order, then ELSE.',
             'Nested actions can include runWorkflow, API calls, and interaction replies.',
           ],
         ),

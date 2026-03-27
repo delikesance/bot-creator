@@ -249,6 +249,44 @@ Exclusion mutuelle:
 Tous les champs string de payload qui passent par le runtime peuvent contenir
 des templates `((...))`.
 
+### `ifBlock`
+
+Branche l'exécution entre un bloc THEN, zéro ou plusieurs blocs ELSE IF, puis un
+bloc ELSE final.
+
+Payload typique:
+
+```jsonc
+{
+  "condition.variable": "((score))",
+  "condition.operator": "greaterThan",
+  "condition.value": "90",
+  "thenActions": [
+    { "type": "sendMessage", "payload": { "content": "Excellent" } }
+  ],
+  "elseIfConditions": [
+    {
+      "condition.variable": "((score))",
+      "condition.operator": "greaterThan",
+      "condition.value": "70",
+      "actions": [
+        { "type": "sendMessage", "payload": { "content": "Good" } }
+      ]
+    }
+  ],
+  "elseActions": [
+    { "type": "sendMessage", "payload": { "content": "Try again" } }
+  ]
+}
+```
+
+Règles:
+
+- `thenActions` reste la branche IF principale
+- `elseIfConditions` est une liste ordonnée; la première condition vraie gagne
+- `elseActions` reste la branche finale par défaut
+- les anciens workflows sans `elseIfConditions` restent valides
+
 ---
 
 ## 8. Nouvelles actions JSON / arrays

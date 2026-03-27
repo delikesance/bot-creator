@@ -126,7 +126,7 @@ class CommandStatsStore {
       'ORDER BY count DESC',
     );
     final rows = stmt.select([botId, cutoff]);
-    stmt.dispose();
+    stmt.close();
 
     return rows
         .map(
@@ -169,7 +169,7 @@ class CommandStatsStore {
       'ORDER BY hour_bucket ASC',
     );
     final rows = stmt.select([botId, cutoff]);
-    stmt.dispose();
+    stmt.close();
 
     return rows
         .map(
@@ -197,7 +197,7 @@ class CommandStatsStore {
       'SELECT COUNT(*) as total FROM command_executions WHERE bot_id = ?',
     );
     final rows = stmt.select([botId]);
-    stmt.dispose();
+    stmt.close();
     if (rows.isEmpty) return 0;
     return rows.first['total'] as int;
   }
@@ -205,7 +205,7 @@ class CommandStatsStore {
   void dispose() {
     if (_initialized) {
       if (_sqliteAvailable) {
-        _db.dispose();
+        _db.close();
       }
       _memoryRecords.clear();
       _sqliteAvailable = false;
