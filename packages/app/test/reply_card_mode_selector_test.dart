@@ -51,7 +51,7 @@ Widget _buildReplyCard({
 }
 
 void main() {
-  Finder _modeChip(String label) {
+  Finder modeChip(String label) {
     return find.ancestor(
       of: find.text(label),
       matching: find.byType(ChoiceChip),
@@ -188,7 +188,7 @@ void main() {
         await tester.pumpWidget(_buildReplyCard(responseType: 'normal'));
         await tester.pumpAndSettle();
 
-        final layoutModeChip = _modeChip('Layout Mode');
+        final layoutModeChip = modeChip('Layout Mode');
         await tester.ensureVisible(layoutModeChip);
         await tester.tap(layoutModeChip);
         await tester.pumpAndSettle();
@@ -203,7 +203,7 @@ void main() {
       await tester.pumpWidget(_buildReplyCard(responseType: 'normal'));
       await tester.pumpAndSettle();
 
-      final modalFormChip = _modeChip('Modal Form');
+      final modalFormChip = modeChip('Modal Form');
       await tester.ensureVisible(modalFormChip);
       await tester.tap(modalFormChip);
       await tester.pumpAndSettle();

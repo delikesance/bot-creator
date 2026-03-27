@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 
 enum _DashboardStatsSource { local, runner }
 
+final AppManager _appManager = AppManager();
+
 class CommandDashboardPage extends StatefulWidget {
   const CommandDashboardPage({super.key, required this.botId});
 
@@ -87,7 +89,7 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
     try {
       final Map<String, dynamic> json;
       if (_source == _DashboardStatsSource.local) {
-        json = await appManager.getLocalCommandStats(
+        json = await _appManager.getLocalCommandStats(
           widget.botId,
           hours: _hours,
         );
