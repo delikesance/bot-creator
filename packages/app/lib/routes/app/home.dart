@@ -312,77 +312,86 @@ class _AppHomePageState extends State<AppHomePage>
   }
 
   Future<void> _maybeOfferRewardedAd() async {
-    if (!_supportsForegroundTask || !mounted) {
-      return;
-    }
-
-    if (SubscriptionService.isSubscribed) {
-      return;
-    }
-
-    if (!AdRewardService.hasReadyRewardedAd) {
-      return;
-    }
-
-    if (!await AdRewardService.shouldOfferRewardedAd()) {
-      return;
-    }
-
-    final consentGranted = await _ensureAdsConsent();
-    if (!consentGranted || !mounted) {
-      return;
-    }
-
-    if (kDebugMode) {
-      final shouldWatch =
-          await showDialog<bool>(
-            context: context,
-            builder:
-                (dialogContext) => AlertDialog(
-                  title: Text(AppStrings.t('rewarded_start_title')),
-                  content: Text(AppStrings.t('rewarded_start_message')),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(false),
-                      child: Text(AppStrings.t('rewarded_start_skip')),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.of(dialogContext).pop(true),
-                      child: Text(AppStrings.t('rewarded_start_watch')),
-                    ),
-                  ],
-                ),
-          ) ??
-          false;
-
-      if (!shouldWatch || !mounted) {
+    try {
+      if (!_supportsForegroundTask || !mounted) {
         return;
       }
-    } else {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder:
-            (dialogContext) => AlertDialog(
-              title: Text(AppStrings.t('rewarded_start_title')),
-              content: Text(AppStrings.t('rewarded_start_message')),
-              actions: [
-                FilledButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(AppStrings.t('rewarded_start_continue')),
-                ),
-              ],
-            ),
-      );
-    }
 
-    AdRewardService.showRewardedAdNonBlocking();
-    if (!mounted) {
-      return;
+      if (SubscriptionService.isSubscribed) {
+        return;
+      }
+
+      if (!AdRewardService.hasReadyRewardedAd) {
+        return;
+      }
+
+      final shouldOffer = await AdRewardService.shouldOfferRewardedAd()
+          .timeout(const Duration(seconds: 2), onTimeout: () => false);
+      if (!shouldOffer) {
+        return;
+      }
+
+      final consentGranted = await _ensureAdsConsent().timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => false,
+      );
+      if (!consentGranted || !mounted) {
+        return;
+      }
+
+      if (kDebugMode) {
+        final shouldWatch =
+            await showDialog<bool>(
+              context: context,
+              builder:
+                  (dialogContext) => AlertDialog(
+                    title: Text(AppStrings.t('rewarded_start_title')),
+                    content: Text(AppStrings.t('rewarded_start_message')),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(false),
+                        child: Text(AppStrings.t('rewarded_start_skip')),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.of(dialogContext).pop(true),
+                        child: Text(AppStrings.t('rewarded_start_watch')),
+                      ),
+                    ],
+                  ),
+            ) ??
+            false;
+
+        if (!shouldWatch || !mounted) {
+          return;
+        }
+      } else {
+        await showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder:
+              (dialogContext) => AlertDialog(
+                title: Text(AppStrings.t('rewarded_start_title')),
+                content: Text(AppStrings.t('rewarded_start_message')),
+                actions: [
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: Text(AppStrings.t('rewarded_start_continue')),
+                  ),
+                ],
+              ),
+        );
+      }
+
+      AdRewardService.showRewardedAdNonBlocking();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.t('rewarded_start_thanks'))),
+      );
+    } catch (error) {
+      appendBotDebugLog('Rewarded ad flow skipped due to error: $error');
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(AppStrings.t('rewarded_start_thanks'))),
-    );
   }
 
   Future<bool> _ensureAdsConsent() async {
