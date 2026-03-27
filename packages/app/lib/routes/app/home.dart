@@ -325,8 +325,10 @@ class _AppHomePageState extends State<AppHomePage>
         return;
       }
 
-      final shouldOffer = await AdRewardService.shouldOfferRewardedAd()
-          .timeout(const Duration(seconds: 2), onTimeout: () => false);
+      final shouldOffer = await AdRewardService.shouldOfferRewardedAd().timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => false,
+      );
       if (!shouldOffer) {
         return;
       }
