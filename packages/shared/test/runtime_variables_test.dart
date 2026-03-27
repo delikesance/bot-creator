@@ -58,6 +58,33 @@ void main() {
         expect(runtimeVariables['message.bc_seen'], 'false');
       },
     );
+
+    test(
+      'loads legacy user scoped context and copies it to canonical user context',
+      () async {
+        final store = _FakeBotDataStore(
+          globalVariables: const <String, dynamic>{},
+          scopedVariables: <String, Map<String, Map<String, dynamic>>>{
+            'user': <String, Map<String, dynamic>>{
+              'Unknown User': <String, dynamic>{'locale': 'fr'},
+            },
+          },
+        );
+
+        final runtimeVariables = <String, String>{};
+        await hydrateRuntimeVariables(
+          store: store,
+          botId: 'bot-1',
+          runtimeVariables: runtimeVariables,
+          userContextId: 'user-2',
+        );
+
+        expect(runtimeVariables['user.locale'], 'fr');
+        expect(runtimeVariables['user.bc_locale'], 'fr');
+        expect(store.scopedVariables['user']?['user-2']?['locale'], 'fr');
+        expect(store.scopedVariables['user']?['Unknown User']?['locale'], 'fr');
+      },
+    );
   });
 }
 
@@ -230,7 +257,9 @@ class _FakeBotDataStore implements BotDataStore {
     String contextId,
     String key,
     value,
-  ) {
-    throw UnsupportedError('Not used in this test');
+  ) async {
+    scopedVariables.putIfAbsent(scope, () => <String, Map<String, dynamic>>{});
+    scopedVariables[scope]!.putIfAbsent(contextId, () => <String, dynamic>{});
+    scopedVariables[scope]![contextId]![key] = value;
   }
 }

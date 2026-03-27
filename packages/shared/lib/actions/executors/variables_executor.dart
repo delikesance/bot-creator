@@ -110,6 +110,13 @@ String _stringifyRuntimeValue(dynamic value) {
   return value.toString();
 }
 
+bool _isInvalidContextId(String? value) {
+  final normalized = (value ?? '').trim().toLowerCase();
+  return normalized.isEmpty ||
+      normalized == 'unknown user' ||
+      normalized == 'dm';
+}
+
 String? _resolveScopeContextId({
   required String scope,
   required Map<String, String> variables,
@@ -117,48 +124,121 @@ String? _resolveScopeContextId({
   Snowflake? channelId,
   Interaction? interaction,
 }) {
-  String? fromVariables(String key) {
-    final value = variables[key]?.trim();
-    return (value == null || value.isEmpty) ? null : value;
+  String? normalize(dynamic value) {
+    final text = (value ?? '').toString().trim();
+    return _isInvalidContextId(text) ? null : text;
+  }
+
+  String? fromVariables(List<String> keys) {
+    for (final key in keys) {
+      final value = normalize(variables[key]);
+      if (value != null) {
+        return value;
+      }
+    }
+    return null;
   }
 
   String? fromSnowflake(Snowflake? value) {
-    if (value == null) {
-      return null;
-    }
-    final text = value.toString().trim();
-    return text.isEmpty ? null : text;
+    return normalize(value?.toString());
   }
 
   String? interactionUserId() {
     final dynamic raw = interaction;
-    final value = (raw?.user?.id ?? raw?.author?.id)?.toString().trim();
-    return (value == null || value.isEmpty) ? null : value;
+    return normalize(
+      raw?.user?.id ??
+          raw?.member?.user?.id ??
+          raw?.member?.id ??
+          raw?.interaction?.user?.id ??
+          raw?.interaction?.member?.user?.id ??
+          raw?.author?.id,
+    );
+  }
+
+  String? interactionGuildId() {
+    final dynamic raw = interaction;
+    return normalize(
+      raw?.guildId ?? raw?.guild?.id ?? raw?.interaction?.guildId,
+    );
+  }
+
+  String? interactionChannelId() {
+    final dynamic raw = interaction;
+    return normalize(
+      raw?.channelId ??
+          raw?.channel?.id ??
+          raw?.message?.channelId ??
+          raw?.interaction?.channelId,
+    );
   }
 
   String? interactionMessageId() {
     final dynamic raw = interaction;
-    final value = (raw?.message?.id ?? raw?.id)?.toString().trim();
-    return (value == null || value.isEmpty) ? null : value;
+    return normalize(raw?.message?.id ?? raw?.id);
   }
 
   switch (scope) {
     case 'guild':
-      return fromVariables('guildId') ?? fromSnowflake(guildId);
+      return fromVariables(<String>[
+            'guildId',
+            'guild.id',
+            'interaction.guildId',
+            'interaction.guild.id',
+          ]) ??
+          interactionGuildId() ??
+          fromSnowflake(guildId);
     case 'channel':
-      return fromVariables('channelId') ?? fromSnowflake(channelId);
+      return fromVariables(<String>[
+            'channelId',
+            'channel.id',
+            'interaction.channelId',
+            'interaction.channel.id',
+          ]) ??
+          interactionChannelId() ??
+          fromSnowflake(channelId);
     case 'user':
-      return fromVariables('userId') ?? interactionUserId();
+      return fromVariables(<String>[
+            'userId',
+            'user.id',
+            'interaction.userId',
+            'interaction.user.id',
+            'author.id',
+            'member.id',
+            'interaction.member.id',
+          ]) ??
+          interactionUserId();
     case 'guildMember':
-      final guild = fromVariables('guildId') ?? fromSnowflake(guildId);
-      final user = fromVariables('userId') ?? interactionUserId();
+      final guild =
+          fromVariables(<String>[
+            'guildId',
+            'guild.id',
+            'interaction.guildId',
+            'interaction.guild.id',
+          ]) ??
+          interactionGuildId() ??
+          fromSnowflake(guildId);
+      final user =
+          fromVariables(<String>[
+            'userId',
+            'user.id',
+            'interaction.userId',
+            'interaction.user.id',
+            'author.id',
+            'member.id',
+            'interaction.member.id',
+          ]) ??
+          interactionUserId();
       if (guild == null || user == null) {
         return null;
       }
       return '$guild:$user';
     case 'message':
-      return fromVariables('messageId') ??
-          fromVariables('message.id') ??
+      return fromVariables(<String>[
+            'messageId',
+            'message.id',
+            'interaction.messageId',
+            'interaction.message.id',
+          ]) ??
           interactionMessageId();
     default:
       return null;
@@ -223,6 +303,30 @@ _resolveScopedBinding({
     storageKey: storageKey,
     referenceKey: referenceKey,
   );
+}
+
+List<String> _legacyContextIdsForScope(
+  String scope,
+  String canonicalContextId,
+) {
+  switch (scope) {
+    case 'user':
+      return const <String>['Unknown User'];
+    case 'guild':
+    case 'channel':
+      return const <String>['DM'];
+    case 'guildMember':
+      final parts = canonicalContextId.split(':');
+      final guild = parts.isNotEmpty ? parts.first.trim() : '';
+      final user = parts.length > 1 ? parts[1].trim() : '';
+      return <String>{
+        'DM:Unknown User',
+        if (guild.isNotEmpty) '$guild:Unknown User',
+        if (user.isNotEmpty) 'DM:$user',
+      }.toList(growable: false);
+    default:
+      return const <String>[];
+  }
 }
 
 Future<dynamic> _readPersistedVariable({
@@ -578,6 +682,28 @@ Future<bool> executeVariablesAction({
         contextId,
         storageKey,
       );
+      if (value == null) {
+        final legacyContextIds = _legacyContextIdsForScope(scope, contextId);
+        for (final legacyContextId in legacyContextIds) {
+          value = await store.getScopedVariable(
+            botId,
+            scope,
+            legacyContextId,
+            storageKey,
+          );
+          if (value != null) {
+            // Legacy compatibility: copy forward to canonical context, keep legacy data untouched.
+            await store.setScopedVariable(
+              botId,
+              scope,
+              contextId,
+              storageKey,
+              value,
+            );
+            break;
+          }
+        }
+      }
       if (value == null && referenceKey != storageKey) {
         value = await store.getScopedVariable(
           botId,
@@ -585,6 +711,27 @@ Future<bool> executeVariablesAction({
           contextId,
           referenceKey,
         );
+      }
+      if (value == null && referenceKey != storageKey) {
+        final legacyContextIds = _legacyContextIdsForScope(scope, contextId);
+        for (final legacyContextId in legacyContextIds) {
+          value = await store.getScopedVariable(
+            botId,
+            scope,
+            legacyContextId,
+            referenceKey,
+          );
+          if (value != null) {
+            await store.setScopedVariable(
+              botId,
+              scope,
+              contextId,
+              storageKey,
+              value,
+            );
+            break;
+          }
+        }
       }
       value ??= '';
       final runtimeValue = _stringifyRuntimeValue(value);

@@ -156,6 +156,10 @@ class AppManager implements BotDataStore {
   Future<void> deleteApp(String id) async {
     final path = await _path();
     await File("$path/apps/$id.json").delete();
+    final statsFile = File("$path/apps/$id.command_stats.json");
+    if (await statsFile.exists()) {
+      await statsFile.delete();
+    }
     await Directory("$path/apps/$id").delete(recursive: true);
     final allAppsFile = File("$path/apps/all_apps.json");
     if (!await allAppsFile.exists()) return;
@@ -337,6 +341,157 @@ class AppManager implements BotDataStore {
       }
       _appsStreamController.add(List<dynamic>.from(_apps));
     }
+  }
+
+  File _commandStatsFileAtPath(String path, String botId) {
+    return File("$path/apps/$botId.command_stats.json");
+  }
+
+  Future<void> recordCommandExecution(
+    String botId,
+    String commandName, {
+    DateTime? executedAt,
+  }) async {
+    final normalizedCommandName = commandName.trim();
+    if (normalizedCommandName.isEmpty) {
+      return;
+    }
+
+    await _enqueueAppWrite(botId, () async {
+      final path = await _path();
+      final file = _commandStatsFileAtPath(path, botId);
+      await file.parent.create(recursive: true);
+
+      List<dynamic> rawEntries = const <dynamic>[];
+      if (await file.exists()) {
+        try {
+          final content = await file.readAsString();
+          final decoded = content.isNotEmpty ? jsonDecode(content) : null;
+          if (decoded is List) {
+            rawEntries = decoded;
+          }
+        } catch (_) {}
+      }
+
+      final nowMs =
+          (executedAt ?? DateTime.now().toUtc()).millisecondsSinceEpoch;
+      final cutoffMs = nowMs - const Duration(days: 30).inMilliseconds;
+      final normalized = <Map<String, dynamic>>[];
+      for (final entry in rawEntries) {
+        if (entry is! Map) {
+          continue;
+        }
+        final map = Map<String, dynamic>.from(entry.cast<String, dynamic>());
+        final name = (map['command'] ?? '').toString().trim();
+        final timestamp = int.tryParse((map['executedAt'] ?? '').toString());
+        if (name.isEmpty || timestamp == null || timestamp < cutoffMs) {
+          continue;
+        }
+        normalized.add(<String, dynamic>{
+          'command': name,
+          'executedAt': timestamp,
+        });
+      }
+
+      normalized.add(<String, dynamic>{
+        'command': normalizedCommandName,
+        'executedAt': nowMs,
+      });
+
+      const maxEntries = 50000;
+      final kept =
+          normalized.length > maxEntries
+              ? normalized.sublist(normalized.length - maxEntries)
+              : normalized;
+      await file.writeAsString(jsonEncode(kept));
+    });
+  }
+
+  Future<Map<String, dynamic>> getLocalCommandStats(
+    String botId, {
+    int hours = 24,
+  }) async {
+    final safeHours = hours <= 0 ? 24 : hours;
+    final path = await _path();
+    final file = _commandStatsFileAtPath(path, botId);
+    if (!await file.exists()) {
+      return <String, dynamic>{
+        'botId': botId,
+        'hours': safeHours,
+        'totalAllTime': 0,
+        'commands': const <Map<String, dynamic>>[],
+        'timeline': const <Map<String, dynamic>>[],
+      };
+    }
+
+    List<dynamic> rawEntries = const <dynamic>[];
+    try {
+      final content = await file.readAsString();
+      final decoded = content.isNotEmpty ? jsonDecode(content) : null;
+      if (decoded is List) {
+        rawEntries = decoded;
+      }
+    } catch (_) {}
+
+    final nowMs = DateTime.now().toUtc().millisecondsSinceEpoch;
+    final sinceMs = nowMs - (safeHours * 3600000);
+    var totalAllTime = 0;
+    final countsByCommand = <String, int>{};
+    final countsByHourBucket = <int, int>{};
+
+    for (final entry in rawEntries) {
+      if (entry is! Map) {
+        continue;
+      }
+      final map = Map<String, dynamic>.from(entry.cast<String, dynamic>());
+      final name = (map['command'] ?? '').toString().trim();
+      final timestamp = int.tryParse((map['executedAt'] ?? '').toString());
+      if (name.isEmpty || timestamp == null) {
+        continue;
+      }
+
+      totalAllTime += 1;
+      if (timestamp < sinceMs) {
+        continue;
+      }
+
+      countsByCommand.update(name, (value) => value + 1, ifAbsent: () => 1);
+      final hourBucket = timestamp ~/ 3600000;
+      countsByHourBucket.update(
+        hourBucket,
+        (value) => value + 1,
+        ifAbsent: () => 1,
+      );
+    }
+
+    final commands = countsByCommand.entries
+        .map(
+          (entry) => <String, dynamic>{
+            'command': entry.key,
+            'count': entry.value,
+          },
+        )
+        .toList(growable: false)
+      ..sort((a, b) => (b['count'] as int).compareTo(a['count'] as int));
+
+    final sortedBuckets = countsByHourBucket.keys.toList(growable: false)
+      ..sort();
+    final timeline = sortedBuckets
+        .map(
+          (bucket) => <String, dynamic>{
+            'hour': bucket.toString(),
+            'count': countsByHourBucket[bucket]!,
+          },
+        )
+        .toList(growable: false);
+
+    return <String, dynamic>{
+      'botId': botId,
+      'hours': safeHours,
+      'totalAllTime': totalAllTime,
+      'commands': commands,
+      'timeline': timeline,
+    };
   }
 
   @override
