@@ -7,6 +7,7 @@ enum ParameterType {
   number,
   boolean,
   list,
+  elseIfBranches,
   map,
   duration,
   color,

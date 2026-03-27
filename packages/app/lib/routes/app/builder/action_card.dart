@@ -22,6 +22,22 @@ import 'package:http/http.dart' as http;
 enum _ActionCardMenuAction { moveUp, moveDown, remove }
 
 class ActionCard extends StatelessWidget {
+  static const List<String> _conditionOperators = <String>[
+    'equals',
+    'notEquals',
+    'contains',
+    'notContains',
+    'startsWith',
+    'endsWith',
+    'greaterThan',
+    'lessThan',
+    'greaterOrEqual',
+    'lessOrEqual',
+    'isEmpty',
+    'isNotEmpty',
+    'matches',
+  ];
+
   final ActionItem action;
   final int index;
   final int totalCount;
@@ -870,6 +886,9 @@ class ActionCard extends StatelessWidget {
           ],
         );
 
+      case ParameterType.elseIfBranches:
+        return _buildElseIfBranchesField(paramDef, currentValue);
+
       case ParameterType.multiSelect:
         if (useDynamicInput) {
           return Column(
@@ -1239,176 +1258,15 @@ class ActionCard extends StatelessWidget {
           }
         }
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final isCompact = constraints.maxWidth < 560;
-
-            final editButton = FilledButton.tonalIcon(
-              onPressed: onEditNestedActions == null ? null : openNestedEditor,
-              icon: const Icon(Icons.edit, size: 15),
-              label: Text(
-                isCompact
-                    ? 'Edit ${nestedList.length}'
-                    : 'Edit (${nestedList.length})',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 13),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: blockColor.withValues(alpha: 0.16),
-                foregroundColor: blockColor,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-              ),
-            );
-
-            return Material(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
-              child: InkWell(
-                onTap: onEditNestedActions == null ? null : openNestedEditor,
-                borderRadius: BorderRadius.circular(10),
-                child: Ink(
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: blockColor.withValues(alpha: 0.5),
-                    ),
-                    borderRadius: BorderRadius.circular(10),
-                    color: blockColor.withValues(alpha: 0.05),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isCompact) ...[
-                          Row(
-                            children: [
-                              Icon(
-                                paramDef.key == 'thenActions'
-                                    ? Icons.check_circle_outline
-                                    : Icons.cancel_outlined,
-                                color: blockColor,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  blockLabel,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: blockColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(width: double.infinity, child: editButton),
-                        ] else
-                          Row(
-                            children: [
-                              Icon(
-                                paramDef.key == 'thenActions'
-                                    ? Icons.check_circle_outline
-                                    : Icons.cancel_outlined,
-                                color: blockColor,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: Text(
-                                  blockLabel,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: blockColor,
-                                  ),
-                                ),
-                              ),
-                              editButton,
-                            ],
-                          ),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            color: blockColor.withValues(alpha: 0.08),
-                          ),
-                          child:
-                              nestedList.isEmpty
-                                  ? Text(
-                                    'No actions in this branch yet.',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey.shade500,
-                                    ),
-                                  )
-                                  : Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      ...nestedList
-                                          .take(3)
-                                          .map(
-                                            (a) => Padding(
-                                              padding: const EdgeInsets.only(
-                                                bottom: 4,
-                                              ),
-                                              child: Row(
-                                                children: [
-                                                  const Icon(
-                                                    Icons.arrow_right,
-                                                    size: 16,
-                                                    color: Colors.grey,
-                                                  ),
-                                                  const SizedBox(width: 4),
-                                                  Expanded(
-                                                    child: Text(
-                                                      a['type']?.toString() ??
-                                                          '?',
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.grey,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                      if (nestedList.length > 3)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            left: 20,
-                                          ),
-                                          child: Text(
-                                            '… and ${nestedList.length - 3} more',
-                                            style: const TextStyle(
-                                              fontSize: 11,
-                                              color: Colors.grey,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
+        return _buildNestedActionsEditor(
+          nestedList: nestedList,
+          blockLabel: blockLabel,
+          blockColor: blockColor,
+          icon:
+              paramDef.key == 'thenActions'
+                  ? Icons.check_circle_outline
+                  : Icons.cancel_outlined,
+          onEdit: openNestedEditor,
         );
 
       case ParameterType.componentV2:
@@ -1666,6 +1524,454 @@ class ActionCard extends StatelessWidget {
           ],
         );
     }
+  }
+
+  Widget _buildElseIfBranchesField(
+    ParameterDefinition paramDef,
+    dynamic currentValue,
+  ) {
+    final branches = _normalizeElseIfBranches(currentValue);
+    final label =
+        _localizeHint(paramDef.hint) ?? _formatParameterName(paramDef.key);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: () {
+                final updated = <Map<String, dynamic>>[
+                  ...branches,
+                  <String, dynamic>{
+                    'condition.variable': '',
+                    'condition.operator': 'equals',
+                    'condition.value': '',
+                    'actions': <Map<String, dynamic>>[],
+                  },
+                ];
+                onParameterChanged(paramDef.key, updated);
+              },
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Add ELSE IF'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (branches.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.06),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.35)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              'No ELSE IF branches yet. Add one to test more conditions before ELSE.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            ),
+          )
+        else
+          ...branches.asMap().entries.map(
+            (entry) => Padding(
+              padding: EdgeInsets.only(
+                bottom: entry.key == branches.length - 1 ? 0 : 12,
+              ),
+              child: _buildElseIfBranchCard(
+                paramKey: paramDef.key,
+                branchIndex: entry.key,
+                branch: entry.value,
+                branches: branches,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildElseIfBranchCard({
+    required String paramKey,
+    required int branchIndex,
+    required Map<String, dynamic> branch,
+    required List<Map<String, dynamic>> branches,
+  }) {
+    final blockColor = Colors.amber.shade700;
+    final variableValue = (branch['condition.variable'] ?? '').toString();
+    final operatorValue = (branch['condition.operator'] ?? 'equals').toString();
+    final conditionValue = (branch['condition.value'] ?? '').toString();
+    final nestedActions = _normalizeNestedActions(branch['actions']);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: blockColor.withValues(alpha: 0.05),
+        border: Border.all(color: blockColor.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.alt_route, color: blockColor, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'ELSE IF ${branchIndex + 1}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: blockColor,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Remove ELSE IF',
+                onPressed: () {
+                  final updated = _cloneElseIfBranches(branches)
+                    ..removeAt(branchIndex);
+                  onParameterChanged(paramKey, updated);
+                },
+                icon: const Icon(Icons.delete_outline),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 760;
+              final variableField = Expanded(
+                flex: 5,
+                child: VariableTextField(
+                  key: ValueKey(
+                    'elseif-$actionKey-$branchIndex-variable-$variableValue',
+                  ),
+                  label: 'Condition Variable',
+                  initialValue: variableValue,
+                  hint: 'Use ((variableName)) or a runtime value',
+                  suggestions: variableSuggestions,
+                  onChanged: (value) {
+                    final updated = _cloneElseIfBranches(branches);
+                    updated[branchIndex]['condition.variable'] = value;
+                    onParameterChanged(paramKey, updated);
+                  },
+                ),
+              );
+              final operatorField = SizedBox(
+                width: isCompact ? double.infinity : 170,
+                child: DropdownButtonFormField<String>(
+                  key: ValueKey(
+                    'elseif-$actionKey-$branchIndex-operator-$operatorValue',
+                  ),
+                  initialValue:
+                      _conditionOperators.contains(operatorValue)
+                          ? operatorValue
+                          : 'equals',
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Operator',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: _conditionOperators
+                      .map(
+                        (option) => DropdownMenuItem<String>(
+                          value: option,
+                          child: Text(option, overflow: TextOverflow.ellipsis),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) {
+                    final updated = _cloneElseIfBranches(branches);
+                    updated[branchIndex]['condition.operator'] =
+                        value ?? 'equals';
+                    onParameterChanged(paramKey, updated);
+                  },
+                ),
+              );
+              final valueField = Expanded(
+                flex: 4,
+                child: VariableTextField(
+                  key: ValueKey(
+                    'elseif-$actionKey-$branchIndex-value-$conditionValue',
+                  ),
+                  label: 'Condition Value',
+                  initialValue: conditionValue,
+                  hint: 'Value to compare against',
+                  suggestions: variableSuggestions,
+                  onChanged: (value) {
+                    final updated = _cloneElseIfBranches(branches);
+                    updated[branchIndex]['condition.value'] = value;
+                    onParameterChanged(paramKey, updated);
+                  },
+                ),
+              );
+
+              if (isCompact) {
+                return Column(
+                  children: [
+                    variableField,
+                    const SizedBox(height: 8),
+                    operatorField,
+                    const SizedBox(height: 8),
+                    valueField,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  variableField,
+                  const SizedBox(width: 8),
+                  operatorField,
+                  const SizedBox(width: 8),
+                  valueField,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          _buildNestedActionsEditor(
+            nestedList: nestedActions,
+            blockLabel: 'ELSE IF ${branchIndex + 1} — actions',
+            blockColor: blockColor,
+            icon: Icons.subdirectory_arrow_right,
+            onEdit: () async {
+              if (onEditNestedActions == null) {
+                return;
+              }
+
+              final result = await onEditNestedActions!(
+                nestedActions,
+                variableSuggestions,
+              );
+              if (result == null) {
+                return;
+              }
+
+              final updated = _cloneElseIfBranches(branches);
+              updated[branchIndex]['actions'] = result;
+              onParameterChanged(paramKey, updated);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNestedActionsEditor({
+    required List<Map<String, dynamic>> nestedList,
+    required String blockLabel,
+    required Color blockColor,
+    required IconData icon,
+    required Future<void> Function() onEdit,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 560;
+
+        final editButton = FilledButton.tonalIcon(
+          onPressed: onEditNestedActions == null ? null : onEdit,
+          icon: const Icon(Icons.edit, size: 15),
+          label: Text(
+            isCompact
+                ? 'Edit ${nestedList.length}'
+                : 'Edit (${nestedList.length})',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 13),
+          ),
+          style: FilledButton.styleFrom(
+            backgroundColor: blockColor.withValues(alpha: 0.16),
+            foregroundColor: blockColor,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          ),
+        );
+
+        return Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: onEditNestedActions == null ? null : onEdit,
+            borderRadius: BorderRadius.circular(10),
+            child: Ink(
+              decoration: BoxDecoration(
+                border: Border.all(color: blockColor.withValues(alpha: 0.5)),
+                borderRadius: BorderRadius.circular(10),
+                color: blockColor.withValues(alpha: 0.05),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (isCompact) ...[
+                      Row(
+                        children: [
+                          Icon(icon, color: blockColor, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              blockLabel,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: blockColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(width: double.infinity, child: editButton),
+                    ] else
+                      Row(
+                        children: [
+                          Icon(icon, color: blockColor, size: 18),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              blockLabel,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: blockColor,
+                              ),
+                            ),
+                          ),
+                          editButton,
+                        ],
+                      ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        color: blockColor.withValues(alpha: 0.08),
+                      ),
+                      child:
+                          nestedList.isEmpty
+                              ? Text(
+                                'No actions in this branch yet.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.shade500,
+                                ),
+                              )
+                              : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ...nestedList
+                                      .take(3)
+                                      .map(
+                                        (a) => Padding(
+                                          padding: const EdgeInsets.only(
+                                            bottom: 4,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.arrow_right,
+                                                size: 16,
+                                                color: Colors.grey,
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Expanded(
+                                                child: Text(
+                                                  a['type']?.toString() ?? '?',
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                  if (nestedList.length > 3)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 20),
+                                      child: Text(
+                                        '… and ${nestedList.length - 3} more',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  List<Map<String, dynamic>> _normalizeNestedActions(dynamic raw) {
+    if (raw is! List) {
+      return <Map<String, dynamic>>[];
+    }
+
+    return raw
+        .whereType<Map>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> _normalizeElseIfBranches(dynamic raw) {
+    if (raw is! List) {
+      return <Map<String, dynamic>>[];
+    }
+
+    return raw
+        .whereType<Map>()
+        .map((entry) {
+          final branch = Map<String, dynamic>.from(entry);
+          return <String, dynamic>{
+            'condition.variable':
+                (branch['condition.variable'] ?? '').toString(),
+            'condition.operator':
+                (branch['condition.operator'] ?? 'equals').toString(),
+            'condition.value': (branch['condition.value'] ?? '').toString(),
+            'actions': _normalizeNestedActions(branch['actions']),
+          };
+        })
+        .toList(growable: false);
+  }
+
+  List<Map<String, dynamic>> _cloneElseIfBranches(
+    List<Map<String, dynamic>> branches,
+  ) {
+    return branches
+        .map(
+          (branch) => <String, dynamic>{
+            'condition.variable':
+                (branch['condition.variable'] ?? '').toString(),
+            'condition.operator':
+                (branch['condition.operator'] ?? 'equals').toString(),
+            'condition.value': (branch['condition.value'] ?? '').toString(),
+            'actions': _normalizeNestedActions(branch['actions']),
+          },
+        )
+        .toList(growable: true);
   }
 
   List<Widget> _buildVariableSuggestionsForParam({

@@ -84,7 +84,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'variables' LIMIT 1",
     );
     final rows = stmt.select();
-    stmt.dispose();
+    stmt.close();
 
     if (rows.isEmpty) {
       return;
@@ -156,7 +156,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       );
       result[key] = value;
     }
-    stmt.dispose();
+    stmt.close();
 
     return result;
   }
@@ -171,7 +171,7 @@ class SqliteCliVariableStore implements VariableDatabase {
     final rows = stmt.select([botId, '_global_', '', key]);
 
     if (rows.isEmpty) {
-      stmt.dispose();
+      stmt.close();
       return null;
     }
 
@@ -180,7 +180,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       row['value_raw'] as String,
       row['value_type'] as String,
     );
-    stmt.dispose();
+    stmt.close();
 
     return value;
   }
@@ -214,7 +214,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       now,
       now,
     ]);
-    stmt.dispose();
+    stmt.close();
   }
 
   @override
@@ -230,7 +230,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       'UPDATE variables SET key = ?, updated_at = ? WHERE bot_id = ? AND scope = ? AND key = ?',
     );
     stmt.execute([newKey, now, botId, '_global_', oldKey]);
-    stmt.dispose();
+    stmt.close();
   }
 
   @override
@@ -241,7 +241,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       'DELETE FROM variables WHERE bot_id = ? AND scope = ? AND key = ?',
     );
     stmt.execute([botId, '_global_', key]);
-    stmt.dispose();
+    stmt.close();
   }
 
   @override
@@ -274,7 +274,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       );
       result[key] = value;
     }
-    stmt.dispose();
+    stmt.close();
 
     return result;
   }
@@ -303,7 +303,7 @@ class SqliteCliVariableStore implements VariableDatabase {
     );
 
     if (rows.isEmpty) {
-      stmt.dispose();
+      stmt.close();
       return null;
     }
 
@@ -312,7 +312,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       row['value_raw'] as String,
       row['value_type'] as String,
     );
-    stmt.dispose();
+    stmt.close();
 
     return value;
   }
@@ -349,7 +349,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       now,
       now,
     ]);
-    stmt.dispose();
+    stmt.close();
   }
 
   @override
@@ -378,7 +378,7 @@ class SqliteCliVariableStore implements VariableDatabase {
         key: oldKey,
       ),
     ]);
-    stmt.dispose();
+    stmt.close();
   }
 
   @override
@@ -403,7 +403,7 @@ class SqliteCliVariableStore implements VariableDatabase {
         key: key,
       ),
     );
-    stmt.dispose();
+    stmt.close();
   }
 
   @override
@@ -439,7 +439,7 @@ class SqliteCliVariableStore implements VariableDatabase {
           })
           .where((id) => id.isNotEmpty)
           .toList(growable: false);
-      stmt.dispose();
+      stmt.close();
       return contextIds;
     }
 
@@ -453,7 +453,7 @@ class SqliteCliVariableStore implements VariableDatabase {
         .where((id) => id.isNotEmpty)
         .toList(growable: false);
 
-    stmt.dispose();
+    stmt.close();
 
     return contextIds;
   }
@@ -464,7 +464,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       'SELECT 1 FROM variables WHERE bot_id = ? LIMIT 1',
     );
     final rows = stmt.select([botId]);
-    stmt.dispose();
+    stmt.close();
     return rows.isNotEmpty;
   }
 
@@ -485,7 +485,7 @@ class SqliteCliVariableStore implements VariableDatabase {
       'SELECT context_id_1, context_id_2, key, value_raw, value_type FROM variables WHERE bot_id = ? AND scope = ? AND key = ?',
     );
     final rows = stmt.select([botId, scope, key]);
-    stmt.dispose();
+    stmt.close();
 
     final items = rows
       .map((row) {
@@ -531,13 +531,13 @@ class SqliteCliVariableStore implements VariableDatabase {
 
     final stmt = _db.prepare('DELETE FROM variables WHERE bot_id = ?');
     stmt.execute([botId]);
-    stmt.dispose();
+    stmt.close();
   }
 
   /// dispose database connection (call on runner shutdown).
   void dispose() {
     if (_initialized) {
-      _db.dispose();
+      _db.close();
       _initialized = false;
     }
   }

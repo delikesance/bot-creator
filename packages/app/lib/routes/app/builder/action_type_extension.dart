@@ -1989,6 +1989,12 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             hint: 'THEN — actions to run when condition is TRUE',
           ),
           ParameterDefinition(
+            key: 'elseIfConditions',
+            type: ParameterType.elseIfBranches,
+            defaultValue: <Map<String, dynamic>>[],
+            hint: 'ELSE IF — conditions checked in order before ELSE',
+          ),
+          ParameterDefinition(
             key: 'elseActions',
             type: ParameterType.nestedActions,
             defaultValue: <Map<String, dynamic>>[],

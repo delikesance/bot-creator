@@ -57,5 +57,17 @@ void main() {
       final defs = BotCreatorActionType.createInvite.parameterDefinitions;
       expect(_findByKey(defs, 'channelId').required, isFalse);
     });
+
+    test('ifBlock exposes an else-if branch editor', () {
+      final defs = BotCreatorActionType.ifBlock.parameterDefinitions;
+
+      expect(_findByKey(defs, 'thenActions').type, ParameterType.nestedActions);
+      expect(
+        _findByKey(defs, 'elseIfConditions').type,
+        ParameterType.elseIfBranches,
+      );
+      expect(_findByKey(defs, 'elseActions').type, ParameterType.nestedActions);
+      expect(_findByKey(defs, 'elseIfConditions').defaultValue, isEmpty);
+    });
   });
 }

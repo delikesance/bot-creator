@@ -79,6 +79,21 @@ String _resolveConditionLeftValue(
   return resolved;
 }
 
+List<Action> _decodeActionList(dynamic branchRaw) {
+  final branchActions = <Action>[];
+  if (branchRaw is! List) {
+    return branchActions;
+  }
+
+  for (final item in branchRaw) {
+    if (item is Map) {
+      branchActions.add(Action.fromJson(Map<String, dynamic>.from(item)));
+    }
+  }
+
+  return branchActions;
+}
+
 Future<bool> executeControlFlowAction({
   required BotCreatorActionType type,
   required Map<String, dynamic> payload,
@@ -210,18 +225,55 @@ Future<bool> executeControlFlowAction({
 
       final rawThen = payload['thenActions'];
       final rawElse = payload['elseActions'];
-      final branchRaw = conditionPassed ? rawThen : rawElse;
+      dynamic branchRaw = rawThen;
+      var branchResult = 'IF_TRUE';
 
-      final branchActions = <Action>[];
-      if (branchRaw is List) {
-        for (final item in branchRaw) {
-          if (item is Map) {
-            branchActions.add(Action.fromJson(Map<String, dynamic>.from(item)));
+      if (!conditionPassed) {
+        branchRaw = rawElse;
+        branchResult = 'IF_FALSE';
+
+        final rawElseIfConditions = payload['elseIfConditions'];
+        if (rawElseIfConditions is List) {
+          for (var index = 0; index < rawElseIfConditions.length; index++) {
+            final entry = rawElseIfConditions[index];
+            if (entry is! Map) {
+              continue;
+            }
+
+            final elseIf = Map<String, dynamic>.from(entry);
+            final rawElseIfVariable =
+                (elseIf['condition.variable'] ?? '').toString();
+            final elseIfOperator =
+                resolveValue(
+                  (elseIf['condition.operator'] ?? 'equals').toString(),
+                ).trim();
+            final elseIfValue = resolveValue(
+              (elseIf['condition.value'] ?? '').toString(),
+            );
+            final elseIfLeftValue = _resolveConditionLeftValue(
+              rawElseIfVariable,
+              variables,
+              resolveValue,
+            );
+            final elseIfPassed = _evaluateCondition(
+              leftValue: elseIfLeftValue,
+              operator: elseIfOperator,
+              rightValue: elseIfValue,
+            );
+            if (!elseIfPassed) {
+              continue;
+            }
+
+            branchRaw = elseIf['actions'];
+            branchResult = 'ELSE_IF_${index + 1}';
+            break;
           }
         }
       }
 
-      results[resultKey] = conditionPassed ? 'IF_TRUE' : 'IF_FALSE';
+      final branchActions = _decodeActionList(branchRaw);
+
+      results[resultKey] = branchResult;
       if (branchActions.isEmpty) {
         return true;
       }
