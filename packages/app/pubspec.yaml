@@ -67,7 +67,7 @@ dependencies:
   sqlite3: ^2.9.0
   sqlite3_flutter_libs: ^0.5.39
   flutter_colorpicker: ^1.1.0
-  shared_preferences: ^2.5.3
+  shared_preferences: ^2.5.5
   file_picker: ^10.3.2
   google_mobile_ads: ^7.0.0
   app_tracking_transparency: ^2.0.6
