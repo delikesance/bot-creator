@@ -116,7 +116,7 @@ class CommandStatsStore {
     return rows
         .map(
           (row) => <String, dynamic>{
-            'hour': row['hour_bucket'] as int,
+            'hour': (row['hour_bucket'] as int).toString(),
             'count': row['count'] as int,
           },
         )
