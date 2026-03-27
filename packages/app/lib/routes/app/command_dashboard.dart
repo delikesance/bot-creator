@@ -1,9 +1,14 @@
 import 'dart:async';
 
+import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/material.dart';
+
+enum _DashboardStatsSource { local, runner }
+
+final AppManager _appManager = AppManager();
 
 class CommandDashboardPage extends StatefulWidget {
   const CommandDashboardPage({super.key, required this.botId});
@@ -18,7 +23,7 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
   RunnerClient? _client;
   bool _loading = true;
   String? _error;
-  bool _noRunner = false;
+  _DashboardStatsSource _source = _DashboardStatsSource.local;
 
   int _hours = 24;
 
@@ -42,23 +47,32 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
     setState(() {
       _runners = runners;
       _activeRunnerId = config?.id;
+      _source =
+          config == null
+              ? _DashboardStatsSource.local
+              : _DashboardStatsSource.runner;
     });
 
-    if (config == null) {
-      setState(() {
-        _noRunner = true;
-        _loading = false;
-      });
-      return;
-    }
-    _client = config.createClient();
+    _client = config?.createClient();
     await _fetchStats();
   }
 
-  Future<void> _switchRunner(String runnerId) async {
+  Future<void> _switchSource(String sourceId) async {
+    if (sourceId == 'local') {
+      setState(() {
+        _source = _DashboardStatsSource.local;
+        _loading = true;
+        _error = null;
+      });
+      await _fetchStats();
+      return;
+    }
+
+    final runnerId = sourceId;
     final runner = _runners.where((r) => r.id == runnerId).firstOrNull;
     if (runner == null) return;
     setState(() {
+      _source = _DashboardStatsSource.runner;
       _activeRunnerId = runnerId;
       _loading = true;
       _error = null;
@@ -73,7 +87,21 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
       _error = null;
     });
     try {
-      final json = await _client!.getCommandStats(widget.botId, hours: _hours);
+      final Map<String, dynamic> json;
+      if (_source == _DashboardStatsSource.local) {
+        json = await _appManager.getLocalCommandStats(
+          widget.botId,
+          hours: _hours,
+        );
+      } else {
+        final client = _client;
+        if (client == null) {
+          throw StateError(
+            'Runner source selected but no active runner client.',
+          );
+        }
+        json = await client.getCommandStats(widget.botId, hours: _hours);
+      }
       if (!mounted) return;
       final rawCommands = json['commands'] as List? ?? [];
       final rawTimeline = json['timeline'] as List? ?? [];
@@ -119,13 +147,6 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
-    if (_noRunner) {
-      return _CenteredMessage(
-        icon: Icons.cloud_off,
-        text: AppStrings.t('dashboard_requires_runner'),
-      );
-    }
-
     if (_loading) {
       return _CenteredMessage(
         icon: Icons.hourglass_empty,
@@ -146,10 +167,11 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
       padding: const EdgeInsets.all(16),
       children: [
         // ── Runner source ──
-        _RunnerSourceBanner(
+        _StatsSourceBanner(
           runners: _runners,
+          source: _source,
           activeRunnerId: _activeRunnerId,
-          onRunnerChanged: _switchRunner,
+          onSourceChanged: _switchSource,
         ),
         // ── Period selector ──
         Row(
@@ -438,22 +460,39 @@ class _TimelineChart extends StatelessWidget {
   }
 }
 
-class _RunnerSourceBanner extends StatelessWidget {
-  const _RunnerSourceBanner({
+class _StatsSourceBanner extends StatelessWidget {
+  const _StatsSourceBanner({
     required this.runners,
+    required this.source,
     required this.activeRunnerId,
-    required this.onRunnerChanged,
+    required this.onSourceChanged,
   });
 
   final List<RunnerConnectionConfig> runners;
+  final _DashboardStatsSource source;
   final String? activeRunnerId;
-  final ValueChanged<String> onRunnerChanged;
+  final ValueChanged<String> onSourceChanged;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final active = runners.where((r) => r.id == activeRunnerId).firstOrNull;
-    final label = active?.name ?? active?.url ?? '?';
+    final activeRunner =
+        runners.where((r) => r.id == activeRunnerId).firstOrNull;
+    const localLabel = 'Local';
+    final activeRunnerLabel =
+        activeRunner == null
+            ? '?'
+            : AppStrings.tr(
+              'runner_source_label',
+              params: {'name': activeRunner.name ?? activeRunner.url},
+            );
+    final selectedValue =
+        source == _DashboardStatsSource.local
+            ? 'local'
+            : (activeRunnerId ?? 'local');
+    final sourceLabel =
+        source == _DashboardStatsSource.local ? localLabel : activeRunnerLabel;
+    final hasMultipleChoices = runners.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -468,10 +507,10 @@ class _RunnerSourceBanner extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child:
-                runners.length > 1
+                hasMultipleChoices
                     ? DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: activeRunnerId,
+                        value: selectedValue,
                         isDense: true,
                         isExpanded: true,
                         style: TextStyle(
@@ -479,6 +518,13 @@ class _RunnerSourceBanner extends StatelessWidget {
                           color: colorScheme.onPrimaryContainer,
                         ),
                         items: [
+                          DropdownMenuItem(
+                            value: 'local',
+                            child: Text(
+                              localLabel,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                           for (final r in runners)
                             DropdownMenuItem(
                               value: r.id,
@@ -492,15 +538,12 @@ class _RunnerSourceBanner extends StatelessWidget {
                             ),
                         ],
                         onChanged: (v) {
-                          if (v != null) onRunnerChanged(v);
+                          if (v != null) onSourceChanged(v);
                         },
                       ),
                     )
                     : Text(
-                      AppStrings.tr(
-                        'runner_source_label',
-                        params: {'name': label},
-                      ),
+                      sourceLabel,
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.onPrimaryContainer,

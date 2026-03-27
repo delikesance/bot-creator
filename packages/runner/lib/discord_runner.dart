@@ -724,15 +724,46 @@ class DiscordRunner {
     runtimeVariables['interaction.command.name'] = interaction.data.name;
     runtimeVariables['interaction.command.id'] = interaction.data.id.toString();
     runtimeVariables['interaction.command.route'] = subcommandRoute ?? '';
+    String? normalizeContextId(String? value) {
+      final trimmed = (value ?? '').trim();
+      if (trimmed.isEmpty) {
+        return null;
+      }
+      final lowered = trimmed.toLowerCase();
+      if (lowered == 'unknown user' || lowered == 'dm') {
+        return null;
+      }
+      return trimmed;
+    }
+
+    final dynamic rawInteraction = interaction;
     await hydrateRuntimeVariables(
       store: store,
       botId: botId,
       runtimeVariables: runtimeVariables,
-      guildContextId: runtimeVariables['guildId'],
-      channelContextId: runtimeVariables['channelId'],
-      userContextId: runtimeVariables['userId'],
+      guildContextId:
+          normalizeContextId(runtimeVariables['guildId']) ??
+          normalizeContextId(runtimeVariables['guild.id']) ??
+          normalizeContextId(rawInteraction.guildId?.toString()) ??
+          normalizeContextId(rawInteraction.guild?.id?.toString()),
+      channelContextId:
+          normalizeContextId(runtimeVariables['channelId']) ??
+          normalizeContextId(runtimeVariables['channel.id']) ??
+          normalizeContextId(rawInteraction.channelId?.toString()) ??
+          normalizeContextId(rawInteraction.channel?.id?.toString()) ??
+          normalizeContextId(rawInteraction.message?.channelId?.toString()),
+      userContextId:
+          normalizeContextId(runtimeVariables['userId']) ??
+          normalizeContextId(runtimeVariables['user.id']) ??
+          normalizeContextId(runtimeVariables['interaction.userId']) ??
+          normalizeContextId(rawInteraction.user?.id?.toString()) ??
+          normalizeContextId(rawInteraction.member?.user?.id?.toString()) ??
+          normalizeContextId(rawInteraction.author?.id?.toString()),
       messageContextId:
-          runtimeVariables['messageId'] ?? runtimeVariables['message.id'],
+          normalizeContextId(runtimeVariables['messageId']) ??
+          normalizeContextId(runtimeVariables['message.id']) ??
+          normalizeContextId(rawInteraction.message?.id?.toString()) ??
+          normalizeContextId(rawInteraction.id?.toString()),
     );
 
     // Collect actions

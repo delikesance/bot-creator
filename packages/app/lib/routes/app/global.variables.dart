@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/runner_client.dart';
+import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/material.dart';
 
 enum _VariableMode { global, scoped }
+
+enum _VariablesSource { local, runner }
 
 class GlobalVariablesPage extends StatefulWidget {
   const GlobalVariablesPage({super.key, required this.botId});
@@ -27,15 +32,35 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
   Map<String, dynamic> _globalVariables = <String, dynamic>{};
   List<Map<String, dynamic>> _scopedDefinitions = <Map<String, dynamic>>[];
   _VariableMode _mode = _VariableMode.global;
+  _VariablesSource _source = _VariablesSource.local;
+  List<RunnerConnectionConfig> _runners = const [];
+  String? _activeRunnerId;
+  RunnerClient? _runnerClient;
+  String? _error;
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    unawaited(_init());
   }
 
   bool get _isScopedMode => _mode == _VariableMode.scoped;
+  bool get _isRunnerMode => _source == _VariablesSource.runner;
+
+  Future<void> _init() async {
+    final runners = await RunnerSettings.getRunners();
+    final active = await RunnerSettings.getConfig();
+    if (!mounted) return;
+    setState(() {
+      _runners = runners;
+      _activeRunnerId = active?.id;
+      _source =
+          active == null ? _VariablesSource.local : _VariablesSource.runner;
+      _runnerClient = active?.createClient();
+    });
+    await _load();
+  }
 
   dynamic _parseLooseVariableValue(String raw) {
     final trimmed = raw.trim();
@@ -87,22 +112,73 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
-    if (_isScopedMode) {
-      final defs = await appManager.getScopedVariableDefinitions(widget.botId);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      if (_isScopedMode) {
+        final defs =
+            _isRunnerMode
+                ? await _requireRunnerClient().getScopedVariableDefinitions(
+                  widget.botId,
+                )
+                : await appManager.getScopedVariableDefinitions(widget.botId);
+        if (!mounted) return;
+        setState(() {
+          _scopedDefinitions = defs;
+          _loading = false;
+        });
+      } else {
+        final vars =
+            _isRunnerMode
+                ? await _requireRunnerClient().getGlobalVariables(widget.botId)
+                : await appManager.getGlobalVariables(widget.botId);
+        if (!mounted) return;
+        setState(() {
+          _globalVariables = Map<String, dynamic>.from(vars);
+          _loading = false;
+        });
+      }
+    } catch (error) {
       if (!mounted) return;
       setState(() {
-        _scopedDefinitions = defs;
-        _loading = false;
-      });
-    } else {
-      final vars = await appManager.getGlobalVariables(widget.botId);
-      if (!mounted) return;
-      setState(() {
-        _globalVariables = Map<String, dynamic>.from(vars);
+        _error = error.toString();
         _loading = false;
       });
     }
+  }
+
+  RunnerClient _requireRunnerClient() {
+    final client = _runnerClient;
+    if (client == null) {
+      throw StateError('Source Runner sélectionnée sans connexion active.');
+    }
+    return client;
+  }
+
+  Future<void> _switchSource(String sourceId) async {
+    if (sourceId == 'local') {
+      setState(() {
+        _source = _VariablesSource.local;
+        _error = null;
+      });
+      await _load();
+      return;
+    }
+
+    final runner = _runners.where((r) => r.id == sourceId).firstOrNull;
+    if (runner == null) {
+      return;
+    }
+
+    setState(() {
+      _source = _VariablesSource.runner;
+      _activeRunnerId = sourceId;
+      _runnerClient = runner.createClient();
+      _error = null;
+    });
+    await _load();
   }
 
   // ─── Global variable add / edit ───────────────────────────────────────────
@@ -162,16 +238,25 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
     final nextKey = keyCtrl.text.trim();
     if (nextKey.isEmpty) return;
 
-    await appManager.setGlobalVariable(
-      widget.botId,
-      nextKey,
-      _parseLooseVariableValue(valueCtrl.text),
-    );
+    final parsed = _parseLooseVariableValue(valueCtrl.text);
+    if (_isRunnerMode) {
+      await _requireRunnerClient().setGlobalVariable(
+        widget.botId,
+        nextKey,
+        parsed,
+      );
+    } else {
+      await appManager.setGlobalVariable(widget.botId, nextKey, parsed);
+    }
     await _load();
   }
 
   Future<void> _deleteGlobalVariable(String key) async {
-    await appManager.removeGlobalVariable(widget.botId, key);
+    if (_isRunnerMode) {
+      await _requireRunnerClient().removeGlobalVariable(widget.botId, key);
+    } else {
+      await appManager.removeGlobalVariable(widget.botId, key);
+    }
     await _load();
   }
 
@@ -189,11 +274,6 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
             ? existing!['scope'].toString()
             : null) ??
         _scopes.first;
-    String valueType =
-        (existing?['valueType']?.toString().isNotEmpty == true
-            ? existing!['valueType'].toString()
-            : null) ??
-        'string';
 
     final save = await showDialog<bool>(
       context: context,
@@ -236,32 +316,6 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        initialValue: valueType,
-                        decoration: const InputDecoration(
-                          labelText: 'Value Type',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'string',
-                            child: Text('String'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'number',
-                            child: Text('Number'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'boolean',
-                            child: Text('Boolean'),
-                          ),
-                          DropdownMenuItem(value: 'json', child: Text('JSON')),
-                        ],
-                        onChanged: (v) {
-                          if (v != null) setInner(() => valueType = v);
-                        },
-                      ),
-                      const SizedBox(height: 8),
                       TextField(
                         controller: valueCtrl,
                         decoration: const InputDecoration(
@@ -292,20 +346,37 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
 
     // If the key was renamed, delete the old entry first.
     if (oldKey != null && oldKey != newKey) {
-      await appManager.removeScopedVariableDefinition(
-        widget.botId,
-        oldKey,
-        scope: existing?['scope']?.toString(),
-      );
+      if (_isRunnerMode) {
+        await _requireRunnerClient().removeScopedVariableDefinition(
+          widget.botId,
+          oldKey,
+          scope: existing?['scope']?.toString(),
+        );
+      } else {
+        await appManager.removeScopedVariableDefinition(
+          widget.botId,
+          oldKey,
+          scope: existing?['scope']?.toString(),
+        );
+      }
     }
 
-    await appManager.setScopedVariableDefinition(
-      widget.botId,
-      newKey,
-      scope,
-      _parseLooseVariableValue(valueCtrl.text),
-      valueType: valueType,
-    );
+    final parsed = _parseLooseVariableValue(valueCtrl.text);
+    if (_isRunnerMode) {
+      await _requireRunnerClient().setScopedVariableDefinition(
+        widget.botId,
+        newKey,
+        scope,
+        parsed,
+      );
+    } else {
+      await appManager.setScopedVariableDefinition(
+        widget.botId,
+        newKey,
+        scope,
+        parsed,
+      );
+    }
     await _load();
   }
 
@@ -316,22 +387,33 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
           (entry) => (entry?['key'] ?? '').toString() == key,
           orElse: () => null,
         );
-    await appManager.removeScopedVariableDefinition(
-      widget.botId,
-      key,
-      scope: existing?['scope']?.toString(),
-    );
+    if (_isRunnerMode) {
+      await _requireRunnerClient().removeScopedVariableDefinition(
+        widget.botId,
+        key,
+        scope: existing?['scope']?.toString(),
+      );
+    } else {
+      await appManager.removeScopedVariableDefinition(
+        widget.botId,
+        key,
+        scope: existing?['scope']?.toString(),
+      );
+    }
     await _load();
   }
 
   // ─── Explorer: shows SQLite runtime data for a given scoped key ───────────
 
   Future<void> _exploreScopedKey(String key, String scope) async {
-    final values = await appManager.listScopedValuesForKey(
-      widget.botId,
-      scope,
-      key,
-    );
+    final values =
+        _isRunnerMode
+            ? await _requireRunnerClient().listScopedValuesForKey(
+              widget.botId,
+              scope,
+              key,
+            )
+            : await appManager.listScopedValuesForKey(widget.botId, scope, key);
 
     if (!mounted) return;
 
@@ -429,6 +511,65 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
     );
   }
 
+  Widget _buildSourceToggle() {
+    if (_runners.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: const Row(
+          children: [
+            Text('Source', style: TextStyle(fontSize: 13)),
+            SizedBox(width: 12),
+            Chip(label: Text('Local')),
+          ],
+        ),
+      );
+    }
+
+    final items = <DropdownMenuItem<String>>[
+      const DropdownMenuItem<String>(value: 'local', child: Text('Local')),
+      ..._runners.map(
+        (runner) => DropdownMenuItem<String>(
+          value: runner.id,
+          child: Text('Runner: ${runner.name}'),
+        ),
+      ),
+    ];
+    final value =
+        _source == _VariablesSource.local
+            ? 'local'
+            : (_activeRunnerId ?? 'local');
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Row(
+        children: [
+          const Text('Source', style: TextStyle(fontSize: 13)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              initialValue:
+                  items.any((entry) => entry.value == value) ? value : 'local',
+              decoration: const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+              ),
+              items: items,
+              onChanged: (next) {
+                if (next == null) return;
+                unawaited(_switchSource(next));
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGlobalList() {
     if (_globalVariables.isEmpty) {
       return Center(child: Text(AppStrings.t('globals_empty')));
@@ -480,7 +621,6 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
         final key = def['key']?.toString() ?? '';
         final scope = def['scope']?.toString() ?? '';
         final defaultValue = def['defaultValue']?.toString() ?? '';
-        final valueType = def['valueType']?.toString() ?? 'string';
         final refKey = _toScopedReferenceKey(key);
 
         return ListTile(
@@ -491,20 +631,6 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                 label: Text(scope, style: const TextStyle(fontSize: 11)),
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
-              ),
-              const SizedBox(width: 4),
-              Chip(
-                label: Text(valueType, style: const TextStyle(fontSize: 11)),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                backgroundColor:
-                    valueType == 'number'
-                        ? Colors.blue.withAlpha(40)
-                        : valueType == 'boolean'
-                        ? Colors.green.withAlpha(40)
-                        : valueType == 'json'
-                        ? Colors.orange.withAlpha(40)
-                        : Colors.grey.withAlpha(40),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -566,7 +692,36 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
               ? const Center(child: CircularProgressIndicator())
               : Column(
                 children: [
+                  _buildSourceToggle(),
                   _buildModeToggle(),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Material(
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _error!,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _load,
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   Expanded(
                     child:
                         _isScopedMode ? _buildScopedList() : _buildGlobalList(),

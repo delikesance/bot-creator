@@ -32,22 +32,47 @@ Future<void> handleLocalCommands(
     );
 
     if (action["id"] == command.id.toString()) {
+      unawaited(
+        appManager.recordCommandExecution(clientId, interaction.data.name),
+      );
       final listOfArgs = await generateKeyValues(interaction);
       final runtimeVariables = <String, String>{...listOfArgs};
       final dynamic rawInteraction = interaction;
+      String? normalizeContextId(String? value) {
+        final trimmed = (value ?? '').trim();
+        if (trimmed.isEmpty) {
+          return null;
+        }
+        final lowered = trimmed.toLowerCase();
+        if (lowered == 'unknown user' || lowered == 'dm') {
+          return null;
+        }
+        return trimmed;
+      }
+
       final guildContextId =
-          runtimeVariables['guildId'] ?? rawInteraction.guildId?.toString();
+          normalizeContextId(runtimeVariables['guildId']) ??
+          normalizeContextId(runtimeVariables['guild.id']) ??
+          normalizeContextId(rawInteraction.guildId?.toString()) ??
+          normalizeContextId(rawInteraction.guild?.id?.toString());
       final channelContextId =
-          runtimeVariables['channelId'] ??
-          rawInteraction.channel?.id?.toString();
+          normalizeContextId(runtimeVariables['channelId']) ??
+          normalizeContextId(runtimeVariables['channel.id']) ??
+          normalizeContextId(rawInteraction.channelId?.toString()) ??
+          normalizeContextId(rawInteraction.channel?.id?.toString()) ??
+          normalizeContextId(rawInteraction.message?.channelId?.toString());
       final userContextId =
-          runtimeVariables['userId'] ??
-          rawInteraction.user?.id?.toString() ??
-          rawInteraction.author?.id?.toString();
+          normalizeContextId(runtimeVariables['userId']) ??
+          normalizeContextId(runtimeVariables['user.id']) ??
+          normalizeContextId(runtimeVariables['interaction.userId']) ??
+          normalizeContextId(rawInteraction.user?.id?.toString()) ??
+          normalizeContextId(rawInteraction.member?.user?.id?.toString()) ??
+          normalizeContextId(rawInteraction.author?.id?.toString());
       final messageContextId =
-          runtimeVariables['messageId'] ??
-          runtimeVariables['message.id'] ??
-          rawInteraction.message?.id?.toString();
+          normalizeContextId(runtimeVariables['messageId']) ??
+          normalizeContextId(runtimeVariables['message.id']) ??
+          normalizeContextId(rawInteraction.message?.id?.toString()) ??
+          normalizeContextId(rawInteraction.id?.toString());
 
       await hydrateRuntimeVariables(
         store: manager,

@@ -371,6 +371,9 @@ Future<Map<String, String>> generateKeyValues(
   if (user == null && interaction.member != null) {
     user = interaction.member;
   }
+  final invokingUserIdText = invokingUserId?.toString() ?? '';
+  final guildIdText = guildId?.toString() ?? '';
+  final channelIdText = channelId?.toString() ?? '';
   final guildName = (guild is Guild) ? guild.name : "DM";
   final userName = user?.user?.username ?? "Unknown User";
   final guildCount = (guild is Guild) ? guild.approximateMemberCount : 0;
@@ -423,28 +426,28 @@ Future<Map<String, String>> generateKeyValues(
 
   Map<String, String> listOfArgs = {
     "userName": userName,
-    "userId": user?.id.toString() ?? "Unknown User",
+    "userId": invokingUserIdText,
     "userUsername": user?.user?.username ?? "Unknown User",
     "userTag": user?.user?.discriminator ?? "Unknown User",
     "userAvatar": userAvatarUrl,
     "userBanner": userBannerUrl,
-    "user.id": user?.id.toString() ?? "Unknown User",
+    "user.id": invokingUserIdText,
     "user.username": user?.user?.username ?? "Unknown User",
     "user.tag": user?.user?.discriminator ?? "Unknown User",
     "user.avatar": userAvatarUrl,
     "user.banner": userBannerUrl,
-    "member.id": user?.id.toString() ?? "Unknown User",
+    "member.id": invokingUserIdText,
     "member.nick": user?.nick ?? '',
     "member.avatar": memberAvatarUrl,
-    "interaction.member.id": user?.id.toString() ?? "Unknown User",
+    "interaction.member.id": invokingUserIdText,
     "interaction.member.nick": user?.nick ?? '',
     "interaction.member.avatar": memberAvatarUrl,
-    "author.id": user?.id.toString() ?? "Unknown User",
+    "author.id": invokingUserIdText,
     "author.username": user?.user?.username ?? "Unknown User",
     "author.tag": user?.user?.discriminator ?? "Unknown User",
     "author.avatar": userAvatarUrl,
     "author.banner": userBannerUrl,
-    "interaction.user.id": user?.id.toString() ?? "Unknown User",
+    "interaction.user.id": invokingUserIdText,
     "interaction.user.username": user?.user?.username ?? "Unknown User",
     "interaction.user.tag": user?.user?.discriminator ?? "Unknown User",
     "interaction.user.avatar": userAvatarUrl,
@@ -459,19 +462,19 @@ Future<Map<String, String>> generateKeyValues(
       guild?.id.toString() ?? "DM",
       (guild is Guild) ? guild.icon?.hash : null,
     ),
-    "guildId": guild?.id.toString() ?? "DM",
-    "guild.id": guild?.id.toString() ?? "DM",
-    "channelId": channel?.id.toString() ?? "DM",
-    "channel.id": channel?.id.toString() ?? "DM",
+    "guildId": guildIdText,
+    "guild.id": guildIdText,
+    "channelId": channelIdText,
+    "channel.id": channelIdText,
     "guildCount": guildCount.toString(),
     "guild.count": guildCount.toString(),
-    "interaction.guild.id": guild?.id.toString() ?? "DM",
+    "interaction.guild.id": guildIdText,
     "interaction.guild.name": guildName,
     "interaction.guild.icon": makeGuildIcon(
       guild?.id.toString() ?? "DM",
       (guild is Guild) ? guild.icon?.hash : null,
     ),
-    "interaction.channel.id": channel?.id.toString() ?? "DM",
+    "interaction.channel.id": channelIdText,
     "interaction.channel.name": channelName,
     "interaction.channel.type": channelType,
   };

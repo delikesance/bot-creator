@@ -1227,24 +1227,36 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'Value (supports placeholders ((...)))',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['string'],
+            },
           ),
           ParameterDefinition(
             key: 'numberValue',
             type: ParameterType.number,
             defaultValue: 0,
             hint: 'Numeric value when valueType=number',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['number'],
+            },
           ),
           ParameterDefinition(
             key: 'boolValue',
             type: ParameterType.boolean,
             defaultValue: false,
             hint: 'Boolean value when valueType=boolean',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['boolean'],
+            },
           ),
           ParameterDefinition(
             key: 'jsonValue',
             type: ParameterType.string,
             defaultValue: '',
             hint: 'JSON value when valueType=json (array/object)',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['json'],
+            },
           ),
         ];
       case BotCreatorActionType.getGlobalVariable:
@@ -1302,24 +1314,36 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'String value (supports placeholders ((...)))',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['string'],
+            },
           ),
           ParameterDefinition(
             key: 'numberValue',
             type: ParameterType.number,
             defaultValue: 0,
             hint: 'Numeric value when valueType=number',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['number'],
+            },
           ),
           ParameterDefinition(
             key: 'boolValue',
             type: ParameterType.boolean,
             defaultValue: false,
             hint: 'Boolean value when valueType=boolean',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['boolean'],
+            },
           ),
           ParameterDefinition(
             key: 'jsonValue',
             type: ParameterType.string,
             defaultValue: '',
             hint: 'JSON value when valueType=json (array/object)',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['json'],
+            },
           ),
         ];
       case BotCreatorActionType.getScopedVariable:
@@ -1478,24 +1502,36 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'String element value',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['string'],
+            },
           ),
           ParameterDefinition(
             key: 'numberValue',
             type: ParameterType.number,
             defaultValue: 0,
             hint: 'Numeric element value',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['number'],
+            },
           ),
           ParameterDefinition(
             key: 'boolValue',
             type: ParameterType.boolean,
             defaultValue: false,
             hint: 'Boolean element value',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['boolean'],
+            },
           ),
           ParameterDefinition(
             key: 'jsonValue',
             type: ParameterType.string,
             defaultValue: '',
             hint: 'JSON element value (array/object)',
+            visibleWhen: <String, List<String>>{
+              'valueType': <String>['json'],
+            },
           ),
         ];
       case BotCreatorActionType.removeArrayElement:
@@ -2110,8 +2146,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'channelId',
             type: ParameterType.channelId,
             defaultValue: '',
-            hint: 'Channel to create invite for',
-            required: true,
+            hint: 'Channel to create invite for (optional: current channel)',
           ),
           ParameterDefinition(
             key: 'maxAge',

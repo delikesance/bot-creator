@@ -2,6 +2,42 @@ import 'dart:convert';
 
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
 
+bool _isInvalidContextId(String? value) {
+  final normalized = (value ?? '').trim().toLowerCase();
+  return normalized.isEmpty ||
+      normalized == 'unknown user' ||
+      normalized == 'dm';
+}
+
+String? _normalizeContextId(String? value) {
+  final trimmed = (value ?? '').trim();
+  return _isInvalidContextId(trimmed) ? null : trimmed;
+}
+
+List<String> _legacyContextIdsForScope(
+  String scope,
+  String? canonicalContextId,
+) {
+  switch (scope) {
+    case 'user':
+      return const <String>['Unknown User'];
+    case 'guild':
+    case 'channel':
+      return const <String>['DM'];
+    case 'guildMember':
+      final parts = (canonicalContextId ?? '').split(':');
+      final guild = parts.isNotEmpty ? parts.first.trim() : '';
+      final user = parts.length > 1 ? parts[1].trim() : '';
+      return <String>{
+        'DM:Unknown User',
+        if (guild.isNotEmpty) '$guild:Unknown User',
+        if (user.isNotEmpty) 'DM:$user',
+      }.toList(growable: false);
+    default:
+      return const <String>[];
+  }
+}
+
 String stringifyRuntimeVariableValue(dynamic value) {
   if (value == null) {
     return '';
@@ -34,17 +70,38 @@ Future<void> injectScopedRuntimeVariables({
   required String scope,
   required String? contextId,
   required Map<String, String> runtimeVariables,
+  List<String> legacyContextIds = const <String>[],
 }) async {
-  final normalizedContextId = (contextId ?? '').trim();
-  if (normalizedContextId.isEmpty) {
-    return;
+  final normalizedContextId = _normalizeContextId(contextId);
+  Map<String, dynamic> values = <String, dynamic>{};
+  if (normalizedContextId != null) {
+    values = await store.getScopedVariables(botId, scope, normalizedContextId);
+  }
+  if (values.isEmpty) {
+    for (final candidate in legacyContextIds) {
+      final legacyContextId = candidate.trim();
+      if (legacyContextId.isEmpty) {
+        continue;
+      }
+      values = await store.getScopedVariables(botId, scope, legacyContextId);
+      if (values.isNotEmpty) {
+        if (normalizedContextId != null &&
+            normalizedContextId != legacyContextId) {
+          for (final entry in values.entries) {
+            await store.setScopedVariable(
+              botId,
+              scope,
+              normalizedContextId,
+              entry.key.toString(),
+              entry.value,
+            );
+          }
+        }
+        break;
+      }
+    }
   }
 
-  final values = await store.getScopedVariables(
-    botId,
-    scope,
-    normalizedContextId,
-  );
   for (final entry in values.entries) {
     final rawKey = entry.key.toString().trim();
     if (rawKey.isEmpty) {
@@ -74,10 +131,10 @@ Future<void> hydrateRuntimeVariables({
     runtimeVariables: runtimeVariables,
   );
 
-  final normalizedGuildId = (guildContextId ?? '').trim();
-  final normalizedUserId = (userContextId ?? '').trim();
+  final normalizedGuildId = _normalizeContextId(guildContextId);
+  final normalizedUserId = _normalizeContextId(userContextId);
   final guildMemberContextId =
-      normalizedGuildId.isNotEmpty && normalizedUserId.isNotEmpty
+      normalizedGuildId != null && normalizedUserId != null
           ? '$normalizedGuildId:$normalizedUserId'
           : null;
 
@@ -87,6 +144,7 @@ Future<void> hydrateRuntimeVariables({
     scope: 'guild',
     contextId: guildContextId,
     runtimeVariables: runtimeVariables,
+    legacyContextIds: _legacyContextIdsForScope('guild', guildContextId),
   );
   await injectScopedRuntimeVariables(
     store: store,
@@ -94,6 +152,7 @@ Future<void> hydrateRuntimeVariables({
     scope: 'channel',
     contextId: channelContextId,
     runtimeVariables: runtimeVariables,
+    legacyContextIds: _legacyContextIdsForScope('channel', channelContextId),
   );
   await injectScopedRuntimeVariables(
     store: store,
@@ -101,6 +160,7 @@ Future<void> hydrateRuntimeVariables({
     scope: 'user',
     contextId: userContextId,
     runtimeVariables: runtimeVariables,
+    legacyContextIds: _legacyContextIdsForScope('user', userContextId),
   );
   await injectScopedRuntimeVariables(
     store: store,
@@ -108,6 +168,10 @@ Future<void> hydrateRuntimeVariables({
     scope: 'guildMember',
     contextId: guildMemberContextId,
     runtimeVariables: runtimeVariables,
+    legacyContextIds: _legacyContextIdsForScope(
+      'guildMember',
+      guildMemberContextId,
+    ),
   );
   await injectScopedRuntimeVariables(
     store: store,
@@ -115,5 +179,6 @@ Future<void> hydrateRuntimeVariables({
     scope: 'message',
     contextId: messageContextId,
     runtimeVariables: runtimeVariables,
+    legacyContextIds: _legacyContextIdsForScope('message', messageContextId),
   );
 }

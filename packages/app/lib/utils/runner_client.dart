@@ -363,6 +363,148 @@ class RunnerClient {
       query: {'hours': hours.toString()},
     );
   }
+
+  Future<Map<String, dynamic>> getGlobalVariables(String botId) async {
+    final normalizedBotId = botId.trim();
+    if (normalizedBotId.isEmpty) {
+      throw const RunnerClientException(
+        'Missing botId for getGlobalVariables().',
+      );
+    }
+    final json = await _get(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/variables/global',
+    );
+    final raw = json['variables'];
+    if (raw is! Map) return const <String, dynamic>{};
+    return Map<String, dynamic>.from(raw);
+  }
+
+  Future<void> setGlobalVariable(
+    String botId,
+    String key,
+    dynamic value,
+  ) async {
+    final normalizedBotId = botId.trim();
+    final normalizedKey = key.trim();
+    if (normalizedBotId.isEmpty || normalizedKey.isEmpty) {
+      throw const RunnerClientException(
+        'Missing botId/key for setGlobalVariable().',
+      );
+    }
+    await _post(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/variables/global/set',
+      <String, dynamic>{'key': normalizedKey, 'value': value},
+    );
+  }
+
+  Future<void> removeGlobalVariable(String botId, String key) async {
+    final normalizedBotId = botId.trim();
+    final normalizedKey = key.trim();
+    if (normalizedBotId.isEmpty || normalizedKey.isEmpty) {
+      throw const RunnerClientException(
+        'Missing botId/key for removeGlobalVariable().',
+      );
+    }
+    await _post(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/variables/global/remove',
+      <String, dynamic>{'key': normalizedKey},
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> getScopedVariableDefinitions(
+    String botId,
+  ) async {
+    final normalizedBotId = botId.trim();
+    if (normalizedBotId.isEmpty) {
+      throw const RunnerClientException(
+        'Missing botId for getScopedVariableDefinitions().',
+      );
+    }
+    final json = await _get(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/variables/scoped-definitions',
+    );
+    final raw = json['definitions'];
+    if (raw is! List) {
+      return const <Map<String, dynamic>>[];
+    }
+    return raw
+        .whereType<Map>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList(growable: false);
+  }
+
+  Future<void> setScopedVariableDefinition(
+    String botId,
+    String key,
+    String scope,
+    dynamic defaultValue, {
+    String valueType = 'string',
+  }) async {
+    final normalizedBotId = botId.trim();
+    final normalizedKey = _normalizeScopedStorageKey(key);
+    final normalizedScope = scope.trim();
+    if (normalizedBotId.isEmpty ||
+        normalizedKey.isEmpty ||
+        normalizedScope.isEmpty) {
+      throw const RunnerClientException(
+        'Missing botId/scope/key for setScopedVariableDefinition().',
+      );
+    }
+    await _post(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/variables/scoped-definitions/set',
+      <String, dynamic>{
+        'key': normalizedKey,
+        'scope': normalizedScope,
+        'defaultValue': defaultValue,
+        'valueType': valueType,
+      },
+    );
+  }
+
+  Future<void> removeScopedVariableDefinition(
+    String botId,
+    String key, {
+    String? scope,
+  }) async {
+    final normalizedBotId = botId.trim();
+    final normalizedKey = _normalizeScopedStorageKey(key);
+    if (normalizedBotId.isEmpty || normalizedKey.isEmpty) {
+      throw const RunnerClientException(
+        'Missing botId/key for removeScopedVariableDefinition().',
+      );
+    }
+    await _post(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/variables/scoped-definitions/remove',
+      <String, dynamic>{
+        'key': normalizedKey,
+        if (scope != null && scope.trim().isNotEmpty) 'scope': scope.trim(),
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> listScopedValuesForKey(
+    String botId,
+    String scope,
+    String key,
+  ) async {
+    final normalizedBotId = botId.trim();
+    final normalizedScope = scope.trim();
+    final normalizedKey = _normalizeScopedStorageKey(key);
+    if (normalizedBotId.isEmpty ||
+        normalizedScope.isEmpty ||
+        normalizedKey.isEmpty) {
+      throw const RunnerClientException(
+        'Missing botId/scope/key for listScopedValuesForKey().',
+      );
+    }
+    final json = await _get(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/variables/scoped-values',
+      query: <String, String>{'scope': normalizedScope, 'key': normalizedKey},
+    );
+    final raw = json['values'];
+    if (raw is! Map) return const <String, dynamic>{};
+    return Map<String, dynamic>.from(raw);
+  }
 }
 
 /// Exception thrown by [RunnerClient] when the runner returns an error or
@@ -404,4 +546,12 @@ List<RunnerBotRuntime> _parseBotRuntimeList(dynamic raw) {
 String? _normalizeOptional(String? value) {
   final normalized = value?.trim() ?? '';
   return normalized.isEmpty ? null : normalized;
+}
+
+String _normalizeScopedStorageKey(String key) {
+  final trimmed = key.trim();
+  if (trimmed.startsWith('bc_') && trimmed.length > 3) {
+    return trimmed.substring(3);
+  }
+  return trimmed;
 }

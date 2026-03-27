@@ -113,50 +113,130 @@ String? _resolveScopeContextId({
   required Snowflake? channelId,
   required Interaction? interaction,
 }) {
-  String? fromVariables(String key) {
-    final value = variables[key]?.trim();
-    return (value == null || value.isEmpty) ? null : value;
+  String? normalize(dynamic value) {
+    final text = (value ?? '').toString().trim();
+    if (text.isEmpty) {
+      return null;
+    }
+    final lowered = text.toLowerCase();
+    if (lowered == 'unknown user' || lowered == 'dm') {
+      return null;
+    }
+    return text;
+  }
+
+  String? fromVariables(List<String> keys) {
+    for (final key in keys) {
+      final value = normalize(variables[key]);
+      if (value != null) {
+        return value;
+      }
+    }
+    return null;
   }
 
   String? fromSnowflake(Snowflake? value) {
-    if (value == null) {
-      return null;
-    }
-    final text = value.toString().trim();
-    return text.isEmpty ? null : text;
+    return normalize(value?.toString());
   }
 
   String? interactionUserId() {
     final dynamic raw = interaction;
-    final userId = (raw?.user ?? raw?.author?.id)?.toString().trim();
-    return (userId == null || userId.isEmpty) ? null : userId;
+    return normalize(
+      raw?.user?.id ??
+          raw?.member?.user?.id ??
+          raw?.member?.id ??
+          raw?.interaction?.user?.id ??
+          raw?.interaction?.member?.user?.id ??
+          raw?.author?.id,
+    );
+  }
+
+  String? interactionGuildId() {
+    final dynamic raw = interaction;
+    return normalize(
+      raw?.guildId ?? raw?.guild?.id ?? raw?.interaction?.guildId,
+    );
+  }
+
+  String? interactionChannelId() {
+    final dynamic raw = interaction;
+    return normalize(
+      raw?.channelId ??
+          raw?.channel?.id ??
+          raw?.message?.channelId ??
+          raw?.interaction?.channelId,
+    );
   }
 
   String? interactionMessageId() {
     final dynamic raw = interaction;
-    final messageId = raw?.message?.id?.toString().trim();
-    return (messageId == null || messageId.isEmpty) ? null : messageId;
+    return normalize(raw?.message?.id ?? raw?.id);
   }
 
   switch (scope) {
     case 'guild':
-      return fromVariables('guildId') ?? fromSnowflake(guildId);
+      return fromVariables(<String>[
+            'guildId',
+            'guild.id',
+            'interaction.guildId',
+            'interaction.guild.id',
+          ]) ??
+          interactionGuildId() ??
+          fromSnowflake(guildId);
     case 'user':
-      return fromVariables('userId') ?? interactionUserId();
+      return fromVariables(<String>[
+            'userId',
+            'user.id',
+            'interaction.userId',
+            'interaction.user.id',
+            'author.id',
+            'member.id',
+            'interaction.member.id',
+          ]) ??
+          interactionUserId();
     case 'channel':
-      return fromVariables('channelId') ?? fromSnowflake(channelId);
+      return fromVariables(<String>[
+            'channelId',
+            'channel.id',
+            'interaction.channelId',
+            'interaction.channel.id',
+          ]) ??
+          interactionChannelId() ??
+          fromSnowflake(channelId);
     case 'guildMember':
       {
-        final guild = fromVariables('guildId') ?? fromSnowflake(guildId);
-        final user = fromVariables('userId') ?? interactionUserId();
+        final guild =
+            fromVariables(<String>[
+              'guildId',
+              'guild.id',
+              'interaction.guildId',
+              'interaction.guild.id',
+            ]) ??
+            interactionGuildId() ??
+            fromSnowflake(guildId);
+        final user =
+            fromVariables(<String>[
+              'userId',
+              'user.id',
+              'interaction.userId',
+              'interaction.user.id',
+              'author.id',
+              'member.id',
+              'interaction.member.id',
+            ]) ??
+            interactionUserId();
         if (guild == null || user == null) {
           return null;
         }
         return '$guild:$user';
       }
     case 'message':
-      return fromVariables('messageId') ??
-          fromVariables('message.id') ??
+      return fromVariables(<String>[
+            'messageId',
+            'message.id',
+            'interaction.messageId',
+            'interaction.message.id',
+          ]) ??
           interactionMessageId();
     default:
       return null;

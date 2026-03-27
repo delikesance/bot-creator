@@ -98,6 +98,7 @@ class BotConfig {
   final Map<String, bool> intents;
   final Map<String, dynamic> globalVariables;
   final Map<String, Map<String, Map<String, dynamic>>> scopedVariables;
+  final List<Map<String, dynamic>> scopedVariableDefinitions;
   final List<Map<String, dynamic>> workflows;
   final List<BotStatusConfig> statuses;
 
@@ -112,6 +113,7 @@ class BotConfig {
     this.intents = const {},
     this.globalVariables = const {},
     this.scopedVariables = const {},
+    this.scopedVariableDefinitions = const [],
     this.workflows = const [],
     this.statuses = const [],
     this.commands = const [],
@@ -130,6 +132,9 @@ class BotConfig {
       ),
       globalVariables: _normalizeVariableMap(json['globalVariables']),
       scopedVariables: _normalizeScopedVariables(json['scopedVariables']),
+      scopedVariableDefinitions: _normalizeScopedVariableDefinitions(
+        json['scopedVariableDefinitions'],
+      ),
       workflows: List<Map<String, dynamic>>.from(
         (json['workflows'] as List?)?.whereType<Map>().map(
               (w) => normalizeStoredWorkflowDefinition(
@@ -160,6 +165,7 @@ class BotConfig {
     'intents': intents,
     'globalVariables': globalVariables,
     'scopedVariables': scopedVariables,
+    'scopedVariableDefinitions': scopedVariableDefinitions,
     'workflows': workflows,
     'statuses': statuses.map((s) => s.toJson()).toList(growable: false),
     'commands': commands,
@@ -232,6 +238,29 @@ Map<String, Map<String, Map<String, dynamic>>> _normalizeScopedVariables(
     normalized[scopeEntry.key] = scopeValues;
   }
   return normalized;
+}
+
+List<Map<String, dynamic>> _normalizeScopedVariableDefinitions(dynamic raw) {
+  if (raw is! List) {
+    return const <Map<String, dynamic>>[];
+  }
+  return raw
+      .whereType<Map>()
+      .map((entry) {
+        final map = Map<String, dynamic>.from(entry.cast<String, dynamic>());
+        return <String, dynamic>{
+          'key': (map['key'] ?? '').toString(),
+          'scope': (map['scope'] ?? '').toString(),
+          'defaultValue': _normalizeVariableValue(map['defaultValue']),
+          'valueType': (map['valueType'] ?? 'string').toString(),
+        };
+      })
+      .where(
+        (entry) =>
+            (entry['key'] ?? '').toString().trim().isNotEmpty &&
+            (entry['scope'] ?? '').toString().trim().isNotEmpty,
+      )
+      .toList(growable: false);
 }
 
 dynamic _normalizeVariableValue(dynamic value) {

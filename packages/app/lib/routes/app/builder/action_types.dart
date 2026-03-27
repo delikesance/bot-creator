@@ -33,6 +33,7 @@ class ParameterDefinition {
   final dynamic defaultValue;
   final String? hint;
   final List<String>? options; // Pour les select/multiselect
+  final Map<String, List<String>>? visibleWhen;
   final int? minValue;
   final int? maxValue;
   final bool required;
@@ -44,6 +45,7 @@ class ParameterDefinition {
     required this.defaultValue,
     this.hint,
     this.options,
+    this.visibleWhen,
     this.minValue,
     this.maxValue,
     this.required = false,

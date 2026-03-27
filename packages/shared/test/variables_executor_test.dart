@@ -165,6 +165,80 @@ void main() {
         expect(variables['topScores'], '[{"name":"Bob","score":10}]');
       },
     );
+
+    test(
+      'getScopedVariable resolves user scope from fallback runtime identity keys',
+      () async {
+        final store = _MemoryBotDataStore(
+          scopedVariables: <String, Map<String, Map<String, dynamic>>>{
+            'user': <String, Map<String, dynamic>>{
+              'user-42': <String, dynamic>{'profile': 'dark'},
+            },
+          },
+        );
+        final results = <String, String>{};
+        final variables = <String, String>{
+          'userId': 'Unknown User',
+          'interaction.user.id': 'user-42',
+        };
+
+        final handled = await executeVariablesAction(
+          type: BotCreatorActionType.getScopedVariable,
+          store: store,
+          botId: 'bot-1',
+          payload: <String, dynamic>{'scope': 'user', 'key': 'profile'},
+          resultKey: 'getProfile',
+          results: results,
+          variables: variables,
+          resolveValue: (input) => input,
+          guildId: null,
+          fallbackChannelId: null,
+          interaction: null,
+        );
+
+        expect(handled, isTrue);
+        expect(results['getProfile'], 'dark');
+        expect(variables['user.bc_profile'], 'dark');
+        expect(variables['user.profile'], 'dark');
+      },
+    );
+
+    test(
+      'getScopedVariable reads legacy user context and copies to canonical context',
+      () async {
+        final store = _MemoryBotDataStore(
+          scopedVariables: <String, Map<String, Map<String, dynamic>>>{
+            'user': <String, Map<String, dynamic>>{
+              'Unknown User': <String, dynamic>{'profile': 'legacy'},
+            },
+          },
+        );
+        final results = <String, String>{};
+        final variables = <String, String>{'userId': 'user-99'};
+
+        final handled = await executeVariablesAction(
+          type: BotCreatorActionType.getScopedVariable,
+          store: store,
+          botId: 'bot-1',
+          payload: <String, dynamic>{'scope': 'user', 'key': 'profile'},
+          resultKey: 'getProfile',
+          results: results,
+          variables: variables,
+          resolveValue: (input) => input,
+          guildId: null,
+          fallbackChannelId: null,
+          interaction: null,
+        );
+
+        expect(handled, isTrue);
+        expect(results['getProfile'], 'legacy');
+        expect(store.scopedVariables['user']?['user-99']?['profile'], 'legacy');
+        expect(
+          store.scopedVariables['user']?['Unknown User']?['profile'],
+          'legacy',
+        );
+      },
+    );
   });
 }
 
