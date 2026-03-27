@@ -551,6 +551,7 @@ class DiscordBotTaskHandler extends TaskHandler {
     await _emitTaskLogToMain('Mobile service started');
     developer.log('Starting Discord bot', name: 'DiscordBotTaskHandler');
     _manager ??= AppManager();
+    appManager = _manager!;
 
     _bindMobileNyxxLogs();
     final sessions = await _readConfiguredMobileSessions();

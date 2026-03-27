@@ -25,7 +25,13 @@ import 'utils/i18n.dart';
 import 'utils/onboarding_manager.dart';
 
 @pragma('vm:entry-point')
-late AppManager appManager;
+AppManager? _appManager;
+
+@pragma('vm:entry-point')
+AppManager get appManager => _appManager ??= AppManager();
+
+@pragma('vm:entry-point')
+set appManager(AppManager value) => _appManager = value;
 List<String> currentLogList = [];
 @pragma('vm:entry-point')
 List<NyxxGateway> gateways = [];
