@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:bot_creator_runner/stores/sqlite_cli_variable_store.dart';
 import 'package:bot_creator_runner/web_bootstrap_server.dart';
 import 'package:bot_creator_runner/web_log_store.dart';
 import 'package:http/http.dart' as http;
@@ -83,6 +84,126 @@ void main() {
         expect((jsonDecode(health.body) as Map<String, dynamic>)['ok'], isTrue);
       },
     );
+
+    test('supports variable endpoints for global/scoped data', () async {
+      final port = await _allocatePort();
+      server = RunnerWebBootstrapServer(
+        host: '127.0.0.1',
+        port: port,
+        logStore: RunnerLogStore(),
+      );
+      await server!.start();
+
+      final base = Uri.parse('http://127.0.0.1:$port');
+      const botId = 'bot-variables';
+
+      final sync = await http.post(
+        base.resolve('/bots/sync'),
+        headers: const <String, String>{'content-type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{
+          'botId': botId,
+          'botName': 'Test Bot',
+          'config': <String, dynamic>{
+            'token': 'abc',
+            'globalVariables': <String, dynamic>{'foo': 'bar'},
+            'scopedVariableDefinitions': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'scope': 'user',
+                'key': 'coins',
+                'defaultValue': 0,
+                'valueType': 'number',
+              },
+            ],
+          },
+        }),
+      );
+      expect(sync.statusCode, HttpStatus.ok);
+
+      final getGlobals = await http.get(
+        base.resolve('/bots/$botId/variables/global'),
+      );
+      final globalsJson = Map<String, dynamic>.from(
+        jsonDecode(getGlobals.body) as Map,
+      );
+      expect(getGlobals.statusCode, HttpStatus.ok);
+      expect(globalsJson['variables']['foo'], 'bar');
+
+      final setGlobal = await http.post(
+        base.resolve('/bots/$botId/variables/global/set'),
+        headers: const <String, String>{'content-type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{'key': 'hello', 'value': 42}),
+      );
+      expect(setGlobal.statusCode, HttpStatus.ok);
+
+      final getGlobalsAfterSet = await http.get(
+        base.resolve('/bots/$botId/variables/global'),
+      );
+      final globalsAfterSetJson = Map<String, dynamic>.from(
+        jsonDecode(getGlobalsAfterSet.body) as Map,
+      );
+      expect(globalsAfterSetJson['variables']['hello'], 42);
+
+      final removeGlobal = await http.post(
+        base.resolve('/bots/$botId/variables/global/remove'),
+        headers: const <String, String>{'content-type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{'key': 'hello'}),
+      );
+      expect(removeGlobal.statusCode, HttpStatus.ok);
+
+      final defs = await http.get(
+        base.resolve('/bots/$botId/variables/scoped-definitions'),
+      );
+      final defsJson = Map<String, dynamic>.from(jsonDecode(defs.body) as Map);
+      expect(defs.statusCode, HttpStatus.ok);
+      expect((defsJson['definitions'] as List).length, 1);
+
+      final setDef = await http.post(
+        base.resolve('/bots/$botId/variables/scoped-definitions/set'),
+        headers: const <String, String>{'content-type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{
+          'scope': 'user',
+          'key': 'score',
+          'defaultValue': 10,
+          'valueType': 'number',
+        }),
+      );
+      expect(setDef.statusCode, HttpStatus.ok);
+
+      final removeDef = await http.post(
+        base.resolve('/bots/$botId/variables/scoped-definitions/remove'),
+        headers: const <String, String>{'content-type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{'scope': 'user', 'key': 'score'}),
+      );
+      expect(removeDef.statusCode, HttpStatus.ok);
+
+      final sqlite = SqliteCliVariableStore('./data/variables');
+      await sqlite.init();
+      await sqlite.setScopedVariable(botId, 'user', 'u1', 'coins', 99);
+      await sqlite.setScopedVariable(botId, 'user', 'u2', 'bc_legacy', 'yes');
+      sqlite.dispose();
+
+      final scopedValues = await http.get(
+        base.resolve(
+          '/bots/$botId/variables/scoped-values?scope=user&key=coins',
+        ),
+      );
+      final scopedJson = Map<String, dynamic>.from(
+        jsonDecode(scopedValues.body) as Map,
+      );
+      expect(scopedValues.statusCode, HttpStatus.ok);
+      expect(scopedJson['values']['u1'], 99);
+
+      final legacyValues = await http.get(
+        base.resolve(
+          '/bots/$botId/variables/scoped-values?scope=user&key=legacy',
+        ),
+      );
+      final legacyJson = Map<String, dynamic>.from(
+        jsonDecode(legacyValues.body) as Map,
+      );
+      expect(legacyValues.statusCode, HttpStatus.ok);
+      expect(legacyJson['values']['u2'], 'yes');
+    });
   });
 }
 

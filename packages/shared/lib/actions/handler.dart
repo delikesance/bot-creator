@@ -422,6 +422,7 @@ Future<Map<String, String>> handleActions(
             client,
             payload: action.payload,
             resolve: resolveValue,
+            fallbackChannelId: resolvedFallbackChannelId,
           );
           if (ciResult['error'] != null) {
             throw Exception(ciResult['error']);

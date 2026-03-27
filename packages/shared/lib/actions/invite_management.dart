@@ -6,28 +6,45 @@ Snowflake? _toSnowflake(dynamic value) {
   return Snowflake(parsed);
 }
 
+Snowflake? resolveInviteChannelId({
+  required Map<String, dynamic> payload,
+  required String Function(String) resolve,
+  Snowflake? fallbackChannelId,
+}) {
+  final explicitChannelId = _toSnowflake(
+    resolve((payload['channelId'] ?? '').toString()),
+  );
+  return explicitChannelId ?? fallbackChannelId;
+}
+
+String buildInviteUrl(String inviteCode) => 'https://discord.gg/$inviteCode';
+
 /// Creates an invite for a channel.
 ///
 /// Payload fields:
-/// - `channelId` — channel to create invite for (required)
+/// - `channelId` — channel to create invite for (optional: current channel)
 /// - `maxAge` — duration in seconds (0 = never expires, default 86400)
 /// - `maxUses` — max uses (0 = unlimited, default 0)
 /// - `temporary` — whether membership is temporary (default false)
 /// - `unique` — guarantee unique invite (default false)
 /// - `reason` — audit log reason
 ///
-/// Returns `{'inviteCode', 'url', 'channelId', 'guildId'}` or `{'error': '...'}`.
+/// Returns `{'inviteCode', 'invite_url', 'url', 'channelId', 'guildId'}`
+/// or `{'error': '...'}`.
 Future<Map<String, String>> createInviteAction(
   NyxxGateway client, {
   required Map<String, dynamic> payload,
   required String Function(String) resolve,
+  Snowflake? fallbackChannelId,
 }) async {
   try {
-    final channelId = _toSnowflake(
-      resolve((payload['channelId'] ?? '').toString()),
+    final channelId = resolveInviteChannelId(
+      payload: payload,
+      resolve: resolve,
+      fallbackChannelId: fallbackChannelId,
     );
     if (channelId == null) {
-      return {'error': 'channelId is required for createInvite'};
+      return {'error': 'Missing or invalid channelId for createInvite'};
     }
 
     final maxAge =
@@ -61,9 +78,11 @@ Future<Map<String, String>> createInviteAction(
       auditLogReason: reason.isNotEmpty ? reason : null,
     );
 
+    final inviteUrl = buildInviteUrl(invite.code);
     return {
       'inviteCode': invite.code,
-      'url': 'https://discord.gg/${invite.code}',
+      'invite_url': inviteUrl,
+      'url': inviteUrl,
       'channelId': invite.channel.id.toString(),
       'guildId': invite.guild?.id.toString() ?? '',
     };

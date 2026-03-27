@@ -301,6 +301,27 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         VariableSuggestionKind.numeric,
       );
     }
+
+    if (type == BotCreatorActionType.createInvite) {
+      for (final name in <String>[
+        'inviteCode',
+        'invite_url',
+        'url',
+        'channelId',
+        'guildId',
+      ]) {
+        _addSuggestionIfMissing(
+          bucket,
+          'action.$resultKey.$name',
+          VariableSuggestionKind.nonNumeric,
+        );
+        _addSuggestionIfMissing(
+          bucket,
+          '$resultKey.$name',
+          VariableSuggestionKind.nonNumeric,
+        );
+      }
+    }
   }
 
   List<VariableSuggestion> _buildMergedVariableSuggestions() {

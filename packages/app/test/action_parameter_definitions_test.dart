@@ -28,5 +28,34 @@ void main() {
       expect(_findByKey(defs, 'clearEmbeds').type, ParameterType.boolean);
       expect(_findByKey(defs, 'clearEmbeds').defaultValue, isFalse);
     });
+
+    test(
+      'setScopedVariable value fields are conditionally visible by valueType',
+      () {
+        final defs =
+            BotCreatorActionType.setScopedVariable.parameterDefinitions;
+        expect(
+          _findByKey(defs, 'value').visibleWhen?['valueType'],
+          equals(<String>['string']),
+        );
+        expect(
+          _findByKey(defs, 'numberValue').visibleWhen?['valueType'],
+          equals(<String>['number']),
+        );
+        expect(
+          _findByKey(defs, 'boolValue').visibleWhen?['valueType'],
+          equals(<String>['boolean']),
+        );
+        expect(
+          _findByKey(defs, 'jsonValue').visibleWhen?['valueType'],
+          equals(<String>['json']),
+        );
+      },
+    );
+
+    test('createInvite channelId is optional to allow runtime fallback', () {
+      final defs = BotCreatorActionType.createInvite.parameterDefinitions;
+      expect(_findByKey(defs, 'channelId').required, isFalse);
+    });
   });
 }

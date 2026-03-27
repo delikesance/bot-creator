@@ -648,6 +648,25 @@ class ActionCard extends StatelessWidget {
   /// Whether a parameter should be rendered based on the current action state.
   /// Used to toggle between normal message fields and componentV2 fields.
   bool _shouldShowParameter(ParameterDefinition paramDef) {
+    final visibleWhen = paramDef.visibleWhen;
+    if (visibleWhen != null && visibleWhen.isNotEmpty) {
+      for (final entry in visibleWhen.entries) {
+        final current =
+            (action.parameters[entry.key] ?? '')
+                .toString()
+                .trim()
+                .toLowerCase();
+        final allowed =
+            entry.value
+                .map((value) => value.trim().toLowerCase())
+                .where((value) => value.isNotEmpty)
+                .toSet();
+        if (allowed.isNotEmpty && !allowed.contains(current)) {
+          return false;
+        }
+      }
+    }
+
     if (action.type == BotCreatorActionType.sendMessage) {
       final mode = (action.parameters['messageMode'] ?? 'normal').toString();
       if (mode == 'componentV2') {
@@ -663,25 +682,127 @@ class ActionCard extends StatelessWidget {
     return true;
   }
 
+  String _inputModeKey(String parameterKey) => '${parameterKey}InputMode';
+
+  bool _supportsDynamicInputMode(ParameterType type) {
+    return type == ParameterType.multiSelect ||
+        type == ParameterType.boolean ||
+        type == ParameterType.userId ||
+        type == ParameterType.channelId ||
+        type == ParameterType.messageId ||
+        type == ParameterType.roleId;
+  }
+
+  String _resolveInputMode(ParameterDefinition paramDef) {
+    final stored =
+        (action.parameters[_inputModeKey(paramDef.key)] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+    return stored == 'dynamic' ? 'dynamic' : 'literal';
+  }
+
+  bool _coerceBoolValue(dynamic value, bool fallback) {
+    if (value is bool) {
+      return value;
+    }
+    final normalized = (value ?? '').toString().trim().toLowerCase();
+    if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+      return true;
+    }
+    if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+      return false;
+    }
+    return fallback;
+  }
+
+  Widget _buildInputModeToggle(
+    ParameterDefinition paramDef,
+    String currentMode,
+  ) {
+    if (!_supportsDynamicInputMode(paramDef.type)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Wrap(
+        spacing: 8,
+        children: [
+          ChoiceChip(
+            label: const Text('Literal'),
+            selected: currentMode == 'literal',
+            onSelected:
+                (_) =>
+                    onParameterChanged(_inputModeKey(paramDef.key), 'literal'),
+          ),
+          ChoiceChip(
+            label: const Text('Dynamic'),
+            selected: currentMode == 'dynamic',
+            onSelected:
+                (_) =>
+                    onParameterChanged(_inputModeKey(paramDef.key), 'dynamic'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildParameterField(
     BuildContext context,
     ParameterDefinition paramDef,
     dynamic currentValue,
   ) {
+    final inputMode = _resolveInputMode(paramDef);
+    final useDynamicInput =
+        _supportsDynamicInputMode(paramDef.type) && inputMode == 'dynamic';
+
     switch (paramDef.type) {
       case ParameterType.boolean:
-        return Row(
-          children: [
-            Expanded(
-              child: Text(
+        if (useDynamicInput) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
                 _formatParameterName(paramDef.key),
                 style: const TextStyle(fontWeight: FontWeight.w500),
               ),
-            ),
-            Switch(
-              value: currentValue ?? paramDef.defaultValue,
-              onChanged:
-                  (newValue) => onParameterChanged(paramDef.key, newValue),
+              _buildInputModeToggle(paramDef, inputMode),
+              VariableTextField(
+                key: _parameterInputKey(paramDef.key),
+                label: 'Expression',
+                initialValue:
+                    (currentValue ?? paramDef.defaultValue).toString(),
+                hint:
+                    _localizeHint(paramDef.hint) ??
+                    'true/false or ((variable))',
+                suggestions: variableSuggestions,
+                onChanged:
+                    (newValue) => onParameterChanged(paramDef.key, newValue),
+              ),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildInputModeToggle(paramDef, inputMode),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _formatParameterName(paramDef.key),
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+                Switch(
+                  value: _coerceBoolValue(
+                    currentValue,
+                    _coerceBoolValue(paramDef.defaultValue, false),
+                  ),
+                  onChanged:
+                      (newValue) => onParameterChanged(paramDef.key, newValue),
+                ),
+              ],
             ),
           ],
         );
@@ -750,6 +871,36 @@ class ActionCard extends StatelessWidget {
         );
 
       case ParameterType.multiSelect:
+        if (useDynamicInput) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatParameterName(paramDef.key),
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              _buildInputModeToggle(paramDef, inputMode),
+              VariableTextField(
+                key: _parameterInputKey(paramDef.key),
+                label: 'Expression',
+                initialValue:
+                    (currentValue ?? paramDef.defaultValue).toString(),
+                hint:
+                    _localizeHint(paramDef.hint) ??
+                    'Dynamic value (supports ((...)))',
+                suggestions: variableSuggestions,
+                onChanged:
+                    (newValue) => onParameterChanged(paramDef.key, newValue),
+              ),
+            ],
+          );
+        }
+        final options = paramDef.options ?? const <String>[];
+        final rawValue = (currentValue ?? paramDef.defaultValue).toString();
+        final selectedValue =
+            options.contains(rawValue)
+                ? rawValue
+                : (options.isNotEmpty ? options.first : rawValue);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -757,10 +908,10 @@ class ActionCard extends StatelessWidget {
               _formatParameterName(paramDef.key),
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
+            _buildInputModeToggle(paramDef, inputMode),
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
-              initialValue:
-                  currentValue?.toString() ?? paramDef.defaultValue.toString(),
+              initialValue: selectedValue,
               isExpanded: true,
               decoration: InputDecoration(
                 hintText: _localizeHint(paramDef.hint),
@@ -845,6 +996,30 @@ class ActionCard extends StatelessWidget {
       case ParameterType.channelId:
       case ParameterType.messageId:
       case ParameterType.roleId:
+        if (useDynamicInput) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _formatParameterName(paramDef.key),
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              _buildInputModeToggle(paramDef, inputMode),
+              VariableTextField(
+                key: _parameterInputKey(paramDef.key),
+                label: 'Expression',
+                initialValue:
+                    (currentValue ?? paramDef.defaultValue).toString(),
+                hint:
+                    _localizeHint(paramDef.hint) ??
+                    'Dynamic ${paramDef.type.name} (supports ((...)))',
+                suggestions: variableSuggestions,
+                onChanged:
+                    (newValue) => onParameterChanged(paramDef.key, newValue),
+              ),
+            ],
+          );
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -852,6 +1027,7 @@ class ActionCard extends StatelessWidget {
               _formatParameterName(paramDef.key),
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
+            _buildInputModeToggle(paramDef, inputMode),
             const SizedBox(height: 4),
             TextFormField(
               key: _parameterInputKey(paramDef.key),

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:bot_creator_shared/bot/bot_config.dart';
 import 'package:bot_creator_runner/runner_runtime_controller.dart';
+import 'package:bot_creator_runner/stores/sqlite_cli_variable_store.dart';
 import 'package:bot_creator_runner/web_log_store.dart';
 import 'package:bot_creator_runner/web_runtime_config.dart';
 
@@ -27,9 +28,9 @@ String _resolveVersion() {
 
   final candidates = <String>{
     'pubspec.yaml',
-    File(Platform.resolvedExecutable).parent.parent.uri
-        .resolve('pubspec.yaml')
-        .toFilePath(),
+    File(
+      Platform.resolvedExecutable,
+    ).parent.parent.uri.resolve('pubspec.yaml').toFilePath(),
   };
 
   for (final path in candidates) {
@@ -57,6 +58,13 @@ String _resolveVersion() {
 /// GET  /bots/{id}/status    → state for one bot
 /// GET  /bots/{id}/metrics   → process metrics + one bot state
 /// GET  /bots/{id}/command-stats → command usage statistics
+/// GET  /bots/{id}/variables/global → global key/value map
+/// POST /bots/{id}/variables/global/set
+/// POST /bots/{id}/variables/global/remove
+/// GET  /bots/{id}/variables/scoped-definitions
+/// POST /bots/{id}/variables/scoped-definitions/set
+/// POST /bots/{id}/variables/scoped-definitions/remove
+/// GET  /bots/{id}/variables/scoped-values?scope=&key=
 /// GET  /bots                → [{id, name, syncedAt}]
 /// POST /bots/sync           → body: {botId, botName?, config: {...}}
 ///                           → {ok: true}
@@ -79,6 +87,10 @@ class RunnerWebBootstrapServer {
 
   final RunnerRuntimeController _runtimeController;
   _CpuSample? _lastCpuSample;
+  late final SqliteCliVariableStore _variableStore = SqliteCliVariableStore(
+    _resolveRunnerVariablesDir(),
+  );
+  Future<void>? _variableStoreInitFuture;
 
   HttpServer? _server;
   final Completer<void> _lifecycleCompleter = Completer<void>();
@@ -103,6 +115,7 @@ class RunnerWebBootstrapServer {
 
   Future<void> stop() async {
     await _runtimeController.dispose();
+    _variableStore.dispose();
 
     final server = _server;
     _server = null;
@@ -145,6 +158,37 @@ class RunnerWebBootstrapServer {
     final scopedStatusBotId = _extractBotAction(path, action: 'status');
     final scopedMetricsBotId = _extractBotAction(path, action: 'metrics');
     final scopedStatsBotId = _extractBotAction(path, action: 'command-stats');
+    final scopedGlobalVariablesBotId = _extractBotNestedAction(
+      path,
+      parentAction: 'variables',
+      action: 'global',
+    );
+    final scopedDefinitionsBotId = _extractBotNestedAction(
+      path,
+      parentAction: 'variables',
+      action: 'scoped-definitions',
+    );
+    final scopedValuesBotId = _extractBotNestedAction(
+      path,
+      parentAction: 'variables',
+      action: 'scoped-values',
+    );
+    final scopedSetGlobalBotId = _extractBotDeepAction(
+      path,
+      actionPath: 'variables/global/set',
+    );
+    final scopedRemoveGlobalBotId = _extractBotDeepAction(
+      path,
+      actionPath: 'variables/global/remove',
+    );
+    final scopedSetDefinitionsBotId = _extractBotDeepAction(
+      path,
+      actionPath: 'variables/scoped-definitions/set',
+    );
+    final scopedRemoveDefinitionsBotId = _extractBotDeepAction(
+      path,
+      actionPath: 'variables/scoped-definitions/remove',
+    );
     try {
       if (request.method == 'GET') {
         if (scopedStatusBotId != null) {
@@ -160,6 +204,18 @@ class RunnerWebBootstrapServer {
         }
         if (scopedStatsBotId != null) {
           await _handleCommandStats(request, scopedStatsBotId);
+          return;
+        }
+        if (scopedGlobalVariablesBotId != null) {
+          await _handleGetGlobalVariables(request, scopedGlobalVariablesBotId);
+          return;
+        }
+        if (scopedDefinitionsBotId != null) {
+          await _handleGetScopedDefinitions(request, scopedDefinitionsBotId);
+          return;
+        }
+        if (scopedValuesBotId != null) {
+          await _handleGetScopedValues(request, scopedValuesBotId);
           return;
         }
         switch (path) {
@@ -197,6 +253,25 @@ class RunnerWebBootstrapServer {
         }
         if (scopedStopBotId != null) {
           await _handleRunnerStop(request, botIdFromPath: scopedStopBotId);
+          return;
+        }
+        if (scopedSetGlobalBotId != null) {
+          await _handleSetGlobalVariable(request, scopedSetGlobalBotId);
+          return;
+        }
+        if (scopedRemoveGlobalBotId != null) {
+          await _handleRemoveGlobalVariable(request, scopedRemoveGlobalBotId);
+          return;
+        }
+        if (scopedSetDefinitionsBotId != null) {
+          await _handleSetScopedDefinition(request, scopedSetDefinitionsBotId);
+          return;
+        }
+        if (scopedRemoveDefinitionsBotId != null) {
+          await _handleRemoveScopedDefinition(
+            request,
+            scopedRemoveDefinitionsBotId,
+          );
           return;
         }
         switch (path) {
@@ -465,6 +540,282 @@ class RunnerWebBootstrapServer {
     });
   }
 
+  Future<void> _handleGetGlobalVariables(
+    HttpRequest request,
+    String botId,
+  ) async {
+    final entry = await _runtimeController.botStore.loadEntry(botId);
+    if (entry == null) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Bot "$botId" not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+
+    await _ensureVariableStoreInitialized();
+    final runtime = await _variableStore.getGlobalVariables(botId);
+    final merged = <String, dynamic>{
+      ...entry.config.globalVariables,
+      ...runtime,
+    };
+    await _respondJson(request, <String, dynamic>{
+      'botId': botId,
+      'variables': merged,
+    });
+  }
+
+  Future<void> _handleSetGlobalVariable(
+    HttpRequest request,
+    String botId,
+  ) async {
+    final payload = await _readJsonBody(request);
+    final key = (payload['key'] ?? '').toString().trim();
+    if (key.isEmpty) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing key.',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    final entry = await _runtimeController.botStore.loadEntry(botId);
+    if (entry == null) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Bot "$botId" not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+
+    final nextGlobals = <String, dynamic>{
+      ...entry.config.globalVariables,
+      key: payload['value'],
+    };
+    final nextConfig = BotConfig.fromJson(<String, dynamic>{
+      ...entry.config.toJson(),
+      'globalVariables': nextGlobals,
+    });
+    await _runtimeController.botStore.save(botId, entry.name, nextConfig);
+
+    await _ensureVariableStoreInitialized();
+    await _variableStore.setGlobalVariable(botId, key, payload['value']);
+
+    await _respondJson(request, <String, dynamic>{'ok': true});
+  }
+
+  Future<void> _handleRemoveGlobalVariable(
+    HttpRequest request,
+    String botId,
+  ) async {
+    final payload = await _readJsonBody(request);
+    final key = (payload['key'] ?? '').toString().trim();
+    if (key.isEmpty) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing key.',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    final entry = await _runtimeController.botStore.loadEntry(botId);
+    if (entry == null) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Bot "$botId" not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+
+    final nextGlobals = <String, dynamic>{...entry.config.globalVariables}
+      ..remove(key);
+    final nextConfig = BotConfig.fromJson(<String, dynamic>{
+      ...entry.config.toJson(),
+      'globalVariables': nextGlobals,
+    });
+    await _runtimeController.botStore.save(botId, entry.name, nextConfig);
+
+    await _ensureVariableStoreInitialized();
+    await _variableStore.removeGlobalVariable(botId, key);
+
+    await _respondJson(request, <String, dynamic>{'ok': true});
+  }
+
+  Future<void> _handleGetScopedDefinitions(
+    HttpRequest request,
+    String botId,
+  ) async {
+    final entry = await _runtimeController.botStore.loadEntry(botId);
+    if (entry == null) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Bot "$botId" not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+
+    await _respondJson(request, <String, dynamic>{
+      'botId': botId,
+      'definitions': entry.config.scopedVariableDefinitions,
+    });
+  }
+
+  Future<void> _handleSetScopedDefinition(
+    HttpRequest request,
+    String botId,
+  ) async {
+    final payload = await _readJsonBody(request);
+    final scope = (payload['scope'] ?? '').toString().trim();
+    final key = _normalizeScopedStorageKey((payload['key'] ?? '').toString());
+    if (scope.isEmpty || key.isEmpty) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing scope or key.',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    final entry = await _runtimeController.botStore.loadEntry(botId);
+    if (entry == null) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Bot "$botId" not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+
+    final defs = entry.config.scopedVariableDefinitions
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList(growable: true);
+    final index = defs.indexWhere(
+      (e) =>
+          _normalizeScopedStorageKey((e['key'] ?? '').toString()) == key &&
+          (e['scope'] ?? '').toString().trim() == scope,
+    );
+    final next = <String, dynamic>{
+      'key': key,
+      'scope': scope,
+      'defaultValue': payload['defaultValue'],
+      'valueType': (payload['valueType'] ?? 'string').toString(),
+    };
+    if (index >= 0) {
+      defs[index] = next;
+    } else {
+      defs.add(next);
+    }
+
+    final nextConfig = BotConfig.fromJson(<String, dynamic>{
+      ...entry.config.toJson(),
+      'scopedVariableDefinitions': defs,
+    });
+    await _runtimeController.botStore.save(botId, entry.name, nextConfig);
+
+    await _respondJson(request, <String, dynamic>{'ok': true});
+  }
+
+  Future<void> _handleRemoveScopedDefinition(
+    HttpRequest request,
+    String botId,
+  ) async {
+    final payload = await _readJsonBody(request);
+    final key = _normalizeScopedStorageKey((payload['key'] ?? '').toString());
+    final scope = (payload['scope'] ?? '').toString().trim();
+    if (key.isEmpty) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing key.',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    final entry = await _runtimeController.botStore.loadEntry(botId);
+    if (entry == null) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Bot "$botId" not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+
+    final defs = entry.config.scopedVariableDefinitions
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList(growable: true);
+    defs.removeWhere((e) {
+      final matchesKey =
+          _normalizeScopedStorageKey((e['key'] ?? '').toString()) == key;
+      if (!matchesKey) {
+        return false;
+      }
+      if (scope.isEmpty) {
+        return true;
+      }
+      return (e['scope'] ?? '').toString().trim() == scope;
+    });
+
+    final nextConfig = BotConfig.fromJson(<String, dynamic>{
+      ...entry.config.toJson(),
+      'scopedVariableDefinitions': defs,
+    });
+    await _runtimeController.botStore.save(botId, entry.name, nextConfig);
+
+    await _respondJson(request, <String, dynamic>{'ok': true});
+  }
+
+  Future<void> _handleGetScopedValues(HttpRequest request, String botId) async {
+    final entry = await _runtimeController.botStore.loadEntry(botId);
+    if (entry == null) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Bot "$botId" not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+
+    final scope = (request.uri.queryParameters['scope'] ?? '').trim();
+    final keyRaw = (request.uri.queryParameters['key'] ?? '').trim();
+    if (scope.isEmpty || keyRaw.isEmpty) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing scope or key query parameter.',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    final storageKey = _normalizeScopedStorageKey(keyRaw);
+    final legacyKey = _toScopedReferenceKey(storageKey);
+
+    await _ensureVariableStoreInitialized();
+    final contextIds = List<String>.from(
+      await _variableStore.listContextIds(botId, scope, searchKey: storageKey),
+      growable: true,
+    );
+    if (legacyKey != storageKey) {
+      final legacyContextIds = await _variableStore.listContextIds(
+        botId,
+        scope,
+        searchKey: legacyKey,
+      );
+      contextIds.addAll(legacyContextIds);
+    }
+    final uniqueContextIds = contextIds.toSet().toList(growable: false)..sort();
+
+    final values = <String, dynamic>{};
+    for (final contextId in uniqueContextIds) {
+      var value = await _variableStore.getScopedVariable(
+        botId,
+        scope,
+        contextId,
+        storageKey,
+      );
+      if (value == null && legacyKey != storageKey) {
+        value = await _variableStore.getScopedVariable(
+          botId,
+          scope,
+          contextId,
+          legacyKey,
+        );
+      }
+      if (value != null) {
+        values[contextId] = value;
+      }
+    }
+
+    await _respondJson(request, <String, dynamic>{
+      'botId': botId,
+      'scope': scope,
+      'key': storageKey,
+      'values': values,
+    });
+  }
+
   Map<String, dynamic> _runtimeStateToPayload(RunnerBotRuntimeState state) {
     return <String, dynamic>{
       'botId': state.botId,
@@ -482,6 +833,67 @@ class RunnerWebBootstrapServer {
       return Uri.decodeComponent(parts[1]);
     }
     return null;
+  }
+
+  String? _extractBotNestedAction(
+    String path, {
+    required String parentAction,
+    required String action,
+  }) {
+    final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+    if (parts.length == 4 &&
+        parts[0] == 'bots' &&
+        parts[2] == parentAction &&
+        parts[3] == action) {
+      return Uri.decodeComponent(parts[1]);
+    }
+    return null;
+  }
+
+  String? _extractBotDeepAction(String path, {required String actionPath}) {
+    final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+    final actionParts =
+        actionPath.split('/').where((p) => p.isNotEmpty).toList();
+    final expectedLength = 2 + actionParts.length;
+    if (parts.length != expectedLength || parts[0] != 'bots') {
+      return null;
+    }
+    for (var i = 0; i < actionParts.length; i++) {
+      if (parts[i + 2] != actionParts[i]) {
+        return null;
+      }
+    }
+    return Uri.decodeComponent(parts[1]);
+  }
+
+  Future<void> _ensureVariableStoreInitialized() {
+    _variableStoreInitFuture ??= _variableStore.init();
+    return _variableStoreInitFuture!;
+  }
+
+  String _normalizeScopedStorageKey(String key) {
+    final trimmed = key.trim();
+    if (trimmed.startsWith('bc_') && trimmed.length > 3) {
+      return trimmed.substring(3);
+    }
+    return trimmed;
+  }
+
+  String _toScopedReferenceKey(String key) {
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
+    }
+    return trimmed.startsWith('bc_') ? trimmed : 'bc_$trimmed';
+  }
+
+  static String _resolveRunnerVariablesDir() {
+    final configured =
+        (Platform.environment['BOT_CREATOR_DATA_DIR'] ?? '').trim();
+    if (configured.isNotEmpty) {
+      return '$configured/variables';
+    }
+    return './data/variables';
   }
 
   bool _requiresAuthentication(HttpRequest request) {
