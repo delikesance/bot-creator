@@ -1,6 +1,14 @@
 /// Abstract interface over bot data storage.
 /// Both [AppManager] (Flutter app) and [RunnerDataStore] (CLI runner) implement this.
 abstract class BotDataStore {
+  /// Returns scoped variable definitions for [botId].
+  ///
+  /// Each entry typically contains:
+  /// - `scope`: guild|channel|user|guildMember|message
+  /// - `key`: variable key (with or without bc_ prefix)
+  /// - `defaultValue`: fallback value when missing/empty
+  Future<List<Map<String, dynamic>>> getScopedVariableDefinitions(String botId);
+
   /// Returns all global variables for [botId] with typed values (string|number).
   Future<Map<String, dynamic>> getGlobalVariables(String botId);
 

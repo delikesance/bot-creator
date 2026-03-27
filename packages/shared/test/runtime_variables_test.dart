@@ -85,6 +85,38 @@ void main() {
         expect(store.scopedVariables['user']?['Unknown User']?['locale'], 'fr');
       },
     );
+
+    test(
+      'applies scoped definition default when scoped value is empty',
+      () async {
+        final store = _FakeBotDataStore(
+          globalVariables: const <String, dynamic>{},
+          scopedVariables: <String, Map<String, Map<String, dynamic>>>{
+            'guild': <String, Map<String, dynamic>>{
+              'guild-1': <String, dynamic>{'prefix': ''},
+            },
+          },
+          scopedDefinitions: const <Map<String, dynamic>>[
+            <String, dynamic>{
+              'scope': 'guild',
+              'key': 'prefix',
+              'defaultValue': '!',
+            },
+          ],
+        );
+
+        final runtimeVariables = <String, String>{};
+        await hydrateRuntimeVariables(
+          store: store,
+          botId: 'bot-1',
+          runtimeVariables: runtimeVariables,
+          guildContextId: 'guild-1',
+        );
+
+        expect(runtimeVariables['guild.prefix'], '!');
+        expect(runtimeVariables['guild.bc_prefix'], '!');
+      },
+    );
   });
 }
 
@@ -92,10 +124,19 @@ class _FakeBotDataStore implements BotDataStore {
   _FakeBotDataStore({
     required this.globalVariables,
     required this.scopedVariables,
+    this.scopedDefinitions = const <Map<String, dynamic>>[],
   });
 
   final Map<String, dynamic> globalVariables;
   final Map<String, Map<String, Map<String, dynamic>>> scopedVariables;
+  final List<Map<String, dynamic>> scopedDefinitions;
+
+  @override
+  Future<List<Map<String, dynamic>>> getScopedVariableDefinitions(
+    String botId,
+  ) async => scopedDefinitions
+      .map((entry) => Map<String, dynamic>.from(entry))
+      .toList(growable: false);
 
   @override
   Future<Map<String, dynamic>> getGlobalVariables(String botId) async =>

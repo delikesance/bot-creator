@@ -134,28 +134,43 @@ void _registerLocalEventWorkflowListeners(
     .toList(growable: false)..sort();
 
   onLog?.call(
-    'Events workflow configures: '
-    '${configuredEvents.isEmpty ? 'aucun' : configuredEvents.join(', ')}',
+    'Configured workflow events: '
+    '${configuredEvents.isEmpty ? 'none' : configuredEvents.join(', ')}',
   );
-  onLog?.call('Events runtime ecoutes: ${runtimeSupportedEvents.join(', ')}');
+  onLog?.call(
+    'Runtime listens to events: ${runtimeSupportedEvents.join(', ')}',
+  );
   if (unsupportedConfiguredEvents.isNotEmpty) {
     onLog?.call(
-      'Events configures non supportes en runtime local: '
+      'Configured events not supported by local runtime: '
       '${unsupportedConfiguredEvents.join(', ')}',
     );
   }
   if (hasMessageEventConfigured && !hasGuildMessagesIntent) {
     onLog?.call(
-      'Attention: des workflows message sont configures mais l\'intent "Guild Messages" est desactive.',
+      'Warning: message workflows are configured but the "Guild Messages" intent is disabled.',
     );
   }
   if (hasMessageEventConfigured && !hasMessageContentIntent) {
     onLog?.call(
-      'Attention: des workflows message sont configures mais l\'intent "Message Content" est desactive.',
+      'Warning: message workflows are configured but the "Message Content" intent is disabled.',
     );
   }
 
   Future<void> dispatch(EventExecutionContext context) async {
+    if (context.eventName.toLowerCase() == 'messagecreate') {
+      final isBotMessage =
+          (context.variables['message.isBot'] ??
+                  context.variables['author.isBot'] ??
+                  '')
+              .toLowerCase() ==
+          'true';
+      if (isBotMessage) {
+        onLog?.call('Event ignored: messageCreate from a bot.');
+        return;
+      }
+    }
+
     final matching = workflows
         .where((workflow) {
           final trigger = normalizeWorkflowEventTrigger(
@@ -168,7 +183,7 @@ void _registerLocalEventWorkflowListeners(
 
     if (configuredEventsLower.contains(context.eventName.toLowerCase())) {
       onLog?.call(
-        'Event recu: ${context.eventName} (workflows match: ${matching.length})',
+        'Event received: ${context.eventName} (matching workflows: ${matching.length})',
       );
     }
 
@@ -177,14 +192,24 @@ void _registerLocalEventWorkflowListeners(
     }
 
     for (final workflow in matching) {
-      await _executeLocalEventWorkflow(
-        gateway,
-        manager: manager,
-        botId: botId,
-        workflow: workflow,
-        context: context,
-        onLog: onLog,
-      );
+      try {
+        await _executeLocalEventWorkflow(
+          gateway,
+          manager: manager,
+          botId: botId,
+          workflow: workflow,
+          context: context,
+          onLog: onLog,
+        );
+      } catch (error) {
+        if (_isClosedClientError(error)) {
+          onLog?.call(
+            'Event ignored: client closed while executing ${context.eventName}.',
+          );
+          return;
+        }
+        onLog?.call('Event workflow error for ${context.eventName}: $error');
+      }
     }
   }
 
@@ -194,15 +219,25 @@ void _registerLocalEventWorkflowListeners(
     EventExecutionContext Function(T event)? buildContext,
   }) {
     stream.listen((event) async {
-      await dispatch(
-        buildContext?.call(event) ??
-            _baseLocalEventContext(
-              eventName: eventName,
-              guildId: null,
-              channelId: null,
-              userId: null,
-            ),
-      );
+      try {
+        await dispatch(
+          buildContext?.call(event) ??
+              _baseLocalEventContext(
+                eventName: eventName,
+                guildId: null,
+                channelId: null,
+                userId: null,
+              ),
+        );
+      } catch (error) {
+        if (_isClosedClientError(error)) {
+          onLog?.call(
+            'Event ignored: listener $eventName received after client shutdown.',
+          );
+          return;
+        }
+        onLog?.call('Event listener error for $eventName: $error');
+      }
     });
   }
 
@@ -515,8 +550,8 @@ void _registerLocalEventWorkflowListeners(
   }
 
   onLog?.call(
-    'Listeners event runtime actives (${workflows.length} workflow(s), '
-    '${runtimeSupportedEvents.length} events supportes).',
+    'Runtime event listeners active (${workflows.length} workflow(s), '
+    '${runtimeSupportedEvents.length} supported events).',
   );
 }
 
@@ -533,6 +568,13 @@ EventExecutionContext _baseLocalEventContext({
     channelId: channelId,
     userId: userId,
   );
+}
+
+bool _isClosedClientError(Object error) {
+  final text = error.toString().toLowerCase();
+  return text.contains('client is closed') ||
+      text.contains('dead channel') ||
+      text.contains('communicating on a dead channel');
 }
 
 Future<void> _executeLocalEventWorkflow(
@@ -599,7 +641,7 @@ Future<void> _executeLocalEventWorkflow(
 
   if (actionResults.isNotEmpty) {
     onLog?.call(
-      'Workflow event "$workflowName" execute sur ${context.eventName}.',
+      'Event workflow "$workflowName" executed for ${context.eventName}.',
     );
   }
 }

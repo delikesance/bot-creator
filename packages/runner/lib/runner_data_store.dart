@@ -20,6 +20,7 @@ class RunnerDataStore implements BotDataStore {
   final List<Map<String, dynamic>> _workflows;
   final Map<String, dynamic> _seedGlobalVariables;
   final Map<String, Map<String, Map<String, dynamic>>> _seedScopedVariables;
+  final List<Map<String, dynamic>> _scopedVariableDefinitions;
   final String _variablesDir;
   late JsonVariableStore _jsonFallbackStore;
   SqliteCliVariableStore? _sqliteStore;
@@ -31,6 +32,9 @@ class RunnerDataStore implements BotDataStore {
       _workflows = List<Map<String, dynamic>>.from(config.workflows),
       _seedGlobalVariables = Map<String, dynamic>.from(config.globalVariables),
       _seedScopedVariables = _cloneScopedVariables(config.scopedVariables),
+      _scopedVariableDefinitions = List<Map<String, dynamic>>.from(
+        config.scopedVariableDefinitions,
+      ),
       _variablesDir = _resolveRunnerVariablesDirStatic() {
     // JSON fallback remains available if SQLite fails to initialize.
     _jsonFallbackStore = _fallbackStoresByDir.putIfAbsent(
@@ -116,6 +120,15 @@ class RunnerDataStore implements BotDataStore {
     _sqliteStore?.dispose();
     _sqliteStore = null;
     _seededBotIds.clear();
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getScopedVariableDefinitions(
+    String botId,
+  ) async {
+    return _scopedVariableDefinitions
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .toList(growable: false);
   }
 
   @override

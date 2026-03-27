@@ -1646,29 +1646,22 @@ class ActionCard extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final isCompact = constraints.maxWidth < 760;
-              final variableField = Expanded(
-                flex: 5,
-                child: VariableTextField(
-                  key: ValueKey(
-                    'elseif-$actionKey-$branchIndex-variable-$variableValue',
-                  ),
-                  label: 'Condition Variable',
-                  initialValue: variableValue,
-                  hint: 'Use ((variableName)) or a runtime value',
-                  suggestions: variableSuggestions,
-                  onChanged: (value) {
-                    final updated = _cloneElseIfBranches(branches);
-                    updated[branchIndex]['condition.variable'] = value;
-                    onParameterChanged(paramKey, updated);
-                  },
-                ),
+              final variableField = VariableTextField(
+                key: ValueKey('elseif-$actionKey-$branchIndex-variable'),
+                label: 'Condition Variable',
+                initialValue: variableValue,
+                hint: 'Use ((variableName)) or a runtime value',
+                suggestions: variableSuggestions,
+                onChanged: (value) {
+                  final updated = _cloneElseIfBranches(branches);
+                  updated[branchIndex]['condition.variable'] = value;
+                  onParameterChanged(paramKey, updated);
+                },
               );
               final operatorField = SizedBox(
                 width: isCompact ? double.infinity : 170,
                 child: DropdownButtonFormField<String>(
-                  key: ValueKey(
-                    'elseif-$actionKey-$branchIndex-operator-$operatorValue',
-                  ),
+                  key: ValueKey('elseif-$actionKey-$branchIndex-operator'),
                   initialValue:
                       _conditionOperators.contains(operatorValue)
                           ? operatorValue
@@ -1695,22 +1688,17 @@ class ActionCard extends StatelessWidget {
                   },
                 ),
               );
-              final valueField = Expanded(
-                flex: 4,
-                child: VariableTextField(
-                  key: ValueKey(
-                    'elseif-$actionKey-$branchIndex-value-$conditionValue',
-                  ),
-                  label: 'Condition Value',
-                  initialValue: conditionValue,
-                  hint: 'Value to compare against',
-                  suggestions: variableSuggestions,
-                  onChanged: (value) {
-                    final updated = _cloneElseIfBranches(branches);
-                    updated[branchIndex]['condition.value'] = value;
-                    onParameterChanged(paramKey, updated);
-                  },
-                ),
+              final valueField = VariableTextField(
+                key: ValueKey('elseif-$actionKey-$branchIndex-value'),
+                label: 'Condition Value',
+                initialValue: conditionValue,
+                hint: 'Value to compare against',
+                suggestions: variableSuggestions,
+                onChanged: (value) {
+                  final updated = _cloneElseIfBranches(branches);
+                  updated[branchIndex]['condition.value'] = value;
+                  onParameterChanged(paramKey, updated);
+                },
               );
 
               if (isCompact) {
@@ -1728,11 +1716,11 @@ class ActionCard extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  variableField,
+                  Expanded(flex: 5, child: variableField),
                   const SizedBox(width: 8),
                   operatorField,
                   const SizedBox(width: 8),
-                  valueField,
+                  Expanded(flex: 4, child: valueField),
                 ],
               );
             },

@@ -578,6 +578,18 @@ class DiscordRunner {
     required String eventName,
     required EventExecutionContext context,
   }) async {
+    if (eventName.toLowerCase() == 'messagecreate') {
+      final isBotMessage =
+          (context.variables['message.isBot'] ??
+                  context.variables['author.isBot'] ??
+                  '')
+              .toLowerCase() ==
+          'true';
+      if (isBotMessage) {
+        return;
+      }
+    }
+
     final botId = _gateway?.user.id.toString() ?? store.botId;
     final matching = _eventWorkflows
         .where((workflow) {

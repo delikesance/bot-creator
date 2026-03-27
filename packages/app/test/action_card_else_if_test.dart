@@ -107,13 +107,13 @@ void main() {
       );
 
       await tester.enterText(
-        _textFieldWithin(const ValueKey('elseif-if_action-0-variable-')),
+        _textFieldWithin(const ValueKey('elseif-if_action-0-variable')),
         '((score))',
       );
       await tester.pump();
 
       await tester.enterText(
-        _textFieldWithin(const ValueKey('elseif-if_action-0-value-')),
+        _textFieldWithin(const ValueKey('elseif-if_action-0-value')),
         '75',
       );
       await tester.pump();

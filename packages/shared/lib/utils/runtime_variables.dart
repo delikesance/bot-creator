@@ -14,6 +14,24 @@ String? _normalizeContextId(String? value) {
   return _isInvalidContextId(trimmed) ? null : trimmed;
 }
 
+String _normalizeScopedStorageKey(String key) {
+  final trimmed = key.trim();
+  if (trimmed.startsWith('bc_') && trimmed.length > 3) {
+    return trimmed.substring(3);
+  }
+  return trimmed;
+}
+
+bool _isMissingOrEmptyValue(dynamic value) {
+  if (value == null) {
+    return true;
+  }
+  if (value is String) {
+    return value.trim().isEmpty;
+  }
+  return false;
+}
+
 List<String> _legacyContextIdsForScope(
   String scope,
   String? canonicalContextId,
@@ -71,6 +89,7 @@ Future<void> injectScopedRuntimeVariables({
   required String? contextId,
   required Map<String, String> runtimeVariables,
   List<String> legacyContextIds = const <String>[],
+  List<Map<String, dynamic>> scopedDefinitions = const <Map<String, dynamic>>[],
 }) async {
   final normalizedContextId = _normalizeContextId(contextId);
   Map<String, dynamic> values = <String, dynamic>{};
@@ -102,6 +121,36 @@ Future<void> injectScopedRuntimeVariables({
     }
   }
 
+  if (scopedDefinitions.isNotEmpty) {
+    for (final definition in scopedDefinitions) {
+      final definitionScope = (definition['scope'] ?? '').toString().trim();
+      if (definitionScope != scope) {
+        continue;
+      }
+
+      final normalizedKey = _normalizeScopedStorageKey(
+        (definition['key'] ?? '').toString(),
+      );
+      if (normalizedKey.isEmpty) {
+        continue;
+      }
+
+      final existingValue =
+          values.containsKey(normalizedKey)
+              ? values[normalizedKey]
+              : values['bc_$normalizedKey'];
+      if (!_isMissingOrEmptyValue(existingValue)) {
+        continue;
+      }
+
+      if (!definition.containsKey('defaultValue')) {
+        continue;
+      }
+
+      values[normalizedKey] = definition['defaultValue'];
+    }
+  }
+
   for (final entry in values.entries) {
     final rawKey = entry.key.toString().trim();
     if (rawKey.isEmpty) {
@@ -125,6 +174,13 @@ Future<void> hydrateRuntimeVariables({
   String? userContextId,
   String? messageContextId,
 }) async {
+  List<Map<String, dynamic>> scopedDefinitions = const <Map<String, dynamic>>[];
+  try {
+    scopedDefinitions = await store.getScopedVariableDefinitions(botId);
+  } catch (_) {
+    scopedDefinitions = const <Map<String, dynamic>>[];
+  }
+
   await injectGlobalRuntimeVariables(
     store: store,
     botId: botId,
@@ -145,6 +201,7 @@ Future<void> hydrateRuntimeVariables({
     contextId: guildContextId,
     runtimeVariables: runtimeVariables,
     legacyContextIds: _legacyContextIdsForScope('guild', guildContextId),
+    scopedDefinitions: scopedDefinitions,
   );
   await injectScopedRuntimeVariables(
     store: store,
@@ -153,6 +210,7 @@ Future<void> hydrateRuntimeVariables({
     contextId: channelContextId,
     runtimeVariables: runtimeVariables,
     legacyContextIds: _legacyContextIdsForScope('channel', channelContextId),
+    scopedDefinitions: scopedDefinitions,
   );
   await injectScopedRuntimeVariables(
     store: store,
@@ -161,6 +219,7 @@ Future<void> hydrateRuntimeVariables({
     contextId: userContextId,
     runtimeVariables: runtimeVariables,
     legacyContextIds: _legacyContextIdsForScope('user', userContextId),
+    scopedDefinitions: scopedDefinitions,
   );
   await injectScopedRuntimeVariables(
     store: store,
@@ -172,6 +231,7 @@ Future<void> hydrateRuntimeVariables({
       'guildMember',
       guildMemberContextId,
     ),
+    scopedDefinitions: scopedDefinitions,
   );
   await injectScopedRuntimeVariables(
     store: store,
@@ -180,5 +240,6 @@ Future<void> hydrateRuntimeVariables({
     contextId: messageContextId,
     runtimeVariables: runtimeVariables,
     legacyContextIds: _legacyContextIdsForScope('message', messageContextId),
+    scopedDefinitions: scopedDefinitions,
   );
 }
