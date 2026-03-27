@@ -33,7 +33,7 @@ Future<void> handleLocalCommands(
 
     if (action["id"] == command.id.toString()) {
       unawaited(
-        appManager.recordCommandExecution(clientId, interaction.data.name),
+        manager.recordCommandExecution(clientId, interaction.data.name),
       );
       final listOfArgs = await generateKeyValues(interaction);
       final runtimeVariables = <String, String>{...listOfArgs};

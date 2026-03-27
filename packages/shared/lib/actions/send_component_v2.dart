@@ -1,6 +1,7 @@
 import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator_shared/types/component.dart';
 import 'package:bot_creator_shared/utils/component_workflow_bindings.dart';
+import 'package:bot_creator_shared/utils/interaction_ack_state.dart';
 
 class CustomSectionBuilder extends ComponentBuilder<SectionComponent> {
   final List<TextDisplayComponentBuilder> sectionComponents;
@@ -384,12 +385,7 @@ Future<Map<String, dynamic>> respondWithComponentV2Action(
     if (interaction is MessageResponse ||
         interaction is ModalSubmitInteraction) {
       final dynInt = interaction as dynamic;
-      bool isAcknowledged = false;
-      try {
-        isAcknowledged = dynInt.isAcknowledged == true;
-      } catch (_) {
-        isAcknowledged = false;
-      }
+      final isAcknowledged = isInteractionAcknowledged(interaction);
 
       try {
         if (isAcknowledged) {

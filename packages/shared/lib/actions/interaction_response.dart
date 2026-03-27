@@ -4,6 +4,7 @@ import 'package:bot_creator_shared/utils/template_resolver.dart'; // for updateS
 import 'package:bot_creator_shared/utils/embed_fields.dart';
 import '../utils/component_workflow_bindings.dart';
 import '../utils/interaction_listener_registry.dart';
+import '../utils/interaction_ack_state.dart';
 import '../utils/workflow_call.dart';
 import 'send_component_v2.dart';
 
@@ -384,14 +385,7 @@ Future<void> sendWorkflowResponse({
       }
     }
 
-    // Safe check for acknowledgment state
-    bool isResponded = false;
-    try {
-      // isAcknowledged exists on most Interactions in nyxx 6.x, but not all (e.g. ModalSubmitInteraction)
-      isResponded = (interaction as dynamic).isAcknowledged == true;
-    } catch (_) {
-      isResponded = false;
-    }
+    final isResponded = isInteractionAcknowledged(interaction);
 
     final hasCustomResponse =
         responseText.isNotEmpty ||
@@ -431,6 +425,21 @@ Future<void> sendWorkflowResponse({
             .updateOriginalResponse(updateBuilder);
         responseMessageId = updatedMessage.id.toString();
         onLog?.call('Response edited after defer', botId: botId);
+      } else {
+        try {
+          final updatedMessage = await (interaction as dynamic)
+              .updateOriginalResponse(updateBuilder);
+          responseMessageId = (updatedMessage as dynamic)?.id?.toString();
+          onLog?.call(
+            'Response edited after defer (dynamic fallback)',
+            botId: botId,
+          );
+        } catch (e) {
+          onLog?.call(
+            'Failed to edit deferred response for ${interaction.runtimeType}: $e',
+            botId: botId,
+          );
+        }
       }
     } else {
       int flagValue = isEphemeral ? MessageFlags.ephemeral.value : 0;
@@ -453,7 +462,27 @@ Future<void> sendWorkflowResponse({
           responseMessageId = responseMessage.id.toString();
         } catch (_) {}
         onLog?.call('Response sent', botId: botId);
-      } else {}
+      } else {
+        try {
+          await (interaction as dynamic).respond(
+            MessageBuilder(
+              content: isV2 ? null : (finalText.isEmpty ? null : finalText),
+              embeds: isV2 ? null : (embeds.isEmpty ? null : embeds),
+              components: componentNodes,
+              flags: flagValue > 0 ? MessageFlags(flagValue) : null,
+            ),
+          );
+          onLog?.call(
+            'Response sent (dynamic fallback) for ${interaction.runtimeType}',
+            botId: botId,
+          );
+        } catch (e) {
+          onLog?.call(
+            'Failed to send response for ${interaction.runtimeType}: $e',
+            botId: botId,
+          );
+        }
+      }
     }
 
     if (activeComponentDefinition != null) {
