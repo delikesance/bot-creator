@@ -1,13 +1,10 @@
 import 'dart:convert';
-import 'dart:ffi';
-import 'dart:io';
 
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:bot_creator_shared/bot/variable_database.dart';
-import 'package:sqlite3/open.dart' as sqlite_open;
 
 /// SQLite implementation of [VariableDatabase] using sqflite (Flutter apps).
 /// Supports Windows, Mac, Linux, iOS, Android.
@@ -34,7 +31,6 @@ class SqliteVariableStore implements VariableDatabase {
   late Database _db;
   bool _initialized = false;
   static bool _ffiInitialized = false;
-  static bool _linuxSqliteOverrideInitialized = false;
 
   SqliteVariableStore();
 
@@ -47,9 +43,6 @@ class SqliteVariableStore implements VariableDatabase {
         (defaultTargetPlatform == TargetPlatform.windows ||
             defaultTargetPlatform == TargetPlatform.linux)) {
       if (!_ffiInitialized) {
-        if (defaultTargetPlatform == TargetPlatform.linux) {
-          _configureLinuxSqliteLookup();
-        }
         sqfliteFfiInit();
         databaseFactory = databaseFactoryFfi;
         _ffiInitialized = true;
@@ -79,37 +72,6 @@ class SqliteVariableStore implements VariableDatabase {
     await _ensureSecondaryIndexes(_db);
 
     _initialized = true;
-  }
-
-  void _configureLinuxSqliteLookup() {
-    if (_linuxSqliteOverrideInitialized) {
-      return;
-    }
-
-    sqlite_open.open.overrideFor(sqlite_open.OperatingSystem.linux, () {
-      final executableDir = File(Platform.resolvedExecutable).parent;
-      final candidates = <String>[
-        '${executableDir.path}/lib/libsqlite3.so',
-        '${executableDir.path}/libsqlite3.so',
-        'libsqlite3.so.0',
-        'libsqlite3.so',
-      ];
-
-      Object? lastError;
-      for (final candidate in candidates) {
-        try {
-          return DynamicLibrary.open(candidate);
-        } catch (error) {
-          lastError = error;
-        }
-      }
-
-      throw ArgumentError(
-        'Unable to load SQLite dynamic library. Last error: $lastError',
-      );
-    });
-
-    _linuxSqliteOverrideInitialized = true;
   }
 
   Future<void> _createSchema(DatabaseExecutor db) async {
