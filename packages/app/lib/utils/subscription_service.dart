@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:bot_creator/utils/app_diagnostics.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -98,6 +99,9 @@ class SubscriptionService {
       // Restore previous purchases (required by Apple guidelines).
       await iap.restorePurchases();
 
+      // Refresh on app resume to detect expired subscriptions.
+      WidgetsBinding.instance.addObserver(_SubscriptionLifecycleObserver());
+
       _initialized = true;
       unawaited(
         AppDiagnostics.logInfo(
@@ -109,6 +113,11 @@ class SubscriptionService {
           },
         ),
       );
+
+      // Validate cached subscription against the store in the background.
+      if (_isSubscribed) {
+        unawaited(refreshStatus());
+      }
     } catch (error, stack) {
       _initialized = true;
       unawaited(
@@ -239,5 +248,14 @@ class SubscriptionService {
   static void dispose() {
     _subscription?.cancel();
     _subscription = null;
+  }
+}
+
+class _SubscriptionLifecycleObserver extends WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(SubscriptionService.refreshStatus());
+    }
   }
 }
