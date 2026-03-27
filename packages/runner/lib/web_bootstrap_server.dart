@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bot_creator_shared/bot/bot_config.dart';
+import 'package:bot_creator_shared/bot/json_variable_store.dart';
+import 'package:bot_creator_shared/bot/variable_database.dart';
 import 'package:bot_creator_runner/runner_runtime_controller.dart';
 import 'package:bot_creator_runner/stores/sqlite_cli_variable_store.dart';
 import 'package:bot_creator_runner/web_log_store.dart';
@@ -77,19 +79,29 @@ class RunnerWebBootstrapServer {
     required this.port,
     String? apiToken,
     required this.logStore,
+    VariableDatabase? variableStore,
   }) : _apiToken = normalizeRunnerApiToken(apiToken),
-       _runtimeController = RunnerRuntimeController();
+       _runtimeController = RunnerRuntimeController(),
+       _injectedVariableStore = variableStore {
+    if (_injectedVariableStore != null) {
+      _variableStore = _injectedVariableStore;
+      return;
+    }
+    _sqliteVariableStore = SqliteCliVariableStore(_resolveRunnerVariablesDir());
+    _variableStore = _sqliteVariableStore!;
+  }
 
   final String host;
   final int port;
   final String _apiToken;
   final RunnerLogStore logStore;
+  final VariableDatabase? _injectedVariableStore;
 
   final RunnerRuntimeController _runtimeController;
   _CpuSample? _lastCpuSample;
-  late final SqliteCliVariableStore _variableStore = SqliteCliVariableStore(
-    _resolveRunnerVariablesDir(),
-  );
+  late VariableDatabase _variableStore;
+  SqliteCliVariableStore? _sqliteVariableStore;
+  final JsonVariableStore _jsonFallbackVariableStore = JsonVariableStore();
   Future<void>? _variableStoreInitFuture;
 
   HttpServer? _server;
@@ -115,7 +127,12 @@ class RunnerWebBootstrapServer {
 
   Future<void> stop() async {
     await _runtimeController.dispose();
-    _variableStore.dispose();
+    _sqliteVariableStore?.dispose();
+    final activeStore = _variableStore;
+    if (activeStore is SqliteCliVariableStore &&
+        !identical(activeStore, _sqliteVariableStore)) {
+      activeStore.dispose();
+    }
 
     final server = _server;
     _server = null;
@@ -867,8 +884,25 @@ class RunnerWebBootstrapServer {
   }
 
   Future<void> _ensureVariableStoreInitialized() {
-    _variableStoreInitFuture ??= _variableStore.init();
+    final sqlite = _sqliteVariableStore;
+    if (sqlite == null) {
+      return Future.value();
+    }
+
+    _variableStoreInitFuture ??= _initializeSqliteStoreWithFallback(sqlite);
     return _variableStoreInitFuture!;
+  }
+
+  Future<void> _initializeSqliteStoreWithFallback(
+    SqliteCliVariableStore sqlite,
+  ) async {
+    try {
+      await sqlite.init();
+    } catch (_) {
+      sqlite.dispose();
+      _sqliteVariableStore = null;
+      _variableStore = _jsonFallbackVariableStore;
+    }
   }
 
   String _normalizeScopedStorageKey(String key) {

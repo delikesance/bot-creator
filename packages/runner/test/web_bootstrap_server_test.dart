@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bot_creator_runner/stores/sqlite_cli_variable_store.dart';
+import 'package:bot_creator_shared/bot/json_variable_store.dart';
 import 'package:bot_creator_runner/web_bootstrap_server.dart';
 import 'package:bot_creator_runner/web_log_store.dart';
 import 'package:http/http.dart' as http;
@@ -87,10 +87,12 @@ void main() {
 
     test('supports variable endpoints for global/scoped data', () async {
       final port = await _allocatePort();
+      final variableStore = JsonVariableStore();
       server = RunnerWebBootstrapServer(
         host: '127.0.0.1',
         port: port,
         logStore: RunnerLogStore(),
+        variableStore: variableStore,
       );
       await server!.start();
 
@@ -176,11 +178,14 @@ void main() {
       );
       expect(removeDef.statusCode, HttpStatus.ok);
 
-      final sqlite = SqliteCliVariableStore('./data/variables');
-      await sqlite.init();
-      await sqlite.setScopedVariable(botId, 'user', 'u1', 'coins', 99);
-      await sqlite.setScopedVariable(botId, 'user', 'u2', 'bc_legacy', 'yes');
-      sqlite.dispose();
+      await variableStore.setScopedVariable(botId, 'user', 'u1', 'coins', 99);
+      await variableStore.setScopedVariable(
+        botId,
+        'user',
+        'u2',
+        'bc_legacy',
+        'yes',
+      );
 
       final scopedValues = await http.get(
         base.resolve(
