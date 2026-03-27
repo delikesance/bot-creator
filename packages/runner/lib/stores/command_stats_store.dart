@@ -17,6 +17,8 @@ import 'package:sqlite3/sqlite3.dart' as sqlite3;
 class CommandStatsStore {
   final String _dbPath;
   late sqlite3.Database _db;
+  final List<_CommandExecutionRecord> _memoryRecords = <_CommandExecutionRecord>[];
+  bool _sqliteAvailable = false;
   bool _initialized = false;
 
   CommandStatsStore(String workDir)
@@ -31,26 +33,37 @@ class CommandStatsStore {
       await dbDirectory.create(recursive: true);
     }
 
-    _db = sqlite3.sqlite3.open(_dbPath);
+    // Ensure the file exists even when native SQLite isn't available.
+    final dbFile = File(_dbPath);
+    if (!await dbFile.exists()) {
+      await dbFile.create(recursive: true);
+    }
 
-    _db.execute('''
-      CREATE TABLE IF NOT EXISTS command_executions (
-        id          INTEGER PRIMARY KEY AUTOINCREMENT,
-        bot_id      TEXT NOT NULL,
-        command_name TEXT NOT NULL,
-        guild_id    TEXT NOT NULL DEFAULT '',
-        executed_at INTEGER NOT NULL
-      )
-    ''');
+    try {
+      _db = sqlite3.sqlite3.open(_dbPath);
 
-    _db.execute('''
-      CREATE INDEX IF NOT EXISTS idx_cmd_exec_bot
-      ON command_executions(bot_id, command_name)
-    ''');
-    _db.execute('''
-      CREATE INDEX IF NOT EXISTS idx_cmd_exec_time
-      ON command_executions(bot_id, executed_at)
-    ''');
+      _db.execute('''
+        CREATE TABLE IF NOT EXISTS command_executions (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          bot_id      TEXT NOT NULL,
+          command_name TEXT NOT NULL,
+          guild_id    TEXT NOT NULL DEFAULT '',
+          executed_at INTEGER NOT NULL
+        )
+      ''');
+
+      _db.execute('''
+        CREATE INDEX IF NOT EXISTS idx_cmd_exec_bot
+        ON command_executions(bot_id, command_name)
+      ''');
+      _db.execute('''
+        CREATE INDEX IF NOT EXISTS idx_cmd_exec_time
+        ON command_executions(bot_id, executed_at)
+      ''');
+      _sqliteAvailable = true;
+    } catch (_) {
+      _sqliteAvailable = false;
+    }
 
     _initialized = true;
   }
@@ -63,6 +76,17 @@ class CommandStatsStore {
   }) {
     if (!_initialized) return;
     final now = DateTime.now().millisecondsSinceEpoch;
+    if (!_sqliteAvailable) {
+      _memoryRecords.add(
+        _CommandExecutionRecord(
+          botId: botId,
+          commandName: commandName,
+          guildId: guildId,
+          executedAtMs: now,
+        ),
+      );
+      return;
+    }
     _db.execute(
       'INSERT INTO command_executions (bot_id, command_name, guild_id, executed_at) '
       'VALUES (?, ?, ?, ?)',
@@ -76,6 +100,23 @@ class CommandStatsStore {
     if (!_initialized) return const [];
     final now = DateTime.now().millisecondsSinceEpoch;
     final cutoff = sinceMs != null ? now - sinceMs : 0;
+    if (!_sqliteAvailable) {
+      final counts = <String, int>{};
+      for (final row in _memoryRecords) {
+        if (row.botId != botId || row.executedAtMs < cutoff) continue;
+        counts.update(row.commandName, (value) => value + 1, ifAbsent: () => 1);
+      }
+      final entries = counts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      return entries
+          .map(
+            (entry) => <String, dynamic>{
+              'command': entry.key,
+              'count': entry.value,
+            },
+          )
+          .toList(growable: false);
+    }
 
     final stmt = _db.prepare(
       'SELECT command_name, COUNT(*) as count '
@@ -102,6 +143,23 @@ class CommandStatsStore {
     if (!_initialized) return const [];
     final now = DateTime.now().millisecondsSinceEpoch;
     final cutoff = now - (hours * 3600000);
+    if (!_sqliteAvailable) {
+      final counts = <int, int>{};
+      for (final row in _memoryRecords) {
+        if (row.botId != botId || row.executedAtMs < cutoff) continue;
+        final bucket = row.executedAtMs ~/ 3600000;
+        counts.update(bucket, (value) => value + 1, ifAbsent: () => 1);
+      }
+      final buckets = counts.keys.toList()..sort();
+      return buckets
+          .map(
+            (bucket) => <String, dynamic>{
+              'hour': bucket.toString(),
+              'count': counts[bucket]!,
+            },
+          )
+          .toList(growable: false);
+    }
 
     final stmt = _db.prepare(
       'SELECT (executed_at / 3600000) as hour_bucket, COUNT(*) as count '
@@ -126,6 +184,15 @@ class CommandStatsStore {
   /// Total execution count for [botId].
   int totalCount(String botId) {
     if (!_initialized) return 0;
+    if (!_sqliteAvailable) {
+      var count = 0;
+      for (final row in _memoryRecords) {
+        if (row.botId == botId) {
+          count++;
+        }
+      }
+      return count;
+    }
     final stmt = _db.prepare(
       'SELECT COUNT(*) as total FROM command_executions WHERE bot_id = ?',
     );
@@ -137,8 +204,26 @@ class CommandStatsStore {
 
   void dispose() {
     if (_initialized) {
-      _db.dispose();
+      if (_sqliteAvailable) {
+        _db.dispose();
+      }
+      _memoryRecords.clear();
+      _sqliteAvailable = false;
       _initialized = false;
     }
   }
+}
+
+class _CommandExecutionRecord {
+  const _CommandExecutionRecord({
+    required this.botId,
+    required this.commandName,
+    required this.guildId,
+    required this.executedAtMs,
+  });
+
+  final String botId;
+  final String commandName;
+  final String guildId;
+  final int executedAtMs;
 }

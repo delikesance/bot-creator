@@ -16,19 +16,30 @@ class _CpuSample {
 
 /// The semantic version of the Bot Creator Runner.
 ///
-/// When compiled with `dart compile exe --define=VERSION=x.y.z`, the
-/// compile-time value is used.  For local `dart run` the version is
-/// read from `pubspec.yaml` at startup.
+/// When started with a supported `-DVERSION=x.y.z` define, that
+/// compile-time value is used. Otherwise the version is read from a
+/// nearby `pubspec.yaml` at startup.
 final String runnerVersion = _resolveVersion();
 
 String _resolveVersion() {
   const compiled = String.fromEnvironment('VERSION');
   if (compiled.isNotEmpty) return compiled;
-  try {
-    final pubspec = File('pubspec.yaml').readAsStringSync();
-    final match = RegExp(r'version:\s*(\S+)').firstMatch(pubspec);
-    if (match != null) return match.group(1)!;
-  } catch (_) {}
+
+  final candidates = <String>{
+    'pubspec.yaml',
+    File(Platform.resolvedExecutable).parent.parent.uri
+        .resolve('pubspec.yaml')
+        .toFilePath(),
+  };
+
+  for (final path in candidates) {
+    try {
+      final pubspec = File(path).readAsStringSync();
+      final match = RegExp(r'version:\s*(\S+)').firstMatch(pubspec);
+      if (match != null) return match.group(1)!;
+    } catch (_) {}
+  }
+
   return 'unknown';
 }
 

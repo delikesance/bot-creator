@@ -14,10 +14,9 @@ RUN printf "name: bot_creator_runner_workspace\ndescription: Docker build worksp
 # Run from workspace root to ensure proper workspace initialization
 RUN dart pub get
 
-# Compile to a native executable (AOT)
+# Build a native CLI bundle (binary + native assets)
 WORKDIR /workspace/packages/runner
-RUN VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: *//') && \
-    mkdir -p /out && dart compile exe bin/runner.dart -o /out/runner -DVERSION=$VERSION
+RUN mkdir -p /out && dart build cli -o /out -t bin/runner.dart
 
 # ─── Runtime stage ────────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -28,7 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && ln -sf /usr/lib/*-linux-*/libsqlite3.so.0 /usr/lib/libsqlite3.so
 
-COPY --from=builder /out/runner /usr/local/bin/runner
+COPY --from=builder /out/bundle /opt/runner
+COPY --from=builder /workspace/packages/runner/pubspec.yaml /opt/runner/pubspec.yaml
 
 # Persistent runtime data (synced bot configs + logs)
 ENV BOT_CREATOR_DATA_DIR=/data/bots
@@ -40,4 +40,4 @@ VOLUME ["/data"]
 EXPOSE 8080
 
 # Default mode: runner REST API.
-ENTRYPOINT ["/usr/local/bin/runner"]
+ENTRYPOINT ["/opt/runner/bin/runner"]
