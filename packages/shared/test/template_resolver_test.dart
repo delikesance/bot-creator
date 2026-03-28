@@ -71,6 +71,69 @@ void main() {
   });
 
   group('resolveTemplateExpressionValue', () {
+    test('normalizes string casing and whitespace', () {
+      expect(
+        resolveTemplateExpressionValue(
+          'lowercase("HeLLo")',
+          <String, String>{},
+        ),
+        'hello',
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'uppercase("HeLLo")',
+          <String, String>{},
+        ),
+        'HELLO',
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'trim("  spaced  ")',
+          <String, String>{},
+        ),
+        'spaced',
+      );
+    });
+
+    test('supports replace and contains helpers', () {
+      expect(
+        resolveTemplateExpressionValue(
+          'replace("Hello there", "there", "world")',
+          <String, String>{},
+        ),
+        'Hello world',
+      );
+
+      expect(
+        resolveTemplatePlaceholders('((contains("AbCd", "bc")))', {}),
+        'true',
+      );
+      expect(resolveTemplatePlaceholders('((contains("AbCd", "zz")))', {}), '');
+    });
+
+    test('supports first, last and sum for arrays', () {
+      expect(
+        resolveTemplateExpressionValue('first(scores.\$)', <String, String>{
+          'scores': '[3,5,8]',
+        }),
+        3,
+      );
+
+      expect(
+        resolveTemplateExpressionValue('last(scores.\$)', <String, String>{
+          'scores': '[3,5,8]',
+        }),
+        8,
+      );
+
+      expect(
+        resolveTemplateExpressionValue('sum(scores.\$)', <String, String>{
+          'scores': '[3,"5",null,"x",8.5]',
+        }),
+        16.5,
+      );
+    });
+
     test('supports length and at helpers for arrays', () {
       expect(
         resolveTemplateExpressionValue('length(scores.\$)', <String, String>{
@@ -152,10 +215,7 @@ void main() {
       final results = <String>{};
       for (var i = 0; i < 200; i++) {
         results.add(
-          resolveTemplatePlaceholders(
-            '((randomchoice("a", "b", "c")))',
-            {},
-          ),
+          resolveTemplatePlaceholders('((randomchoice("a", "b", "c")))', {}),
         );
       }
       expect(results, containsAll(['a', 'b', 'c']));
