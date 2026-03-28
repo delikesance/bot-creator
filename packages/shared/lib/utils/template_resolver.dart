@@ -374,6 +374,13 @@ int? _coerceInt(dynamic value) {
   return int.tryParse(_stringifyResolvedValue(value).trim());
 }
 
+num? _coerceNum(dynamic value) {
+  if (value is num) {
+    return value;
+  }
+  return num.tryParse(_stringifyResolvedValue(value).trim());
+}
+
 bool _coerceBool(dynamic value, {bool fallback = false}) {
   if (value is bool) {
     return value;
@@ -493,6 +500,38 @@ dynamic _applyFunction(
 ) {
   final name = rawName.trim().toLowerCase();
   switch (name) {
+    case 'lower':
+    case 'lowercase':
+      if (args.isEmpty) {
+        return null;
+      }
+      return _stringifyResolvedValue(args.first).toLowerCase();
+    case 'upper':
+    case 'uppercase':
+      if (args.isEmpty) {
+        return null;
+      }
+      return _stringifyResolvedValue(args.first).toUpperCase();
+    case 'trim':
+      if (args.isEmpty) {
+        return null;
+      }
+      return _stringifyResolvedValue(args.first).trim();
+    case 'replace':
+      if (args.length < 3) {
+        return null;
+      }
+      final source = _stringifyResolvedValue(args[0]);
+      final search = _stringifyResolvedValue(args[1]);
+      final replacement = _stringifyResolvedValue(args[2]);
+      return source.replaceAll(search, replacement);
+    case 'contains':
+      if (args.length < 2) {
+        return null;
+      }
+      final haystack = _stringifyResolvedValue(args[0]).toLowerCase();
+      final needle = _stringifyResolvedValue(args[1]).toLowerCase();
+      return haystack.contains(needle) ? 'true' : '';
     case 'length':
       if (args.isEmpty) {
         return null;
@@ -515,6 +554,24 @@ dynamic _applyFunction(
         return null;
       }
       return source[index];
+    case 'first':
+      if (args.isEmpty) {
+        return null;
+      }
+      final source = _coerceList(args[0]);
+      if (source == null || source.isEmpty) {
+        return null;
+      }
+      return source.first;
+    case 'last':
+      if (args.isEmpty) {
+        return null;
+      }
+      final source = _coerceList(args[0]);
+      if (source == null || source.isEmpty) {
+        return null;
+      }
+      return source.last;
     case 'slice':
       if (args.length < 2) {
         return null;
@@ -555,6 +612,22 @@ dynamic _applyFunction(
       }
       final separator = _stringifyResolvedValue(args[1]);
       return source.map(_stringifyResolvedValue).join(separator);
+    case 'sum':
+      if (args.isEmpty) {
+        return null;
+      }
+      final source = _coerceList(args[0]);
+      if (source == null) {
+        return null;
+      }
+      num total = 0;
+      for (final item in source) {
+        final numeric = _coerceNum(item);
+        if (numeric != null) {
+          total += numeric;
+        }
+      }
+      return total;
     case 'formateach':
       if (args.length < 3) {
         return null;

@@ -438,6 +438,33 @@ void main() {
     });
   });
 
+  group('normalizeCommandData – legacy command fields', () {
+    test('preserves legacy command mode fields', () {
+      final command = _makeCommand(
+        data: {
+          'legacyModeEnabled': true,
+          'legacyPrefixOverride': '((guild.bc_prefix | !))',
+          'legacyResponseTarget': 'channelSend',
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final data = Map<String, dynamic>.from(result['data'] as Map);
+
+      expect(data['legacyModeEnabled'], isTrue);
+      expect(data['legacyPrefixOverride'], '((guild.bc_prefix | !))');
+      expect(data['legacyResponseTarget'], 'channelSend');
+    });
+
+    test('defaults legacy response target to reply', () {
+      final command = _makeCommand(data: {'legacyModeEnabled': true});
+
+      final result = normalizeCommandData(command);
+      final data = Map<String, dynamic>.from(result['data'] as Map);
+      expect(data['legacyResponseTarget'], 'reply');
+    });
+  });
+
   group('normalizeCommandData – idempotency', () {
     test('double normalization produces identical output', () {
       final command = _makeCommand(

@@ -105,6 +105,203 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
     );
   }
 
+  _DocEntry _buildTemplateFunctionsDoc() {
+    return _DocEntry(
+      id: 'template.functions',
+      kind: DocKind.template,
+      title: AppStrings.t('doc_template_functions_title'),
+      subtitle: AppStrings.t('doc_template_functions_subtitle'),
+      summary: AppStrings.t('doc_template_functions_summary'),
+      sections: <_DocSection>[
+        _DocSection(
+          title: AppStrings.t('doc_template_functions_section_string_title'),
+          lines: <String>[
+            AppStrings.t('doc_template_functions_section_string_l1'),
+            AppStrings.t('doc_template_functions_section_string_l2'),
+            AppStrings.t('doc_template_functions_section_string_l3'),
+            AppStrings.t('doc_template_functions_section_string_l4'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t('doc_template_functions_section_array_title'),
+          lines: <String>[
+            AppStrings.t('doc_template_functions_section_array_l1'),
+            AppStrings.t('doc_template_functions_section_array_l2'),
+            AppStrings.t('doc_template_functions_section_array_l3'),
+            AppStrings.t('doc_template_functions_section_array_l4'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t('doc_template_functions_section_random_title'),
+          lines: <String>[
+            AppStrings.t('doc_template_functions_section_random_l1'),
+            AppStrings.t('doc_template_functions_section_random_l2'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t('doc_template_functions_section_notes_title'),
+          lines: <String>[
+            AppStrings.t('doc_template_functions_section_notes_l1'),
+            AppStrings.t('doc_template_functions_section_notes_l2'),
+            AppStrings.t('doc_template_functions_section_notes_l3'),
+            AppStrings.t('doc_template_functions_section_notes_l4'),
+          ],
+        ),
+      ],
+      example: AppStrings.t('doc_template_functions_example'),
+    );
+  }
+
+  _DocEntry _buildTemplateAdvancedVariablesDoc() {
+    return _DocEntry(
+      id: 'template.advancedVariables',
+      kind: DocKind.template,
+      title: AppStrings.t('doc_template_advanced_variables_title'),
+      subtitle: AppStrings.t('doc_template_advanced_variables_subtitle'),
+      summary: AppStrings.t('doc_template_advanced_variables_summary'),
+      variables: const <String>[
+        'interaction.kind',
+        'interaction.values',
+        'interaction.values.count',
+        'interaction.command.name',
+        'interaction.command.id',
+        'interaction.guildId',
+        'interaction.channelId',
+        'interaction.userId',
+        'interaction.messageId',
+        'channel.kind',
+        'channel.position',
+        'channel.bitrate',
+        'channel.userLimit',
+        'channel.categoryId',
+        'channel.thread.archived',
+        'channel.thread.locked',
+        'channel.thread.ownerId',
+        'channel.thread.autoArchiveDuration',
+        'guild.kind',
+        'user.id',
+        'user.username',
+        'user.tag',
+        'user.avatar',
+        'user.banner',
+        'member.id',
+      ],
+      sections: <_DocSection>[
+        _DocSection(
+          title: AppStrings.t(
+            'doc_template_advanced_variables_section_interaction_title',
+          ),
+          lines: <String>[
+            AppStrings.t(
+              'doc_template_advanced_variables_section_interaction_l1',
+            ),
+            AppStrings.t(
+              'doc_template_advanced_variables_section_interaction_l2',
+            ),
+            AppStrings.t(
+              'doc_template_advanced_variables_section_interaction_l3',
+            ),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t(
+            'doc_template_advanced_variables_section_channel_guild_title',
+          ),
+          lines: <String>[
+            AppStrings.t(
+              'doc_template_advanced_variables_section_channel_guild_l1',
+            ),
+            AppStrings.t(
+              'doc_template_advanced_variables_section_channel_guild_l2',
+            ),
+            AppStrings.t(
+              'doc_template_advanced_variables_section_channel_guild_l3',
+            ),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t(
+            'doc_template_advanced_variables_section_aliases_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_template_advanced_variables_section_aliases_l1'),
+            AppStrings.t('doc_template_advanced_variables_section_aliases_l2'),
+          ],
+        ),
+      ],
+      example: AppStrings.t('doc_template_advanced_variables_example'),
+    );
+  }
+
+  _DocEntry _buildRuntimeActionOutputsDoc() {
+    return _DocEntry(
+      id: 'runtime.actionOutputs',
+      kind: DocKind.runtime,
+      title: AppStrings.t('doc_runtime_action_outputs_title'),
+      subtitle: AppStrings.t('doc_runtime_action_outputs_subtitle'),
+      summary: AppStrings.t('doc_runtime_action_outputs_summary'),
+      variables: const <String>[
+        'action.<resultKey>',
+        'action.<resultKey>.status',
+        'action.<resultKey>.body',
+        'action.<resultKey>.jsonPath',
+        'action.<resultKey>.count',
+        'action.<resultKey>.mode',
+        'action.<resultKey>.deleteItself',
+        'action.<resultKey>.deleteResponse',
+        'action.<resultKey>.items',
+        'action.<resultKey>.length',
+        'action.<resultKey>.removed',
+        'action.<resultKey>.total',
+        '<resultKey>',
+        '<resultKey>.status',
+        '<resultKey>.body',
+        '<resultKey>.jsonPath',
+        '<resultKey>.count',
+        '<resultKey>.items',
+        '<resultKey>.length',
+        '<resultKey>.removed',
+        '<resultKey>.total',
+        '<resultKey>.result',
+        '<resultKey>.messageId',
+      ],
+      sections: <_DocSection>[
+        _DocSection(
+          title: AppStrings.t(
+            'doc_runtime_action_outputs_section_patterns_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_runtime_action_outputs_section_patterns_l1'),
+            AppStrings.t('doc_runtime_action_outputs_section_patterns_l2'),
+            AppStrings.t('doc_runtime_action_outputs_section_patterns_l3'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t(
+            'doc_runtime_action_outputs_section_common_fields_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_runtime_action_outputs_section_common_fields_l1'),
+            AppStrings.t('doc_runtime_action_outputs_section_common_fields_l2'),
+            AppStrings.t('doc_runtime_action_outputs_section_common_fields_l3'),
+            AppStrings.t('doc_runtime_action_outputs_section_common_fields_l4'),
+          ],
+        ),
+        _DocSection(
+          title: AppStrings.t(
+            'doc_runtime_action_outputs_section_caveats_title',
+          ),
+          lines: <String>[
+            AppStrings.t('doc_runtime_action_outputs_section_caveats_l1'),
+            AppStrings.t('doc_runtime_action_outputs_section_caveats_l2'),
+            AppStrings.t('doc_runtime_action_outputs_section_caveats_l3'),
+          ],
+        ),
+      ],
+      example: AppStrings.t('doc_runtime_action_outputs_example'),
+    );
+  }
+
   _DocEntry _buildInteractionCommandsDoc() {
     return _DocEntry(
       id: 'runtime.interactionCommands',
@@ -481,7 +678,10 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
       ],
     ),
     _buildTemplateVariablesDoc(),
+    _buildTemplateFunctionsDoc(),
+    _buildTemplateAdvancedVariablesDoc(),
     _buildInteractionCommandsDoc(),
+    _buildRuntimeActionOutputsDoc(),
     _buildRuntimeExecutionFlowDoc(),
   ];
 

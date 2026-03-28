@@ -127,6 +127,14 @@ Exemples:
 ((at(scores.$, 0)))
 ((slice(scores.$, 0, 5)))
 ((join(scores.$, ", ")))
+((lowercase(userName)))
+((uppercase(userName)))
+((trim(userInput)))
+((replace(title, "old", "new")))
+((contains(title, "keyword")))
+((first(scores.$)))
+((last(scores.$)))
+((sum(scores.$)))
 ((formatEach(scores.$, "{name}: {score}", "\n")))
 ((embedFields(scores.$, "{name}", "{score}", true)))
 ((avatar(interaction.user.avatar, "webp", 1024)))
@@ -137,10 +145,18 @@ Exemples:
 
 | Fonction | Rôle | Exemple |
 |----------|------|---------|
+| `lowercase(source)` | Convertit en minuscules (alias: `lower`) | `((lowercase(userName)))` |
+| `uppercase(source)` | Convertit en majuscules (alias: `upper`) | `((uppercase(userName)))` |
+| `trim(source)` | Supprime les espaces en début/fin | `((trim(userInput)))` |
+| `replace(source, search, replacement)` | Remplace toutes les occurrences de `search` | `((replace(title, "_", " ")))` |
+| `contains(source, needle)` | Retourne `"true"` ou `""` (insensible à la casse) | `((contains(userRole, "admin")))` |
 | `length(source)` | Taille d'une string, array ou map | `((length(query.items.$)))` |
 | `at(source, index)` | Lit un élément d'array | `((at(query.items.$, 0)))` |
+| `first(source)` | Premier élément d'un array | `((first(query.items.$)))` |
+| `last(source)` | Dernier élément d'un array | `((last(query.items.$)))` |
 | `slice(source, start, end?)` | Sous-tableau ou sous-chaîne | `((slice(names.$, 0, 3)))` |
 | `join(source, separator)` | Concatène un array | `((join(tags.$, ", ")))` |
+| `sum(source)` | Somme des éléments numériques d'un array | `((sum(scores.$)))` |
 | `formatEach(source, itemTemplate, separator)` | Formate chaque item | `((formatEach(users.$, "{name}", ", ")))` |
 | `embedFields(source, nameTemplate, valueTemplate, inline?)` | Génère un JSON array de fields d'embed | `((embedFields(scores.$, "{name}", "{score}", true)))` |
 | `avatar(url, format?, size?)` | Re-formate une URL avatar Discord | `((avatar(interaction.user.avatar, "png", 256)))` |

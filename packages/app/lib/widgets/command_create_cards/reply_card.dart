@@ -29,6 +29,7 @@ class ReplyCard extends StatelessWidget {
   final String workflowSummary;
   final String? activeRouteLabel;
   final bool activeRouteIsGrouped;
+  final bool allowModal;
 
   const ReplyCard({
     super.key,
@@ -51,6 +52,7 @@ class ReplyCard extends StatelessWidget {
     required this.workflowSummary,
     this.activeRouteLabel,
     this.activeRouteIsGrouped = false,
+    this.allowModal = true,
   });
 
   @override
@@ -237,19 +239,25 @@ class ReplyCard extends StatelessWidget {
             "Discord's rich layout system — containers, media, text & forms",
         icon: Icons.dashboard_customize_outlined,
       ),
-      (
-        value: 'modal',
-        label: 'Modal Form',
-        description: 'Pop-up dialog with text input fields',
-        icon: Icons.web_asset_outlined,
-      ),
     ];
+
+    final visibleModes =
+        <({String value, String label, String description, IconData icon})>[
+          ...modes,
+          if (allowModal)
+            (
+              value: 'modal',
+              label: 'Modal Form',
+              description: 'Pop-up dialog with text input fields',
+              icon: Icons.web_asset_outlined,
+            ),
+        ];
 
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final mode in modes)
+        for (final mode in visibleModes)
           _buildResponseModeChip(
             context: context,
             value: mode.value,

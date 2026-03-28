@@ -105,6 +105,13 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
   final rawEditorMode =
       (rawData['editorMode'] ?? 'advanced').toString().toLowerCase();
   final editorMode = rawEditorMode == 'simple' ? 'simple' : 'advanced';
+  final legacyModeEnabled = rawData['legacyModeEnabled'] == true;
+  final legacyPrefixOverride =
+      (rawData['legacyPrefixOverride'] ?? '').toString().trim();
+  final rawLegacyResponseTarget =
+      (rawData['legacyResponseTarget'] ?? 'reply').toString().trim();
+  final legacyResponseTarget =
+      rawLegacyResponseTarget == 'channelSend' ? 'channelSend' : 'reply';
 
   final simpleConfigRaw = Map<String, dynamic>.from(
     (rawData['simpleConfig'] as Map?)?.cast<String, dynamic>() ?? const {},
@@ -178,6 +185,9 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
     'version': 1,
     'commandType': commandType,
     'editorMode': editorMode,
+    'legacyModeEnabled': legacyModeEnabled,
+    'legacyPrefixOverride': legacyPrefixOverride,
+    'legacyResponseTarget': legacyResponseTarget,
     'simpleConfig': simpleConfig,
     'defaultMemberPermissions':
         (rawData['defaultMemberPermissions'] ?? '').toString().trim(),

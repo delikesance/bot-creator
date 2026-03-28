@@ -167,6 +167,13 @@ const Map<String, String> appStringsEn = {
   'settings_runner_unreachable': 'Runner unreachable',
   'settings_runner_connecting': 'Checking connection…',
   'settings_runner_active': 'Active Runner API: {url}',
+  'settings_runner_disable_temp': 'Temporarily disable Runner',
+  'settings_runner_disable_temp_desc':
+      'Keep Runner settings but force local mode until re-enabled.',
+  'settings_runner_temporarily_disabled':
+      'Runner temporarily disabled (local mode active)',
+  'settings_runner_temporarily_disabled_saved': 'Runner temporarily disabled',
+  'settings_runner_reenabled': 'Runner re-enabled',
   'settings_data_operations_title': 'Data Operations',
   'settings_export': 'Export',
   'settings_import': 'Import',
@@ -774,6 +781,111 @@ const Map<String, String> appStringsEn = {
       'Functions like length(...), join(...), formatEach(...), and embedFields(...) are also supported; unknown variables still resolve to an empty string.',
   'doc_template_variables_example':
       'Hello ((target.user.username|userName))\nPlayers: ((join(scores.items.\$, ", ")))\nFields JSON: ((embedFields(scores.items.\$, "{name}", "{score}", true)))',
+
+  // Docs - Template Functions
+  'doc_template_functions_title': 'Template Functions',
+  'doc_template_functions_subtitle':
+      'Transform and compare data inside ((...)) expressions.',
+  'doc_template_functions_summary':
+      'Use template functions to normalize text, inspect arrays, build output blocks, and add lightweight randomness.',
+  'doc_template_functions_section_string_title': 'String Helpers',
+  'doc_template_functions_section_string_l1':
+      'lowercase(source) / lower(source): convert text to lowercase.',
+  'doc_template_functions_section_string_l2':
+      'uppercase(source) / upper(source): convert text to uppercase.',
+  'doc_template_functions_section_string_l3':
+      'trim(source): remove leading and trailing spaces.',
+  'doc_template_functions_section_string_l4':
+      'replace(source, search, replacement) and contains(source, needle) for substitutions and checks.',
+  'doc_template_functions_section_array_title': 'Array and Aggregate Helpers',
+  'doc_template_functions_section_array_l1':
+      'length(source), at(source, index), first(source), last(source).',
+  'doc_template_functions_section_array_l2':
+      'slice(source, start, end?) and join(source, separator).',
+  'doc_template_functions_section_array_l3':
+      'sum(source): adds numeric items and ignores non-numeric values.',
+  'doc_template_functions_section_array_l4':
+      'formatEach(...) and embedFields(...) format object arrays for text and embeds.',
+  'doc_template_functions_section_random_title': 'Random Helpers',
+  'doc_template_functions_section_random_l1':
+      'coin() and random(): return "true" or "" for conditional branching.',
+  'doc_template_functions_section_random_l2':
+      'randomchoice(a, b, ...) and randomint(min, max).',
+  'doc_template_functions_section_notes_title': 'Important Notes',
+  'doc_template_functions_section_notes_l1':
+      'Function names are case-insensitive.',
+  'doc_template_functions_section_notes_l2':
+      'Unknown functions or invalid arguments resolve to an empty string.',
+  'doc_template_functions_section_notes_l3':
+      'Use fallback syntax with | at root level: ((replace(name, "_", " ")|Unknown)).',
+  'doc_template_functions_section_notes_l4':
+      'Arrays and objects returned by functions are serialized as JSON text.',
+  'doc_template_functions_example':
+      'Normalized: ((uppercase(trim(userName))))\nHas admin role: ((contains(userRole, "admin")))\nTop score: ((first(scores.\$)))\nTotal score: ((sum(scores.\$)))',
+
+  // Docs - Template Advanced Variables
+  'doc_template_advanced_variables_title': 'Template Advanced Variables',
+  'doc_template_advanced_variables_subtitle':
+      'Additional runtime keys available in specific contexts.',
+  'doc_template_advanced_variables_summary':
+      'These keys are generated from interaction payloads and channel/guild/user runtime details, depending on the event or command type.',
+  'doc_template_advanced_variables_section_interaction_title':
+      'Interaction Metadata',
+  'doc_template_advanced_variables_section_interaction_l1':
+      'interaction.kind identifies the incoming interaction mode (button, select, modal, command, autocomplete).',
+  'doc_template_advanced_variables_section_interaction_l2':
+      'interaction.values and interaction.values.count are populated for select menus.',
+  'doc_template_advanced_variables_section_interaction_l3':
+      'interaction.command.name and interaction.command.id are useful for diagnostics and routing checks.',
+  'doc_template_advanced_variables_section_channel_guild_title':
+      'Channel and Guild Details',
+  'doc_template_advanced_variables_section_channel_guild_l1':
+      'channel.kind, channel.position, channel.bitrate, and channel.userLimit are context-dependent channel details.',
+  'doc_template_advanced_variables_section_channel_guild_l2':
+      'Thread contexts can expose channel.thread.* values (archived, locked, ownerId, autoArchiveDuration).',
+  'doc_template_advanced_variables_section_channel_guild_l3':
+      'guild.kind helps distinguish partial/full guild payloads in advanced workflows.',
+  'doc_template_advanced_variables_section_aliases_title':
+      'User and Member Aliases',
+  'doc_template_advanced_variables_section_aliases_l1':
+      'Structured user aliases (user.id, user.username, user.tag, user.avatar, user.banner) are available in many command contexts.',
+  'doc_template_advanced_variables_section_aliases_l2':
+      'member.id can be useful when both user and guild-member context are needed.',
+  'doc_template_advanced_variables_example':
+      'Kind: ((interaction.kind))\nSelected count: ((interaction.values.count|0))\nThread owner: ((channel.thread.ownerId|unknown))\nGuild payload kind: ((guild.kind|n/a))',
+
+  // Docs - Runtime Action Outputs
+  'doc_runtime_action_outputs_title': 'Runtime Action Outputs',
+  'doc_runtime_action_outputs_subtitle':
+      'How action result keys are exposed as runtime variables.',
+  'doc_runtime_action_outputs_summary':
+      'Most actions write a primary result key and may also expose prefixed fields under action.<resultKey>.* depending on the executor.',
+  'doc_runtime_action_outputs_section_patterns_title': 'Output Patterns',
+  'doc_runtime_action_outputs_section_patterns_l1':
+      'Primary output is usually stored as <resultKey>.',
+  'doc_runtime_action_outputs_section_patterns_l2':
+      'Many executors also expose action.<resultKey>.* fields for clarity and namespacing.',
+  'doc_runtime_action_outputs_section_patterns_l3':
+      'Some fields are mirrored with and without the action. prefix.',
+  'doc_runtime_action_outputs_section_common_fields_title':
+      'Common Output Fields',
+  'doc_runtime_action_outputs_section_common_fields_l1':
+      'HTTP actions: status, body, jsonPath.',
+  'doc_runtime_action_outputs_section_common_fields_l2':
+      'Messaging/list actions: count, mode, deleteItself, deleteResponse.',
+  'doc_runtime_action_outputs_section_common_fields_l3':
+      'Array actions: items, length, removed, total.',
+  'doc_runtime_action_outputs_section_common_fields_l4':
+      'Other executors may expose result or messageId fields.',
+  'doc_runtime_action_outputs_section_caveats_title': 'Caveats',
+  'doc_runtime_action_outputs_section_caveats_l1':
+      'Not every action exposes every suffix; availability is executor-specific.',
+  'doc_runtime_action_outputs_section_caveats_l2':
+      'For portability, prefer fallback expressions when reading optional output fields.',
+  'doc_runtime_action_outputs_section_caveats_l3':
+      'If a key is missing, template resolution returns an empty string.',
+  'doc_runtime_action_outputs_example':
+      'Status: ((action.http.status|http.status|unknown))\nBody: ((action.http.body|http.body))\nDeleted: ((cleanup.count|0))\nTotal: ((page.total|0))',
 
   // Docs - Interaction Commands
   'doc_interaction_commands_title': 'Interaction Commands',

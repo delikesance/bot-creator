@@ -173,6 +173,14 @@ const Map<String, String> appStringsFr = {
   'settings_runner_unreachable': 'Runner inaccessible',
   'settings_runner_connecting': 'Vérification de la connexion…',
   'settings_runner_active': 'Runner API actif : {url}',
+  'settings_runner_disable_temp': 'Désactiver temporairement le Runner',
+  'settings_runner_disable_temp_desc':
+      'Conserve la configuration du Runner mais force le mode local jusqu’à réactivation.',
+  'settings_runner_temporarily_disabled':
+      'Runner temporairement désactivé (mode local actif)',
+  'settings_runner_temporarily_disabled_saved':
+      'Runner temporairement désactivé',
+  'settings_runner_reenabled': 'Runner réactivé',
   'settings_data_operations_title': 'Opérations de données',
   'settings_export': 'Exporter',
   'settings_import': 'Importer',
@@ -794,6 +802,111 @@ const Map<String, String> appStringsFr = {
       'Les fonctions length(...), join(...), formatEach(...), et embedFields(...) sont aussi supportées ; une variable inconnue reste résolue en chaîne vide.',
   'doc_template_variables_example':
       'Bonjour ((target.user.username|userName))\nJoueurs : ((join(scores.items.\$, ", ")))\nFields JSON : ((embedFields(scores.items.\$, "{name}", "{score}", true)))',
+
+  // Docs - Template Functions
+  'doc_template_functions_title': 'Fonctions de template',
+  'doc_template_functions_subtitle':
+      'Transformer et comparer des données dans les expressions ((...)).',
+  'doc_template_functions_summary':
+      'Les fonctions de template servent à normaliser du texte, manipuler des tableaux, formater des sorties et ajouter un peu d’aléatoire.',
+  'doc_template_functions_section_string_title': 'Helpers texte',
+  'doc_template_functions_section_string_l1':
+      'lowercase(source) / lower(source) : convertit en minuscules.',
+  'doc_template_functions_section_string_l2':
+      'uppercase(source) / upper(source) : convertit en majuscules.',
+  'doc_template_functions_section_string_l3':
+      'trim(source) : supprime les espaces au début et à la fin.',
+  'doc_template_functions_section_string_l4':
+      'replace(source, search, replacement) et contains(source, needle) pour remplacer et tester.',
+  'doc_template_functions_section_array_title': 'Helpers tableaux et agrégats',
+  'doc_template_functions_section_array_l1':
+      'length(source), at(source, index), first(source), last(source).',
+  'doc_template_functions_section_array_l2':
+      'slice(source, start, end?) et join(source, separator).',
+  'doc_template_functions_section_array_l3':
+      'sum(source) : additionne les valeurs numériques et ignore le reste.',
+  'doc_template_functions_section_array_l4':
+      'formatEach(...) et embedFields(...) formatent des tableaux d’objets pour texte et embeds.',
+  'doc_template_functions_section_random_title': 'Helpers aléatoires',
+  'doc_template_functions_section_random_l1':
+      'coin() et random() : renvoient "true" ou "" pour les branches conditionnelles.',
+  'doc_template_functions_section_random_l2':
+      'randomchoice(a, b, ...) et randomint(min, max).',
+  'doc_template_functions_section_notes_title': 'Points importants',
+  'doc_template_functions_section_notes_l1':
+      'Les noms de fonctions sont insensibles à la casse.',
+  'doc_template_functions_section_notes_l2':
+      'Fonction inconnue ou arguments invalides : rendu en chaîne vide.',
+  'doc_template_functions_section_notes_l3':
+      'Utilisez les fallbacks avec | au niveau racine : ((replace(name, "_", " ")|Inconnu)).',
+  'doc_template_functions_section_notes_l4':
+      'Les tableaux et objets renvoyés sont sérialisés en texte JSON.',
+  'doc_template_functions_example':
+      'Normalisé : ((uppercase(trim(userName))))\nRole admin : ((contains(userRole, "admin")))\nMeilleur score : ((first(scores.\$)))\nScore total : ((sum(scores.\$)))',
+
+  // Docs - Template Advanced Variables
+  'doc_template_advanced_variables_title': 'Variables de template avancees',
+  'doc_template_advanced_variables_subtitle':
+      'Cles runtime supplementaires disponibles selon le contexte.',
+  'doc_template_advanced_variables_summary':
+      'Ces cles sont generees a partir des payloads d\'interaction et des details runtime channel/guild/user, selon le type d\'event ou de commande.',
+  'doc_template_advanced_variables_section_interaction_title':
+      'Metadonnees d\'interaction',
+  'doc_template_advanced_variables_section_interaction_l1':
+      'interaction.kind indique le mode d\'interaction entrant (button, select, modal, command, autocomplete).',
+  'doc_template_advanced_variables_section_interaction_l2':
+      'interaction.values et interaction.values.count sont remplis pour les menus select.',
+  'doc_template_advanced_variables_section_interaction_l3':
+      'interaction.command.name et interaction.command.id sont utiles pour le diagnostic et le routage.',
+  'doc_template_advanced_variables_section_channel_guild_title':
+      'Details channel et guild',
+  'doc_template_advanced_variables_section_channel_guild_l1':
+      'channel.kind, channel.position, channel.bitrate et channel.userLimit sont des details de salon dependant du contexte.',
+  'doc_template_advanced_variables_section_channel_guild_l2':
+      'Les contextes thread peuvent exposer channel.thread.* (archived, locked, ownerId, autoArchiveDuration).',
+  'doc_template_advanced_variables_section_channel_guild_l3':
+      'guild.kind aide a distinguer les payloads partiels/complets dans les workflows avances.',
+  'doc_template_advanced_variables_section_aliases_title':
+      'Alias user et member',
+  'doc_template_advanced_variables_section_aliases_l1':
+      'Les alias user structures (user.id, user.username, user.tag, user.avatar, user.banner) sont disponibles dans de nombreux contextes de commande.',
+  'doc_template_advanced_variables_section_aliases_l2':
+      'member.id est utile quand vous combinez contexte utilisateur et membre de serveur.',
+  'doc_template_advanced_variables_example':
+      'Type : ((interaction.kind))\nNb selection : ((interaction.values.count|0))\nOwner thread : ((channel.thread.ownerId|unknown))\nType payload guild : ((guild.kind|n/a))',
+
+  // Docs - Runtime Action Outputs
+  'doc_runtime_action_outputs_title': 'Sorties runtime des actions',
+  'doc_runtime_action_outputs_subtitle':
+      'Comment les resultKey d\'action sont exposes comme variables runtime.',
+  'doc_runtime_action_outputs_summary':
+      'La plupart des actions ecrivent une cle principale, et peuvent aussi exposer des champs prefixes sous action.<resultKey>.* selon l\'executor.',
+  'doc_runtime_action_outputs_section_patterns_title': 'Patterns de sortie',
+  'doc_runtime_action_outputs_section_patterns_l1':
+      'La sortie principale est generalement stockee dans <resultKey>.',
+  'doc_runtime_action_outputs_section_patterns_l2':
+      'Beaucoup d\'executors exposent aussi action.<resultKey>.* pour clarte et namespacing.',
+  'doc_runtime_action_outputs_section_patterns_l3':
+      'Certains champs existent a la fois avec et sans prefixe action.',
+  'doc_runtime_action_outputs_section_common_fields_title':
+      'Champs de sortie frequents',
+  'doc_runtime_action_outputs_section_common_fields_l1':
+      'Actions HTTP : status, body, jsonPath.',
+  'doc_runtime_action_outputs_section_common_fields_l2':
+      'Actions message/liste : count, mode, deleteItself, deleteResponse.',
+  'doc_runtime_action_outputs_section_common_fields_l3':
+      'Actions tableau : items, length, removed, total.',
+  'doc_runtime_action_outputs_section_common_fields_l4':
+      'D\'autres executors peuvent exposer result ou messageId.',
+  'doc_runtime_action_outputs_section_caveats_title': 'Points d\'attention',
+  'doc_runtime_action_outputs_section_caveats_l1':
+      'Toutes les actions n\'exposent pas tous les suffixes; cela depend de l\'executor.',
+  'doc_runtime_action_outputs_section_caveats_l2':
+      'Pour la portabilite, privilegiez les expressions avec fallback sur les champs optionnels.',
+  'doc_runtime_action_outputs_section_caveats_l3':
+      'Si une cle est absente, le template renvoie une chaine vide.',
+  'doc_runtime_action_outputs_example':
+      'Status : ((action.http.status|http.status|unknown))\nBody : ((action.http.body|http.body))\nSupprimes : ((cleanup.count|0))\nTotal : ((page.total|0))',
 
   // Docs - Interaction Commands
   'doc_interaction_commands_title': 'Commandes d’interaction',

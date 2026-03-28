@@ -93,6 +93,7 @@ class BotStatusConfig {
 /// This is the single source of truth for the runner.
 class BotConfig {
   final String token;
+  final String prefix;
   final String? username;
   final String? avatarPath;
   final Map<String, bool> intents;
@@ -108,6 +109,7 @@ class BotConfig {
 
   const BotConfig({
     required this.token,
+    this.prefix = '!',
     this.username,
     this.avatarPath,
     this.intents = const {},
@@ -122,6 +124,10 @@ class BotConfig {
   factory BotConfig.fromJson(Map<String, dynamic> json) {
     return BotConfig(
       token: (json['token'] ?? '').toString(),
+      prefix:
+          (json['prefix'] ?? '!').toString().trim().isEmpty
+              ? '!'
+              : (json['prefix'] ?? '!').toString(),
       username: _optionalString(json['username']),
       avatarPath: _optionalString(json['avatarPath']),
       intents: Map<String, bool>.from(
@@ -160,6 +166,7 @@ class BotConfig {
 
   Map<String, dynamic> toJson() => {
     'token': token,
+    'prefix': prefix,
     if (username != null) 'username': username,
     if (avatarPath != null) 'avatarPath': avatarPath,
     'intents': intents,
