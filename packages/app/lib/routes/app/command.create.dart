@@ -84,6 +84,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   List<InteractionContextType> _contexts = [InteractionContextType.guild];
   String _defaultMemberPermissions = '';
   String _editorMode = _editorModeSimple;
+  bool _legacyModeEnabled = false;
+  String _legacyPrefixOverride = '';
+  String _legacyResponseTarget = 'reply';
   bool _simpleModeLocked = false;
   bool _simpleDeleteMessages = false;
   bool _simpleKickUser = false;
@@ -158,6 +161,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
   bool get _supportsSimpleMode =>
       _commandType == ApplicationCommandType.chatInput;
+
+  bool get _allowModalResponses => !_legacyModeEnabled;
 
   String get _effectiveCommandDescription =>
       _supportsCommandDescription ? _commandDescription : '';
@@ -412,6 +417,93 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       return '/$_commandName ${parts[0]} ${parts[1]}';
     }
     return '/$_commandName $route';
+  }
+
+  Widget _buildLegacyModeCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Legacy Prefix Mode',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Handle commands from messageCreate using <prefix><command>.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 10),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Enable legacy mode on this command'),
+              subtitle: const Text('Uses positional options: !config #channel'),
+              value: _legacyModeEnabled,
+              onChanged:
+                  !_supportsCommandOptions
+                      ? null
+                      : (enabled) {
+                        setState(() {
+                          _legacyModeEnabled = enabled;
+                          if (_legacyModeEnabled && _responseType == 'modal') {
+                            _responseType = 'normal';
+                          }
+                        });
+                      },
+            ),
+            if (_legacyModeEnabled) ...[
+              const SizedBox(height: 8),
+              TextFormField(
+                initialValue: _legacyPrefixOverride,
+                decoration: const InputDecoration(
+                  labelText: 'Prefix override (optional)',
+                  hintText: 'Example: ? or ((guild.bc_prefix | !))',
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _legacyPrefixOverride = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<String>(
+                initialValue: _legacyResponseTarget,
+                decoration: const InputDecoration(
+                  labelText: 'Legacy response mode',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'reply',
+                    child: Text('message.reply'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'channelSend',
+                    child: Text('message.channel.send'),
+                  ),
+                ],
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _legacyResponseTarget = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Modals are disabled in legacy mode.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildSubcommandWorkflowSelectorCard() {
@@ -711,6 +803,15 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         if (!mounted) return;
         setState(() {
           _editorMode = editorMode;
+          _legacyModeEnabled = normalizedData['legacyModeEnabled'] == true;
+          _legacyPrefixOverride =
+              (normalizedData['legacyPrefixOverride'] ?? '').toString();
+          final loadedLegacyResponseTarget =
+              (normalizedData['legacyResponseTarget'] ?? 'reply').toString();
+          _legacyResponseTarget =
+              loadedLegacyResponseTarget == 'channelSend'
+                  ? 'channelSend'
+                  : 'reply';
           final savedType = _commandTypeFromText(
             (normalizedData['commandType'] ?? commandData['type'] ?? '')
                 .toString(),
@@ -722,6 +823,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
           _simpleModeLocked = _editorMode == _editorModeAdvanced;
           _applySimpleConfig(simpleConfig);
           _responseType = (response['type'] ?? 'normal').toString();
+          if (_legacyModeEnabled && _responseType == 'modal') {
+            _responseType = 'normal';
+          }
           _response = (response["text"] ?? "").toString();
           _responseController.text = _response;
           _responseEmbeds = embeds.take(10).toList();
@@ -1265,6 +1369,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                   _commandType = val;
                                   if (!_supportsSimpleMode) {
                                     _editorMode = _editorModeAdvanced;
+                                    _legacyModeEnabled = false;
                                   }
                                   _simpleModeLocked =
                                       _editorMode == _editorModeAdvanced;
@@ -1310,6 +1415,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               _buildEditorModeCard(context),
                               const SizedBox(height: 12),
                             ],
+                            if (_supportsCommandOptions) ...[
+                              _buildLegacyModeCard(),
+                              const SizedBox(height: 12),
+                            ],
                             if (_isSimpleMode) ...[
                               _buildSimpleActionsCard(),
                               const SizedBox(height: 12),
@@ -1323,7 +1432,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 responseType: _responseType,
                                 onResponseTypeChanged: (type) {
                                   setState(() {
-                                    _responseType = type;
+                                    if (_legacyModeEnabled && type == 'modal') {
+                                      _responseType = 'normal';
+                                    } else {
+                                      _responseType = type;
+                                    }
                                     _persistActiveSubcommandWorkflow();
                                   });
                                 },
@@ -1374,6 +1487,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 activeRouteIsGrouped:
                                     _subcommandWorkflows.isNotEmpty &&
                                     _activeSubcommandRoute.contains('/'),
+                                allowModal: _allowModalResponses,
                               ),
                               if (_supportsCommandOptions) ...[
                                 const SizedBox(height: 16),
@@ -1393,7 +1507,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          'Slash-command parameters',
+                                          _legacyModeEnabled
+                                              ? 'Legacy positional parameters (ordered: required then optional)'
+                                              : 'Slash-command parameters',
                                           style: TextStyle(
                                             fontSize: 12,
                                             color: Colors.grey.shade600,

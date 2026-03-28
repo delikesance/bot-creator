@@ -39,6 +39,9 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
       'version': 1,
       'commandType': _commandTypeToText(_commandType),
       'editorMode': _editorMode,
+      'legacyModeEnabled': _legacyModeEnabled,
+      'legacyPrefixOverride': _legacyPrefixOverride.trim(),
+      'legacyResponseTarget': _legacyResponseTarget,
       'simpleConfig': _currentSimpleConfig(),
       'defaultMemberPermissions': _defaultMemberPermissions.trim(),
       if (_supportsCommandOptions && _effectiveOptions.isNotEmpty)
@@ -435,9 +438,19 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
               : _CommandCreatePageState._editorModeAdvanced;
       if (!_supportsSimpleMode) {
         _editorMode = _CommandCreatePageState._editorModeAdvanced;
+        _legacyModeEnabled = false;
       }
       _simpleModeLocked =
           _editorMode == _CommandCreatePageState._editorModeAdvanced;
+      _legacyModeEnabled = normalizedPayload['legacyModeEnabled'] == true;
+      _legacyPrefixOverride =
+          (normalizedPayload['legacyPrefixOverride'] ?? '').toString();
+      final importedLegacyResponseTarget =
+          (normalizedPayload['legacyResponseTarget'] ?? 'reply').toString();
+      _legacyResponseTarget =
+          importedLegacyResponseTarget == 'channelSend'
+              ? 'channelSend'
+              : 'reply';
 
       final simpleConfig = _normalizeSimpleConfig(
         Map<String, dynamic>.from(
@@ -454,6 +467,9 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
               .trim();
 
       _responseType = (response['type'] ?? 'normal').toString();
+      if (_legacyModeEnabled && _responseType == 'modal') {
+        _responseType = 'normal';
+      }
       _response = (response['text'] ?? '').toString();
       _responseController.text = _response;
       _responseEmbeds = _normalizeEmbedsPayload(response['embeds']);

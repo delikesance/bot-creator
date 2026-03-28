@@ -89,6 +89,48 @@ extension _CommandCreateValidation on _CommandCreatePageState {
       }
     }
 
+    if (_legacyModeEnabled) {
+      if (_commandType != ApplicationCommandType.chatInput) {
+        showDialog(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: Text(AppStrings.t('error')),
+                content: const Text(
+                  'Legacy mode is only available for chat input commands.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(AppStrings.t('ok')),
+                  ),
+                ],
+              ),
+        );
+        return false;
+      }
+
+      if (_responseType == 'modal') {
+        showDialog(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: Text(AppStrings.t('error')),
+                content: const Text(
+                  'Modal responses are not supported in legacy command mode.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(AppStrings.t('ok')),
+                  ),
+                ],
+              ),
+        );
+        return false;
+      }
+    }
+
     return true;
   }
 

@@ -62,6 +62,19 @@ class RunnerSettings {
   // Multi-runner keys
   static const _keyRegistry = 'runner_registry';
   static const _keyActiveId = 'runner_active_id';
+  static const _keyTemporarilyDisabled = 'runner_temporarily_disabled';
+
+  /// Returns true if runner usage is temporarily disabled.
+  static Future<bool> isTemporarilyDisabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keyTemporarilyDisabled) ?? false;
+  }
+
+  /// Temporarily enables/disables runner usage while preserving stored config.
+  static Future<void> setTemporarilyDisabled(bool disabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyTemporarilyDisabled, disabled);
+  }
 
   /// Returns all registered runners.
   static Future<List<RunnerConnectionConfig>> getRunners() async {
@@ -81,6 +94,14 @@ class RunnerSettings {
 
   /// Returns the active runner config, or `null` if none is configured.
   static Future<RunnerConnectionConfig?> getConfig() async {
+    if (await isTemporarilyDisabled()) {
+      return null;
+    }
+    return await getStoredConfig();
+  }
+
+  /// Returns the stored active runner config even if temporarily disabled.
+  static Future<RunnerConnectionConfig?> getStoredConfig() async {
     final runners = await getRunners();
     if (runners.isEmpty) return null;
     final activeId = await getActiveId();
@@ -192,6 +213,7 @@ class RunnerSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyRegistry);
     await prefs.remove(_keyActiveId);
+    await prefs.remove(_keyTemporarilyDisabled);
     // Also clean up legacy keys
     await prefs.remove(_keyUrl);
     await prefs.remove(_keyApiToken);

@@ -116,6 +116,10 @@ Map<String, String> _messageContentExtra(Message message) {
   final words = content.trim().split(RegExp(r'\s+'));
   final mentionIds = message.mentions.map((u) => u.id.toString()).toList();
   final isBot = author is User ? author.isBot : false;
+  final authorId = author.id.toString();
+  final authorName = author.username;
+  final authorTag = author is User ? author.discriminator : '';
+  final authorAvatar = author is User ? (author.avatar.url.toString()) : '';
   final extra = <String, String>{
     'message.id': message.id.toString(),
     'message.content': content,
@@ -127,12 +131,24 @@ Map<String, String> _messageContentExtra(Message message) {
     'message.type': message.type.value.toString(),
     'message.mentions': mentionIds.join(','),
     'message.mention.count': mentionIds.length.toString(),
-    'author.id': author.id.toString(),
-    'author.name': author.username,
-    'author.username': author.username,
-    'author.tag': author is User ? author.discriminator : '',
+    'author.id': authorId,
+    'author.name': authorName,
+    'author.username': authorName,
+    'author.tag': authorTag,
     'author.isBot': isBot.toString(),
-    'author.avatar': author is User ? (author.avatar.url.toString()) : '',
+    'author.avatar': authorAvatar,
+    'userId': authorId,
+    'userName': authorName,
+    'userAvatar': authorAvatar,
+    'user.id': authorId,
+    'user.name': authorName,
+    'user.username': authorName,
+    'user.tag': authorTag,
+    'user.avatar': authorAvatar,
+    'interaction.user.id': authorId,
+    'interaction.user.username': authorName,
+    'interaction.user.tag': authorTag,
+    'interaction.user.avatar': authorAvatar,
   };
   for (var idx = 0; idx < words.length && idx < 10; idx++) {
     extra['message.content[$idx]'] = words[idx];

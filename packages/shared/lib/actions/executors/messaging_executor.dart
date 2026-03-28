@@ -163,9 +163,6 @@ Future<bool> executeMessagingAction({
       }
 
       final content = resolveValue((payload['content'] ?? '').toString());
-      if (content.trim().isEmpty) {
-        throw Exception('content is required for sendMessage');
-      }
 
       final resolvedSendPayload = Map<String, dynamic>.from(payload);
       if (targetType == 'user') {

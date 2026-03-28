@@ -17,6 +17,7 @@ class AppManager implements BotDataStore {
       StreamController<List<dynamic>>.broadcast();
   List<dynamic> _apps = [];
   late SqliteVariableStore _variableStore;
+  bool _sqliteAvailable = false;
   final Map<String, Future<void>> _appWriteChains = <String, Future<void>>{};
 
   AppManager._internal() {
@@ -41,8 +42,13 @@ class AppManager implements BotDataStore {
     try {
       _variableStore = SqliteVariableStore();
       await _variableStore.init();
+      _sqliteAvailable = true;
     } catch (error) {
-      debugPrint('[AppManager._init] SQLite init failed: $error');
+      _sqliteAvailable = false;
+      debugPrint(
+        '[AppManager._init] SQLite init failed: $error\n'
+        '[AppManager._init] Falling back to JSON scoped variable store.',
+      );
     }
 
     try {
@@ -68,6 +74,7 @@ class AppManager implements BotDataStore {
     User user,
     String token, {
     Map<String, bool>? intents,
+    String? prefix,
   }) async {
     final botId = user.id.toString();
     return await _enqueueAppWrite(botId, () async {
@@ -96,6 +103,11 @@ class AppManager implements BotDataStore {
             ..['id'] = botId
             ..['avatar'] = avatarUri
             ..['token'] = token
+            ..['prefix'] = () {
+              final raw =
+                  (prefix ?? existingData['prefix'] ?? '!').toString().trim();
+              return raw.isEmpty ? '!' : raw;
+            }()
             ..['createdAt'] =
                 existingData['createdAt'] ?? DateTime.now().toIso8601String()
             ..['intents'] = intents ?? existingData['intents'] ?? {}
@@ -563,7 +575,10 @@ class AppManager implements BotDataStore {
     String scope,
     String contextId,
   ) async {
-    return await _variableStore.getScopedVariables(id, scope, contextId);
+    if (_sqliteAvailable) {
+      return await _variableStore.getScopedVariables(id, scope, contextId);
+    }
+    return await _getScopedContextFromJson(id, scope, contextId);
   }
 
   @override
@@ -573,7 +588,11 @@ class AppManager implements BotDataStore {
     String contextId,
     String key,
   ) async {
-    return await _variableStore.getScopedVariable(id, scope, contextId, key);
+    if (_sqliteAvailable) {
+      return await _variableStore.getScopedVariable(id, scope, contextId, key);
+    }
+    final contextMap = await _getScopedContextFromJson(id, scope, contextId);
+    return contextMap[key];
   }
 
   @override
@@ -584,7 +603,13 @@ class AppManager implements BotDataStore {
     String key,
     dynamic value,
   ) async {
-    await _variableStore.setScopedVariable(id, scope, contextId, key, value);
+    if (_sqliteAvailable) {
+      await _variableStore.setScopedVariable(id, scope, contextId, key, value);
+      return;
+    }
+    await _mutateScopedContextInJson(id, scope, contextId, (contextMap) {
+      contextMap[key] = value;
+    });
   }
 
   @override
@@ -595,13 +620,23 @@ class AppManager implements BotDataStore {
     String oldKey,
     String newKey,
   ) async {
-    await _variableStore.renameScopedVariable(
-      id,
-      scope,
-      contextId,
-      oldKey,
-      newKey,
-    );
+    if (_sqliteAvailable) {
+      await _variableStore.renameScopedVariable(
+        id,
+        scope,
+        contextId,
+        oldKey,
+        newKey,
+      );
+      return;
+    }
+    await _mutateScopedContextInJson(id, scope, contextId, (contextMap) {
+      if (!contextMap.containsKey(oldKey)) {
+        return;
+      }
+      final value = contextMap.remove(oldKey);
+      contextMap[newKey] = value;
+    });
   }
 
   @override
@@ -611,7 +646,13 @@ class AppManager implements BotDataStore {
     String contextId,
     String key,
   ) async {
-    await _variableStore.removeScopedVariable(id, scope, contextId, key);
+    if (_sqliteAvailable) {
+      await _variableStore.removeScopedVariable(id, scope, contextId, key);
+      return;
+    }
+    await _mutateScopedContextInJson(id, scope, contextId, (contextMap) {
+      contextMap.remove(key);
+    });
   }
 
   @override
@@ -622,13 +663,23 @@ class AppManager implements BotDataStore {
     String key,
     dynamic element,
   ) async {
-    await _variableStore.pushScopedArrayElement(
-      id,
-      scope,
-      contextId,
-      key,
-      element,
-    );
+    if (_sqliteAvailable) {
+      await _variableStore.pushScopedArrayElement(
+        id,
+        scope,
+        contextId,
+        key,
+        element,
+      );
+      return;
+    }
+    await _mutateScopedContextInJson(id, scope, contextId, (contextMap) {
+      final existing = contextMap[key];
+      final list =
+          existing is List ? List<dynamic>.from(existing) : <dynamic>[];
+      list.add(element);
+      contextMap[key] = list;
+    });
   }
 
   @override
@@ -638,12 +689,27 @@ class AppManager implements BotDataStore {
     String contextId,
     String key,
   ) async {
-    return await _variableStore.popScopedArrayElement(
-      id,
-      scope,
-      contextId,
-      key,
-    );
+    if (_sqliteAvailable) {
+      return await _variableStore.popScopedArrayElement(
+        id,
+        scope,
+        contextId,
+        key,
+      );
+    }
+
+    dynamic removed;
+    await _mutateScopedContextInJson(id, scope, contextId, (contextMap) {
+      final existing = contextMap[key];
+      if (existing is! List || existing.isEmpty) {
+        removed = null;
+        return;
+      }
+      final list = List<dynamic>.from(existing);
+      removed = list.removeLast();
+      contextMap[key] = list;
+    });
+    return removed;
   }
 
   @override
@@ -654,13 +720,32 @@ class AppManager implements BotDataStore {
     String key,
     int index,
   ) async {
-    return await _variableStore.removeScopedArrayElement(
-      id,
-      scope,
-      contextId,
-      key,
-      index,
-    );
+    if (_sqliteAvailable) {
+      return await _variableStore.removeScopedArrayElement(
+        id,
+        scope,
+        contextId,
+        key,
+        index,
+      );
+    }
+
+    dynamic removed;
+    await _mutateScopedContextInJson(id, scope, contextId, (contextMap) {
+      final existing = contextMap[key];
+      if (existing is! List) {
+        removed = null;
+        return;
+      }
+      final list = List<dynamic>.from(existing);
+      if (index < 0 || index >= list.length) {
+        removed = null;
+        return;
+      }
+      removed = list.removeAt(index);
+      contextMap[key] = list;
+    });
+    return removed;
   }
 
   @override
@@ -671,13 +756,21 @@ class AppManager implements BotDataStore {
     String key,
     int index,
   ) async {
-    return await _variableStore.getScopedArrayElement(
-      id,
-      scope,
-      contextId,
-      key,
-      index,
-    );
+    if (_sqliteAvailable) {
+      return await _variableStore.getScopedArrayElement(
+        id,
+        scope,
+        contextId,
+        key,
+        index,
+      );
+    }
+    final contextMap = await _getScopedContextFromJson(id, scope, contextId);
+    final list = contextMap[key];
+    if (list is! List || index < 0 || index >= list.length) {
+      return null;
+    }
+    return list[index];
   }
 
   @override
@@ -687,7 +780,17 @@ class AppManager implements BotDataStore {
     String contextId,
     String key,
   ) async {
-    return await _variableStore.getScopedArrayLength(id, scope, contextId, key);
+    if (_sqliteAvailable) {
+      return await _variableStore.getScopedArrayLength(
+        id,
+        scope,
+        contextId,
+        key,
+      );
+    }
+    final contextMap = await _getScopedContextFromJson(id, scope, contextId);
+    final list = contextMap[key];
+    return list is List ? list.length : 0;
   }
 
   @override
@@ -701,16 +804,44 @@ class AppManager implements BotDataStore {
     bool descending = true,
     String? filter,
   }) async {
-    return await _variableStore.queryScopedArray(
-      id,
-      scope,
-      contextId,
-      key,
-      offset: offset,
-      limit: limit,
-      descending: descending,
-      filter: filter,
-    );
+    if (_sqliteAvailable) {
+      return await _variableStore.queryScopedArray(
+        id,
+        scope,
+        contextId,
+        key,
+        offset: offset,
+        limit: limit,
+        descending: descending,
+        filter: filter,
+      );
+    }
+
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit.clamp(1, 25);
+    final contextMap = await _getScopedContextFromJson(id, scope, contextId);
+    final existing = contextMap[key];
+    final source =
+        existing is List ? List<dynamic>.from(existing) : <dynamic>[];
+    final filtered = source
+        .where((entry) => _arrayElementMatchesFilter(entry, filter))
+        .toList(growable: false);
+    final ordered =
+        descending ? filtered.reversed.toList(growable: false) : filtered;
+    final end =
+        (safeOffset + safeLimit) > ordered.length
+            ? ordered.length
+            : (safeOffset + safeLimit);
+    final page =
+        safeOffset >= ordered.length
+            ? const <dynamic>[]
+            : ordered.sublist(safeOffset, end);
+
+    return <String, dynamic>{
+      'items': page,
+      'count': page.length,
+      'total': ordered.length,
+    };
   }
 
   String _normalizeScopedStorageKey(String key) {
@@ -727,6 +858,155 @@ class AppManager implements BotDataStore {
       return trimmed;
     }
     return trimmed.startsWith('bc_') ? trimmed : 'bc_$trimmed';
+  }
+
+  Map<String, dynamic> _readScopedContextFromAppData(
+    Map<String, dynamic> appData,
+    String scope,
+    String contextId,
+  ) {
+    final scopedVariables = Map<String, dynamic>.from(
+      (appData['scopedVariables'] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{},
+    );
+    final scopeMap = Map<String, dynamic>.from(
+      (scopedVariables[scope] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{},
+    );
+    return Map<String, dynamic>.from(
+      (scopeMap[contextId] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{},
+    );
+  }
+
+  Future<Map<String, dynamic>> _getScopedContextFromJson(
+    String id,
+    String scope,
+    String contextId,
+  ) async {
+    final appData = await getApp(id);
+    return _readScopedContextFromAppData(appData, scope, contextId);
+  }
+
+  Future<void> _mutateScopedContextInJson(
+    String id,
+    String scope,
+    String contextId,
+    void Function(Map<String, dynamic> contextMap) mutate,
+  ) async {
+    await _mutateApp(id, (appData) {
+      final scopedVariables = Map<String, dynamic>.from(
+        (appData['scopedVariables'] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      );
+      final scopeMap = Map<String, dynamic>.from(
+        (scopedVariables[scope] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      );
+      final contextMap = Map<String, dynamic>.from(
+        (scopeMap[contextId] as Map?)?.cast<String, dynamic>() ??
+            const <String, dynamic>{},
+      );
+
+      mutate(contextMap);
+
+      if (contextMap.isEmpty) {
+        scopeMap.remove(contextId);
+      } else {
+        scopeMap[contextId] = contextMap;
+      }
+      if (scopeMap.isEmpty) {
+        scopedVariables.remove(scope);
+      } else {
+        scopedVariables[scope] = scopeMap;
+      }
+      appData['scopedVariables'] = scopedVariables;
+    });
+  }
+
+  Future<List<String>> _listContextIdsFromJson(
+    String id,
+    String scope, {
+    String? searchKey,
+  }) async {
+    final appData = await getApp(id);
+    final scopedVariables = Map<String, dynamic>.from(
+      (appData['scopedVariables'] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{},
+    );
+    final scopeMap = Map<String, dynamic>.from(
+      (scopedVariables[scope] as Map?)?.cast<String, dynamic>() ??
+          const <String, dynamic>{},
+    );
+    final lookupKey = (searchKey ?? '').trim();
+    final contextIds = <String>[];
+    for (final entry in scopeMap.entries) {
+      final contextId = entry.key.trim();
+      if (contextId.isEmpty || entry.value is! Map) {
+        continue;
+      }
+      if (lookupKey.isEmpty) {
+        contextIds.add(contextId);
+        continue;
+      }
+      final contextMap = Map<String, dynamic>.from(
+        (entry.value as Map).cast<String, dynamic>(),
+      );
+      if (contextMap.containsKey(lookupKey)) {
+        contextIds.add(contextId);
+      }
+    }
+    contextIds.sort();
+    return contextIds;
+  }
+
+  bool _arrayElementMatchesFilter(dynamic value, String? filter) {
+    final normalized = (filter ?? '').trim();
+    if (normalized.isEmpty) {
+      return true;
+    }
+    final lower = normalized.toLowerCase();
+    final rendered = value?.toString() ?? '';
+
+    if (lower.startsWith('contains ')) {
+      final needle = normalized.substring('contains '.length).trim();
+      return rendered.toLowerCase().contains(needle.toLowerCase());
+    }
+
+    num? valueNum;
+    if (value is num) {
+      valueNum = value;
+    } else {
+      valueNum = num.tryParse(rendered);
+    }
+
+    bool compareNum(String prefix, bool Function(num a, num b) predicate) {
+      if (!lower.startsWith(prefix) || valueNum == null) {
+        return false;
+      }
+      final rhs = num.tryParse(normalized.substring(prefix.length).trim());
+      if (rhs == null) {
+        return false;
+      }
+      return predicate(valueNum, rhs);
+    }
+
+    if (compareNum('>=', (a, b) => a >= b)) return true;
+    if (compareNum('<=', (a, b) => a <= b)) return true;
+    if (compareNum('>', (a, b) => a > b)) return true;
+    if (compareNum('<', (a, b) => a < b)) return true;
+    if (lower.startsWith('==')) {
+      final rhs = normalized.substring(2).trim();
+      if (valueNum != null) {
+        final rhsNum = num.tryParse(rhs);
+        if (rhsNum != null) {
+          return valueNum == rhsNum;
+        }
+      }
+      return rendered == rhs;
+    }
+
+    return rendered.toLowerCase().contains(normalized.toLowerCase());
   }
 
   // ===== SCOPED VARIABLE DEFINITIONS (stored in bot JSON, not SQLite) =====
@@ -816,14 +1096,71 @@ class AppManager implements BotDataStore {
     int limit = 25,
     bool descending = true,
   }) async {
-    return await _variableStore.queryScopedVariableIndex(
+    if (_sqliteAvailable) {
+      return await _variableStore.queryScopedVariableIndex(
+        botId,
+        scope,
+        _normalizeScopedStorageKey(key),
+        offset: offset,
+        limit: limit,
+        descending: descending,
+      );
+    }
+
+    final normalizedKey = _normalizeScopedStorageKey(key);
+    final contextIds = await _listContextIdsFromJson(
       botId,
       scope,
-      _normalizeScopedStorageKey(key),
-      offset: offset,
-      limit: limit,
-      descending: descending,
+      searchKey: normalizedKey,
     );
+    final items = <Map<String, dynamic>>[];
+    for (final contextId in contextIds) {
+      final value = await getScopedVariable(
+        botId,
+        scope,
+        contextId,
+        normalizedKey,
+      );
+      if (value == null) {
+        continue;
+      }
+      items.add(<String, dynamic>{
+        'contextId': contextId,
+        'key': normalizedKey,
+        'value': value,
+      });
+    }
+
+    if (descending) {
+      items.sort(
+        (a, b) => (b['contextId'] ?? '').toString().compareTo(
+          (a['contextId'] ?? '').toString(),
+        ),
+      );
+    } else {
+      items.sort(
+        (a, b) => (a['contextId'] ?? '').toString().compareTo(
+          (b['contextId'] ?? '').toString(),
+        ),
+      );
+    }
+
+    final safeOffset = offset < 0 ? 0 : offset;
+    final safeLimit = limit.clamp(1, 25);
+    final end =
+        (safeOffset + safeLimit) > items.length
+            ? items.length
+            : (safeOffset + safeLimit);
+    final page =
+        safeOffset >= items.length
+            ? const <Map<String, dynamic>>[]
+            : items.sublist(safeOffset, end);
+
+    return <String, dynamic>{
+      'items': page,
+      'count': page.length,
+      'total': items.length,
+    };
   }
 
   Future<Map<String, dynamic>> listScopedValuesForKey(
@@ -835,15 +1172,24 @@ class AppManager implements BotDataStore {
     final legacyKey = _toScopedReferenceKey(storageKey);
 
     final contextIds = List<String>.from(
-      await _variableStore.listContextIds(id, scope, searchKey: storageKey),
+      _sqliteAvailable
+          ? await _variableStore.listContextIds(
+            id,
+            scope,
+            searchKey: storageKey,
+          )
+          : await _listContextIdsFromJson(id, scope, searchKey: storageKey),
       growable: true,
     );
     if (legacyKey != storageKey) {
-      final legacyContextIds = await _variableStore.listContextIds(
-        id,
-        scope,
-        searchKey: legacyKey,
-      );
+      final legacyContextIds =
+          _sqliteAvailable
+              ? await _variableStore.listContextIds(
+                id,
+                scope,
+                searchKey: legacyKey,
+              )
+              : await _listContextIdsFromJson(id, scope, searchKey: legacyKey);
       contextIds.addAll(legacyContextIds);
     }
     final dedupedContextIds = contextIds.toSet().toList(growable: false);
@@ -851,19 +1197,9 @@ class AppManager implements BotDataStore {
 
     final result = <String, dynamic>{};
     for (final contextId in dedupedContextIds) {
-      var value = await _variableStore.getScopedVariable(
-        id,
-        scope,
-        contextId,
-        storageKey,
-      );
+      var value = await getScopedVariable(id, scope, contextId, storageKey);
       if (value == null && legacyKey != storageKey) {
-        value = await _variableStore.getScopedVariable(
-          id,
-          scope,
-          contextId,
-          legacyKey,
-        );
+        value = await getScopedVariable(id, scope, contextId, legacyKey);
       }
       if (value != null) {
         result[contextId] = value;
@@ -886,18 +1222,17 @@ class AppManager implements BotDataStore {
 
     final exported = <String, Map<String, Map<String, dynamic>>>{};
     for (final scope in scopes) {
-      final contextIds = await _variableStore.listContextIds(botId, scope);
+      final contextIds =
+          _sqliteAvailable
+              ? await _variableStore.listContextIds(botId, scope)
+              : await _listContextIdsFromJson(botId, scope);
       if (contextIds.isEmpty) {
         continue;
       }
 
       final scopeValues = <String, Map<String, dynamic>>{};
       for (final contextId in contextIds) {
-        final values = await _variableStore.getScopedVariables(
-          botId,
-          scope,
-          contextId,
-        );
+        final values = await getScopedVariables(botId, scope, contextId);
         if (values.isEmpty) {
           continue;
         }

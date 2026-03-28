@@ -41,6 +41,7 @@ class _SettingPageState extends State<SettingPage> {
   bool _checkingRunner = false;
   String? _runnerStatusKey;
   bool _runnerTokenObscured = true;
+  bool _runnerTemporarilyDisabled = false;
   bool _checkingAdPrivacy = false;
   bool _adPrivacyRequired = false;
   bool _developerSectionExpanded = false;
@@ -142,15 +143,45 @@ class _SettingPageState extends State<SettingPage> {
   }
 
   Future<void> _loadRunnerSettings() async {
-    final config = await RunnerSettings.getConfig();
+    final config = await RunnerSettings.getStoredConfig();
+    final isDisabled = await RunnerSettings.isTemporarilyDisabled();
     if (!mounted) return;
     setState(() {
       _runnerUrlController.text = config?.url ?? '';
       _runnerApiTokenController.text = config?.apiToken ?? '';
+      _runnerTemporarilyDisabled = isDisabled;
     });
-    if (config != null) {
+    if (config != null && !isDisabled) {
       await _checkRunnerConnection();
     }
+  }
+
+  Future<void> _toggleRunnerTemporarilyDisabled(bool disabled) async {
+    await RunnerSettings.setTemporarilyDisabled(disabled);
+    if (!mounted) return;
+    setState(() {
+      _runnerTemporarilyDisabled = disabled;
+      if (disabled) {
+        _runnerStatusKey = 'settings_runner_temporarily_disabled';
+      }
+    });
+
+    if (!disabled && _runnerUrlController.text.trim().isNotEmpty) {
+      await _checkRunnerConnection();
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          AppStrings.t(
+            disabled
+                ? 'settings_runner_temporarily_disabled_saved'
+                : 'settings_runner_reenabled',
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _saveRunnerSettings() async {
@@ -1032,7 +1063,15 @@ class _SettingPageState extends State<SettingPage> {
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       subtitle:
-                          _runnerStatusKey == null
+                          _runnerTemporarilyDisabled
+                              ? Text(
+                                AppStrings.t(
+                                  'settings_runner_temporarily_disabled',
+                                ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.orange[400]),
+                              )
+                              : _runnerStatusKey == null
                               ? null
                               : Text(
                                 AppStrings.t(_runnerStatusKey!),
@@ -1055,6 +1094,19 @@ class _SettingPageState extends State<SettingPage> {
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        SwitchListTile.adaptive(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            AppStrings.t('settings_runner_disable_temp'),
+                          ),
+                          subtitle: Text(
+                            AppStrings.t('settings_runner_disable_temp_desc'),
+                          ),
+                          value: _runnerTemporarilyDisabled,
+                          onChanged:
+                              _isBusy ? null : _toggleRunnerTemporarilyDisabled,
+                        ),
                         const SizedBox(height: 12),
                         TextField(
                           controller: _runnerUrlController,
@@ -1063,7 +1115,7 @@ class _SettingPageState extends State<SettingPage> {
                             isDense: true,
                             border: const OutlineInputBorder(),
                             suffixIcon:
-                                _checkingRunner
+                                (_runnerTemporarilyDisabled || _checkingRunner)
                                     ? const Padding(
                                       padding: EdgeInsets.all(10),
                                       child: SizedBox(
@@ -1127,7 +1179,9 @@ class _SettingPageState extends State<SettingPage> {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               onPressed:
-                                  _isBusy || _checkingRunner
+                                  _isBusy ||
+                                          _checkingRunner ||
+                                          _runnerTemporarilyDisabled
                                       ? null
                                       : _saveRunnerSettings,
                               icon: const Icon(Icons.save_outlined, size: 18),
@@ -1139,7 +1193,7 @@ class _SettingPageState extends State<SettingPage> {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               onPressed:
-                                  _checkingRunner
+                                  _checkingRunner || _runnerTemporarilyDisabled
                                       ? null
                                       : _checkRunnerConnection,
                               icon:
@@ -1187,7 +1241,9 @@ class _SettingPageState extends State<SettingPage> {
                               Expanded(
                                 child: ElevatedButton.icon(
                                   onPressed:
-                                      _isBusy || _checkingRunner
+                                      _isBusy ||
+                                              _checkingRunner ||
+                                              _runnerTemporarilyDisabled
                                           ? null
                                           : _saveRunnerSettings,
                                   icon: const Icon(
@@ -1202,7 +1258,8 @@ class _SettingPageState extends State<SettingPage> {
                               const SizedBox(width: 8),
                               ElevatedButton.icon(
                                 onPressed:
-                                    _checkingRunner
+                                    _checkingRunner ||
+                                            _runnerTemporarilyDisabled
                                         ? null
                                         : _checkRunnerConnection,
                                 icon:

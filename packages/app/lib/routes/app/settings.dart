@@ -30,6 +30,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
   String _savedToken = '';
   late Map<String, bool> _intentsMap;
   final TextEditingController _tokenController = TextEditingController();
+  final TextEditingController _prefixController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   String? _selectedAvatarPath;
   final List<_StatusDraft> _statusDrafts = <_StatusDraft>[];
@@ -99,10 +100,10 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     _intentsMap = {
       'Guild Presence': false,
       'Guild Members': false,
-      'Message Content': false,
-      'Direct Messages': false,
-      'Guilds': false,
-      'Guild Messages': false,
+      'Message Content': true,
+      'Direct Messages': true,
+      'Guilds': true,
+      'Guild Messages': true,
       'Guild Message Reactions': false,
       'Direct Message Reactions': false,
       'Guild Message Typing': false,
@@ -116,6 +117,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
   @override
   void dispose() {
     _tokenController.dispose();
+    _prefixController.dispose();
     _usernameController.dispose();
     for (final status in _statusDrafts) {
       status.dispose();
@@ -174,6 +176,10 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       app = fetchedApp;
       _savedToken = (persistedApp['token'] ?? '').toString().trim();
       _tokenController.text = _savedToken;
+      _prefixController.text =
+          (persistedApp['prefix'] ?? '!').toString().trim().isEmpty
+              ? '!'
+              : (persistedApp['prefix'] ?? '!').toString();
       _usernameController.text = '';
       _selectedAvatarPath = null;
     });
@@ -209,6 +215,10 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
         discordUser,
         token,
         intents: _intentsMap,
+        prefix:
+            _prefixController.text.trim().isEmpty
+                ? '!'
+                : _prefixController.text,
       );
 
       final latestAppData = Map<String, dynamic>.from(
@@ -300,6 +310,10 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
         discordUser,
         effectiveToken,
         intents: intentsToKeep,
+        prefix:
+            _prefixController.text.trim().isEmpty
+                ? '!'
+                : _prefixController.text,
       );
 
       final appData = Map<String, dynamic>.from(
@@ -379,6 +393,10 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
           discordUser,
           token,
           intents: intents,
+          prefix:
+              _prefixController.text.trim().isEmpty
+                  ? '!'
+                  : _prefixController.text,
         );
       } else {
         discordUser = await getDiscordUser(token);
@@ -677,6 +695,21 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                         ),
                       ),
                     ),
+                    TextField(
+                      controller: _prefixController,
+                      decoration: const InputDecoration(
+                        labelText: 'Legacy command prefix',
+                        border: OutlineInputBorder(),
+                        hintText:
+                            '!, ? or ((guild.bc_prefix | user.bc_prefix | !))',
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Supports templates and scoped variables. Example: ((guild.bc_prefix | user.bc_prefix | !))',
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
                     ListView.separated(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),

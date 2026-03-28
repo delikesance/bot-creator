@@ -167,6 +167,13 @@ const Map<String, String> appStringsEn = {
   'settings_runner_unreachable': 'Runner unreachable',
   'settings_runner_connecting': 'Checking connection…',
   'settings_runner_active': 'Active Runner API: {url}',
+  'settings_runner_disable_temp': 'Temporarily disable Runner',
+  'settings_runner_disable_temp_desc':
+      'Keep Runner settings but force local mode until re-enabled.',
+  'settings_runner_temporarily_disabled':
+      'Runner temporarily disabled (local mode active)',
+  'settings_runner_temporarily_disabled_saved': 'Runner temporarily disabled',
+  'settings_runner_reenabled': 'Runner re-enabled',
   'settings_data_operations_title': 'Data Operations',
   'settings_export': 'Export',
   'settings_import': 'Import',

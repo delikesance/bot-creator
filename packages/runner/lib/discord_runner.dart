@@ -588,6 +588,11 @@ class DiscordRunner {
       if (isBotMessage) {
         return;
       }
+
+      final handledLegacy = await _tryExecuteLegacyCommand(context);
+      if (handledLegacy) {
+        return;
+      }
     }
 
     final botId = _gateway?.user.id.toString() ?? store.botId;
@@ -611,6 +616,934 @@ class DiscordRunner {
         context: context,
       );
     }
+  }
+
+  bool _isLegacyCommandEnabled(Map<String, dynamic> command) {
+    final data = Map<String, dynamic>.from(
+      (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final value = Map<String, dynamic>.from(
+      (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
+    );
+    final commandType =
+        (value['commandType'] ?? command['type'] ?? 'chatInput')
+            .toString()
+            .toLowerCase();
+    return value['legacyModeEnabled'] == true &&
+        (commandType == 'chatinput' ||
+            commandType == 'chat_input' ||
+            commandType == 'chat-input' ||
+            commandType == 'slash');
+  }
+
+  List<String> _splitLegacyTokens(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) {
+      return const <String>[];
+    }
+    return trimmed.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+  }
+
+  String _effectiveLegacyResponseTarget(Map<String, dynamic> value) {
+    final raw = (value['legacyResponseTarget'] ?? 'reply').toString().trim();
+    return raw == 'channelSend' ? 'channelSend' : 'reply';
+  }
+
+  Future<String?> _resolveLegacyPrefix({
+    required Map<String, dynamic> value,
+    required Map<String, String> runtimeVariables,
+  }) async {
+    final commandOverride =
+        (value['legacyPrefixOverride'] ?? '').toString().trim();
+    final globalPrefix = config.prefix.trim().isEmpty ? '!' : config.prefix;
+    final rawPrefix =
+        commandOverride.isNotEmpty ? commandOverride : globalPrefix;
+    final resolved =
+        resolveTemplatePlaceholders(rawPrefix, runtimeVariables).trim();
+    if (resolved.isEmpty) {
+      return null;
+    }
+    return resolved;
+  }
+
+  String _legacyOptionTypeLabel(String rawType) {
+    final normalized = rawType.trim().toLowerCase();
+    switch (normalized) {
+      case 'string':
+        return 'text';
+      case 'integer':
+        return 'int';
+      case 'number':
+        return 'number';
+      case 'boolean':
+        return 'bool';
+      case 'user':
+      case 'channel':
+      case 'role':
+      case 'mentionable':
+        return normalized;
+      default:
+        return normalized.isEmpty ? 'value' : normalized;
+    }
+  }
+
+  String _legacyUsageSignature({
+    required String prefix,
+    required String commandName,
+    required List<Map<String, dynamic>> options,
+  }) {
+    final parts = <String>[];
+    for (final option in options) {
+      final optionName = (option['name'] ?? '').toString().trim();
+      if (optionName.isEmpty) {
+        continue;
+      }
+      final type = _legacyOptionTypeLabel((option['type'] ?? '').toString());
+      final isRequired =
+          option['required'] == true || option['isRequired'] == true;
+      final segment =
+          isRequired ? '<$optionName:$type>' : '[$optionName:$type]';
+      parts.add(segment);
+    }
+    final args = parts.isEmpty ? '' : ' ${parts.join(' ')}';
+    return '$prefix$commandName$args';
+  }
+
+  String _buildLegacyHelpMessage({
+    required String prefix,
+    required List<Map<String, dynamic>> legacyCommands,
+    String? specificCommand,
+  }) {
+    final normalizedSpecific = (specificCommand ?? '').trim().toLowerCase();
+    final sorted = List<Map<String, dynamic>>.from(legacyCommands)..sort(
+      (a, b) => (a['name'] ?? '').toString().toLowerCase().compareTo(
+        (b['name'] ?? '').toString().toLowerCase(),
+      ),
+    );
+
+    final matches =
+        normalizedSpecific.isEmpty
+            ? sorted
+            : sorted
+                .where((command) {
+                  final name =
+                      (command['name'] ?? '').toString().trim().toLowerCase();
+                  return name == normalizedSpecific;
+                })
+                .toList(growable: false);
+
+    if (matches.isEmpty && normalizedSpecific.isNotEmpty) {
+      return 'Unknown legacy command "$normalizedSpecific". Use ${prefix}help to list commands.';
+    }
+
+    final lines = <String>[];
+    if (normalizedSpecific.isEmpty) {
+      lines.add('Legacy help (${sorted.length} commands)');
+      lines.add('Use ${prefix}help <command> for details.');
+      lines.add('');
+    }
+
+    for (final command in matches) {
+      final name = (command['name'] ?? '').toString().trim();
+      if (name.isEmpty) {
+        continue;
+      }
+      final data = Map<String, dynamic>.from(
+        (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final value = Map<String, dynamic>.from(
+        (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
+      );
+      final description =
+          (command['description'] ?? value['description'] ?? '')
+              .toString()
+              .trim();
+      final options =
+          (value['options'] as List?)
+              ?.whereType<Map>()
+              .map((entry) => Map<String, dynamic>.from(entry))
+              .where((entry) {
+                final rawType = (entry['type'] ?? '').toString().toLowerCase();
+                return rawType != 'subcommand' && rawType != 'subcommandgroup';
+              })
+              .toList(growable: false) ??
+          const <Map<String, dynamic>>[];
+
+      final usage = _legacyUsageSignature(
+        prefix: prefix,
+        commandName: name,
+        options: options,
+      );
+
+      if (normalizedSpecific.isEmpty) {
+        lines.add('- $usage${description.isNotEmpty ? ' - $description' : ''}');
+      } else {
+        lines.add('Command: $name');
+        lines.add('Usage: $usage');
+        if (description.isNotEmpty) {
+          lines.add('Description: $description');
+        }
+        if (options.isNotEmpty) {
+          lines.add('Arguments:');
+          for (final option in options) {
+            final optionName = (option['name'] ?? '').toString().trim();
+            final type = _legacyOptionTypeLabel(
+              (option['type'] ?? '').toString(),
+            );
+            final isRequired =
+                option['required'] == true || option['isRequired'] == true;
+            final optionDescription =
+                (option['description'] ?? '').toString().trim();
+            lines.add(
+              '- $optionName ($type, ${isRequired ? 'required' : 'optional'})${optionDescription.isNotEmpty ? ' - $optionDescription' : ''}',
+            );
+          }
+        }
+      }
+    }
+
+    var text = lines.join('\n').trimRight();
+    if (text.length > 1800) {
+      text = '${text.substring(0, 1750).trimRight()}\n...';
+    }
+    return text;
+  }
+
+  Future<bool> _tryExecuteBuiltInLegacyHelp(
+    EventExecutionContext context, {
+    required String content,
+    required String botId,
+    required List<Map<String, dynamic>> legacyCommands,
+    required Map<String, String> runtimeVariables,
+  }) async {
+    final hasCustomHelp = legacyCommands.any(
+      (command) =>
+          (command['name'] ?? '').toString().trim().toLowerCase() == 'help',
+    );
+    if (hasCustomHelp) {
+      return false;
+    }
+
+    final prefixes = <String>{};
+    for (final command in legacyCommands) {
+      final data = Map<String, dynamic>.from(
+        (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final value = Map<String, dynamic>.from(
+        (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
+      );
+      final prefix = await _resolveLegacyPrefix(
+        value: value,
+        runtimeVariables: runtimeVariables,
+      );
+      if (prefix != null && prefix.isNotEmpty) {
+        prefixes.add(prefix);
+      }
+    }
+    if (prefixes.isEmpty) {
+      prefixes.add(config.prefix.trim().isEmpty ? '!' : config.prefix.trim());
+    }
+
+    for (final prefix in prefixes) {
+      if (!content.startsWith(prefix)) {
+        continue;
+      }
+      final remainder = content.substring(prefix.length).trimLeft();
+      final tokens = _splitLegacyTokens(remainder);
+      if (tokens.isEmpty || tokens.first.toLowerCase() != 'help') {
+        continue;
+      }
+
+      final specificCommand = tokens.length > 1 ? tokens[1] : null;
+      final helpText = _buildLegacyHelpMessage(
+        prefix: prefix,
+        legacyCommands: legacyCommands,
+        specificCommand: specificCommand,
+      );
+      await _sendLegacyMessage(
+        context: context,
+        content: helpText,
+        embeds: const <EmbedBuilder>[],
+        asReply: true,
+      );
+      _log.info('Built-in legacy help executed for bot $botId');
+      return true;
+    }
+
+    return false;
+  }
+
+  Future<Map<String, String>?> _parseLegacyOptionValue({
+    required String rawType,
+    required String token,
+    required EventExecutionContext context,
+  }) async {
+    final normalizedType = rawType.toLowerCase();
+    switch (normalizedType) {
+      case 'integer':
+        final parsed = int.tryParse(token);
+        if (parsed == null) return null;
+        return <String, String>{'value': parsed.toString()};
+      case 'number':
+        final parsed = double.tryParse(token);
+        if (parsed == null) return null;
+        return <String, String>{'value': parsed.toString()};
+      case 'boolean':
+        final lowered = token.toLowerCase();
+        if (lowered == 'true' ||
+            lowered == 'yes' ||
+            lowered == '1' ||
+            lowered == 'on') {
+          return <String, String>{'value': 'true'};
+        }
+        if (lowered == 'false' ||
+            lowered == 'no' ||
+            lowered == '0' ||
+            lowered == 'off') {
+          return <String, String>{'value': 'false'};
+        }
+        return null;
+      case 'channel':
+        final mentionMatch = RegExp(r'^<#(\d+)>$').firstMatch(token);
+        final idText =
+            mentionMatch?.group(1) ??
+            (RegExp(r'^\d+$').hasMatch(token) ? token : null);
+        if (idText != null) {
+          final parsedId = int.tryParse(idText);
+          if (parsedId == null || _gateway == null) {
+            return <String, String>{'value': idText, 'id': idText};
+          }
+          try {
+            final channel = await _gateway!.channels.fetch(Snowflake(parsedId));
+            return <String, String>{
+              'value': getChannelName(channel),
+              'id': channel.id.toString(),
+              'type': channel.type.toString(),
+            };
+          } catch (_) {}
+          return <String, String>{'value': idText, 'id': idText};
+        }
+        if (token.startsWith('#') &&
+            context.guildId != null &&
+            _gateway != null) {
+          final channelName = token.substring(1).trim().toLowerCase();
+          if (channelName.isEmpty) {
+            return null;
+          }
+          try {
+            final guild = await _gateway!.guilds.fetch(context.guildId!);
+            final channels = await guild.fetchChannels();
+            for (final channel in channels) {
+              final name = channel.name.toLowerCase();
+              if (name == channelName) {
+                final id = channel.id.toString();
+                return <String, String>{
+                  'value': id,
+                  'id': id,
+                  'name': channel.name,
+                };
+              }
+            }
+          } catch (_) {}
+        }
+        return null;
+      case 'user':
+        final mentionMatch = RegExp(r'^<@!?(\d+)>$').firstMatch(token);
+        final idText =
+            mentionMatch?.group(1) ??
+            (RegExp(r'^\d+$').hasMatch(token) ? token : null);
+        if (idText == null) {
+          return null;
+        }
+        final parsedId = int.tryParse(idText);
+        if (parsedId == null) {
+          return <String, String>{'value': idText, 'id': idText};
+        }
+        final parsed = <String, String>{'value': idText, 'id': idText};
+        if (_gateway != null) {
+          try {
+            final user = await _gateway!.users.fetch(Snowflake(parsedId));
+            parsed['value'] = user.username;
+            parsed['username'] = user.username;
+            parsed['name'] = user.username;
+            parsed['tag'] = user.discriminator;
+            parsed['avatar'] = makeAvatarUrl(
+              user.id.toString(),
+              avatarId: user.avatar.hash,
+              isAnimated: user.avatar.isAnimated,
+              legacyFormat: 'webp',
+              discriminator: user.discriminator,
+            );
+            parsed['banner'] = makeBannerUrl(
+              user.id.toString(),
+              bannerId: (user as dynamic).banner?.hash?.toString(),
+              isAnimated: (user as dynamic).banner?.isAnimated == true,
+              legacyFormat: 'webp',
+            );
+          } catch (_) {}
+        }
+        return parsed;
+      case 'role':
+        final mentionMatch = RegExp(r'^<@&(\d+)>$').firstMatch(token);
+        final idText =
+            mentionMatch?.group(1) ??
+            (RegExp(r'^\d+$').hasMatch(token) ? token : null);
+        if (idText == null) {
+          return null;
+        }
+        final parsedId = int.tryParse(idText);
+        if (parsedId == null || context.guildId == null || _gateway == null) {
+          return <String, String>{'value': idText, 'id': idText};
+        }
+        try {
+          final guild = await _gateway!.guilds.fetch(context.guildId!);
+          final role = await guild.roles.fetch(Snowflake(parsedId));
+          return <String, String>{'value': role.name, 'id': role.id.toString()};
+        } catch (_) {}
+        return <String, String>{'value': idText, 'id': idText};
+      case 'mentionable':
+        final userMatch = RegExp(r'^<@!?(\d+)>$').firstMatch(token);
+        if (userMatch != null) {
+          final id = userMatch.group(1)!;
+          final parsedId = int.tryParse(id);
+          if (parsedId != null && _gateway != null) {
+            try {
+              final user = await _gateway!.users.fetch(Snowflake(parsedId));
+              return <String, String>{
+                'value': user.username,
+                'id': user.id.toString(),
+                'kind': 'user',
+                'username': user.username,
+                'name': user.username,
+                'tag': user.discriminator,
+                'avatar': makeAvatarUrl(
+                  user.id.toString(),
+                  avatarId: user.avatar.hash,
+                  isAnimated: user.avatar.isAnimated,
+                  legacyFormat: 'webp',
+                  discriminator: user.discriminator,
+                ),
+                'banner': makeBannerUrl(
+                  user.id.toString(),
+                  bannerId: (user as dynamic).banner?.hash?.toString(),
+                  isAnimated: (user as dynamic).banner?.isAnimated == true,
+                  legacyFormat: 'webp',
+                ),
+              };
+            } catch (_) {}
+          }
+          return <String, String>{'value': id, 'id': id, 'kind': 'user'};
+        }
+        final roleMatch = RegExp(r'^<@&(\d+)>$').firstMatch(token);
+        if (roleMatch != null) {
+          final id = roleMatch.group(1)!;
+          final parsedId = int.tryParse(id);
+          if (parsedId != null && context.guildId != null && _gateway != null) {
+            try {
+              final guild = await _gateway!.guilds.fetch(context.guildId!);
+              final role = await guild.roles.fetch(Snowflake(parsedId));
+              return <String, String>{
+                'value': role.name,
+                'id': role.id.toString(),
+                'kind': 'role',
+              };
+            } catch (_) {}
+          }
+          return <String, String>{'value': id, 'id': id, 'kind': 'role'};
+        }
+        if (RegExp(r'^\d+$').hasMatch(token)) {
+          final parsedId = int.tryParse(token);
+          if (parsedId != null && _gateway != null) {
+            try {
+              final user = await _gateway!.users.fetch(Snowflake(parsedId));
+              return <String, String>{
+                'value': user.username,
+                'id': user.id.toString(),
+                'kind': 'user',
+                'username': user.username,
+                'name': user.username,
+                'tag': user.discriminator,
+                'avatar': makeAvatarUrl(
+                  user.id.toString(),
+                  avatarId: user.avatar.hash,
+                  isAnimated: user.avatar.isAnimated,
+                  legacyFormat: 'webp',
+                  discriminator: user.discriminator,
+                ),
+                'banner': makeBannerUrl(
+                  user.id.toString(),
+                  bannerId: (user as dynamic).banner?.hash?.toString(),
+                  isAnimated: (user as dynamic).banner?.isAnimated == true,
+                  legacyFormat: 'webp',
+                ),
+              };
+            } catch (_) {}
+          }
+          if (parsedId != null && context.guildId != null && _gateway != null) {
+            try {
+              final guild = await _gateway!.guilds.fetch(context.guildId!);
+              final role = await guild.roles.fetch(Snowflake(parsedId));
+              return <String, String>{
+                'value': role.name,
+                'id': role.id.toString(),
+                'kind': 'role',
+              };
+            } catch (_) {}
+          }
+          return <String, String>{'value': token, 'id': token};
+        }
+        return null;
+      default:
+        return <String, String>{'value': token};
+    }
+  }
+
+  Future<String?> _bindLegacyPositionalOptions({
+    required Map<String, dynamic> value,
+    required List<String> args,
+    required EventExecutionContext context,
+    required Map<String, String> runtimeVariables,
+  }) async {
+    final rawOptions = value['options'];
+    if (rawOptions is! List) {
+      runtimeVariables['args.count'] = args.length.toString();
+      return null;
+    }
+
+    final optionMaps = rawOptions
+        .whereType<Map>()
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .where((entry) {
+          final rawType = (entry['type'] ?? '').toString().toLowerCase();
+          return rawType != 'subcommand' && rawType != 'subcommandgroup';
+        })
+        .toList(growable: false);
+
+    var argIndex = 0;
+    for (final option in optionMaps) {
+      final optionName = (option['name'] ?? '').toString().trim();
+      if (optionName.isEmpty) {
+        continue;
+      }
+      final isRequired =
+          option['required'] == true || option['isRequired'] == true;
+      if (argIndex >= args.length) {
+        if (isRequired) {
+          return 'Missing required option "$optionName".';
+        }
+        continue;
+      }
+
+      final token = args[argIndex];
+      final parsed = await _parseLegacyOptionValue(
+        rawType: (option['type'] ?? 'string').toString(),
+        token: token,
+        context: context,
+      );
+      if (parsed == null) {
+        if (isRequired) {
+          return 'Invalid value for required option "$optionName": $token';
+        }
+        argIndex++;
+        continue;
+      }
+
+      runtimeVariables['opts.$optionName'] = parsed['value'] ?? token;
+      runtimeVariables['legacy.option.$optionName.raw'] = token;
+      for (final entry in parsed.entries) {
+        if (entry.key == 'value') {
+          continue;
+        }
+        runtimeVariables['opts.$optionName.${entry.key}'] = entry.value;
+      }
+
+      argIndex++;
+    }
+
+    runtimeVariables['args.count'] = args.length.toString();
+    for (var i = 0; i < args.length; i++) {
+      runtimeVariables['args.${i + 1}'] = args[i];
+    }
+    return null;
+  }
+
+  Future<void> _sendLegacyMessage({
+    required EventExecutionContext context,
+    required String content,
+    required List<EmbedBuilder> embeds,
+    required bool asReply,
+  }) async {
+    if (_gateway == null || context.channelId == null) {
+      return;
+    }
+
+    final channel = await _gateway!.channels.fetch(context.channelId!);
+    final builder = MessageBuilder(
+      content: content.isEmpty ? null : content,
+      embeds: embeds.isEmpty ? null : embeds,
+    );
+
+    if (asReply) {
+      final messageIdText = (context.variables['message.id'] ?? '').trim();
+      final messageId = int.tryParse(messageIdText);
+      if (messageId != null) {
+        builder.referencedMessage = MessageReferenceBuilder.reply(
+          messageId: Snowflake(messageId),
+          channelId: context.channelId,
+          guildId: context.guildId,
+          failIfInexistent: false,
+        );
+      }
+    }
+
+    await (channel as dynamic).sendMessage(builder);
+  }
+
+  Future<void> _sendLegacyWorkflowResponse({
+    required EventExecutionContext context,
+    required Map<String, dynamic> response,
+    required Map<String, String> runtimeVariables,
+    required String responseTarget,
+  }) async {
+    final workflowConditional = Map<String, dynamic>.from(
+      (response['workflow']?['conditional'] as Map?)?.cast<String, dynamic>() ??
+          const {},
+    );
+
+    final useCondition = workflowConditional['enabled'] == true;
+    final conditionVariable =
+        (workflowConditional['variable'] ?? '').toString().trim();
+    final whenTrueType =
+        (workflowConditional['whenTrueType'] ?? 'normal').toString();
+    final whenFalseType =
+        (workflowConditional['whenFalseType'] ?? 'normal').toString();
+    final whenTrueText = (workflowConditional['whenTrueText'] ?? '').toString();
+    final whenFalseText =
+        (workflowConditional['whenFalseText'] ?? '').toString();
+
+    var activeResponseType = (response['type'] ?? 'normal').toString();
+    var responseText = (response['text'] ?? '').toString();
+    var embedsRaw =
+        (response['embeds'] is List)
+            ? List<Map<String, dynamic>>.from(
+              (response['embeds'] as List).whereType<Map>().map(
+                (entry) => Map<String, dynamic>.from(entry),
+              ),
+            )
+            : <Map<String, dynamic>>[];
+
+    if (useCondition && conditionVariable.isNotEmpty) {
+      final variableValue =
+          conditionVariable.contains('((')
+              ? resolveTemplatePlaceholders(
+                conditionVariable,
+                runtimeVariables,
+              ).trim()
+              : (runtimeVariables[conditionVariable] ?? '').trim();
+      final matched = variableValue.isNotEmpty;
+      if (matched) {
+        activeResponseType = whenTrueType;
+        if (whenTrueText.trim().isNotEmpty) {
+          responseText = whenTrueText;
+        }
+        embedsRaw = List<Map<String, dynamic>>.from(
+          (workflowConditional['whenTrueEmbeds'] as List?)
+                  ?.whereType<Map>()
+                  .map((entry) => Map<String, dynamic>.from(entry)) ??
+              const <Map<String, dynamic>>[],
+        );
+      } else {
+        activeResponseType = whenFalseType;
+        if (whenFalseText.trim().isNotEmpty) {
+          responseText = whenFalseText;
+        }
+        embedsRaw = List<Map<String, dynamic>>.from(
+          (workflowConditional['whenFalseEmbeds'] as List?)
+                  ?.whereType<Map>()
+                  .map((entry) => Map<String, dynamic>.from(entry)) ??
+              const <Map<String, dynamic>>[],
+        );
+      }
+    }
+
+    if (activeResponseType == 'modal') {
+      await _sendLegacyMessage(
+        context: context,
+        content: 'Modal responses are not supported in legacy command mode.',
+        embeds: const <EmbedBuilder>[],
+        asReply: responseTarget == 'reply',
+      );
+      return;
+    }
+
+    if (embedsRaw.isEmpty) {
+      final legacyEmbed = Map<String, dynamic>.from(
+        (response['embed'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final hasLegacyEmbed =
+          (legacyEmbed['title']?.toString().isNotEmpty ?? false) ||
+          (legacyEmbed['description']?.toString().isNotEmpty ?? false) ||
+          (legacyEmbed['url']?.toString().isNotEmpty ?? false);
+      if (hasLegacyEmbed) {
+        embedsRaw.add(legacyEmbed);
+      }
+    }
+
+    final embeds = <EmbedBuilder>[];
+    for (final embedJson in embedsRaw.take(10)) {
+      final embed = EmbedBuilder();
+      final title = resolveTemplatePlaceholders(
+        (embedJson['title'] ?? '').toString(),
+        runtimeVariables,
+      );
+      final description = resolveTemplatePlaceholders(
+        (embedJson['description'] ?? '').toString(),
+        runtimeVariables,
+      );
+      final urlText =
+          resolveTemplatePlaceholders(
+            (embedJson['url'] ?? '').toString(),
+            runtimeVariables,
+          ).trim();
+      if (title.isNotEmpty) {
+        embed.title = title;
+      }
+      if (description.isNotEmpty) {
+        embed.description = description;
+      }
+      if (urlText.isNotEmpty) {
+        final uri = Uri.tryParse(urlText);
+        if (uri != null && uri.hasScheme) {
+          embed.url = uri;
+        }
+      }
+      if (embed.title != null ||
+          embed.description != null ||
+          embed.url != null) {
+        embeds.add(embed);
+      }
+    }
+
+    final resolvedText =
+        resolveTemplatePlaceholders(responseText, runtimeVariables).trim();
+    final fallbackText =
+        activeResponseType == 'componentV2'
+            ? 'Legacy command executed (component layout is not rendered in legacy mode).'
+            : 'Legacy command executed.';
+    final contentToSend =
+        resolvedText.isNotEmpty || embeds.isNotEmpty
+            ? resolvedText
+            : fallbackText;
+
+    await _sendLegacyMessage(
+      context: context,
+      content: contentToSend,
+      embeds: embeds,
+      asReply: responseTarget == 'reply',
+    );
+  }
+
+  Map<String, dynamic> _adaptLegacyActionForMessageCreate(
+    Map<String, dynamic> actionJson,
+    EventExecutionContext context,
+  ) {
+    final adapted = Map<String, dynamic>.from(actionJson);
+    final type = (adapted['type'] ?? '').toString();
+
+    if (type == BotCreatorActionType.respondWithMessage.name) {
+      adapted['type'] = BotCreatorActionType.sendMessage.name;
+      final payload = Map<String, dynamic>.from(
+        (adapted['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      payload['channelId'] =
+          (payload['channelId'] ?? '').toString().trim().isNotEmpty
+              ? payload['channelId']
+              : context.channelId?.toString();
+      adapted['payload'] = payload;
+      return adapted;
+    }
+
+    if (type == BotCreatorActionType.respondWithComponentV2.name) {
+      adapted['type'] = BotCreatorActionType.sendComponentV2.name;
+      final payload = Map<String, dynamic>.from(
+        (adapted['payload'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      payload['channelId'] =
+          (payload['channelId'] ?? '').toString().trim().isNotEmpty
+              ? payload['channelId']
+              : context.channelId?.toString();
+      adapted['payload'] = payload;
+      return adapted;
+    }
+
+    return adapted;
+  }
+
+  Future<bool> _tryExecuteLegacyCommand(EventExecutionContext context) async {
+    final gateway = _gateway;
+    if (gateway == null) {
+      return false;
+    }
+
+    final content = (context.variables['message.content'] ?? '').trim();
+    if (content.isEmpty) {
+      return false;
+    }
+
+    final botId = gateway.user.id.toString();
+    final legacyCommands = config.commands
+        .where(_isLegacyCommandEnabled)
+        .toList(growable: false);
+    if (legacyCommands.isEmpty) {
+      return false;
+    }
+
+    final baseRuntimeVariables = <String, String>{
+      ...context.variables,
+      'workflow.type': 'command',
+    };
+    await hydrateRuntimeVariables(
+      store: store,
+      botId: botId,
+      runtimeVariables: baseRuntimeVariables,
+      guildContextId:
+          context.variables['guildId'] ?? context.guildId?.toString(),
+      channelContextId:
+          context.variables['channelId'] ?? context.channelId?.toString(),
+      userContextId:
+          context.variables['userId'] ?? context.variables['author.id'],
+      messageContextId:
+          context.variables['messageId'] ?? context.variables['message.id'],
+    );
+
+    final handledBuiltInHelp = await _tryExecuteBuiltInLegacyHelp(
+      context,
+      content: content,
+      botId: botId,
+      legacyCommands: legacyCommands,
+      runtimeVariables: baseRuntimeVariables,
+    );
+    if (handledBuiltInHelp) {
+      return true;
+    }
+
+    for (final command in legacyCommands) {
+      final data = Map<String, dynamic>.from(
+        (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final value = Map<String, dynamic>.from(
+        (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
+      );
+      final runtimeVariables = <String, String>{...context.variables};
+      runtimeVariables['workflow.type'] = 'command';
+
+      await hydrateRuntimeVariables(
+        store: store,
+        botId: botId,
+        runtimeVariables: runtimeVariables,
+        guildContextId:
+            context.variables['guildId'] ?? context.guildId?.toString(),
+        channelContextId:
+            context.variables['channelId'] ?? context.channelId?.toString(),
+        userContextId:
+            context.variables['userId'] ?? context.variables['author.id'],
+        messageContextId:
+            context.variables['messageId'] ?? context.variables['message.id'],
+      );
+
+      final prefix = await _resolveLegacyPrefix(
+        value: value,
+        runtimeVariables: runtimeVariables,
+      );
+      if (prefix == null || prefix.isEmpty || !content.startsWith(prefix)) {
+        continue;
+      }
+
+      final remainder = content.substring(prefix.length).trimLeft();
+      if (remainder.isEmpty) {
+        continue;
+      }
+      final tokens = _splitLegacyTokens(remainder);
+      if (tokens.isEmpty) {
+        continue;
+      }
+
+      final incomingName = tokens.first.trim().toLowerCase();
+      final commandName =
+          (command['name'] ?? '').toString().trim().toLowerCase();
+      if (incomingName != commandName) {
+        continue;
+      }
+
+      final args = tokens.length > 1 ? tokens.sublist(1) : const <String>[];
+      runtimeVariables['legacy.prefix'] = prefix;
+      runtimeVariables['legacy.command.name'] = commandName;
+      runtimeVariables['command.type'] = 'legacy';
+      runtimeVariables['interaction.command.type'] = 'legacy';
+      runtimeVariables['config.command.type'] = 'chatInput';
+      runtimeVariables['interaction.command.name'] = commandName;
+      runtimeVariables['interaction.command.route'] = '';
+
+      final optionError = await _bindLegacyPositionalOptions(
+        value: value,
+        args: args,
+        context: context,
+        runtimeVariables: runtimeVariables,
+      );
+      if (optionError != null) {
+        await _sendLegacyMessage(
+          context: context,
+          content: optionError,
+          embeds: const <EmbedBuilder>[],
+          asReply: _effectiveLegacyResponseTarget(value) == 'reply',
+        );
+        return true;
+      }
+
+      final response = Map<String, dynamic>.from(
+        (value['response'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final actionsJson = List<Map<String, dynamic>>.from(
+        (value['actions'] as List?)?.whereType<Map>().map(
+              (entry) => Map<String, dynamic>.from(entry),
+            ) ??
+            const <Map<String, dynamic>>[],
+      );
+
+      if (actionsJson.isNotEmpty) {
+        final actions = actionsJson
+            .map((json) => _adaptLegacyActionForMessageCreate(json, context))
+            .map(Action.fromJson)
+            .toList(growable: false);
+        final actionResults = await handleActions(
+          gateway,
+          null,
+          actions: actions,
+          store: store,
+          botId: botId,
+          variables: runtimeVariables,
+          resolveTemplate:
+              (input) => resolveTemplatePlaceholders(input, runtimeVariables),
+          fallbackChannelId: context.channelId,
+          fallbackGuildId: context.guildId,
+          onLog: (msg) => _log.info(msg),
+        );
+        for (final entry in actionResults.entries) {
+          runtimeVariables['action.${entry.key}'] = entry.value;
+        }
+      }
+
+      await _sendLegacyWorkflowResponse(
+        context: context,
+        response: response,
+        runtimeVariables: runtimeVariables,
+        responseTarget: _effectiveLegacyResponseTarget(value),
+      );
+      _log.info('Legacy command executed: $commandName');
+      return true;
+    }
+
+    return false;
   }
 
   Future<void> _executeEventWorkflow({
