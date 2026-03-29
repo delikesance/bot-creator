@@ -31,4 +31,23 @@ void main() {
       <String, dynamic>{'lang': 'en'},
     );
   });
+
+  test('BotConfig.fromJson defaults built-in legacy help to enabled', () {
+    final config = BotConfig.fromJson(<String, dynamic>{
+      'token': 'discord-token',
+    });
+
+    expect(config.builtInLegacyHelpEnabled, isTrue);
+    expect(config.toJson()['builtInLegacyHelpEnabled'], isTrue);
+  });
+
+  test('BotConfig.fromJson preserves disabled built-in legacy help', () {
+    final config = BotConfig.fromJson(<String, dynamic>{
+      'token': 'discord-token',
+      'builtInLegacyHelpEnabled': false,
+    });
+
+    expect(config.builtInLegacyHelpEnabled, isFalse);
+    expect(config.toJson()['builtInLegacyHelpEnabled'], isFalse);
+  });
 }

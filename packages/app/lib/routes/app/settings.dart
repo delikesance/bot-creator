@@ -33,6 +33,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
   final TextEditingController _prefixController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   String? _selectedAvatarPath;
+  bool _builtInLegacyHelpEnabled = true;
   final List<_StatusDraft> _statusDrafts = <_StatusDraft>[];
   String _presenceStatus = 'online';
   String _appVersion = '';
@@ -157,6 +158,8 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
     if (_presenceStatuses.contains(presenceStatus)) {
       _presenceStatus = presenceStatus;
     }
+    _builtInLegacyHelpEnabled =
+        persistedApp['builtInLegacyHelpEnabled'] != false;
 
     for (final status in _statusDrafts) {
       status.dispose();
@@ -224,6 +227,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       final latestAppData = Map<String, dynamic>.from(
         await appManager.getApp(discordUser.id.toString()),
       );
+      latestAppData['builtInLegacyHelpEnabled'] = _builtInLegacyHelpEnabled;
       latestAppData.remove('username');
       latestAppData.remove('avatarPath');
       await appManager.saveApp(discordUser.id.toString(), latestAppData);
@@ -319,6 +323,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       final appData = Map<String, dynamic>.from(
         await appManager.getApp(discordUser.id.toString()),
       );
+      appData['builtInLegacyHelpEnabled'] = _builtInLegacyHelpEnabled;
       appData.remove('username');
       appData.remove('avatarPath');
       await appManager.saveApp(discordUser.id.toString(), appData);
@@ -417,6 +422,7 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
           )
           .toList(growable: false);
       latestAppData['presenceStatus'] = _presenceStatus;
+      latestAppData['builtInLegacyHelpEnabled'] = _builtInLegacyHelpEnabled;
       latestAppData.remove('username');
       latestAppData.remove('avatarPath');
 
@@ -708,6 +714,20 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                     Text(
                       'Supports templates and scoped variables. Example: ((guild.bc_prefix | user.bc_prefix | !))',
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Built-in legacy !help command'),
+                      subtitle: const Text(
+                        'Mandatory feature with explicit toggle. Disable it if you only want custom help behavior.',
+                      ),
+                      value: _builtInLegacyHelpEnabled,
+                      onChanged: (value) {
+                        setState(() {
+                          _builtInLegacyHelpEnabled = value;
+                        });
+                      },
                     ),
                     const SizedBox(height: 12),
                     ListView.separated(

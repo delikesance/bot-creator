@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:bot_creator/types/app_emoji.dart';
 import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:bot_creator/widgets/variable_text_field.dart';
@@ -25,6 +26,80 @@ class ResponseEmbedsEditor extends StatefulWidget {
 
 class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
   List<Map<String, dynamic>> _embeds = [];
+
+  Color? _parseEmbedColor(String raw) {
+    final value = raw.trim();
+    if (value.isEmpty) {
+      return null;
+    }
+
+    if (value.startsWith('#')) {
+      final hex = value.substring(1);
+      if (hex.length == 6) {
+        final parsed = int.tryParse(hex, radix: 16);
+        if (parsed == null) {
+          return null;
+        }
+        return Color(0xFF000000 | parsed);
+      }
+      if (hex.length == 8) {
+        final parsed = int.tryParse(hex, radix: 16);
+        if (parsed == null) {
+          return null;
+        }
+        return Color(parsed);
+      }
+      return null;
+    }
+
+    final asInt = int.tryParse(value);
+    if (asInt == null) {
+      return null;
+    }
+    return Color(0xFF000000 | (asInt & 0x00FFFFFF));
+  }
+
+  String _formatEmbedColorHex(Color color) {
+    final rgb = color.toARGB32() & 0x00FFFFFF;
+    return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+
+  Future<void> _pickEmbedColor(int index) async {
+    Color selected =
+        _parseEmbedColor((_embeds[index]['color'] ?? '').toString()) ??
+        const Color(0xFF5865F2);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Pick embed color'),
+          content: SingleChildScrollView(
+            child: BlockPicker(
+              pickerColor: selected,
+              onColorChanged: (color) {
+                selected = color;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Apply'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      _setEmbedValue(index, 'color', _formatEmbedColorHex(selected));
+    }
+  }
 
   @override
   void initState() {
@@ -262,14 +337,42 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
                         ),
                         SizedBox(
                           width: 220,
-                          child: VariableTextField(
-                            label: 'Color (int or #hex)',
-                            initialValue: embed['color']?.toString() ?? '',
-                            suggestions: widget.variableSuggestions,
-                            emojiSuggestions: widget.emojiSuggestions,
-                            onChanged:
-                                (value) =>
-                                    _setEmbedValue(index, 'color', value),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              VariableTextField(
+                                label: 'Color (int or #hex)',
+                                initialValue: embed['color']?.toString() ?? '',
+                                suggestions: widget.variableSuggestions,
+                                emojiSuggestions: widget.emojiSuggestions,
+                                onChanged:
+                                    (value) =>
+                                        _setEmbedValue(index, 'color', value),
+                              ),
+                              const SizedBox(height: 6),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: () => _pickEmbedColor(index),
+                                  icon: Container(
+                                    width: 16,
+                                    height: 16,
+                                    decoration: BoxDecoration(
+                                      color:
+                                          _parseEmbedColor(
+                                            embed['color']?.toString() ?? '',
+                                          ) ??
+                                          Colors.transparent,
+                                      border: Border.all(
+                                        color: Colors.grey.shade500,
+                                      ),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                  label: const Text('Pick'),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],

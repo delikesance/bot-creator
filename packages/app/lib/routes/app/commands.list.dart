@@ -97,15 +97,6 @@ class _AppCommandsPageState extends State<AppCommandsPage>
           style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w400),
         ),
         onTap: () async {
-          if (snowflake == null) {
-            if (!mounted) {
-              return;
-            }
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Invalid local command id.')),
-            );
-            return;
-          }
           await Navigator.push(
             context,
             MaterialPageRoute(
@@ -113,7 +104,8 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                   (context) => CommandCreatePage(
                     client: widget.client,
                     botId: widget.botId,
-                    id: snowflake,
+                    id: snowflake ?? Snowflake.zero,
+                    localCommandId: snowflake == null ? commandId : null,
                   ),
             ),
           );

@@ -21,6 +21,7 @@ import 'package:bot_creator/types/variable_suggestion.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nyxx/nyxx.dart';
+import 'package:uuid/uuid.dart';
 
 part 'command.create.variable_suggestions.dart';
 part 'command.create.serialization.dart';
@@ -32,11 +33,13 @@ class CommandCreatePage extends StatefulWidget {
   final NyxxRest? client;
   final String? botId;
   final Snowflake id;
+  final String? localCommandId;
   const CommandCreatePage({
     super.key,
     this.client,
     this.botId,
     this.id = Snowflake.zero,
+    this.localCommandId,
   });
 
   @override
@@ -44,6 +47,7 @@ class CommandCreatePage extends StatefulWidget {
 }
 
 class _CommandCreatePageState extends State<CommandCreatePage> {
+  static const Uuid _uuid = Uuid();
   static const String _editorModeSimple = 'simple';
   static const String _editorModeAdvanced = 'advanced';
   static const String _rootWorkflowRoute = '__root__';
@@ -85,6 +89,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   String _defaultMemberPermissions = '';
   String _editorMode = _editorModeSimple;
   bool _legacyModeEnabled = false;
+  bool _legacyOnlyLocalCommand = false;
   String _legacyPrefixOverride = '';
   String _legacyResponseTarget = 'reply';
   bool _simpleModeLocked = false;
@@ -439,7 +444,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               title: const Text('Enable legacy mode on this command'),
-              subtitle: const Text('Uses positional options: !config #channel'),
+              subtitle: const Text(
+                'Uses positional options (example: !config #channel).',
+              ),
               value: _legacyModeEnabled,
               onChanged:
                   !_supportsCommandOptions
@@ -447,6 +454,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                       : (enabled) {
                         setState(() {
                           _legacyModeEnabled = enabled;
+                          if (!enabled) {
+                            _legacyOnlyLocalCommand = false;
+                          }
                           if (_legacyModeEnabled && _responseType == 'modal') {
                             _responseType = 'normal';
                           }
@@ -454,6 +464,23 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                       },
             ),
             if (_legacyModeEnabled) ...[
+              const SizedBox(height: 8),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Legacy-only (no slash command)'),
+                subtitle: const Text(
+                  'Do not register/update this command on Discord API; keep it local.',
+                ),
+                value: _legacyOnlyLocalCommand,
+                onChanged:
+                    _canToggleLegacyOnlyLocal
+                        ? (enabled) {
+                          setState(() {
+                            _legacyOnlyLocalCommand = enabled;
+                          });
+                        }
+                        : null,
+              ),
               const SizedBox(height: 8),
               TextFormField(
                 initialValue: _legacyPrefixOverride,
@@ -634,6 +661,29 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   String? get _botIdForConfig =>
       widget.client?.user.id.toString() ?? widget.botId;
 
+  String? get _explicitLocalCommandId {
+    final id = (widget.localCommandId ?? '').trim();
+    return id.isEmpty ? null : id;
+  }
+
+  String? get _existingCommandStorageId {
+    final localId = _explicitLocalCommandId;
+    if (localId != null) {
+      return localId;
+    }
+    if (!widget.id.isZero) {
+      return widget.id.toString();
+    }
+    return null;
+  }
+
+  bool get _isEditingExistingCommand => _existingCommandStorageId != null;
+
+  bool get _canToggleLegacyOnlyLocal =>
+      !_isEditingExistingCommand || _isLocalOnlyCommand;
+
+  String _generateLegacyOnlyCommandId() => _uuid.v4();
+
   @override
   void initState() {
     super.initState();
@@ -690,9 +740,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       screenName: "CommandCreatePage",
       screenClass: "CommandCreatePage",
       parameters: {
-        "command_id": widget.id.toString(),
-        "command_name": widget.id.isZero ? "New Command" : _commandName,
-        "is_new_command": widget.id.isZero ? "true" : "false",
+        "command_id": _existingCommandStorageId ?? 'new',
+        "command_name":
+            _isEditingExistingCommand ? _commandName : "New Command",
+        "is_new_command": _isEditingExistingCommand ? "false" : "true",
         "client_id": widget.client?.user.id.toString() ?? "unknown",
       },
     );
@@ -710,6 +761,161 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         }
       }
     } catch (_) {}
+
+    final explicitLocalId = _explicitLocalCommandId;
+    if (explicitLocalId != null) {
+      final botId = _botIdForConfig;
+      if (botId == null) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final commandData = await appManager.getAppCommand(
+        botId,
+        explicitLocalId,
+      );
+      if (!mounted) {
+        return;
+      }
+      if (commandData.isEmpty) {
+        setState(() {
+          _isLoading = false;
+          _isDataIncomplete = true;
+        });
+        return;
+      }
+
+      final normalized = appManager.normalizeCommandData(
+        Map<String, dynamic>.from(commandData),
+      );
+      final normalizedData = Map<String, dynamic>.from(
+        normalized['data'] ?? const {},
+      );
+      final persistedEditorMode =
+          (normalizedData['editorMode'] ?? _editorModeAdvanced)
+              .toString()
+              .toLowerCase();
+      final editorMode =
+          persistedEditorMode == _editorModeSimple
+              ? _editorModeSimple
+              : _editorModeAdvanced;
+      final simpleConfig = _normalizeSimpleConfig(
+        Map<String, dynamic>.from(
+          (normalizedData['simpleConfig'] as Map?)?.cast<String, dynamic>() ??
+              const {},
+        ),
+      );
+      final response = Map<String, dynamic>.from(
+        (normalizedData['response'] as Map?)?.cast<String, dynamic>() ??
+            const {},
+      );
+      final embeds =
+          (response['embeds'] is List)
+              ? List<Map<String, dynamic>>.from(
+                (response['embeds'] as List).whereType<Map>().map(
+                  (embed) => Map<String, dynamic>.from(
+                    embed.map((key, value) => MapEntry(key.toString(), value)),
+                  ),
+                ),
+              )
+              : <Map<String, dynamic>>[];
+
+      if (embeds.isEmpty) {
+        final legacyEmbed = Map<String, dynamic>.from(
+          (response['embed'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        final hasLegacyEmbed =
+            (legacyEmbed['title']?.toString().isNotEmpty ?? false) ||
+            (legacyEmbed['description']?.toString().isNotEmpty ?? false) ||
+            (legacyEmbed['url']?.toString().isNotEmpty ?? false);
+        if (hasLegacyEmbed) {
+          embeds.add({
+            'title': legacyEmbed['title']?.toString() ?? '',
+            'description': legacyEmbed['description']?.toString() ?? '',
+            'url': legacyEmbed['url']?.toString() ?? '',
+          });
+        }
+      }
+
+      setState(() {
+        _isLocalOnlyCommand = true;
+        _commandName = (normalized['name'] ?? '').toString();
+        _commandDescription = (normalized['description'] ?? '').toString();
+        final savedType = _commandTypeFromText(
+          (normalizedData['commandType'] ?? normalized['type'] ?? '')
+              .toString(),
+        );
+        _commandType = savedType ?? _commandType;
+        _editorMode = editorMode;
+        _legacyModeEnabled = normalizedData['legacyModeEnabled'] == true;
+        _legacyOnlyLocalCommand = normalizedData['legacyLocalOnly'] == true;
+        _legacyPrefixOverride =
+            (normalizedData['legacyPrefixOverride'] ?? '').toString();
+        final loadedLegacyResponseTarget =
+            (normalizedData['legacyResponseTarget'] ?? 'reply').toString();
+        _legacyResponseTarget =
+            loadedLegacyResponseTarget == 'channelSend'
+                ? 'channelSend'
+                : 'reply';
+        if (!_supportsSimpleMode) {
+          _editorMode = _editorModeAdvanced;
+        }
+        _simpleModeLocked = _editorMode == _editorModeAdvanced;
+        _applySimpleConfig(simpleConfig);
+        _responseType = (response['type'] ?? 'normal').toString();
+        if (_legacyModeEnabled && _responseType == 'modal') {
+          _responseType = 'normal';
+        }
+        _response = (response['text'] ?? '').toString();
+        _responseController.text = _response;
+        _responseEmbeds = embeds.take(10).toList();
+        _responseComponents = Map<String, dynamic>.from(
+          (response['components'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        _responseModal = Map<String, dynamic>.from(
+          (response['modal'] as Map?)?.cast<String, dynamic>() ?? const {},
+        );
+        _responseWorkflow = _normalizeWorkflow(
+          Map<String, dynamic>.from(
+            (response['workflow'] as Map?)?.cast<String, dynamic>() ??
+                _defaultWorkflow(),
+          ),
+        );
+        _actions = List<Map<String, dynamic>>.from(
+          (normalizedData['actions'] as List?)?.whereType<Map>().map(
+                (e) => Map<String, dynamic>.from(e),
+              ) ??
+              const [],
+        );
+        _subcommandWorkflows = _normalizeStoredSubcommandWorkflows(
+          normalizedData['subcommandWorkflows'],
+        );
+        _activeSubcommandRoute =
+            (normalizedData['activeSubcommandRoute'] ?? _rootWorkflowRoute)
+                .toString();
+        final storedOptions = normalizedData['options'];
+        if (storedOptions is List) {
+          _options = deserializeCommandOptions(storedOptions);
+        }
+        if (_subcommandWorkflows.containsKey(_activeSubcommandRoute)) {
+          final activePayload = _subcommandWorkflows[_activeSubcommandRoute];
+          if (activePayload != null) {
+            _applyWorkflowPayloadToEditor(activePayload);
+          }
+        }
+        _defaultMemberPermissions =
+            (normalizedData['defaultMemberPermissions'] ?? '')
+                .toString()
+                .trim();
+        _isLoading = false;
+      });
+      return;
+    }
 
     // first let's check if the command is already created or not
     if (!widget.id.isZero) {
@@ -804,6 +1010,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         setState(() {
           _editorMode = editorMode;
           _legacyModeEnabled = normalizedData['legacyModeEnabled'] == true;
+          _legacyOnlyLocalCommand = normalizedData['legacyLocalOnly'] == true;
           _legacyPrefixOverride =
               (normalizedData['legacyPrefixOverride'] ?? '').toString();
           final loadedLegacyResponseTarget =
@@ -1023,6 +1230,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
     final client = widget.client;
     final botId = _botIdForConfig;
+    final existingStorageId = _existingCommandStorageId;
     if (botId == null) {
       final dialog = AlertDialog(
         title: const Text('Error'),
@@ -1049,7 +1257,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         'updatedAt': DateTime.now().toIso8601String(),
         'data': commandData,
       };
-      if (widget.id.isZero) {
+      if (!_isEditingExistingCommand) {
         localPayload['createdAt'] = DateTime.now().toIso8601String();
       }
       await appManager.saveAppCommand(botId, commandId, localPayload);
@@ -1057,9 +1265,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
     if (client == null) {
       final localCommandId =
-          widget.id.isZero
-              ? DateTime.now().microsecondsSinceEpoch.toString()
-              : widget.id.toString();
+          existingStorageId ??
+          (_legacyOnlyLocalCommand
+              ? _generateLegacyOnlyCommandId()
+              : DateTime.now().microsecondsSinceEpoch.toString());
       await saveLocal(localCommandId);
       if (!mounted) {
         return;
@@ -1069,7 +1278,18 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     }
 
     try {
-      if (widget.id.isZero || _isLocalOnlyCommand) {
+      if (_legacyOnlyLocalCommand) {
+        final localCommandId =
+            existingStorageId ?? _generateLegacyOnlyCommandId();
+        await saveLocal(localCommandId);
+        if (!mounted) {
+          return;
+        }
+        Navigator.pop(context);
+        return;
+      }
+
+      if (!_isEditingExistingCommand || _isLocalOnlyCommand) {
         // Create a new command on Discord
         final ApplicationCommandBuilder commandBuilder;
         if (_commandType == ApplicationCommandType.user) {
@@ -1098,7 +1318,10 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         await createCommand(client, commandBuilder, data: commandData);
         // Delete the old temp-ID file if this was a local-only command
         if (_isLocalOnlyCommand) {
-          await appManager.deleteAppCommand(botId, widget.id.toString());
+          final previousId = existingStorageId;
+          if (previousId != null) {
+            await appManager.deleteAppCommand(botId, previousId);
+          }
         }
       } else {
         // Update the existing command
@@ -1145,9 +1368,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       Navigator.pop(context);
     } catch (e) {
       final localCommandId =
-          widget.id.isZero
-              ? DateTime.now().microsecondsSinceEpoch.toString()
-              : widget.id.toString();
+          existingStorageId ?? DateTime.now().microsecondsSinceEpoch.toString();
       await saveLocal(localCommandId);
       final errorText = 'Saved locally. Discord sync failed: $e';
       final dialog = AlertDialog(
@@ -1187,7 +1408,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             tooltip: AppStrings.t('cmd_show_variables'),
             icon: const Icon(Icons.info_outline),
           ),
-          if (widget.id.isZero && !_isDataIncomplete)
+          if (!_isEditingExistingCommand && !_isDataIncomplete)
             IconButton(
               icon: const Icon(Icons.add),
               tooltip: AppStrings.t('cmd_create_tooltip'),
@@ -1199,13 +1420,13 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             ),
           if (!_isDataIncomplete)
             IconButton(
-              icon: Icon(widget.id.isZero ? Icons.cancel : Icons.save),
+              icon: Icon(_isEditingExistingCommand ? Icons.save : Icons.cancel),
               tooltip:
-                  widget.id.isZero
+                  !_isEditingExistingCommand
                       ? AppStrings.t('cancel')
                       : AppStrings.t('cmd_create_tooltip'),
               onPressed: () async {
-                if (widget.id.isZero) {
+                if (!_isEditingExistingCommand) {
                   Navigator.pop(context);
                 } else {
                   if (_validateCommandInputs()) {
@@ -1214,25 +1435,29 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                       name: "update_command",
                       parameters: {
                         "command_name": _commandName,
-                        "command_id": widget.id.toString(),
+                        "command_id": _existingCommandStorageId ?? 'unknown',
                       },
                     );
                   }
                 }
               },
             ),
-          if (!widget.id.isZero)
+          if (_isEditingExistingCommand)
             IconButton(
               icon: const Icon(Icons.delete),
               tooltip: AppStrings.t('cmd_delete_tooltip'),
               onPressed: () async {
                 final botId = _botIdForConfig;
+                final commandId = _existingCommandStorageId;
                 if (botId == null) {
+                  return;
+                }
+                if (commandId == null) {
                   return;
                 }
 
                 final remoteClient = widget.client;
-                if (remoteClient != null) {
+                if (remoteClient != null && !widget.id.isZero) {
                   try {
                     await remoteClient.commands.delete(widget.id);
                   } catch (e) {
@@ -1256,7 +1481,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                   }
                 }
 
-                await appManager.deleteAppCommand(botId, widget.id.toString());
+                await appManager.deleteAppCommand(botId, commandId);
                 if (!mounted) {
                   return;
                 }
@@ -1282,7 +1507,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
                     Text(
-                      widget.id.isZero
+                      !_isEditingExistingCommand
                           ? "Create a new command"
                           : "Update command",
                       style: const TextStyle(fontSize: 24),
@@ -1326,7 +1551,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                           title: Text(
                             _commandName.isNotEmpty
                                 ? _commandName
-                                : widget.id.toString(),
+                                : (_existingCommandStorageId ?? ''),
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle:
@@ -1349,7 +1574,12 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               commandName: _commandName,
                               commandDescription: _commandDescription,
                               commandType: _commandType,
-                              canEditCommandType: widget.id.isZero,
+                              isLegacyCommand:
+                                  _legacyModeEnabled &&
+                                  _legacyOnlyLocalCommand &&
+                                  _commandType ==
+                                      ApplicationCommandType.chatInput,
+                              canEditCommandType: !_isEditingExistingCommand,
                               showDescriptionField: _supportsCommandDescription,
                               integrationTypes: _integrationTypes,
                               contexts: _contexts,
@@ -1370,6 +1600,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                   if (!_supportsSimpleMode) {
                                     _editorMode = _editorModeAdvanced;
                                     _legacyModeEnabled = false;
+                                    _legacyOnlyLocalCommand = false;
                                   }
                                   _simpleModeLocked =
                                       _editorMode == _editorModeAdvanced;
@@ -1381,6 +1612,20 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                   } else {
                                     _syncSubcommandWorkflowRoutes();
                                   }
+                                });
+                              },
+                              onLegacyCommandChanged: (enabled) {
+                                setState(() {
+                                  _persistActiveSubcommandWorkflow();
+                                  _commandType =
+                                      ApplicationCommandType.chatInput;
+                                  _legacyModeEnabled = enabled;
+                                  _legacyOnlyLocalCommand = enabled;
+                                  if (_legacyModeEnabled &&
+                                      _responseType == 'modal') {
+                                    _responseType = 'normal';
+                                  }
+                                  _syncSubcommandWorkflowRoutes();
                                 });
                               },
                               onIntegrationTypesChanged: (val) {
