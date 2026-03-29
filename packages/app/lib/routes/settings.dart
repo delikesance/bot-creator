@@ -1,4 +1,5 @@
 import 'package:bot_creator/main.dart';
+import 'package:bot_creator/routes/bdfd_compatible_functions.dart';
 import 'package:bot_creator/routes/onboarding.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
@@ -826,6 +827,8 @@ class _SettingPageState extends State<SettingPage> {
                                 ? _openAdPrivacyOptions
                                 : null),
                   ),
+                  const SizedBox(height: 16),
+                  const _BdfdCompatibilityCard(),
                   const SizedBox(height: 16),
 
                   Card(
@@ -2060,6 +2063,170 @@ class _PrivacyPolicyCard extends StatelessWidget {
                       : (adPrivacyRequired
                           ? AppStrings.t('settings_ads_privacy_manage')
                           : AppStrings.t('settings_ads_privacy_not_required')),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+enum _CapabilityStatus { supported, partial, missing }
+
+class _CapabilitySnapshot {
+  const _CapabilitySnapshot({
+    required this.titleKey,
+    required this.descriptionKey,
+    required this.status,
+  });
+
+  final String titleKey;
+  final String descriptionKey;
+  final _CapabilityStatus status;
+}
+
+class _BdfdCompatibilityCard extends StatelessWidget {
+  const _BdfdCompatibilityCard();
+
+  static const List<_CapabilitySnapshot> _snapshots = [
+    _CapabilitySnapshot(
+      titleKey: 'settings_compatibility_item_workflows_title',
+      descriptionKey: 'settings_compatibility_item_workflows_desc',
+      status: _CapabilityStatus.supported,
+    ),
+    _CapabilitySnapshot(
+      titleKey: 'settings_compatibility_item_variables_title',
+      descriptionKey: 'settings_compatibility_item_variables_desc',
+      status: _CapabilityStatus.supported,
+    ),
+    _CapabilitySnapshot(
+      titleKey: 'settings_compatibility_item_events_title',
+      descriptionKey: 'settings_compatibility_item_events_desc',
+      status: _CapabilityStatus.partial,
+    ),
+    _CapabilitySnapshot(
+      titleKey: 'settings_compatibility_item_runner_title',
+      descriptionKey: 'settings_compatibility_item_runner_desc',
+      status: _CapabilityStatus.partial,
+    ),
+    _CapabilitySnapshot(
+      titleKey: 'settings_compatibility_item_bdscript_title',
+      descriptionKey: 'settings_compatibility_item_bdscript_desc',
+      status: _CapabilityStatus.missing,
+    ),
+  ];
+
+  String _statusLabel(_CapabilityStatus status) {
+    switch (status) {
+      case _CapabilityStatus.supported:
+        return AppStrings.t('settings_compatibility_status_supported');
+      case _CapabilityStatus.partial:
+        return AppStrings.t('settings_compatibility_status_partial');
+      case _CapabilityStatus.missing:
+        return AppStrings.t('settings_compatibility_status_missing');
+    }
+  }
+
+  Color _statusColor(_CapabilityStatus status, BuildContext context) {
+    switch (status) {
+      case _CapabilityStatus.supported:
+        return Colors.green;
+      case _CapabilityStatus.partial:
+        return Colors.orange;
+      case _CapabilityStatus.missing:
+        return Theme.of(context).colorScheme.error;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              AppStrings.t('settings_compatibility_title'),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              AppStrings.t('settings_compatibility_desc'),
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            ..._snapshots.map((snapshot) {
+              final color = _statusColor(snapshot.status, context);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(top: 4),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppStrings.t(snapshot.titleKey),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            AppStrings.t(snapshot.descriptionKey),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      _statusLabel(snapshot.status),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: color),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 4),
+            Text(
+              AppStrings.t('settings_compatibility_note'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => const BdfdCompatibleFunctionsPage(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.list_alt_outlined),
+                label: Text(
+                  AppStrings.t('settings_compatibility_open_functions'),
                 ),
               ),
             ),

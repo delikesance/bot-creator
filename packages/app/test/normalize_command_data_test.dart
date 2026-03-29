@@ -465,6 +465,33 @@ void main() {
     });
   });
 
+  group('normalizeCommandData – execution mode fields', () {
+    test('defaults execution mode to workflow', () {
+      final command = _makeCommand();
+
+      final result = normalizeCommandData(command);
+      final data = Map<String, dynamic>.from(result['data'] as Map);
+
+      expect(data['executionMode'], 'workflow');
+      expect(data['bdfdScriptContent'], '');
+    });
+
+    test('preserves bdfd script execution payload', () {
+      final command = _makeCommand(
+        data: {
+          'executionMode': 'bdfd_script',
+          'bdfdScriptContent': r'$nomention\n$description[Hello]',
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final data = Map<String, dynamic>.from(result['data'] as Map);
+
+      expect(data['executionMode'], 'bdfd_script');
+      expect(data['bdfdScriptContent'], r'$nomention\n$description[Hello]');
+    });
+  });
+
   group('normalizeCommandData – idempotency', () {
     test('double normalization produces identical output', () {
       final command = _makeCommand(

@@ -49,6 +49,77 @@ bool _evaluateCondition({
   }
 }
 
+bool _parseBooleanFlag(dynamic value) {
+  final normalized = value?.toString().trim().toLowerCase() ?? '';
+  return normalized == 'true' ||
+      normalized == '1' ||
+      normalized == 'yes' ||
+      normalized == 'on';
+}
+
+bool _evaluateConditionFromPayload({
+  required Map<String, dynamic> payload,
+  required Map<String, String> variables,
+  required String Function(String input) resolveValue,
+}) {
+  final rawGroup =
+      (payload['condition.group'] ?? payload['group'] ?? '').toString().trim();
+  if (rawGroup.isNotEmpty) {
+    final group = rawGroup.toLowerCase();
+    final rawConditions =
+        payload['condition.conditions'] ?? payload['conditions'];
+    final conditionList = <Map<String, dynamic>>[];
+    if (rawConditions is List) {
+      for (final item in rawConditions) {
+        if (item is Map) {
+          conditionList.add(Map<String, dynamic>.from(item));
+        }
+      }
+    }
+
+    var groupResult = group == 'and';
+    for (final condition in conditionList) {
+      final passed = _evaluateConditionFromPayload(
+        payload: condition,
+        variables: variables,
+        resolveValue: resolveValue,
+      );
+      if (group == 'and') {
+        groupResult = groupResult && passed;
+      } else {
+        groupResult = groupResult || passed;
+      }
+    }
+
+    final negate = _parseBooleanFlag(
+      payload['condition.negate'] ?? payload['negate'],
+    );
+    return negate ? !groupResult : groupResult;
+  }
+
+  final rawConditionVariable =
+      (payload['condition.variable'] ?? payload['variable'] ?? '').toString();
+  final conditionOperator =
+      resolveValue(
+        (payload['condition.operator'] ?? payload['operator'] ?? 'equals')
+            .toString(),
+      ).trim();
+  final conditionValue = resolveValue(
+    (payload['condition.value'] ?? payload['value'] ?? '').toString(),
+  );
+  final leftValue = _resolveConditionLeftValue(
+    rawConditionVariable,
+    variables,
+    resolveValue,
+  );
+
+  return _evaluateCondition(
+    leftValue: leftValue,
+    operator: conditionOperator,
+    rightValue: conditionValue,
+  );
+}
+
 String _resolveConditionLeftValue(
   String rawConditionVariable,
   Map<String, String> variables,
@@ -203,24 +274,10 @@ Future<bool> executeControlFlowAction({
       return true;
 
     case BotCreatorActionType.ifBlock:
-      final rawConditionVariable =
-          (payload['condition.variable'] ?? '').toString();
-      final conditionOperator =
-          resolveValue(
-            (payload['condition.operator'] ?? 'equals').toString(),
-          ).trim();
-      final conditionValue = resolveValue(
-        (payload['condition.value'] ?? '').toString(),
-      );
-      final leftValue = _resolveConditionLeftValue(
-        rawConditionVariable,
-        variables,
-        resolveValue,
-      );
-      final conditionPassed = _evaluateCondition(
-        leftValue: leftValue,
-        operator: conditionOperator,
-        rightValue: conditionValue,
+      final conditionPassed = _evaluateConditionFromPayload(
+        payload: payload,
+        variables: variables,
+        resolveValue: resolveValue,
       );
 
       final rawThen = payload['thenActions'];
@@ -241,24 +298,10 @@ Future<bool> executeControlFlowAction({
             }
 
             final elseIf = Map<String, dynamic>.from(entry);
-            final rawElseIfVariable =
-                (elseIf['condition.variable'] ?? '').toString();
-            final elseIfOperator =
-                resolveValue(
-                  (elseIf['condition.operator'] ?? 'equals').toString(),
-                ).trim();
-            final elseIfValue = resolveValue(
-              (elseIf['condition.value'] ?? '').toString(),
-            );
-            final elseIfLeftValue = _resolveConditionLeftValue(
-              rawElseIfVariable,
-              variables,
-              resolveValue,
-            );
-            final elseIfPassed = _evaluateCondition(
-              leftValue: elseIfLeftValue,
-              operator: elseIfOperator,
-              rightValue: elseIfValue,
+            final elseIfPassed = _evaluateConditionFromPayload(
+              payload: elseIf,
+              variables: variables,
+              resolveValue: resolveValue,
             );
             if (!elseIfPassed) {
               continue;

@@ -216,6 +216,70 @@ const Map<String, String> appStringsEn = {
   'settings_legal_title': 'Legal',
   'settings_legal_desc': 'Review how your data is handled and stored.',
   'settings_privacy_policy': 'Privacy Policy',
+  'settings_compatibility_title': 'BDFD compatibility snapshot',
+  'settings_compatibility_desc':
+      'A quick view of feature coverage for users moving from BDFD.',
+  'settings_compatibility_status_supported': 'Supported',
+  'settings_compatibility_status_partial': 'Partial',
+  'settings_compatibility_status_missing': 'Missing',
+  'settings_compatibility_item_workflows_title': 'Workflow builder',
+  'settings_compatibility_item_workflows_desc':
+      'Visual command and response workflows are available.',
+  'settings_compatibility_item_variables_title':
+      'Runtime variables and templates',
+  'settings_compatibility_item_variables_desc':
+      'Dynamic variables and template helpers are supported.',
+  'settings_compatibility_item_events_title': 'Event coverage',
+  'settings_compatibility_item_events_desc':
+      'Most common events are supported, some are runtime-limited.',
+  'settings_compatibility_item_runner_title': 'Runner architecture',
+  'settings_compatibility_item_runner_desc':
+      'Remote runner is available, multi-runner support is in progress.',
+  'settings_compatibility_item_bdscript_title': 'BDScript function parity',
+  'settings_compatibility_item_bdscript_desc':
+      'No full 1:1 parity with the full BDFD function catalog.',
+  'settings_compatibility_note':
+      'This snapshot is intentionally high-level and will evolve with releases.',
+  'settings_compatibility_open_functions': 'View compatible functions',
+  'settings_compatibility_functions_title': 'Compatible BDFD Functions',
+  'settings_compatibility_functions_subtitle':
+      'Functions currently implemented and usable in Bot Creator BDFD mode.',
+  'settings_compatibility_functions_matrix_subtitle':
+      'Diff view between Bot Creator implementation and BDFD reference functions.',
+  'settings_compatibility_functions_count': 'Compatible functions: {count}',
+  'settings_compatibility_functions_count_bot_creator':
+      'Bot Creator supported: {count}',
+  'settings_compatibility_functions_count_bdfd':
+      'BDFD reference total: {count}',
+  'settings_compatibility_functions_count_both': 'Supported on both: {count}',
+  'settings_compatibility_functions_count_missing':
+      'Missing in Bot Creator: {count}',
+  'settings_compatibility_functions_count_bot_only':
+      'Bot Creator only: {count}',
+  'settings_compatibility_functions_note':
+      'This page is generated from the current implementation scope and will grow over time.',
+  'settings_compatibility_functions_matrix_note':
+      'BDFD-only entries are functions listed in the provided BDFD catalog but not currently implemented in Bot Creator.',
+  'settings_compatibility_functions_search_hint':
+      'Search a function (example: \$userJoined)',
+  'settings_compatibility_functions_section_both':
+      'Supported on Bot Creator and BDFD',
+  'settings_compatibility_functions_section_bot_only':
+      'Supported on Bot Creator only',
+  'settings_compatibility_functions_section_bot_only_note':
+      'Loop helpers are currently Bot Creator specific.',
+  'settings_compatibility_functions_section_missing':
+      'Available on BDFD but missing in Bot Creator',
+  'settings_compatibility_functions_empty': 'No function in this section.',
+  'settings_compatibility_functions_category_guards': 'Guards and permissions',
+  'settings_compatibility_functions_category_control': 'Control flow',
+  'settings_compatibility_functions_category_messages': 'Messages',
+  'settings_compatibility_functions_category_embeds': 'Embeds',
+  'settings_compatibility_functions_category_json': 'JSON helpers',
+  'settings_compatibility_functions_category_http': 'HTTP helpers',
+  'settings_compatibility_functions_category_variables': 'Scoped variables',
+  'settings_compatibility_functions_category_threads': 'Threads',
+  'settings_compatibility_functions_category_runtime': 'Runtime placeholders',
   'settings_ads_privacy_manage': 'Manage ad privacy choices',
   'settings_ads_privacy_not_required':
       'Ad privacy options are not required right now',
@@ -588,6 +652,33 @@ const Map<String, String> appStringsEn = {
       'This switch is one-way for this command. You won’t be able to return to simplified mode.',
   'cmd_editor_mode_switch_adv_confirm': 'Switch',
   'cmd_editor_mode_locked': 'Advanced mode is locked for this command.',
+  'cmd_execution_mode_title': 'Execution mode',
+  'cmd_execution_mode_desc':
+      'Command metadata stays in the visual builder. Choose how the command body should run.',
+  'cmd_execution_mode_workflow': 'Workflow mode',
+  'cmd_execution_mode_workflow_desc':
+      'Use the existing visual response and action builder.',
+  'cmd_execution_mode_workflow_note':
+      'Workflow mode is the current production path and remains fully supported.',
+  'cmd_execution_mode_bdfd': 'BDFD Script mode',
+  'cmd_execution_mode_bdfd_desc':
+      'Write the command body as BDFD-style script while keeping command definition visual.',
+  'cmd_execution_mode_bdfd_note':
+      'The script is compiled to internal actions, with diagnostics shown before save and reused at runtime.',
+  'cmd_bdfd_script_label': 'BDFD script body',
+  'cmd_bdfd_script_hint':
+      r'$nomention\n$if[$hasPerms[$authorID;administrator]==true]\nHello from Bot Creator',
+  'cmd_bdfd_diagnostics_title': 'BDFD diagnostics',
+  'cmd_bdfd_diagnostics_clean':
+      'No blocking issue detected in the current script.',
+  'cmd_bdfd_diagnostics_error': 'Error',
+  'cmd_bdfd_diagnostics_warning': 'Warning',
+  'cmd_bdfd_script_empty_error': 'BDFD script body cannot be empty.',
+  'cmd_bdfd_script_validation_error':
+      'This BDFD script still contains blocking diagnostics:',
+  'cmd_bdfd_autocomplete_title': 'BDFD prefix autocomplete',
+  'cmd_bdfd_autocomplete_hint':
+      'Type \$ and start writing a function name to get quick script suggestions.',
   'cmd_simple_actions_title': 'Simplified actions',
   'cmd_simple_actions_desc':
       'Select what this command should do. Options are generated automatically.',

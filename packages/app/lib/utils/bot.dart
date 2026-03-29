@@ -1,6 +1,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
@@ -13,6 +14,7 @@ import 'package:bot_creator_shared/actions/handle_component_interaction.dart';
 import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator_shared/types/action.dart';
+import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
 import 'package:bot_creator_shared/utils/command_autocomplete.dart';
 import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator/utils/database.dart';
@@ -32,6 +34,24 @@ part 'bot.template.dart';
 part 'bot.mobile_service.dart';
 part 'bot.commands.dart';
 part 'bot.event_workflows.dart';
+
+String _formatBdfdRuntimeDiagnostics(List<BdfdCompileDiagnostic> diagnostics) {
+  if (diagnostics.isEmpty) {
+    return 'This BDFD script could not be compiled.';
+  }
+
+  final summary = diagnostics
+      .take(5)
+      .map((diagnostic) {
+        final location =
+            (diagnostic.line != null && diagnostic.column != null)
+                ? 'L${diagnostic.line}:C${diagnostic.column} '
+                : '';
+        return '- $location${diagnostic.message}';
+      })
+      .join('\n');
+  return 'This BDFD script could not be compiled:\n$summary';
+}
 
 NyxxGateway? _desktopGateway;
 StreamSubscription<LogRecord>? _desktopNyxxLogsSubscription;

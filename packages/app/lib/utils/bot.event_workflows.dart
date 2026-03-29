@@ -704,6 +704,305 @@ bool _isLegacyLocalCommand(Map<String, dynamic> command) {
           commandType == 'slash');
 }
 
+class _AwaitedLocalTrigger {
+  const _AwaitedLocalTrigger({
+    required this.name,
+    required this.isErrorTrigger,
+    this.filter,
+  });
+
+  final String name;
+  final bool isErrorTrigger;
+  final String? filter;
+}
+
+class _AwaitedLocalCallbacks {
+  const _AwaitedLocalCallbacks({
+    this.successCommand,
+    this.errorCommand,
+    this.filter,
+  });
+
+  final Map<String, dynamic>? successCommand;
+  final Map<String, dynamic>? errorCommand;
+  final String? filter;
+
+  _AwaitedLocalCallbacks copyWith({
+    Map<String, dynamic>? successCommand,
+    Map<String, dynamic>? errorCommand,
+    String? filter,
+  }) {
+    return _AwaitedLocalCallbacks(
+      successCommand: successCommand ?? this.successCommand,
+      errorCommand: errorCommand ?? this.errorCommand,
+      filter: filter ?? this.filter,
+    );
+  }
+}
+
+_AwaitedLocalTrigger? _parseAwaitedLocalTrigger(String rawName) {
+  final name = rawName.trim();
+  final successMatch = RegExp(
+    r'^\$awaitedcommand\[(.+?);(.*)\]$',
+    caseSensitive: false,
+  ).firstMatch(name);
+  if (successMatch != null) {
+    final awaitedName = successMatch.group(1)?.trim().toLowerCase() ?? '';
+    final filter = successMatch.group(2)?.trim();
+    if (awaitedName.isEmpty) {
+      return null;
+    }
+    return _AwaitedLocalTrigger(
+      name: awaitedName,
+      isErrorTrigger: false,
+      filter: filter == null || filter.isEmpty ? null : filter,
+    );
+  }
+
+  final errorMatch = RegExp(
+    r'^\$awaitedcommanderror\[(.+?)\]$',
+    caseSensitive: false,
+  ).firstMatch(name);
+  if (errorMatch != null) {
+    final awaitedName = errorMatch.group(1)?.trim().toLowerCase() ?? '';
+    if (awaitedName.isEmpty) {
+      return null;
+    }
+    return _AwaitedLocalTrigger(name: awaitedName, isErrorTrigger: true);
+  }
+
+  return null;
+}
+
+bool _matchesAwaitedLocalFilter(String message, String? rawFilter) {
+  final filter = (rawFilter ?? '').trim();
+  if (filter.isEmpty) {
+    return true;
+  }
+
+  if (!filter.startsWith('<') || !filter.endsWith('>')) {
+    return true;
+  }
+
+  final body = filter.substring(1, filter.length - 1).trim();
+  if (body.isEmpty) {
+    return true;
+  }
+
+  if (body.toLowerCase() == 'numeric') {
+    return RegExp(r'^-?\d+(\.\d+)?$').hasMatch(message.trim());
+  }
+
+  final allowed =
+      body
+          .split('/')
+          .map((entry) => entry.trim().toLowerCase())
+          .where((entry) => entry.isNotEmpty)
+          .toSet();
+  if (allowed.isEmpty) {
+    return true;
+  }
+  return allowed.contains(message.trim().toLowerCase());
+}
+
+Future<List<Map<String, dynamic>>?> _resolveLocalLegacyActionsJson({
+  required Map<String, dynamic> data,
+  required String commandName,
+  void Function(String message)? onLog,
+}) async {
+  final executionMode =
+      (data['executionMode'] ?? 'workflow').toString().trim().toLowerCase();
+  if (executionMode != 'bdfd_script') {
+    return List<Map<String, dynamic>>.from(
+      (data['actions'] as List?)?.whereType<Map>().map(
+            (entry) => Map<String, dynamic>.from(entry),
+          ) ??
+          const <Map<String, dynamic>>[],
+    );
+  }
+
+  final source = (data['bdfdScriptContent'] ?? '').toString();
+  final compileResult = BdfdCompiler().compile(source);
+  if (compileResult.hasErrors) {
+    onLog?.call(
+      'BDFD compile errors in local legacy command "$commandName": '
+      '${_formatBdfdRuntimeDiagnostics(compileResult.diagnostics)}',
+    );
+    return null;
+  }
+
+  return compileResult.actions
+      .map((action) => action.toJson())
+      .toList(growable: false);
+}
+
+Future<bool> _tryExecuteLocalAwaitedInput(
+  NyxxGateway gateway, {
+  required AppManager manager,
+  required String botId,
+  required List<Map<String, dynamic>> legacyCommands,
+  required EventExecutionContext context,
+  void Function(String message)? onLog,
+}) async {
+  final authorId =
+      (context.variables['author.id'] ?? context.variables['user.id'] ?? '')
+          .trim();
+  final channelId =
+      (context.variables['channel.id'] ?? context.channelId?.toString() ?? '')
+          .trim();
+  final messageContent = (context.variables['message.content'] ?? '').trim();
+  if (authorId.isEmpty || channelId.isEmpty || messageContent.isEmpty) {
+    return false;
+  }
+
+  final callbacks = <String, _AwaitedLocalCallbacks>{};
+  for (final command in legacyCommands) {
+    final trigger = _parseAwaitedLocalTrigger(
+      (command['name'] ?? '').toString(),
+    );
+    if (trigger == null) {
+      continue;
+    }
+
+    final current = callbacks[trigger.name] ?? const _AwaitedLocalCallbacks();
+    callbacks[trigger.name] =
+        trigger.isErrorTrigger
+            ? current.copyWith(errorCommand: command)
+            : current.copyWith(successCommand: command, filter: trigger.filter);
+  }
+
+  if (callbacks.isEmpty) {
+    return false;
+  }
+
+  for (final entry in callbacks.entries) {
+    final awaitName = entry.key;
+    final awaitKey = 'await_$awaitName';
+    final pendingRaw = await manager.getScopedVariable(
+      botId,
+      'user',
+      authorId,
+      awaitKey,
+    );
+    if (pendingRaw == null) {
+      continue;
+    }
+
+    Map<String, dynamic> pending = <String, dynamic>{};
+    if (pendingRaw is Map) {
+      pending = Map<String, dynamic>.from(pendingRaw);
+    } else {
+      final text = pendingRaw.toString();
+      try {
+        final decoded = jsonDecode(text);
+        if (decoded is Map) {
+          pending = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {
+        pending = <String, dynamic>{};
+      }
+    }
+
+    final expectedUser = (pending['userId'] ?? authorId).toString().trim();
+    final expectedChannel =
+        (pending['channelId'] ?? channelId).toString().trim();
+    if (expectedUser.isNotEmpty && expectedUser != authorId) {
+      continue;
+    }
+    if (expectedChannel.isNotEmpty && expectedChannel != channelId) {
+      continue;
+    }
+
+    final callbackSet = entry.value;
+    final passesFilter = _matchesAwaitedLocalFilter(
+      messageContent,
+      callbackSet.filter,
+    );
+    final selected =
+        passesFilter ? callbackSet.successCommand : callbackSet.errorCommand;
+    if (selected == null) {
+      return true;
+    }
+
+    final data = Map<String, dynamic>.from(
+      (selected['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final runtimeVariables = <String, String>{
+      ...context.variables,
+      'workflow.type': 'command',
+    };
+    await hydrateRuntimeVariables(
+      store: manager,
+      botId: botId,
+      runtimeVariables: runtimeVariables,
+      guildContextId:
+          context.variables['guildId'] ?? context.guildId?.toString(),
+      channelContextId: channelId,
+      userContextId: authorId,
+      messageContextId:
+          context.variables['messageId'] ?? context.variables['message.id'],
+    );
+
+    final commandName =
+        (selected['name'] ?? '').toString().trim().toLowerCase();
+    runtimeVariables['legacy.command.name'] = commandName;
+    runtimeVariables['command.type'] = 'legacy';
+    runtimeVariables['interaction.command.type'] = 'legacy';
+    runtimeVariables['config.command.type'] = 'chatInput';
+    runtimeVariables['interaction.command.name'] = commandName;
+    runtimeVariables['interaction.command.route'] = '';
+
+    final response = Map<String, dynamic>.from(
+      (data['response'] as Map?)?.cast<String, dynamic>() ?? const {},
+    );
+    final actionsJson = await _resolveLocalLegacyActionsJson(
+      data: data,
+      commandName: commandName,
+      onLog: onLog,
+    );
+    if (actionsJson != null && actionsJson.isNotEmpty) {
+      final actions = actionsJson
+          .map(
+            (entry) => Action.fromJson(
+              _adaptLocalLegacyActionForMessageCreate(entry, context),
+            ),
+          )
+          .toList(growable: false);
+      final actionResults = await handleActions(
+        gateway,
+        null,
+        actions: actions,
+        store: manager,
+        botId: botId,
+        variables: runtimeVariables,
+        resolveTemplate:
+            (input) =>
+                updateString(input, Map<String, String>.from(runtimeVariables)),
+        fallbackChannelId: context.channelId,
+        fallbackGuildId: context.guildId,
+        onLog: onLog,
+      );
+      for (final resultEntry in actionResults.entries) {
+        runtimeVariables['action.${resultEntry.key}'] = resultEntry.value;
+      }
+    }
+
+    await _sendLocalLegacyWorkflowResponse(
+      gateway,
+      context: context,
+      response: response,
+      runtimeVariables: runtimeVariables,
+      responseTarget: _localLegacyResponseTarget(data),
+    );
+
+    await manager.removeScopedVariable(botId, 'user', authorId, awaitKey);
+    onLog?.call('Awaited local callback executed: $awaitName');
+    return true;
+  }
+
+  return false;
+}
+
 String _localLegacyResponseTarget(Map<String, dynamic> data) {
   final target = (data['legacyResponseTarget'] ?? 'reply').toString().trim();
   return target == 'channelSend' ? 'channelSend' : 'reply';
@@ -1440,7 +1739,22 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     return true;
   }
 
+  final handledAwaited = await _tryExecuteLocalAwaitedInput(
+    gateway,
+    manager: manager,
+    botId: botId,
+    legacyCommands: legacyCommands,
+    context: context,
+    onLog: onLog,
+  );
+  if (handledAwaited) {
+    return true;
+  }
+
   for (final command in legacyCommands) {
+    if (_parseAwaitedLocalTrigger((command['name'] ?? '').toString()) != null) {
+      continue;
+    }
     final data = Map<String, dynamic>.from(
       (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
@@ -1522,13 +1836,25 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     final response = Map<String, dynamic>.from(
       (data['response'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
+    final actionsJson = await _resolveLocalLegacyActionsJson(
+      data: data,
+      commandName: commandName,
+      onLog: onLog,
+    );
+    if (actionsJson == null) {
+      await _sendLocalLegacyMessage(
+        gateway,
+        context: context,
+        content: 'Failed to compile BDFD script for command "$commandName".',
+        embeds: const <EmbedBuilder>[],
+        asReply: responseTarget == 'reply',
+      );
+      return true;
+    }
     final actions = List<Action>.from(
-      ((data['actions'] as List?) ?? const <dynamic>[]).whereType<Map>().map(
+      actionsJson.map(
         (entry) => Action.fromJson(
-          _adaptLocalLegacyActionForMessageCreate(
-            Map<String, dynamic>.from(entry),
-            context,
-          ),
+          _adaptLocalLegacyActionForMessageCreate(entry, context),
         ),
       ),
     );

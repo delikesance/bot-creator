@@ -151,6 +151,139 @@ Future<Guild?> _fetchGuildCached(dynamic client, Snowflake guildId) async {
   );
 }
 
+Map<String, String> extractMemberRuntimeDetails({
+  required dynamic member,
+  required dynamic guild,
+  required String guildId,
+}) {
+  if (member == null || guild == null || guildId.trim().isEmpty) {
+    return const <String, String>{};
+  }
+
+  final roleIds = <String>{};
+  try {
+    final dynamic roleIdsRaw = member.roleIds;
+    if (roleIdsRaw is Iterable) {
+      for (final roleId in roleIdsRaw) {
+        final asSnowflake = _asSnowflake(roleId);
+        final value = (asSnowflake ?? roleId).toString().trim();
+        if (value.isNotEmpty) {
+          roleIds.add(value);
+        }
+      }
+    }
+  } catch (_) {
+    return const <String, String>{};
+  }
+
+  var mask = 0;
+  try {
+    final dynamic roleListRaw = guild.roleList;
+    if (roleListRaw is Iterable) {
+      for (final role in roleListRaw) {
+        final roleIdValue =
+            (_asSnowflake((role as dynamic).id) ?? role.id).toString().trim();
+        if (!roleIds.contains(roleIdValue) && roleIdValue != guildId.trim()) {
+          continue;
+        }
+
+        final dynamic permsRaw = role.permissions;
+        final int permValue;
+        if (permsRaw is Permissions) {
+          permValue = permsRaw.value;
+        } else {
+          permValue = int.tryParse(permsRaw.value.toString()) ?? 0;
+        }
+        mask |= permValue;
+      }
+    }
+  } catch (_) {
+    return const <String, String>{};
+  }
+
+  final permissions = Permissions(mask);
+  final tokens = _permissionTokensFromPermissions(permissions);
+  return <String, String>{
+    'member.isAdmin': permissions.isAdministrator ? 'true' : 'false',
+    'member.permissions': tokens.join(','),
+    'interaction.member.isAdmin':
+        permissions.isAdministrator ? 'true' : 'false',
+    'interaction.member.permissions': tokens.join(','),
+  };
+}
+
+List<String> _permissionTokensFromPermissions(Permissions permissions) {
+  final tokens = <String>[];
+  for (final entry in _permissionTokenFlags) {
+    if (permissions.has(entry.key)) {
+      tokens.add(entry.value);
+    }
+  }
+  return tokens;
+}
+
+Map<String, String> extractPermissionsByIdRuntimeDetails({
+  required String userId,
+  required Map<String, String> memberDetails,
+}) {
+  final trimmedUserId = userId.trim();
+  if (trimmedUserId.isEmpty) {
+    return const <String, String>{};
+  }
+
+  final permissions = (memberDetails['member.permissions'] ?? '').trim();
+  final isAdmin = (memberDetails['member.isAdmin'] ?? 'false').trim();
+  return <String, String>{
+    'permissions.byId.$trimmedUserId': permissions,
+    'isAdmin.byId.$trimmedUserId': isAdmin,
+  };
+}
+
+final List<MapEntry<Flag<Permissions>, String>> _permissionTokenFlags =
+    <MapEntry<Flag<Permissions>, String>>[
+      MapEntry(Permissions.addReactions, 'addreactions'),
+      MapEntry(Permissions.administrator, 'administrator'),
+      MapEntry(Permissions.attachFiles, 'attachfiles'),
+      MapEntry(Permissions.banMembers, 'banmembers'),
+      MapEntry(Permissions.changeNickname, 'changenickname'),
+      MapEntry(Permissions.connect, 'connect'),
+      MapEntry(Permissions.createInstantInvite, 'createinstantinvite'),
+      MapEntry(Permissions.createPrivateThreads, 'createprivatethreads'),
+      MapEntry(Permissions.createPublicThreads, 'createpublicthreads'),
+      MapEntry(Permissions.deafenMembers, 'deafenmembers'),
+      MapEntry(Permissions.embedLinks, 'embedlinks'),
+      MapEntry(Permissions.kickMembers, 'kickmembers'),
+      MapEntry(Permissions.manageChannels, 'managechannels'),
+      MapEntry(Permissions.manageEvents, 'manageevents'),
+      MapEntry(Permissions.manageGuild, 'manageguild'),
+      MapEntry(Permissions.manageGuildExpressions, 'manageguildexpressions'),
+      MapEntry(Permissions.manageMessages, 'managemessages'),
+      MapEntry(Permissions.manageNicknames, 'managenicknames'),
+      MapEntry(Permissions.manageRoles, 'manageroles'),
+      MapEntry(Permissions.manageThreads, 'managethreads'),
+      MapEntry(Permissions.manageWebhooks, 'managewebhooks'),
+      MapEntry(Permissions.mentionEveryone, 'mentioneveryone'),
+      MapEntry(Permissions.moderateMembers, 'moderatemembers'),
+      MapEntry(Permissions.moveMembers, 'movemembers'),
+      MapEntry(Permissions.muteMembers, 'mutemembers'),
+      MapEntry(Permissions.prioritySpeaker, 'priorityspeaker'),
+      MapEntry(Permissions.readMessageHistory, 'readmessagehistory'),
+      MapEntry(Permissions.requestToSpeak, 'requesttospeak'),
+      MapEntry(Permissions.sendMessages, 'sendmessages'),
+      MapEntry(Permissions.sendMessagesInThreads, 'sendmessagesinthreads'),
+      MapEntry(Permissions.sendTtsMessages, 'sendttsmessages'),
+      MapEntry(Permissions.sendVoiceMessages, 'sendvoicemessages'),
+      MapEntry(Permissions.speak, 'speak'),
+      MapEntry(Permissions.stream, 'stream'),
+      MapEntry(Permissions.useApplicationCommands, 'useapplicationcommands'),
+      MapEntry(Permissions.useExternalEmojis, 'useexternalemojis'),
+      MapEntry(Permissions.useExternalStickers, 'useexternalstickers'),
+      MapEntry(Permissions.useSoundboard, 'usesoundboard'),
+      MapEntry(Permissions.viewAuditLog, 'viewauditlog'),
+      MapEntry(Permissions.viewChannel, 'viewchannel'),
+      MapEntry(Permissions.viewGuildInsights, 'viewguildinsights'),
+    ];
+
 Future<Channel?> _fetchChannelCached(
   dynamic client,
   Snowflake channelId,
@@ -480,6 +613,18 @@ Future<Map<String, String>> generateKeyValues(
   };
   listOfArgs.addAll(extractChannelRuntimeDetails(channel));
   listOfArgs.addAll(extractGuildRuntimeDetails(guild));
+  final invokingMemberDetails = extractMemberRuntimeDetails(
+    member: user,
+    guild: guild,
+    guildId: guildIdText,
+  );
+  listOfArgs.addAll(invokingMemberDetails);
+  listOfArgs.addAll(
+    extractPermissionsByIdRuntimeDetails(
+      userId: invokingUserIdText,
+      memberDetails: invokingMemberDetails,
+    ),
+  );
   final command = interaction.data;
   listOfArgs["commandName"] = command.name;
   listOfArgs["commandId"] = command.id.toString();
@@ -633,13 +778,47 @@ Future<Map<String, String>> generateKeyValuesFromInteractionOption(
     case CommandOptionType.user:
       final userId = Snowflake(int.parse(value.value.toString()));
       final user = await _fetchUserCached(client, userId);
-      if (user == null) {
-        return {
-          value.name: value.value.toString(),
-          "${value.name}.id": userId.toString(),
-        };
+      final optionResult = <String, String>{
+        value.name: user?.username ?? value.value.toString(),
+        "${value.name}.id": userId.toString(),
+      };
+
+      final resolvedGuildId =
+          _asSnowflake((interaction as dynamic).guildId) ??
+          interaction.guild?.id;
+      if (resolvedGuildId != null) {
+        final guild = await _fetchGuildCached(
+          interaction.manager.client,
+          resolvedGuildId,
+        );
+        final member = await _fetchMemberCached(
+          interaction,
+          guildId: resolvedGuildId,
+          userId: userId,
+        );
+        if (guild != null && member != null) {
+          final memberDetails = extractMemberRuntimeDetails(
+            member: member,
+            guild: guild,
+            guildId: resolvedGuildId.toString(),
+          );
+          optionResult["${value.name}.permissions"] =
+              memberDetails['member.permissions'] ?? '';
+          optionResult["${value.name}.isAdmin"] =
+              memberDetails['member.isAdmin'] ?? 'false';
+          optionResult.addAll(
+            extractPermissionsByIdRuntimeDetails(
+              userId: userId.toString(),
+              memberDetails: memberDetails,
+            ),
+          );
+        }
       }
-      return {
+
+      if (user == null) {
+        return optionResult;
+      }
+      optionResult.addAll({
         value.name: user.username,
         "${value.name}.id": user.id.toString(),
         "${value.name}.username": user.username,
@@ -657,7 +836,8 @@ Future<Map<String, String>> generateKeyValuesFromInteractionOption(
           isAnimated: (user as dynamic).banner?.isAnimated == true,
           legacyFormat: "webp",
         ),
-      };
+      });
+      return optionResult;
     case CommandOptionType.channel:
       final channelId = Snowflake(int.parse(value.value.toString()));
       final channel = await _fetchChannelCached(client, channelId);

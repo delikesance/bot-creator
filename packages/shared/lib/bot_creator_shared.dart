@@ -1,6 +1,11 @@
 export 'package:bot_creator_shared/types/action.dart';
 export 'package:bot_creator_shared/types/component.dart';
 export 'package:bot_creator_shared/utils/template_resolver.dart';
+export 'package:bot_creator_shared/utils/bdfd_lexer.dart';
+export 'package:bot_creator_shared/utils/bdfd_ast.dart';
+export 'package:bot_creator_shared/utils/bdfd_parser.dart';
+export 'package:bot_creator_shared/utils/bdfd_ast_transpiler.dart';
+export 'package:bot_creator_shared/utils/bdfd_compiler.dart';
 export 'package:bot_creator_shared/utils/workflow_call.dart';
 export 'package:bot_creator_shared/utils/interaction_listener_registry.dart';
 export 'package:bot_creator_shared/utils/global.dart';

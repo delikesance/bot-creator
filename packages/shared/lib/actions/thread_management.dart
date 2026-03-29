@@ -104,3 +104,130 @@ Future<Map<String, String>> createThreadAction(
     return {'error': 'Failed to create thread: $e'};
   }
 }
+
+bool? _toBool(dynamic value) {
+  final text = value?.toString().trim().toLowerCase() ?? '';
+  if (text.isEmpty || text == '!unchanged') {
+    return null;
+  }
+  if (text == 'true' || text == 'yes' || text == '1' || text == 'on') {
+    return true;
+  }
+  if (text == 'false' || text == 'no' || text == '0' || text == 'off') {
+    return false;
+  }
+  return null;
+}
+
+int? _toArchiveMinutes(dynamic value) {
+  final parsed = int.tryParse(value?.toString().trim() ?? '');
+  if (parsed == null) {
+    return null;
+  }
+  const allowed = <int>[60, 1440, 4320, 10080];
+  return allowed.reduce(
+    (prev, curr) => (curr - parsed).abs() < (prev - parsed).abs() ? curr : prev,
+  );
+}
+
+int? _toInt(dynamic value) {
+  return int.tryParse(value?.toString().trim() ?? '');
+}
+
+Future<Map<String, String>> editThreadAction(
+  NyxxGateway client, {
+  required Map<String, dynamic> payload,
+  required String Function(String) resolve,
+}) async {
+  try {
+    final threadId = _toSnowflake(
+      resolve((payload['threadId'] ?? '').toString()),
+    );
+    if (threadId == null) {
+      return {'error': 'threadId is required for editThread'};
+    }
+
+    final channel = await client.channels.get(threadId);
+    if (channel is! Thread) {
+      return {'error': 'Provided channel is not a thread'};
+    }
+
+    final name = resolve((payload['name'] ?? '').toString()).trim();
+    final archived = _toBool(resolve((payload['archived'] ?? '').toString()));
+    final locked = _toBool(resolve((payload['locked'] ?? '').toString()));
+    final archiveMinutes = _toArchiveMinutes(
+      resolve((payload['autoArchiveDuration'] ?? '').toString()),
+    );
+    final slowmode = _toInt(resolve((payload['slowmode'] ?? '').toString()));
+    final builder = ThreadUpdateBuilder(
+      name: name.isEmpty || name == '!unchanged' ? null : name,
+      isArchived: archived,
+      autoArchiveDuration:
+          archiveMinutes == null ? null : Duration(minutes: archiveMinutes),
+      isLocked: locked,
+    );
+    if (slowmode != null && slowmode >= 0) {
+      builder.rateLimitPerUser = Duration(seconds: slowmode);
+    }
+
+    await channel.update(builder);
+
+    return {'threadId': threadId.toString(), 'status': 'updated'};
+  } catch (e) {
+    return {'error': 'Failed to edit thread: $e'};
+  }
+}
+
+Future<Map<String, String>> addThreadMemberAction(
+  NyxxGateway client, {
+  required Map<String, dynamic> payload,
+  required String Function(String) resolve,
+}) async {
+  try {
+    final threadId = _toSnowflake(
+      resolve((payload['threadId'] ?? '').toString()),
+    );
+    final userId = _toSnowflake(resolve((payload['userId'] ?? '').toString()));
+    if (threadId == null || userId == null) {
+      return {'error': 'threadId and userId are required for threadAddMember'};
+    }
+
+    final channel = await client.channels.get(threadId);
+    if (channel is! Thread) {
+      return {'error': 'Provided channel is not a thread'};
+    }
+
+    await channel.addThreadMember(userId);
+    return {'threadId': threadId.toString(), 'userId': userId.toString()};
+  } catch (e) {
+    return {'error': 'Failed to add thread member: $e'};
+  }
+}
+
+Future<Map<String, String>> removeThreadMemberAction(
+  NyxxGateway client, {
+  required Map<String, dynamic> payload,
+  required String Function(String) resolve,
+}) async {
+  try {
+    final threadId = _toSnowflake(
+      resolve((payload['threadId'] ?? '').toString()),
+    );
+    final userId = _toSnowflake(resolve((payload['userId'] ?? '').toString()));
+    if (threadId == null || userId == null) {
+      return {
+        'error': 'threadId and userId are required for threadRemoveMember',
+      };
+    }
+
+    final channel = await client.channels.get(threadId);
+    if (channel is! Thread) {
+      return {'error': 'Provided channel is not a thread'};
+    }
+
+    await channel.removeThreadMember(userId);
+    return {'threadId': threadId.toString(), 'userId': userId.toString()};
+  } catch (e) {
+    return {'error': 'Failed to remove thread member: $e'};
+  }
+}

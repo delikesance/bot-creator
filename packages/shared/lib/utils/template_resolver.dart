@@ -277,6 +277,63 @@ String _unescapeStringLiteral(String body) {
   return buffer.toString();
 }
 
+String _toTitleCase(String input) {
+  if (input.isEmpty) {
+    return '';
+  }
+
+  final lower = input.toLowerCase();
+  final buffer = StringBuffer();
+  var shouldUppercaseNext = true;
+
+  for (final rune in lower.runes) {
+    final char = String.fromCharCode(rune);
+    final isLetterOrDigit = RegExp(r'[a-z0-9]').hasMatch(char);
+    if (!isLetterOrDigit) {
+      shouldUppercaseNext = true;
+      buffer.write(char);
+      continue;
+    }
+
+    if (shouldUppercaseNext) {
+      buffer.write(char.toUpperCase());
+      shouldUppercaseNext = false;
+    } else {
+      buffer.write(char);
+    }
+  }
+
+  return buffer.toString();
+}
+
+int _countLines(String input) {
+  if (input.isEmpty) {
+    return 0;
+  }
+  return input.replaceAll('\r\n', '\n').split('\n').length;
+}
+
+String _formatNumberWithSeparator(num value, String separator) {
+  final parts = value.toString().split('.');
+  final integerPart = parts[0];
+  final decimalPart = parts.length > 1 ? parts[1] : '';
+
+  final sign = integerPart.startsWith('-') ? '-' : '';
+  final digits = sign.isEmpty ? integerPart : integerPart.substring(1);
+  final grouped = <String>[];
+
+  for (var i = digits.length; i > 0; i -= 3) {
+    final start = (i - 3).clamp(0, digits.length);
+    grouped.add(digits.substring(start, i));
+  }
+
+  final joined = grouped.reversed.join(separator);
+  if (decimalPart.isEmpty) {
+    return '$sign$joined';
+  }
+  return '$sign$joined.$decimalPart';
+}
+
 bool _isWrappedStringLiteral(String input) {
   if (input.length < 2) {
     return false;
@@ -500,14 +557,23 @@ dynamic _applyFunction(
 ) {
   final name = rawName.trim().toLowerCase();
   switch (name) {
+    case 'titlecase':
+    case 'totitlecase':
+    case 'title':
+      if (args.isEmpty) {
+        return null;
+      }
+      return _toTitleCase(_stringifyResolvedValue(args.first));
     case 'lower':
     case 'lowercase':
+    case 'tolowercase':
       if (args.isEmpty) {
         return null;
       }
       return _stringifyResolvedValue(args.first).toLowerCase();
     case 'upper':
     case 'uppercase':
+    case 'touppercase':
       if (args.isEmpty) {
         return null;
       }
@@ -533,6 +599,8 @@ dynamic _applyFunction(
       final needle = _stringifyResolvedValue(args[1]).toLowerCase();
       return haystack.contains(needle) ? 'true' : '';
     case 'length':
+    case 'charcount':
+    case 'charcounts':
       if (args.isEmpty) {
         return null;
       }
@@ -541,6 +609,38 @@ dynamic _applyFunction(
         return value.length;
       }
       return null;
+    case 'linescount':
+      if (args.isEmpty) {
+        return null;
+      }
+      return _countLines(_stringifyResolvedValue(args.first));
+    case 'numberseparator':
+      if (args.isEmpty) {
+        return null;
+      }
+      final value = _coerceNum(args.first);
+      if (value == null) {
+        return null;
+      }
+      final separator =
+          args.length >= 2 ? _stringifyResolvedValue(args[1]) : ',';
+      return _formatNumberWithSeparator(value, separator);
+    case 'split':
+      if (args.length < 2) {
+        return null;
+      }
+      final source = _stringifyResolvedValue(args[0]);
+      final separator = _stringifyResolvedValue(args[1]);
+      final parts =
+          separator.isEmpty ? source.split('') : source.split(separator);
+      if (args.length < 3) {
+        return parts;
+      }
+      final index = _coerceInt(args[2]);
+      if (index == null || index < 0 || index >= parts.length) {
+        return null;
+      }
+      return parts[index];
     case 'at':
       if (args.length < 2) {
         return null;
@@ -573,6 +673,8 @@ dynamic _applyFunction(
       }
       return source.last;
     case 'slice':
+    case 'crop':
+    case 'croptext':
       if (args.length < 2) {
         return null;
       }
@@ -580,6 +682,24 @@ dynamic _applyFunction(
       if (start == null) {
         return null;
       }
+
+      if (name == 'crop' || name == 'croptext') {
+        final source = _stringifyResolvedValue(args[0]);
+        final maxLength = start;
+        if (maxLength < 0) {
+          return null;
+        }
+        final suffix =
+            args.length >= 3 ? _stringifyResolvedValue(args[2]) : '...';
+        if (source.length <= maxLength) {
+          return source;
+        }
+        if (maxLength == 0) {
+          return '';
+        }
+        return source.substring(0, maxLength) + suffix;
+      }
+
       final end = args.length >= 3 ? _coerceInt(args[2]) : null;
 
       final sourceList = _coerceList(args[0]);

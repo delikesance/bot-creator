@@ -39,6 +39,8 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
       'version': 1,
       'commandType': _commandTypeToText(_commandType),
       'editorMode': _editorMode,
+      'executionMode': _executionMode,
+      'bdfdScriptContent': _bdfdScriptController.text,
       'legacyModeEnabled': _legacyModeEnabled,
       'legacyLocalOnly': _legacyOnlyLocalCommand,
       'legacyPrefixOverride': _legacyPrefixOverride.trim(),
@@ -427,6 +429,12 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
       _commandName = (commandRoot['name'] ?? '').toString();
       _commandDescription = (commandRoot['description'] ?? '').toString();
       _commandType = importedType ?? ApplicationCommandType.chatInput;
+      _executionMode = _normalizeExecutionMode(
+        normalizedPayload['executionMode'],
+      );
+      _bdfdScriptContent =
+          (normalizedPayload['bdfdScriptContent'] ?? '').toString();
+      _bdfdScriptController.text = _bdfdScriptContent;
 
       final persistedEditorMode =
           (normalizedPayload['editorMode'] ??

@@ -104,11 +104,133 @@ Future<void> handleLocalCommands(
               ? null
               : resolveSubcommandWorkflowPayload(value, subcommandRoute);
       final executionValue = routePayload ?? value;
+      final executionMode =
+          (value['executionMode'] ?? 'workflow')
+              .toString()
+              .trim()
+              .toLowerCase();
 
       appendBotDebugLog(
         'Resolved command route=${subcommandRoute ?? '(none)'} payloadFound=${routePayload != null}',
         botId: clientId,
       );
+
+      if (executionMode == 'bdfd_script') {
+        final scriptSource =
+            (executionValue['bdfdScriptContent'] ??
+                    value['bdfdScriptContent'] ??
+                    '')
+                .toString();
+        final compileResult = BdfdCompiler().compile(scriptSource);
+
+        if (compileResult.hasErrors) {
+          await sendWorkflowResponse(
+            interaction: interaction,
+            response: {
+              'type': 'normal',
+              'text': _formatBdfdRuntimeDiagnostics(compileResult.diagnostics),
+              'embeds': const <Map<String, dynamic>>[],
+              'components': const <String, dynamic>{},
+              'modal': const <String, dynamic>{},
+              'workflow': const {
+                'visibility': 'ephemeral',
+                'conditional': {'enabled': false},
+              },
+            },
+            runtimeVariables: runtimeVariables,
+            botId: clientId,
+            isEphemeral: true,
+            onLog:
+                (msg, {required botId}) async =>
+                    appendBotLog(msg, botId: botId),
+            onDebugLog:
+                (msg, {required botId}) async =>
+                    appendBotDebugLog(msg, botId: botId),
+          );
+          return;
+        }
+
+        if (compileResult.actions.isEmpty) {
+          await sendWorkflowResponse(
+            interaction: interaction,
+            response: {
+              'type': 'normal',
+              'text':
+                  'This BDFD script compiled successfully but did not produce any action.',
+              'embeds': const <Map<String, dynamic>>[],
+              'components': const <String, dynamic>{},
+              'modal': const <String, dynamic>{},
+              'workflow': const {
+                'visibility': 'ephemeral',
+                'conditional': {'enabled': false},
+              },
+            },
+            runtimeVariables: runtimeVariables,
+            botId: clientId,
+            isEphemeral: true,
+            onLog:
+                (msg, {required botId}) async =>
+                    appendBotLog(msg, botId: botId),
+            onDebugLog:
+                (msg, {required botId}) async =>
+                    appendBotDebugLog(msg, botId: botId),
+          );
+          return;
+        }
+
+        try {
+          final actionResults = await handleActions(
+            event.gateway.client,
+            interaction,
+            actions: compileResult.actions,
+            store: manager,
+            botId: clientId,
+            variables: runtimeVariables,
+            resolveTemplate:
+                (input) => updateString(
+                  input,
+                  Map<String, String>.from(runtimeVariables),
+                ),
+            onLog: (msg) {
+              appendBotLog(msg, botId: clientId);
+              unawaited(_emitTaskLogToMain(msg, botId: clientId));
+            },
+          );
+          for (final entry in actionResults.entries) {
+            runtimeVariables['action.${entry.key}'] = entry.value;
+          }
+        } catch (e, st) {
+          appendBotDebugLog(
+            'Error executing BDFD actions: $e',
+            botId: clientId,
+          );
+          appendBotDebugLog('Stack: $st', botId: clientId);
+          await sendWorkflowResponse(
+            interaction: interaction,
+            response: {
+              'type': 'normal',
+              'text': 'An error occurred while executing this BDFD script.',
+              'embeds': const <Map<String, dynamic>>[],
+              'components': const <String, dynamic>{},
+              'modal': const <String, dynamic>{},
+              'workflow': const {
+                'visibility': 'ephemeral',
+                'conditional': {'enabled': false},
+              },
+            },
+            runtimeVariables: runtimeVariables,
+            botId: clientId,
+            isEphemeral: true,
+            onLog:
+                (msg, {required botId}) async =>
+                    appendBotLog(msg, botId: botId),
+            onDebugLog:
+                (msg, {required botId}) async =>
+                    appendBotDebugLog(msg, botId: botId),
+          );
+        }
+        return;
+      }
 
       final response = Map<String, dynamic>.from(
         (executionValue["response"] as Map?)?.cast<String, dynamic>() ??

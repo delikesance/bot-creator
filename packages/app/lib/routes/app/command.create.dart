@@ -12,6 +12,7 @@ import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/command_variable_catalog.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/simple_mode.dart';
+import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:bot_creator/widgets/command_create_cards/basic_info_card.dart';
 import 'package:bot_creator/widgets/command_create_cards/reply_card.dart';
@@ -50,6 +51,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   static const Uuid _uuid = Uuid();
   static const String _editorModeSimple = 'simple';
   static const String _editorModeAdvanced = 'advanced';
+  static const String _executionModeWorkflow = 'workflow';
+  static const String _executionModeBdfdScript = 'bdfd_script';
   static const String _rootWorkflowRoute = '__root__';
 
   String _commandName = "";
@@ -88,6 +91,102 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   List<InteractionContextType> _contexts = [InteractionContextType.guild];
   String _defaultMemberPermissions = '';
   String _editorMode = _editorModeSimple;
+  String _executionMode = _executionModeWorkflow;
+  String _bdfdScriptContent = '';
+  final TextEditingController _bdfdScriptController = TextEditingController();
+  final BdfdCompiler _bdfdCompiler = BdfdCompiler();
+  BdfdCompileResult? _bdfdCompileResult;
+  static final RegExp _bdfdIdentifierChar = RegExp(r'[A-Za-z0-9_]');
+  static const Map<String, String> _bdfdAutocompleteTemplates = {
+    'nomention': r'$nomention',
+    'reply': r'$reply[]',
+    'sendmessage': r'$sendMessage[]',
+    'title': r'$title[]',
+    'description': r'$description[]',
+    'color': r'$color[]',
+    'footer': r'$footer[]',
+    'thumbnail': r'$thumbnail[]',
+    'image': r'$image[]',
+    'author': r'$author[]',
+    'addfield': r'$addField[]',
+    'if': r'$if[]',
+    'onlyif': r'$onlyIf[]',
+    'onlyperms': r'$onlyPerms[]',
+    'onlybotperms': r'$onlyBotPerms[]',
+    'onlybotchannelperms': r'$onlyBotChannelPerms[]',
+    'onlyadmin': r'$onlyAdmin[]',
+    'checkuserperms': r'$checkUserPerms[]',
+    'onlyforusers': r'$onlyForUsers[]',
+    'onlyforids': r'$onlyForIDs[]',
+    'onlyforchannels': r'$onlyForChannels[]',
+    'onlyforroles': r'$onlyForRoles[]',
+    'onlyforroleids': r'$onlyForRoleIDs[]',
+    'onlyforservers': r'$onlyForServers[]',
+    'onlyforcategories': r'$onlyForCategories[]',
+    'ignorechannels': r'$ignoreChannels[]',
+    'onlynsfw': r'$onlyNSFW[]',
+    'onlyifmessagecontains': r'$onlyIfMessageContains[]',
+    'elseif': r'$elseif[]',
+    'else': r'$else',
+    'endif': r'$endif',
+    'and': r'$and[]',
+    'or': r'$or[]',
+    'stop': r'$stop',
+    'jsonparse': r'$jsonParse[]',
+    'json': r'$json[]',
+    'jsonset': r'$jsonSet[]',
+    'jsonsetstring': r'$jsonSetString[]',
+    'jsonunset': r'$jsonUnset[]',
+    'jsonclear': r'$jsonClear',
+    'jsonexists': r'$jsonExists[]',
+    'jsonstringify': r'$jsonStringify',
+    'jsonpretty': r'$jsonPretty[]',
+    'jsonarray': r'$jsonArray[]',
+    'jsonarraycount': r'$jsonArrayCount[]',
+    'jsonarrayindex': r'$jsonArrayIndex[]',
+    'jsonarrayappend': r'$jsonArrayAppend[]',
+    'jsonarraypop': r'$jsonArrayPop[]',
+    'jsonarrayshift': r'$jsonArrayShift[]',
+    'jsonarrayunshift': r'$jsonArrayUnshift[]',
+    'jsonarraysort': r'$jsonArraySort[]',
+    'jsonarrayreverse': r'$jsonArrayReverse[]',
+    'jsonjoinarray': r'$jsonJoinArray[]',
+    'startthread': r'$startThread[]',
+    'editthread': r'$editThread[]',
+    'threadaddmember': r'$threadAddMember[]',
+    'threadremovemember': r'$threadRemoveMember[]',
+    'httpaddheader': r'$httpAddHeader[]',
+    'httpget': r'$httpGet[]',
+    'httppost': r'$httpPost[]',
+    'httpput': r'$httpPut[]',
+    'httpdelete': r'$httpDelete[]',
+    'httppatch': r'$httpPatch[]',
+    'httpstatus': r'$httpStatus',
+    'httpresult': r'$httpResult[]',
+    'awaitfunc': r'$awaitFunc[]',
+    'setuservar': r'$setUserVar[]',
+    'setservervar': r'$setServerVar[]',
+    'setchannelvar': r'$setChannelVar[]',
+    'setmembervar': r'$setMemberVar[]',
+    'setmessagevar': r'$setMessageVar[]',
+    'getuservar': r'$getUserVar[]',
+    'getservervar': r'$getServerVar[]',
+    'getchannelvar': r'$getChannelVar[]',
+    'getmembervar': r'$getMemberVar[]',
+    'getmessagevar': r'$getMessageVar[]',
+    'userid': r'$userID',
+    'username': r'$username',
+    'usertag': r'$userTag',
+    'authorid': r'$authorID',
+    'authorusername': r'$authorUsername',
+    'authortag': r'$authorTag',
+    'guildid': r'$guildID',
+    'guildname': r'$guildName',
+    'channelid': r'$channelID',
+    'channelname': r'$channelName',
+    'commandname': r'$commandName',
+    'commandtype': r'$commandType',
+  };
   bool _legacyModeEnabled = false;
   bool _legacyOnlyLocalCommand = false;
   String _legacyPrefixOverride = '';
@@ -157,6 +256,129 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   }
 
   bool get _isSimpleMode => _editorMode == _editorModeSimple;
+
+  bool get _isBdfdScriptMode => _executionMode == _executionModeBdfdScript;
+
+  List<BdfdCompileDiagnostic> get _bdfdDiagnostics =>
+      _bdfdCompileResult?.diagnostics ?? const <BdfdCompileDiagnostic>[];
+
+  bool get _hasBdfdCompileErrors => _bdfdDiagnostics.any(
+    (diagnostic) => diagnostic.severity == BdfdCompileDiagnosticSeverity.error,
+  );
+
+  String _normalizeExecutionMode(Object? raw) {
+    final value =
+        (raw ?? _executionModeWorkflow).toString().trim().toLowerCase();
+    return value == _executionModeBdfdScript
+        ? _executionModeBdfdScript
+        : _executionModeWorkflow;
+  }
+
+  void _refreshBdfdCompileResult({bool notify = true}) {
+    final source = _bdfdScriptController.text;
+    final nextResult = _bdfdCompiler.compile(source);
+    if (!notify || !mounted) {
+      _bdfdScriptContent = source;
+      _bdfdCompileResult = nextResult;
+      return;
+    }
+
+    _applyStateUpdate(() {
+      _bdfdScriptContent = source;
+      _bdfdCompileResult = nextResult;
+    });
+  }
+
+  String _formatBdfdDiagnostic(BdfdCompileDiagnostic diagnostic) {
+    final location =
+        (diagnostic.line != null && diagnostic.column != null)
+            ? 'L${diagnostic.line}:C${diagnostic.column} '
+            : '';
+    return '$location${diagnostic.message}';
+  }
+
+  String _buildBdfdValidationMessage() {
+    final errorDiagnostics = _bdfdDiagnostics
+        .where(
+          (diagnostic) =>
+              diagnostic.severity == BdfdCompileDiagnosticSeverity.error,
+        )
+        .take(5)
+        .map(_formatBdfdDiagnostic)
+        .join('\n');
+    if (errorDiagnostics.isEmpty) {
+      return AppStrings.t('cmd_bdfd_script_empty_error');
+    }
+    return '${AppStrings.t('cmd_bdfd_script_validation_error')}\n\n$errorDiagnostics';
+  }
+
+  int _findBdfdPrefixStart(String text, int caretOffset) {
+    if (caretOffset <= 0 || caretOffset > text.length) {
+      return -1;
+    }
+
+    var index = caretOffset - 1;
+    while (index >= 0) {
+      final char = text[index];
+      if (_bdfdIdentifierChar.hasMatch(char)) {
+        index -= 1;
+        continue;
+      }
+      if (char == r'$') {
+        return index;
+      }
+      return -1;
+    }
+
+    return -1;
+  }
+
+  String? get _activeBdfdPrefix {
+    final text = _bdfdScriptController.text;
+    final selection = _bdfdScriptController.selection;
+    final caret =
+        selection.isValid
+            ? selection.baseOffset
+            : _bdfdScriptController.text.length;
+    final start = _findBdfdPrefixStart(text, caret);
+    if (start < 0) {
+      return null;
+    }
+    return text.substring(start + 1, caret).toLowerCase();
+  }
+
+  List<MapEntry<String, String>> get _bdfdAutocompleteEntries {
+    final prefix = _activeBdfdPrefix;
+    if (prefix == null) {
+      return const <MapEntry<String, String>>[];
+    }
+
+    final matches = _bdfdAutocompleteTemplates.entries
+      .where((entry) => entry.key.startsWith(prefix))
+      .toList(growable: false)..sort((a, b) => a.key.compareTo(b.key));
+    return matches.take(10).toList(growable: false);
+  }
+
+  void _insertBdfdAutocompleteTemplate(String template) {
+    final text = _bdfdScriptController.text;
+    final selection = _bdfdScriptController.selection;
+    final caret = selection.isValid ? selection.baseOffset : text.length;
+    final start = _findBdfdPrefixStart(text, caret);
+    if (start < 0) {
+      return;
+    }
+
+    final replaced = text.replaceRange(start, caret, template);
+    final bracketIndex = template.indexOf('[]');
+    final nextOffset =
+        bracketIndex >= 0 ? start + bracketIndex + 1 : start + template.length;
+
+    _bdfdScriptController.value = TextEditingValue(
+      text: replaced,
+      selection: TextSelection.collapsed(offset: nextOffset),
+    );
+    _refreshBdfdCompileResult();
+  }
 
   bool get _supportsCommandDescription =>
       _commandType == ApplicationCommandType.chatInput;
@@ -652,6 +874,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     if (!_supportsCommandOptions) {
       return <CommandOptionBuilder>[];
     }
+    if (_isBdfdScriptMode) {
+      return _options;
+    }
     return _isSimpleMode ? _buildSimpleModeOptions() : _options;
   }
 
@@ -688,6 +913,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   void initState() {
     super.initState();
     _responseController.text = _response;
+    _bdfdScriptController.text = _bdfdScriptContent;
+    _refreshBdfdCompileResult(notify: false);
     _responseController.addListener(() {
       _response = _responseController.text;
       if (!_isApplyingWorkflowPayload) {
@@ -704,6 +931,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   @override
   void dispose() {
     _responseController.dispose();
+    _bdfdScriptController.dispose();
     _simpleSendMessageController.dispose();
     _simpleActionReasonController.dispose();
     _simpleMuteDurationController.dispose();
@@ -731,6 +959,41 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             (_) => const WorkflowDocumentationPage(
               initialSearch: 'commandType target opts template variables',
             ),
+      ),
+    );
+  }
+
+  Widget _buildCommandOptionsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Command Options',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _legacyModeEnabled
+                  ? 'Legacy positional parameters (ordered: required then optional)'
+                  : 'Slash-command parameters',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            OptionWidget(
+              initialOptions: _options,
+              botIdForConfig: _botIdForConfig,
+              variableSuggestions: _actionVariableSuggestions,
+              onChange: (options) {
+                setState(() {
+                  _applyOptionsUpdate(options);
+                });
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -796,6 +1059,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       final normalizedData = Map<String, dynamic>.from(
         normalized['data'] ?? const {},
       );
+      final executionMode = _normalizeExecutionMode(
+        normalizedData['executionMode'],
+      );
       final persistedEditorMode =
           (normalizedData['editorMode'] ?? _editorModeAdvanced)
               .toString()
@@ -852,6 +1118,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         );
         _commandType = savedType ?? _commandType;
         _editorMode = editorMode;
+        _executionMode = executionMode;
+        _bdfdScriptContent =
+            (normalizedData['bdfdScriptContent'] ?? '').toString();
+        _bdfdScriptController.text = _bdfdScriptContent;
+        _bdfdCompileResult = _bdfdCompiler.compile(_bdfdScriptContent);
         _legacyModeEnabled = normalizedData['legacyModeEnabled'] == true;
         _legacyOnlyLocalCommand = normalizedData['legacyLocalOnly'] == true;
         _legacyPrefixOverride =
@@ -958,6 +1229,9 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         final normalizedData = Map<String, dynamic>.from(
           normalized["data"] ?? const {},
         );
+        final executionMode = _normalizeExecutionMode(
+          normalizedData['executionMode'],
+        );
         final persistedEditorMode =
             (normalizedData['editorMode'] ?? _editorModeAdvanced)
                 .toString()
@@ -1009,6 +1283,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
         if (!mounted) return;
         setState(() {
           _editorMode = editorMode;
+          _executionMode = executionMode;
+          _bdfdScriptContent =
+              (normalizedData['bdfdScriptContent'] ?? '').toString();
+          _bdfdScriptController.text = _bdfdScriptContent;
+          _bdfdCompileResult = _bdfdCompiler.compile(_bdfdScriptContent);
           _legacyModeEnabled = normalizedData['legacyModeEnabled'] == true;
           _legacyOnlyLocalCommand = normalizedData['legacyLocalOnly'] == true;
           _legacyPrefixOverride =
@@ -1656,15 +1935,23 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                                 label: Text(AppStrings.t('cmd_show_variables')),
                               ),
                             ),
-                            if (_supportsSimpleMode) ...[
+                            if (_supportsSimpleMode && !_isBdfdScriptMode) ...[
                               _buildEditorModeCard(context),
                               const SizedBox(height: 12),
                             ],
-                            if (_supportsCommandOptions) ...[
+                            _buildExecutionModeCard(),
+                            const SizedBox(height: 12),
+                            if (_supportsCommandOptions &&
+                                !_isBdfdScriptMode) ...[
                               _buildLegacyModeCard(),
                               const SizedBox(height: 12),
                             ],
-                            if (_isSimpleMode) ...[
+                            if (_isBdfdScriptMode) ...[
+                              if (_supportsCommandOptions) ...[
+                                _buildCommandOptionsCard(),
+                                const SizedBox(height: 16),
+                              ],
+                            ] else if (_isSimpleMode) ...[
                               _buildSimpleActionsCard(),
                               const SizedBox(height: 12),
                               _buildSimpleResponseCard(),
@@ -1736,46 +2023,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                               ),
                               if (_supportsCommandOptions) ...[
                                 const SizedBox(height: 16),
-                                Card(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        const Text(
-                                          'Command Options',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          _legacyModeEnabled
-                                              ? 'Legacy positional parameters (ordered: required then optional)'
-                                              : 'Slash-command parameters',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey.shade600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        OptionWidget(
-                                          initialOptions: _options,
-                                          botIdForConfig: _botIdForConfig,
-                                          variableSuggestions:
-                                              _actionVariableSuggestions,
-                                          onChange: (options) {
-                                            setState(() {
-                                              _applyOptionsUpdate(options);
-                                            });
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                                _buildCommandOptionsCard(),
                                 const SizedBox(height: 16),
                               ],
                               ActionsCard(

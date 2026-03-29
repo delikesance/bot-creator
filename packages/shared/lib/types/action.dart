@@ -84,6 +84,8 @@ enum BotCreatorActionType {
   updateSelfUser,
   // Thread & Channel permissions
   createThread,
+  addThreadMember,
+  removeThreadMember,
   editChannelPermissions,
   deleteChannelPermission,
 }

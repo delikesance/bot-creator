@@ -111,6 +111,110 @@ void main() {
       expect(resolveTemplatePlaceholders('((contains("AbCd", "zz")))', {}), '');
     });
 
+    test('supports BDScript-like casing aliases and title case', () {
+      expect(
+        resolveTemplateExpressionValue(
+          'toLowerCase("HeLLo")',
+          <String, String>{},
+        ),
+        'hello',
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'toUpperCase("HeLLo")',
+          <String, String>{},
+        ),
+        'HELLO',
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'toTitleCase("hello world_from bot")',
+          <String, String>{},
+        ),
+        'Hello World_From Bot',
+      );
+    });
+
+    test('supports charCount and linesCount helpers', () {
+      expect(
+        resolveTemplateExpressionValue('charCount("abc")', <String, String>{}),
+        3,
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'linesCount("a\\nb\\nc")',
+          <String, String>{},
+        ),
+        3,
+      );
+      expect(
+        resolveTemplateExpressionValue('linesCount("")', <String, String>{}),
+        0,
+      );
+    });
+
+    test('supports numberSeparator helper', () {
+      expect(
+        resolveTemplateExpressionValue(
+          'numberSeparator(1234567)',
+          <String, String>{},
+        ),
+        '1,234,567',
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'numberSeparator(1234567, " ")',
+          <String, String>{},
+        ),
+        '1 234 567',
+      );
+    });
+
+    test('supports split helper with and without index', () {
+      expect(
+        resolveTemplateExpressionValue(
+          'split("a,b,c", ",")',
+          <String, String>{},
+        ),
+        <String>['a', 'b', 'c'],
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'split("a,b,c", ",", 1)',
+          <String, String>{},
+        ),
+        'b',
+      );
+      expect(
+        resolveTemplatePlaceholders('((split("a,b,c", ",")))', {}),
+        '["a","b","c"]',
+      );
+    });
+
+    test('supports cropText helper', () {
+      expect(
+        resolveTemplateExpressionValue(
+          'cropText("hello world", 5)',
+          <String, String>{},
+        ),
+        'hello...',
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'cropText("hello world", 5, "~")',
+          <String, String>{},
+        ),
+        'hello~',
+      );
+      expect(
+        resolveTemplateExpressionValue(
+          'cropText("hello", 10)',
+          <String, String>{},
+        ),
+        'hello',
+      );
+    });
+
     test('supports first, last and sum for arrays', () {
       expect(
         resolveTemplateExpressionValue('first(scores.\$)', <String, String>{

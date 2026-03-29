@@ -11,6 +11,7 @@ Vue d'ensemble de la documentation technique interne du projet.
 | [command-format.md](./command-format.md) | Format JSON complet d'une commande (stockage, normalisation, cycle de vie) |
 | [runtime-variables.md](./runtime-variables.md) | Toutes les variables `((…))` disponibles à l'exécution |
 | [template-syntax.md](./template-syntax.md) | Syntaxe du moteur de templates (fallback, JSONPath, URLs) |
+| [bdfd-supported-functions.md](./bdfd-supported-functions.md) | Etat de support des fonctions BDFD dans Bot Creator |
 | [runner-docker.md](./runner-docker.md) | Exécution du Runner Docker en mode API only (sync/start/stop bots) |
 
 ---
