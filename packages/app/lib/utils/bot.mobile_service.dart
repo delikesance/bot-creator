@@ -487,7 +487,7 @@ class DiscordBotTaskHandler extends TaskHandler {
           await handleLocalCommands(event, _manager!);
         });
 
-        _registerLocalEventWorkflowListeners(
+        await _registerLocalEventWorkflowListeners(
           gateway,
           manager: _manager!,
           botId: resolvedBotId,

@@ -106,6 +106,7 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
       (rawData['editorMode'] ?? 'advanced').toString().toLowerCase();
   final editorMode = rawEditorMode == 'simple' ? 'simple' : 'advanced';
   final legacyModeEnabled = rawData['legacyModeEnabled'] == true;
+  final legacyLocalOnly = rawData['legacyLocalOnly'] == true;
   final legacyPrefixOverride =
       (rawData['legacyPrefixOverride'] ?? '').toString().trim();
   final rawLegacyResponseTarget =
@@ -186,6 +187,7 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
     'commandType': commandType,
     'editorMode': editorMode,
     'legacyModeEnabled': legacyModeEnabled,
+    'legacyLocalOnly': legacyLocalOnly,
     'legacyPrefixOverride': legacyPrefixOverride,
     'legacyResponseTarget': legacyResponseTarget,
     'simpleConfig': simpleConfig,

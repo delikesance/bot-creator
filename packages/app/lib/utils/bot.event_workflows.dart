@@ -1,12 +1,12 @@
 part of 'bot.dart';
 
-void _registerLocalEventWorkflowListeners(
+Future<void> _registerLocalEventWorkflowListeners(
   NyxxGateway gateway, {
   required AppManager manager,
   required String botId,
   required Map<String, dynamic> appData,
   void Function(String message)? onLog,
-}) {
+}) async {
   final workflows = List<Map<String, dynamic>>.from(
         (appData['workflows'] as List?)?.whereType<Map>().map(
               (entry) => normalizeStoredWorkflowDefinition(
@@ -21,23 +21,41 @@ void _registerLocalEventWorkflowListeners(
       })
       .toList(growable: false);
 
-  if (workflows.isEmpty) {
-    onLog?.call('No event workflows found - listeners disabled.');
+  final allCommands = await manager.listAppCommands(botId);
+  final legacyCommands = allCommands
+      .where(_isLegacyLocalCommand)
+      .toList(growable: false);
+  final hasLegacyCommands = legacyCommands.isNotEmpty;
+
+  if (workflows.isEmpty && !hasLegacyCommands) {
+    onLog?.call(
+      'No event workflows or legacy commands found - listeners disabled.',
+    );
     return;
   }
 
-  onLog?.call(
-    'Enabling event listeners (${workflows.length} workflow(s) found)...',
-  );
+  if (workflows.isNotEmpty) {
+    onLog?.call(
+      'Enabling event listeners (${workflows.length} workflow(s) found)...',
+    );
+  }
+  if (hasLegacyCommands) {
+    onLog?.call(
+      'Enabling messageCreate listener for ${legacyCommands.length} legacy command(s).',
+    );
+  }
 
-  final configuredEvents = workflows
-    .map((workflow) {
-      final trigger = normalizeWorkflowEventTrigger(workflow['eventTrigger']);
-      return (trigger['event'] ?? '').toString().trim();
-    })
-    .where((event) => event.isNotEmpty)
-    .toSet()
-    .toList(growable: false)..sort();
+  final configuredEvents = <String>{
+    ...workflows
+        .map((workflow) {
+          final trigger = normalizeWorkflowEventTrigger(
+            workflow['eventTrigger'],
+          );
+          return (trigger['event'] ?? '').toString().trim();
+        })
+        .where((event) => event.isNotEmpty),
+    if (hasLegacyCommands) 'messageCreate',
+  }.toList(growable: false)..sort();
 
   final configuredEventsLower =
       configuredEvents.map((event) => event.toLowerCase()).toSet();
@@ -158,7 +176,58 @@ void _registerLocalEventWorkflowListeners(
   }
 
   Future<void> dispatch(EventExecutionContext context) async {
-    if (context.eventName.toLowerCase() == 'messagecreate') {
+    final normalizedEventName = context.eventName.toLowerCase();
+
+    final matching = workflows
+        .where((workflow) {
+          final trigger = normalizeWorkflowEventTrigger(
+            workflow['eventTrigger'],
+          );
+          return (trigger['event'] ?? '').toString().trim().toLowerCase() ==
+              normalizedEventName;
+        })
+        .toList(growable: false);
+
+    if (configuredEventsLower.contains(normalizedEventName)) {
+      onLog?.call(
+        'Event received: ${context.eventName} (matching workflows: ${matching.length})',
+      );
+    }
+
+    Future<void> executeMatchingWorkflows() async {
+      if (matching.isEmpty) {
+        return;
+      }
+
+      final futures = matching
+          .map((workflow) async {
+            try {
+              await _executeLocalEventWorkflow(
+                gateway,
+                manager: manager,
+                botId: botId,
+                workflow: workflow,
+                context: context,
+                onLog: onLog,
+              );
+            } catch (error) {
+              if (_isClosedClientError(error)) {
+                onLog?.call(
+                  'Event ignored: client closed while executing ${context.eventName}.',
+                );
+                return;
+              }
+              onLog?.call(
+                'Event workflow error for ${context.eventName}: $error',
+              );
+            }
+          })
+          .toList(growable: false);
+
+      await Future.wait(futures, eagerError: false);
+    }
+
+    if (normalizedEventName == 'messagecreate') {
       final isBotMessage =
           (context.variables['message.isBot'] ??
                   context.variables['author.isBot'] ??
@@ -170,59 +239,21 @@ void _registerLocalEventWorkflowListeners(
         return;
       }
 
-      final handledLegacy = await _tryExecuteLocalLegacyCommand(
-        gateway,
-        manager: manager,
-        botId: botId,
-        appData: appData,
-        context: context,
-        onLog: onLog,
-      );
-      if (handledLegacy) {
-        return;
-      }
-    }
-
-    final matching = workflows
-        .where((workflow) {
-          final trigger = normalizeWorkflowEventTrigger(
-            workflow['eventTrigger'],
-          );
-          return (trigger['event'] ?? '').toString().trim().toLowerCase() ==
-              context.eventName.toLowerCase();
-        })
-        .toList(growable: false);
-
-    if (configuredEventsLower.contains(context.eventName.toLowerCase())) {
-      onLog?.call(
-        'Event received: ${context.eventName} (matching workflows: ${matching.length})',
-      );
-    }
-
-    if (matching.isEmpty) {
-      return;
-    }
-
-    for (final workflow in matching) {
-      try {
-        await _executeLocalEventWorkflow(
+      await Future.wait<dynamic>([
+        _tryExecuteLocalLegacyCommand(
           gateway,
           manager: manager,
           botId: botId,
-          workflow: workflow,
+          appData: appData,
           context: context,
           onLog: onLog,
-        );
-      } catch (error) {
-        if (_isClosedClientError(error)) {
-          onLog?.call(
-            'Event ignored: client closed while executing ${context.eventName}.',
-          );
-          return;
-        }
-        onLog?.call('Event workflow error for ${context.eventName}: $error');
-      }
+        ),
+        executeMatchingWorkflows(),
+      ], eagerError: false);
+      return;
     }
+
+    await executeMatchingWorkflows();
   }
 
   void registerEvent<T>(
@@ -820,9 +851,14 @@ Future<bool> _tryExecuteBuiltInLocalLegacyHelp(
   required EventExecutionContext context,
   required String content,
   required String globalPrefix,
+  required bool builtInLegacyHelpEnabled,
   required List<Map<String, dynamic>> legacyCommands,
   required Map<String, String> runtimeVariables,
 }) async {
+  if (!builtInLegacyHelpEnabled) {
+    return false;
+  }
+
   final hasCustomHelp = legacyCommands.any(
     (command) =>
         (command['name'] ?? '').toString().trim().toLowerCase() == 'help',
@@ -1128,7 +1164,7 @@ Future<String?> _bindLocalLegacyPositionalOptions(
       if (required) {
         return 'Invalid value for required option "$name": $token';
       }
-      argIndex++;
+      // Keep this token available for the next optional positional option.
       continue;
     }
 
@@ -1395,6 +1431,7 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     context: context,
     content: content,
     globalPrefix: (appData['prefix'] ?? '!').toString(),
+    builtInLegacyHelpEnabled: appData['builtInLegacyHelpEnabled'] != false,
     legacyCommands: legacyCommands,
     runtimeVariables: baseRuntimeVariables,
   );

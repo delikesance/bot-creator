@@ -5,6 +5,7 @@ class BasicInfoCard extends StatefulWidget {
   final String commandName;
   final String commandDescription;
   final ApplicationCommandType commandType;
+  final bool isLegacyCommand;
   final bool canEditCommandType;
   final bool showDescriptionField;
   final List<ApplicationIntegrationType> integrationTypes;
@@ -12,6 +13,7 @@ class BasicInfoCard extends StatefulWidget {
   final ValueChanged<String> onNameChanged;
   final ValueChanged<String> onDescriptionChanged;
   final ValueChanged<ApplicationCommandType> onCommandTypeChanged;
+  final ValueChanged<bool> onLegacyCommandChanged;
   final ValueChanged<List<ApplicationIntegrationType>>
   onIntegrationTypesChanged;
   final ValueChanged<List<InteractionContextType>> onContextsChanged;
@@ -24,6 +26,7 @@ class BasicInfoCard extends StatefulWidget {
     required this.commandName,
     required this.commandDescription,
     required this.commandType,
+    required this.isLegacyCommand,
     required this.canEditCommandType,
     required this.showDescriptionField,
     required this.integrationTypes,
@@ -31,6 +34,7 @@ class BasicInfoCard extends StatefulWidget {
     required this.onNameChanged,
     required this.onDescriptionChanged,
     required this.onCommandTypeChanged,
+    required this.onLegacyCommandChanged,
     required this.onIntegrationTypesChanged,
     required this.onContextsChanged,
     required this.defaultMemberPermissions,
@@ -177,6 +181,19 @@ class _BasicInfoCardState extends State<BasicInfoCard> {
     widget.onDefaultMemberPermissionsChanged('');
   }
 
+  String _commandTypeValue() {
+    if (widget.isLegacyCommand) {
+      return 'legacy';
+    }
+    if (widget.commandType == ApplicationCommandType.user) {
+      return 'user';
+    }
+    if (widget.commandType == ApplicationCommandType.message) {
+      return 'message';
+    }
+    return 'slash';
+  }
+
   @override
   Widget build(BuildContext context) {
     final computedBitfield = _computedBitfield();
@@ -216,36 +233,53 @@ class _BasicInfoCardState extends State<BasicInfoCard> {
                   onChanged: widget.onNameChanged,
                 );
 
-                final commandTypeField =
-                    DropdownButtonFormField<ApplicationCommandType>(
-                      initialValue: widget.commandType,
-                      decoration: const InputDecoration(
-                        labelText: 'Command Type',
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: ApplicationCommandType.chatInput,
-                          child: Text('Slash Command'),
-                        ),
-                        DropdownMenuItem(
-                          value: ApplicationCommandType.user,
-                          child: Text('User Command'),
-                        ),
-                        DropdownMenuItem(
-                          value: ApplicationCommandType.message,
-                          child: Text('Message Command'),
-                        ),
-                      ],
-                      onChanged:
-                          widget.canEditCommandType
-                              ? (value) {
-                                if (value != null) {
-                                  widget.onCommandTypeChanged(value);
-                                }
+                final commandTypeField = DropdownButtonFormField<String>(
+                  initialValue: _commandTypeValue(),
+                  decoration: const InputDecoration(
+                    labelText: 'Command Type',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'slash',
+                      child: Text('Slash Command'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'legacy',
+                      child: Text('Legacy Command'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'user',
+                      child: Text('User Command'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'message',
+                      child: Text('Message Command'),
+                    ),
+                  ],
+                  onChanged:
+                      widget.canEditCommandType
+                          ? (value) {
+                            if (value != null) {
+                              if (value == 'legacy') {
+                                widget.onLegacyCommandChanged(true);
+                                widget.onCommandTypeChanged(
+                                  ApplicationCommandType.chatInput,
+                                );
+                              } else {
+                                widget.onLegacyCommandChanged(false);
+                                widget.onCommandTypeChanged(
+                                  value == 'user'
+                                      ? ApplicationCommandType.user
+                                      : value == 'message'
+                                      ? ApplicationCommandType.message
+                                      : ApplicationCommandType.chatInput,
+                                );
                               }
-                              : null,
-                    );
+                            }
+                          }
+                          : null,
+                );
 
                 final descriptionField = TextFormField(
                   autocorrect: false,

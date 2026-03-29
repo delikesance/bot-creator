@@ -94,6 +94,7 @@ class BotStatusConfig {
 class BotConfig {
   final String token;
   final String prefix;
+  final bool builtInLegacyHelpEnabled;
   final String? username;
   final String? avatarPath;
   final Map<String, bool> intents;
@@ -110,6 +111,7 @@ class BotConfig {
   const BotConfig({
     required this.token,
     this.prefix = '!',
+    this.builtInLegacyHelpEnabled = true,
     this.username,
     this.avatarPath,
     this.intents = const {},
@@ -128,6 +130,7 @@ class BotConfig {
           (json['prefix'] ?? '!').toString().trim().isEmpty
               ? '!'
               : (json['prefix'] ?? '!').toString(),
+      builtInLegacyHelpEnabled: json['builtInLegacyHelpEnabled'] != false,
       username: _optionalString(json['username']),
       avatarPath: _optionalString(json['avatarPath']),
       intents: Map<String, bool>.from(
@@ -167,6 +170,7 @@ class BotConfig {
   Map<String, dynamic> toJson() => {
     'token': token,
     'prefix': prefix,
+    'builtInLegacyHelpEnabled': builtInLegacyHelpEnabled,
     if (username != null) 'username': username,
     if (avatarPath != null) 'avatarPath': avatarPath,
     'intents': intents,
