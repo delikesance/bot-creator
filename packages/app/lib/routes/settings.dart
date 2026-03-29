@@ -84,10 +84,21 @@ class _SettingPageState extends State<SettingPage> {
   @override
   void initState() {
     super.initState();
+    _loadCachedSnapshotsFromCache();
     _loadRecoverySettings();
     _initializeDriveApi();
     _loadRunnerSettings();
     _loadAdPrivacyRequirement();
+  }
+
+  Future<void> _loadCachedSnapshotsFromCache() async {
+    final cached = await RecoveryManager.loadCachedSnapshots();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _snapshots = cached;
+    });
   }
 
   Future<void> _loadAdPrivacyRequirement() async {
@@ -277,6 +288,7 @@ class _SettingPageState extends State<SettingPage> {
 
   Future<void> _refreshSnapshots() async {
     if (driveApi == null) {
+      await _loadCachedSnapshotsFromCache();
       return;
     }
     setState(() {
@@ -284,12 +296,15 @@ class _SettingPageState extends State<SettingPage> {
     });
     try {
       final snapshots = await listBackupSnapshots(driveApi!);
+      await RecoveryManager.saveCachedSnapshots(snapshots);
       if (!mounted) {
         return;
       }
       setState(() {
         _snapshots = snapshots;
       });
+    } catch (_) {
+      await _loadCachedSnapshotsFromCache();
     } finally {
       if (mounted) {
         setState(() {
@@ -1086,8 +1101,8 @@ class _SettingPageState extends State<SettingPage> {
                                             }
                                             setState(() {
                                               driveApi = null;
-                                              _snapshots = const [];
                                             });
+                                            await _loadCachedSnapshotsFromCache();
                                             ScaffoldMessenger.of(
                                               context,
                                             ).showSnackBar(
