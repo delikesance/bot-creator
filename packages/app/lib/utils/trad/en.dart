@@ -200,6 +200,12 @@ const Map<String, String> appStringsEn = {
   'settings_auto_backup_check_loading': 'Auto-backup check…',
   'settings_snapshots_title': 'Snapshots',
   'settings_snapshots_refresh': 'Refresh snapshots',
+  'settings_snapshots_delete_all': 'Delete all snapshots',
+  'settings_snapshots_delete_all_title': 'Delete all snapshots',
+  'settings_snapshots_delete_all_confirm':
+      'Permanently delete {count} snapshot(s)? This action cannot be undone.',
+  'settings_snapshots_delete_all_loading': 'Deleting all snapshots…',
+  'settings_snapshots_delete_all_done': '{count} snapshot(s) deleted.',
   'settings_snapshots_refresh_loading': 'Refreshing snapshots…',
   'settings_snapshots_empty': 'No snapshots found yet.',
   'settings_snapshot_list_entry': '{date} • {count} files • {size}',

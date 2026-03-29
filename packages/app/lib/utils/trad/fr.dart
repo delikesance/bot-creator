@@ -207,6 +207,12 @@ const Map<String, String> appStringsFr = {
   'settings_auto_backup_check_loading': 'Vérification auto-sauvegarde…',
   'settings_snapshots_title': 'Snapshots',
   'settings_snapshots_refresh': 'Actualiser les snapshots',
+  'settings_snapshots_delete_all': 'Supprimer tous les snapshots',
+  'settings_snapshots_delete_all_title': 'Supprimer tous les snapshots',
+  'settings_snapshots_delete_all_confirm':
+      'Supprimer définitivement {count} snapshot(s) ? Cette action est irréversible.',
+  'settings_snapshots_delete_all_loading': 'Suppression de tous les snapshots…',
+  'settings_snapshots_delete_all_done': '{count} snapshot(s) supprimé(s).',
   'settings_snapshots_refresh_loading': 'Actualisation des snapshots…',
   'settings_snapshots_empty': 'Aucun snapshot trouvé pour le moment.',
   'settings_snapshot_list_entry': '{date} • {count} fichiers • {size}',

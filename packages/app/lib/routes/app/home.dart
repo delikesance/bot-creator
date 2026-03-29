@@ -535,6 +535,7 @@ class _AppHomePageState extends State<AppHomePage>
                                   botId: botId,
                                 );
                                 await remoteClient.stopBot(botId);
+                                endBotLogSession(botId: botId);
                                 setBotRuntimeActive(false);
                                 if (mounted) {
                                   setState(() => _botLaunched = false);
@@ -578,6 +579,7 @@ class _AppHomePageState extends State<AppHomePage>
                                   botId: botId,
                                 );
                                 await stopMobileBotSession(botId: botId);
+                                endBotLogSession(botId: botId);
                                 setBotRuntimeActive(
                                   isDesktopBotRunning ||
                                       mobileRunningBotIds.isNotEmpty,
@@ -616,6 +618,7 @@ class _AppHomePageState extends State<AppHomePage>
                                   botId: botId,
                                 );
                                 await stopDesktopBot();
+                                endBotLogSession(botId: botId);
                                 setBotRuntimeActive(false);
                                 clearBotBaselineRss();
                                 if (mounted) {

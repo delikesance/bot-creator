@@ -464,6 +464,10 @@ class _SettingPageState extends State<SettingPage> {
   }
 
   Future<void> _showSnapshotPreview(BackupSnapshotSummary snapshot) async {
+    if (!kDebugMode) {
+      return;
+    }
+
     if (!mounted) {
       return;
     }
@@ -605,6 +609,77 @@ class _SettingPageState extends State<SettingPage> {
             ),
           ],
         );
+      },
+    );
+  }
+
+  Future<void> _deleteAllSnapshots() async {
+    if (!mounted || _snapshots.isEmpty) {
+      return;
+    }
+
+    final count = _snapshots.length;
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: Text(AppStrings.t('settings_snapshots_delete_all_title')),
+              content: Text(
+                AppStrings.tr(
+                  'settings_snapshots_delete_all_confirm',
+                  params: {'count': count.toString()},
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text(AppStrings.t('cancel')),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: Text(AppStrings.t('delete')),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) {
+      return;
+    }
+
+    await _runWithLoading(
+      AppStrings.t('settings_snapshots_delete_all_loading'),
+      () async {
+        try {
+          await _ensureDriveApiConnected();
+          final snapshots = List<BackupSnapshotSummary>.from(_snapshots);
+          for (final snapshot in snapshots) {
+            await deleteBackupSnapshot(
+              driveApi!,
+              snapshotId: snapshot.snapshotId,
+            );
+          }
+          await _refreshSnapshots();
+          if (!mounted) {
+            return;
+          }
+          _showSnack(
+            AppStrings.tr(
+              'settings_snapshots_delete_all_done',
+              params: {'count': snapshots.length.toString()},
+            ),
+          );
+        } catch (e, st) {
+          debugPrint('Delete all snapshots failed: $e');
+          debugPrintStack(stackTrace: st);
+          if (!mounted) {
+            return;
+          }
+          _showSnack(_formatErrorMessage(e));
+        }
       },
     );
   }
@@ -1705,6 +1780,18 @@ class _SettingPageState extends State<SettingPage> {
                               ),
                               IconButton(
                                 tooltip: AppStrings.t(
+                                  'settings_snapshots_delete_all',
+                                ),
+                                onPressed:
+                                    _isBusy ||
+                                            _loadingSnapshots ||
+                                            _snapshots.isEmpty
+                                        ? null
+                                        : _deleteAllSnapshots,
+                                icon: const Icon(Icons.delete_sweep_outlined),
+                              ),
+                              IconButton(
+                                tooltip: AppStrings.t(
                                   'settings_snapshots_refresh',
                                 ),
                                 onPressed:
@@ -1746,8 +1833,14 @@ class _SettingPageState extends State<SettingPage> {
                                 subtitle: Text(
                                   _snapshotListEntryLabel(snapshot),
                                 ),
-                                trailing: const Icon(Icons.chevron_right),
-                                onTap: () => _showSnapshotPreview(snapshot),
+                                trailing:
+                                    kDebugMode
+                                        ? const Icon(Icons.chevron_right)
+                                        : null,
+                                onTap:
+                                    kDebugMode
+                                        ? () => _showSnapshotPreview(snapshot)
+                                        : null,
                               );
                             }),
                         ],
