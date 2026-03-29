@@ -238,7 +238,8 @@ class DiscordRunner {
       return;
     }
 
-    if (_eventWorkflows.isEmpty) {
+    final hasLegacyCommands = config.commands.any(_isLegacyCommandEnabled);
+    if (_eventWorkflows.isEmpty && !hasLegacyCommands) {
       return;
     }
 
@@ -260,6 +261,18 @@ class DiscordRunner {
               ),
         );
       });
+    }
+
+    if (_eventWorkflows.isEmpty && hasLegacyCommands) {
+      registerEvent<MessageCreateEvent>(
+        gateway.onMessageCreate,
+        'messageCreate',
+        buildContext: buildMessageCreateEventContext,
+      );
+      _log.info(
+        'No event workflows found; enabled messageCreate listener for legacy commands only.',
+      );
+      return;
     }
 
     registerEvent<MessageCreateEvent>(
