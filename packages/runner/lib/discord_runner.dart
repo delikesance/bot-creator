@@ -591,22 +591,7 @@ class DiscordRunner {
     required String eventName,
     required EventExecutionContext context,
   }) async {
-    if (eventName.toLowerCase() == 'messagecreate') {
-      final isBotMessage =
-          (context.variables['message.isBot'] ??
-                  context.variables['author.isBot'] ??
-                  '')
-              .toLowerCase() ==
-          'true';
-      if (isBotMessage) {
-        return;
-      }
-
-      final handledLegacy = await _tryExecuteLegacyCommand(context);
-      if (handledLegacy) {
-        return;
-      }
-    }
+    final normalizedEventName = eventName.toLowerCase();
 
     final botId = _gateway?.user.id.toString() ?? store.botId;
     final matching = _eventWorkflows
@@ -618,17 +603,49 @@ class DiscordRunner {
         })
         .toList(growable: false);
 
-    if (matching.isEmpty) {
+    Future<void> executeMatchingWorkflows() async {
+      if (matching.isEmpty) {
+        return;
+      }
+
+      final futures = matching
+          .map((workflow) async {
+            try {
+              await _executeEventWorkflow(
+                botId: botId,
+                workflow: workflow,
+                context: context,
+              );
+            } catch (error, stackTrace) {
+              _log.warning(
+                'Event workflow failed for "$eventName": $error\n$stackTrace',
+              );
+            }
+          })
+          .toList(growable: false);
+
+      await Future.wait(futures, eagerError: false);
+    }
+
+    if (normalizedEventName == 'messagecreate') {
+      final isBotMessage =
+          (context.variables['message.isBot'] ??
+                  context.variables['author.isBot'] ??
+                  '')
+              .toLowerCase() ==
+          'true';
+      if (isBotMessage) {
+        return;
+      }
+
+      await Future.wait<dynamic>([
+        _tryExecuteLegacyCommand(context),
+        executeMatchingWorkflows(),
+      ], eagerError: false);
       return;
     }
 
-    for (final workflow in matching) {
-      await _executeEventWorkflow(
-        botId: botId,
-        workflow: workflow,
-        context: context,
-      );
-    }
+    await executeMatchingWorkflows();
   }
 
   bool _isLegacyCommandEnabled(Map<String, dynamic> command) {
@@ -826,9 +843,14 @@ class DiscordRunner {
     EventExecutionContext context, {
     required String content,
     required String botId,
+    required bool builtInLegacyHelpEnabled,
     required List<Map<String, dynamic>> legacyCommands,
     required Map<String, String> runtimeVariables,
   }) async {
+    if (!builtInLegacyHelpEnabled) {
+      return false;
+    }
+
     final hasCustomHelp = legacyCommands.any(
       (command) =>
           (command['name'] ?? '').toString().trim().toLowerCase() == 'help',
@@ -1157,7 +1179,8 @@ class DiscordRunner {
         if (isRequired) {
           return 'Invalid value for required option "$optionName": $token';
         }
-        argIndex++;
+        // Optional argument failed to parse for this option; keep the token
+        // available for the next positional option.
         continue;
       }
 
@@ -1433,6 +1456,7 @@ class DiscordRunner {
       context,
       content: content,
       botId: botId,
+      builtInLegacyHelpEnabled: config.builtInLegacyHelpEnabled,
       legacyCommands: legacyCommands,
       runtimeVariables: baseRuntimeVariables,
     );

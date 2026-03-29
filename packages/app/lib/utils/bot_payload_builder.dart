@@ -62,6 +62,7 @@ Future<Map<String, dynamic>> buildBotPayload(String botId) async {
 
   final config = BotConfig(
     token: token,
+    builtInLegacyHelpEnabled: appData['builtInLegacyHelpEnabled'] != false,
     username:
         (appData['username'] ?? '').toString().trim().isEmpty
             ? null

@@ -131,6 +131,48 @@ extension _CommandCreateValidation on _CommandCreatePageState {
       }
     }
 
+    if (_legacyOnlyLocalCommand) {
+      if (!_legacyModeEnabled) {
+        showDialog(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: Text(AppStrings.t('error')),
+                content: const Text(
+                  'Legacy-only commands require legacy mode to be enabled.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(AppStrings.t('ok')),
+                  ),
+                ],
+              ),
+        );
+        return false;
+      }
+
+      if (!_canToggleLegacyOnlyLocal) {
+        showDialog(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: Text(AppStrings.t('error')),
+                content: const Text(
+                  'Legacy-only mode can only be used for new commands or existing local commands.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text(AppStrings.t('ok')),
+                  ),
+                ],
+              ),
+        );
+        return false;
+      }
+    }
+
     return true;
   }
 

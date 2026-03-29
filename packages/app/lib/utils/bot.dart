@@ -262,7 +262,7 @@ Future<void> startDesktopBot(String token) async {
     gateway.onInteractionCreate.listen((event) async {
       await handleLocalCommands(event, appManager);
     });
-    _registerLocalEventWorkflowListeners(
+    await _registerLocalEventWorkflowListeners(
       gateway,
       manager: appManager,
       botId: botId,

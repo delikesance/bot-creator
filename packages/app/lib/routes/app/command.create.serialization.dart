@@ -40,6 +40,7 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
       'commandType': _commandTypeToText(_commandType),
       'editorMode': _editorMode,
       'legacyModeEnabled': _legacyModeEnabled,
+      'legacyLocalOnly': _legacyOnlyLocalCommand,
       'legacyPrefixOverride': _legacyPrefixOverride.trim(),
       'legacyResponseTarget': _legacyResponseTarget,
       'simpleConfig': _currentSimpleConfig(),
