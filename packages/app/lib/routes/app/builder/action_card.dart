@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
+import 'package:bot_creator/widgets/bdfd_editor_page.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/darcula.dart';
 import 'package:flutter/material.dart';
@@ -1357,6 +1359,13 @@ class ActionCard extends StatelessWidget {
               },
             ),
           ],
+        );
+
+      case ParameterType.bdfdScript:
+        return _BdfdScriptParameterField(
+          currentValue: (currentValue ?? paramDef.defaultValue).toString(),
+          hint: _localizeHint(paramDef.hint),
+          onChanged: (newValue) => onParameterChanged(paramDef.key, newValue),
         );
 
       default: // ParameterType.string and ParameterType.url and others
@@ -3654,5 +3663,241 @@ class _NumberParameterFieldState extends State<_NumberParameterField> {
     }
 
     return '$beforeStart(($variableName))';
+  }
+}
+
+class _BdfdScriptParameterField extends StatefulWidget {
+  const _BdfdScriptParameterField({
+    required this.currentValue,
+    required this.onChanged,
+    this.hint,
+  });
+
+  final String currentValue;
+  final ValueChanged<String> onChanged;
+  final String? hint;
+
+  @override
+  State<_BdfdScriptParameterField> createState() =>
+      _BdfdScriptParameterFieldState();
+}
+
+class _BdfdScriptParameterFieldState extends State<_BdfdScriptParameterField> {
+  late final TextEditingController _controller;
+  final BdfdCompiler _compiler = BdfdCompiler();
+  BdfdCompileResult? _compileResult;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.currentValue);
+    _recompile();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _recompile() {
+    final source = _controller.text;
+    if (source.trim().isEmpty) {
+      _compileResult = null;
+      return;
+    }
+    _compileResult = _compiler.compile(source);
+  }
+
+  List<BdfdCompileDiagnostic> get _diagnostics =>
+      _compileResult?.diagnostics ?? const <BdfdCompileDiagnostic>[];
+
+  bool get _hasErrors => _diagnostics.any(
+    (d) => d.severity == BdfdCompileDiagnosticSeverity.error,
+  );
+
+  String _formatDiagnostic(BdfdCompileDiagnostic d) {
+    final loc =
+        (d.line != null && d.column != null) ? 'L${d.line}:C${d.column} ' : '';
+    return '$loc${d.message}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final code = _controller.text;
+    final isEmpty = code.trim().isEmpty;
+    final preview =
+        isEmpty
+            ? AppStrings.t('bdfd_editor_tap_hint')
+            : code.length > 150
+            ? '${code.substring(0, 150)}…'
+            : code;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'BDFD Script',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            const Text(
+              ' *',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: () async {
+            final result = await Navigator.push<String>(
+              context,
+              MaterialPageRoute<String>(
+                builder: (_) => BdfdEditorPage(initialCode: _controller.text),
+              ),
+            );
+            if (result != null && mounted) {
+              _controller.text = result;
+              setState(_recompile);
+              widget.onChanged(result);
+            }
+          },
+          child: Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 80),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF263238),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade600),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.code, size: 16, color: Colors.white70),
+                    const SizedBox(width: 8),
+                    Text(
+                      AppStrings.t('bdfd_editor_tap_hint'),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(
+                      Icons.open_in_new,
+                      size: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                  ],
+                ),
+                if (!isEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    preview,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: Colors.grey.shade300,
+                    ),
+                    maxLines: 6,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _buildDiagnosticsPanel(),
+      ],
+    );
+  }
+
+  Widget _buildDiagnosticsPanel() {
+    final diagnostics = _diagnostics;
+
+    if (_controller.text.trim().isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    if (diagnostics.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.green.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              size: 18,
+              color: Colors.green.shade700,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                AppStrings.t('cmd_bdfd_diagnostics_clean'),
+                style: TextStyle(fontSize: 12, color: Colors.green.shade800),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: _hasErrors ? Colors.red.shade50 : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: _hasErrors ? Colors.red.shade200 : Colors.orange.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppStrings.t('cmd_bdfd_diagnostics_title'),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+          const SizedBox(height: 6),
+          ...diagnostics.map((d) {
+            final isError = d.severity == BdfdCompileDiagnosticSeverity.error;
+            final icon =
+                isError ? Icons.error_outline : Icons.warning_amber_rounded;
+            final label = AppStrings.t(
+              isError
+                  ? 'cmd_bdfd_diagnostics_error'
+                  : 'cmd_bdfd_diagnostics_warning',
+            );
+            final color =
+                isError ? Colors.red.shade800 : Colors.orange.shade900;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, size: 16, color: color),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '$label: ${_formatDiagnostic(d)}',
+                      style: TextStyle(fontSize: 12, color: color),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
   }
 }

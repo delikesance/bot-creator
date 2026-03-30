@@ -174,5 +174,66 @@ void main() {
       expect(result.diagnostics, hasLength(1));
       expect(result.diagnostics.first.message, 'Unexpected closing bracket.');
     });
+
+    // ── Escape sequences ─────────────────────────────────────────────────
+
+    test(r'escaped bracket \[\] inside function argument produces text', () {
+      final result = BdfdLexer().tokenize(r'$if[$args[1]==x]\[test\]$endif');
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [
+        r'function:$if',
+        'openBracket:[',
+        r'function:$args',
+        'openBracket:[',
+        'text:1',
+        'closeBracket:]',
+        'text:==x',
+        'closeBracket:]',
+        'text:[test]',
+        r'function:$endif',
+        'eof:',
+      ]);
+    });
+
+    test(r'escaped \$ prevents function scanning', () {
+      final result = BdfdLexer().tokenize(r'Hello \$nomention');
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [r'text:Hello $nomention', 'eof:']);
+    });
+
+    test(r'escaped \; inside function argument produces literal semicolon', () {
+      final result = BdfdLexer().tokenize(r'$description[Hello\;World]');
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [
+        r'function:$description',
+        'openBracket:[',
+        'text:Hello;World',
+        'closeBracket:]',
+        'eof:',
+      ]);
+    });
+
+    test(r'escaped \] inside function argument produces literal bracket', () {
+      final result = BdfdLexer().tokenize(r'$description[a\]b]');
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [
+        r'function:$description',
+        'openBracket:[',
+        'text:a]b',
+        'closeBracket:]',
+        'eof:',
+      ]);
+    });
+
+    test(r'lone backslash without special char is kept as text', () {
+      final result = BdfdLexer().tokenize(r'Hello \ World');
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [r'text:Hello \ World', 'eof:']);
+    });
   });
 }

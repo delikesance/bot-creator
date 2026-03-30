@@ -48,6 +48,8 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
         'message.bc_key',
       };
     }
+
+    _applyStateUpdate(() {});
   }
 
   List<String> get _variableNames {

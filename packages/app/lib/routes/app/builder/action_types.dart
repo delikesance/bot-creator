@@ -23,6 +23,7 @@ enum ParameterType {
   componentV2,
   modalDefinition,
   nestedActions,
+  bdfdScript,
 }
 
 // --- Variable Suggestions ---

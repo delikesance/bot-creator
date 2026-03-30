@@ -4598,8 +4598,12 @@ class _BdfdAstTranspilationScope {
     }
 
     final parsedIndex = int.tryParse(trimmed);
-    if (parsedIndex == null || parsedIndex <= 0) {
+    if (parsedIndex == null || parsedIndex < 0) {
       return null;
+    }
+
+    if (parsedIndex == 0) {
+      return 'args.0';
     }
 
     final zeroBasedIndex = parsedIndex - 1;

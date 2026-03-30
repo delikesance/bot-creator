@@ -301,6 +301,31 @@ Future<void> handleLocalCommands(
         }
       }
 
+      // If the workflow uses BDFD script mode, compile the script into actions.
+      final workflowMode =
+          (workflow['workflowMode'] ?? 'visual')
+              .toString()
+              .trim()
+              .toLowerCase();
+      if (workflowMode == 'bdfd') {
+        final scriptSource = (workflow['bdfdScriptContent'] ?? '').toString();
+        if (scriptSource.trim().isNotEmpty) {
+          final compileResult = BdfdCompiler().compile(scriptSource);
+          if (compileResult.hasErrors) {
+            appendBotLog(
+              'Workflow BDFD script has compile errors – skipping actions',
+              botId: clientId,
+            );
+          } else {
+            actionsJson = compileResult.actions.map((a) => a.toJson()).toList();
+            appendBotDebugLog(
+              'Workflow BDFD script compiled: ${actionsJson.length} actions',
+              botId: clientId,
+            );
+          }
+        }
+      }
+
       final responseType = (response['type'] ?? 'normal').toString();
       final isBaseModal = responseType == 'modal';
 

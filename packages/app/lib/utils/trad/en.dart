@@ -682,6 +682,24 @@ const Map<String, String> appStringsEn = {
   'cmd_bdfd_autocomplete_title': 'BDFD prefix autocomplete',
   'cmd_bdfd_autocomplete_hint':
       'Type \$ and start writing a function name to get quick script suggestions.',
+  'workflow_mode_title': 'Workflow mode',
+  'workflow_mode_desc':
+      'Choose between a visual action builder or a full BDFD scripting editor.',
+  'workflow_mode_visual': 'Visual',
+  'workflow_mode_bdfd': 'BDFD Script',
+  'workflow_mode_visual_note':
+      'Build your workflow visually by adding individual actions with the card editor.',
+  'workflow_mode_bdfd_note':
+      'Write your entire workflow as a single BDFD script. The script is compiled and validated in real time.',
+  'workflow_bdfd_editor_title': 'BDFD Script Editor',
+  'workflow_bdfd_editor_desc':
+      'Write the complete BDFD code for this workflow response. Diagnostics are displayed live.',
+  'bdfd_editor_title': 'BDFD Editor',
+  'bdfd_editor_tap_hint': 'Tap to open editor',
+  'bdfd_editor_wrap_toggle': 'Toggle line wrapping',
+  'bdfd_editor_diagnostics_toggle': 'Toggle diagnostics panel',
+  'bdfd_editor_empty': 'Empty script — start typing to see diagnostics.',
+  'done': 'Done',
   'cmd_simple_actions_title': 'Simplified actions',
   'cmd_simple_actions_desc':
       'Select what this command should do. Options are generated automatically.',

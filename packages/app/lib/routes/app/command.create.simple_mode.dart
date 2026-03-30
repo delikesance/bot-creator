@@ -300,29 +300,7 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
             ),
             if (_isBdfdScriptMode) ...[
               const SizedBox(height: 12),
-              TextField(
-                controller: _bdfdScriptController,
-                minLines: 10,
-                maxLines: 18,
-                decoration: InputDecoration(
-                  labelText: AppStrings.t('cmd_bdfd_script_label'),
-                  hintText: AppStrings.t('cmd_bdfd_script_hint'),
-                  border: const OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-                style: const TextStyle(fontFamily: 'monospace'),
-                onChanged: (value) {
-                  _refreshBdfdCompileResult();
-                },
-                onTap: () {
-                  if (!mounted) {
-                    return;
-                  }
-                  _applyStateUpdate(() {});
-                },
-              ),
-              const SizedBox(height: 8),
-              _buildBdfdAutocompletePanel(),
+              _buildBdfdEditorTile(),
               const SizedBox(height: 12),
               _buildBdfdDiagnosticsPanel(),
             ],
@@ -332,37 +310,75 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
     );
   }
 
-  Widget _buildBdfdAutocompletePanel() {
-    final entries = _bdfdAutocompleteEntries;
-    if (entries.isEmpty) {
-      return Text(
-        AppStrings.t('cmd_bdfd_autocomplete_hint'),
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-      );
-    }
+  Widget _buildBdfdEditorTile() {
+    final code = _bdfdScriptController.text;
+    final isEmpty = code.trim().isEmpty;
+    final preview =
+        isEmpty
+            ? AppStrings.t('bdfd_editor_tap_hint')
+            : code.length > 200
+            ? '${code.substring(0, 200)}…'
+            : code;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          AppStrings.t('cmd_bdfd_autocomplete_title'),
-          style: const TextStyle(fontWeight: FontWeight.w600),
+    return GestureDetector(
+      onTap: () async {
+        final result = await Navigator.push<String>(
+          context,
+          MaterialPageRoute<String>(
+            builder:
+                (_) => BdfdEditorPage(
+                  initialCode: _bdfdScriptController.text,
+                  title: AppStrings.t('workflow_bdfd_editor_title'),
+                ),
+          ),
+        );
+        if (result != null && mounted) {
+          _bdfdScriptController.text = result;
+          _refreshBdfdCompileResult();
+        }
+      },
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 120),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF263238),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade600),
         ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ...entries.map((entry) {
-              final label = entry.value;
-              return ActionChip(
-                label: Text(label),
-                onPressed: () => _insertBdfdAutocompleteTemplate(label),
-              );
-            }),
+            Row(
+              children: [
+                const Icon(Icons.code, size: 16, color: Colors.white70),
+                const SizedBox(width: 8),
+                Text(
+                  AppStrings.t('cmd_bdfd_script_label'),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                Icon(Icons.open_in_new, size: 14, color: Colors.grey.shade500),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              preview,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                color: isEmpty ? Colors.grey.shade600 : Colors.grey.shade300,
+              ),
+              maxLines: 8,
+              overflow: TextOverflow.ellipsis,
+            ),
           ],
         ),
-      ],
+      ),
     );
   }
 

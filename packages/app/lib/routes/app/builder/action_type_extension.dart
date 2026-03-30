@@ -1687,7 +1687,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return [
           ParameterDefinition(
             key: 'scriptContent',
-            type: ParameterType.string,
+            type: ParameterType.bdfdScript,
             defaultValue: '',
             hint: 'BDFD script source code to compile and execute',
             required: true,

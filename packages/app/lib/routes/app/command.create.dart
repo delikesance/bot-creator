@@ -13,6 +13,7 @@ import 'package:bot_creator/utils/command_variable_catalog.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/simple_mode.dart';
 import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
+import 'package:bot_creator/widgets/bdfd_editor_page.dart';
 import 'package:bot_creator/widgets/option_widget.dart';
 import 'package:bot_creator/widgets/command_create_cards/basic_info_card.dart';
 import 'package:bot_creator/widgets/command_create_cards/reply_card.dart';
@@ -96,97 +97,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   final TextEditingController _bdfdScriptController = TextEditingController();
   final BdfdCompiler _bdfdCompiler = BdfdCompiler();
   BdfdCompileResult? _bdfdCompileResult;
-  static final RegExp _bdfdIdentifierChar = RegExp(r'[A-Za-z0-9_]');
-  static const Map<String, String> _bdfdAutocompleteTemplates = {
-    'nomention': r'$nomention',
-    'reply': r'$reply[]',
-    'sendmessage': r'$sendMessage[]',
-    'title': r'$title[]',
-    'description': r'$description[]',
-    'color': r'$color[]',
-    'footer': r'$footer[]',
-    'thumbnail': r'$thumbnail[]',
-    'image': r'$image[]',
-    'author': r'$author[]',
-    'addfield': r'$addField[]',
-    'if': r'$if[]',
-    'onlyif': r'$onlyIf[]',
-    'onlyperms': r'$onlyPerms[]',
-    'onlybotperms': r'$onlyBotPerms[]',
-    'onlybotchannelperms': r'$onlyBotChannelPerms[]',
-    'onlyadmin': r'$onlyAdmin[]',
-    'checkuserperms': r'$checkUserPerms[]',
-    'onlyforusers': r'$onlyForUsers[]',
-    'onlyforids': r'$onlyForIDs[]',
-    'onlyforchannels': r'$onlyForChannels[]',
-    'onlyforroles': r'$onlyForRoles[]',
-    'onlyforroleids': r'$onlyForRoleIDs[]',
-    'onlyforservers': r'$onlyForServers[]',
-    'onlyforcategories': r'$onlyForCategories[]',
-    'ignorechannels': r'$ignoreChannels[]',
-    'onlynsfw': r'$onlyNSFW[]',
-    'onlyifmessagecontains': r'$onlyIfMessageContains[]',
-    'elseif': r'$elseif[]',
-    'else': r'$else',
-    'endif': r'$endif',
-    'and': r'$and[]',
-    'or': r'$or[]',
-    'stop': r'$stop',
-    'jsonparse': r'$jsonParse[]',
-    'json': r'$json[]',
-    'jsonset': r'$jsonSet[]',
-    'jsonsetstring': r'$jsonSetString[]',
-    'jsonunset': r'$jsonUnset[]',
-    'jsonclear': r'$jsonClear',
-    'jsonexists': r'$jsonExists[]',
-    'jsonstringify': r'$jsonStringify',
-    'jsonpretty': r'$jsonPretty[]',
-    'jsonarray': r'$jsonArray[]',
-    'jsonarraycount': r'$jsonArrayCount[]',
-    'jsonarrayindex': r'$jsonArrayIndex[]',
-    'jsonarrayappend': r'$jsonArrayAppend[]',
-    'jsonarraypop': r'$jsonArrayPop[]',
-    'jsonarrayshift': r'$jsonArrayShift[]',
-    'jsonarrayunshift': r'$jsonArrayUnshift[]',
-    'jsonarraysort': r'$jsonArraySort[]',
-    'jsonarrayreverse': r'$jsonArrayReverse[]',
-    'jsonjoinarray': r'$jsonJoinArray[]',
-    'startthread': r'$startThread[]',
-    'editthread': r'$editThread[]',
-    'threadaddmember': r'$threadAddMember[]',
-    'threadremovemember': r'$threadRemoveMember[]',
-    'httpaddheader': r'$httpAddHeader[]',
-    'httpget': r'$httpGet[]',
-    'httppost': r'$httpPost[]',
-    'httpput': r'$httpPut[]',
-    'httpdelete': r'$httpDelete[]',
-    'httppatch': r'$httpPatch[]',
-    'httpstatus': r'$httpStatus',
-    'httpresult': r'$httpResult[]',
-    'awaitfunc': r'$awaitFunc[]',
-    'setuservar': r'$setUserVar[]',
-    'setservervar': r'$setServerVar[]',
-    'setchannelvar': r'$setChannelVar[]',
-    'setmembervar': r'$setMemberVar[]',
-    'setmessagevar': r'$setMessageVar[]',
-    'getuservar': r'$getUserVar[]',
-    'getservervar': r'$getServerVar[]',
-    'getchannelvar': r'$getChannelVar[]',
-    'getmembervar': r'$getMemberVar[]',
-    'getmessagevar': r'$getMessageVar[]',
-    'userid': r'$userID',
-    'username': r'$username',
-    'usertag': r'$userTag',
-    'authorid': r'$authorID',
-    'authorusername': r'$authorUsername',
-    'authortag': r'$authorTag',
-    'guildid': r'$guildID',
-    'guildname': r'$guildName',
-    'channelid': r'$channelID',
-    'channelname': r'$channelName',
-    'commandname': r'$commandName',
-    'commandtype': r'$commandType',
-  };
   bool _legacyModeEnabled = false;
   bool _legacyOnlyLocalCommand = false;
   String _legacyPrefixOverride = '';
@@ -233,6 +143,8 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
 
   static Map<String, dynamic> _defaultWorkflow() {
     return {
+      'workflowMode': 'visual',
+      'bdfdScriptContent': '',
       'autoDeferIfActions': true,
       'visibility': 'public',
       'onError': 'edit_error',
@@ -310,74 +222,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
       return AppStrings.t('cmd_bdfd_script_empty_error');
     }
     return '${AppStrings.t('cmd_bdfd_script_validation_error')}\n\n$errorDiagnostics';
-  }
-
-  int _findBdfdPrefixStart(String text, int caretOffset) {
-    if (caretOffset <= 0 || caretOffset > text.length) {
-      return -1;
-    }
-
-    var index = caretOffset - 1;
-    while (index >= 0) {
-      final char = text[index];
-      if (_bdfdIdentifierChar.hasMatch(char)) {
-        index -= 1;
-        continue;
-      }
-      if (char == r'$') {
-        return index;
-      }
-      return -1;
-    }
-
-    return -1;
-  }
-
-  String? get _activeBdfdPrefix {
-    final text = _bdfdScriptController.text;
-    final selection = _bdfdScriptController.selection;
-    final caret =
-        selection.isValid
-            ? selection.baseOffset
-            : _bdfdScriptController.text.length;
-    final start = _findBdfdPrefixStart(text, caret);
-    if (start < 0) {
-      return null;
-    }
-    return text.substring(start + 1, caret).toLowerCase();
-  }
-
-  List<MapEntry<String, String>> get _bdfdAutocompleteEntries {
-    final prefix = _activeBdfdPrefix;
-    if (prefix == null) {
-      return const <MapEntry<String, String>>[];
-    }
-
-    final matches = _bdfdAutocompleteTemplates.entries
-      .where((entry) => entry.key.startsWith(prefix))
-      .toList(growable: false)..sort((a, b) => a.key.compareTo(b.key));
-    return matches.take(10).toList(growable: false);
-  }
-
-  void _insertBdfdAutocompleteTemplate(String template) {
-    final text = _bdfdScriptController.text;
-    final selection = _bdfdScriptController.selection;
-    final caret = selection.isValid ? selection.baseOffset : text.length;
-    final start = _findBdfdPrefixStart(text, caret);
-    if (start < 0) {
-      return;
-    }
-
-    final replaced = text.replaceRange(start, caret, template);
-    final bracketIndex = template.indexOf('[]');
-    final nextOffset =
-        bracketIndex >= 0 ? start + bracketIndex + 1 : start + template.length;
-
-    _bdfdScriptController.value = TextEditingValue(
-      text: replaced,
-      selection: TextSelection.collapsed(offset: nextOffset),
-    );
-    _refreshBdfdCompileResult();
   }
 
   bool get _supportsCommandDescription =>

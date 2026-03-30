@@ -1274,6 +1274,8 @@ class DiscordRunner {
   Future<String?> _bindLegacyPositionalOptions({
     required Map<String, dynamic> value,
     required List<String> args,
+    required String prefix,
+    required String commandName,
     required EventExecutionContext context,
     required Map<String, String> runtimeVariables,
   }) async {
@@ -1335,8 +1337,10 @@ class DiscordRunner {
     }
 
     runtimeVariables['args.count'] = args.length.toString();
+    runtimeVariables['args.0'] = prefix;
+    runtimeVariables['args.1'] = commandName;
     for (var i = 0; i < args.length; i++) {
-      runtimeVariables['args.${i + 1}'] = args[i];
+      runtimeVariables['args.${i + 2}'] = args[i];
     }
     return null;
   }
@@ -1500,14 +1504,10 @@ class DiscordRunner {
 
     final resolvedText =
         resolveTemplatePlaceholders(responseText, runtimeVariables).trim();
-    final fallbackText =
-        activeResponseType == 'componentV2'
-            ? 'Legacy command executed (component layout is not rendered in legacy mode).'
-            : 'Legacy command executed.';
-    final contentToSend =
-        resolvedText.isNotEmpty || embeds.isNotEmpty
-            ? resolvedText
-            : fallbackText;
+    if (resolvedText.isEmpty && embeds.isEmpty) {
+      return;
+    }
+    final contentToSend = resolvedText;
 
     await _sendLegacyMessage(
       context: context,
@@ -1547,10 +1547,43 @@ class DiscordRunner {
               ? payload['channelId']
               : context.channelId?.toString();
       adapted['payload'] = payload;
-      return adapted;
+    }
+
+    final payload = (adapted['payload'] as Map?)?.cast<String, dynamic>();
+    if (payload != null) {
+      adapted['payload'] = _adaptLegacyValueForMessageCreate(
+        Map<String, dynamic>.from(payload),
+        context,
+      );
     }
 
     return adapted;
+  }
+
+  dynamic _adaptLegacyValueForMessageCreate(
+    dynamic raw,
+    EventExecutionContext context,
+  ) {
+    if (raw is List) {
+      return raw
+          .map((entry) => _adaptLegacyValueForMessageCreate(entry, context))
+          .toList(growable: false);
+    }
+
+    if (raw is Map) {
+      final normalized = Map<String, dynamic>.from(
+        raw.map((key, value) => MapEntry(key.toString(), value)),
+      );
+      if (normalized.containsKey('type')) {
+        return _adaptLegacyActionForMessageCreate(normalized, context);
+      }
+      return normalized.map(
+        (key, value) =>
+            MapEntry(key, _adaptLegacyValueForMessageCreate(value, context)),
+      );
+    }
+
+    return raw;
   }
 
   Future<bool> _tryExecuteLegacyCommand(EventExecutionContext context) async {
@@ -1664,6 +1697,10 @@ class DiscordRunner {
       }
 
       final args = tokens.length > 1 ? tokens.sublist(1) : const <String>[];
+      runtimeVariables['message.content[0]'] = commandName;
+      for (var i = 0; i < args.length; i++) {
+        runtimeVariables['message.content[${i + 1}]'] = args[i];
+      }
       runtimeVariables['legacy.prefix'] = prefix;
       runtimeVariables['legacy.command.name'] = commandName;
       runtimeVariables['command.type'] = 'legacy';
@@ -1675,6 +1712,8 @@ class DiscordRunner {
       final optionError = await _bindLegacyPositionalOptions(
         value: value,
         args: args,
+        prefix: prefix,
+        commandName: commandName,
         context: context,
         runtimeVariables: runtimeVariables,
       );
@@ -1691,6 +1730,11 @@ class DiscordRunner {
       final response = Map<String, dynamic>.from(
         (value['response'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
+      final executionMode =
+          (value['executionMode'] ?? 'workflow')
+              .toString()
+              .trim()
+              .toLowerCase();
       final actionsJson = await _resolveLegacyActionsJson(
         value: value,
         commandName: commandName,
@@ -1728,12 +1772,14 @@ class DiscordRunner {
         }
       }
 
-      await _sendLegacyWorkflowResponse(
-        context: context,
-        response: response,
-        runtimeVariables: runtimeVariables,
-        responseTarget: _effectiveLegacyResponseTarget(value),
-      );
+      if (executionMode != 'bdfd_script') {
+        await _sendLegacyWorkflowResponse(
+          context: context,
+          response: response,
+          runtimeVariables: runtimeVariables,
+          responseTarget: _effectiveLegacyResponseTarget(value),
+        );
+      }
       _log.info('Legacy command executed: $commandName');
       return true;
     }

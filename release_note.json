@@ -1,0 +1,10 @@
+[
+    {
+        "language": "fr-FR",
+        "text": "Amelioration majeure de l'editeur BDFD avec une auto-completion plus proche de VS Code, positionnee sous le code en cours et compatible mobile. Ajout d'une couverture bien plus large des fonctions BDFD dans l'auto-completion, y compris des placeholders comme $args. Correction de plusieurs problemes sur les commandes Legacy, notamment la resolution des arguments, l'execution des branches conditionnelles et les reponses parasites. Ameliorations generales de stabilite et corrections de bugs."
+    },
+    {
+        "language": "en-US",
+        "text": "Major improvements to the BDFD editor with autocomplete that behaves more like VS Code, appears under the current code, and remains mobile-friendly. Added much broader BDFD function coverage in autocomplete, including placeholders such as $args. Fixed multiple Legacy command issues, including argument resolution, conditional branch execution, and unwanted extra responses. General stability improvements and bug fixes."
+    }
+]
