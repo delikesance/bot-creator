@@ -287,7 +287,7 @@ class _AppHomePageState extends State<AppHomePage>
             ...local,
             'id': commandId,
             'name': command.name,
-            if (command.description != null) 'description': command.description,
+            'description': command.description,
           };
           await appManager.saveAppCommand(botId, commandId, merged);
         }
