@@ -1466,6 +1466,8 @@ Future<String?> _bindLocalLegacyPositionalOptions(
   NyxxGateway gateway, {
   required Map<String, dynamic> data,
   required List<String> args,
+  required String prefix,
+  required String commandName,
   required EventExecutionContext context,
   required Map<String, String> runtimeVariables,
 }) async {
@@ -1524,8 +1526,10 @@ Future<String?> _bindLocalLegacyPositionalOptions(
   }
 
   runtimeVariables['args.count'] = args.length.toString();
+  runtimeVariables['args.0'] = prefix;
+  runtimeVariables['args.1'] = commandName;
   for (var i = 0; i < args.length; i++) {
-    runtimeVariables['args.${i + 1}'] = args[i];
+    runtimeVariables['args.${i + 2}'] = args[i];
   }
 
   return null;
@@ -1679,14 +1683,10 @@ Future<void> _sendLocalLegacyWorkflowResponse(
   }
 
   final resolvedText = updateString(responseText, runtimeVariables).trim();
-  final fallbackText =
-      responseType == 'componentV2'
-          ? 'Legacy command executed (component layout is not rendered in legacy mode).'
-          : 'Legacy command executed.';
-  final contentToSend =
-      resolvedText.isNotEmpty || embeds.isNotEmpty
-          ? resolvedText
-          : fallbackText;
+  if (resolvedText.isEmpty && embeds.isEmpty) {
+    return;
+  }
+  final contentToSend = resolvedText;
 
   await _sendLocalLegacyMessage(
     gateway,
@@ -1727,10 +1727,43 @@ Map<String, dynamic> _adaptLocalLegacyActionForMessageCreate(
             ? payload['channelId']
             : context.channelId?.toString();
     adapted['payload'] = payload;
-    return adapted;
+  }
+
+  final payload = (adapted['payload'] as Map?)?.cast<String, dynamic>();
+  if (payload != null) {
+    adapted['payload'] = _adaptLocalLegacyValueForMessageCreate(
+      Map<String, dynamic>.from(payload),
+      context,
+    );
   }
 
   return adapted;
+}
+
+dynamic _adaptLocalLegacyValueForMessageCreate(
+  dynamic raw,
+  EventExecutionContext context,
+) {
+  if (raw is List) {
+    return raw
+        .map((entry) => _adaptLocalLegacyValueForMessageCreate(entry, context))
+        .toList(growable: false);
+  }
+
+  if (raw is Map) {
+    final normalized = Map<String, dynamic>.from(
+      raw.map((key, value) => MapEntry(key.toString(), value)),
+    );
+    if (normalized.containsKey('type')) {
+      return _adaptLocalLegacyActionForMessageCreate(normalized, context);
+    }
+    return normalized.map(
+      (key, value) =>
+          MapEntry(key, _adaptLocalLegacyValueForMessageCreate(value, context)),
+    );
+  }
+
+  return raw;
 }
 
 Future<bool> _tryExecuteLocalLegacyCommand(
@@ -1851,6 +1884,10 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     }
 
     final args = tokens.length > 1 ? tokens.sublist(1) : const <String>[];
+    runtimeVariables['message.content[0]'] = commandName;
+    for (var i = 0; i < args.length; i++) {
+      runtimeVariables['message.content[${i + 1}]'] = args[i];
+    }
     runtimeVariables['legacy.prefix'] = prefix;
     runtimeVariables['legacy.command.name'] = commandName;
     runtimeVariables['command.type'] = 'legacy';
@@ -1863,6 +1900,8 @@ Future<bool> _tryExecuteLocalLegacyCommand(
       gateway,
       data: data,
       args: args,
+      prefix: prefix,
+      commandName: commandName,
       context: context,
       runtimeVariables: runtimeVariables,
     );
@@ -1882,6 +1921,8 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     final response = Map<String, dynamic>.from(
       (data['response'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
+    final executionMode =
+        (data['executionMode'] ?? 'workflow').toString().trim().toLowerCase();
     final actionsJson = await _resolveLocalLegacyActionsJson(
       data: data,
       commandName: commandName,
@@ -1925,13 +1966,15 @@ Future<bool> _tryExecuteLocalLegacyCommand(
       }
     }
 
-    await _sendLocalLegacyWorkflowResponse(
-      gateway,
-      context: context,
-      response: response,
-      runtimeVariables: runtimeVariables,
-      responseTarget: responseTarget,
-    );
+    if (executionMode != 'bdfd_script') {
+      await _sendLocalLegacyWorkflowResponse(
+        gateway,
+        context: context,
+        response: response,
+        runtimeVariables: runtimeVariables,
+        responseTarget: responseTarget,
+      );
+    }
 
     onLog?.call('Legacy command executed: $commandName');
     return true;

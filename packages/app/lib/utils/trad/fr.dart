@@ -1,4 +1,4 @@
-const Map<String, String> appStringsFr = {
+﻿const Map<String, String> appStringsFr = {
   'app_title': 'Bot Creator',
 
   // Onboarding
@@ -699,6 +699,24 @@ const Map<String, String> appStringsFr = {
   'cmd_bdfd_autocomplete_title': 'Auto-complétion BDFD par préfixe',
   'cmd_bdfd_autocomplete_hint':
       'Tapez \$ puis le début d’une fonction pour afficher des suggestions rapides.',
+  'workflow_mode_title': 'Mode du workflow',
+  'workflow_mode_desc':
+      'Choisissez entre un éditeur visuel d’actions ou un éditeur de script BDFD complet.',
+  'workflow_mode_visual': 'Visuel',
+  'workflow_mode_bdfd': 'Script BDFD',
+  'workflow_mode_visual_note':
+      'Construisez votre workflow visuellement en ajoutant des actions individuelles avec l’éditeur de cartes.',
+  'workflow_mode_bdfd_note':
+      'Écrivez l’intégralité de votre workflow sous forme de script BDFD. Le script est compilé et validé en temps réel.',
+  'workflow_bdfd_editor_title': 'Éditeur de script BDFD',
+  'workflow_bdfd_editor_desc':
+      'Écrivez le code BDFD complet pour cette réponse workflow. Les diagnostics s’affichent en direct.',
+  'bdfd_editor_title': 'Éditeur BDFD',
+  'bdfd_editor_tap_hint': 'Appuyez pour ouvrir l’éditeur',
+  'bdfd_editor_wrap_toggle': 'Activer/désactiver le retour à la ligne',
+  'bdfd_editor_diagnostics_toggle': 'Afficher/masquer le panneau de diagnostics',
+  'bdfd_editor_empty': 'Script vide — commencez à écrire pour voir les diagnostics.',
+  'done': 'Terminé',
   'cmd_simple_actions_title': 'Actions simplifiées',
   'cmd_simple_actions_desc':
       'Sélectionnez ce que la commande doit faire. Les options sont générées automatiquement.',

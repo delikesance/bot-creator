@@ -22,7 +22,11 @@ extension _CommandCreateWorkflow on _CommandCreatePageState {
       (input['conditional'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
 
+    final mode = input['workflowMode']?.toString();
+
     return {
+      'workflowMode': (mode == 'bdfd') ? 'bdfd' : 'visual',
+      'bdfdScriptContent': (input['bdfdScriptContent'] ?? '').toString(),
       'autoDeferIfActions': input['autoDeferIfActions'] != false,
       'visibility':
           (input['visibility']?.toString().toLowerCase() == 'ephemeral')
@@ -85,6 +89,9 @@ extension _CommandCreateWorkflow on _CommandCreatePageState {
     final conditionEnabled = conditional['enabled'] == true;
     final conditionLabel = conditionEnabled ? 'Condition ON' : 'Condition OFF';
 
-    return '${autoDefer ? 'Auto defer if actions' : 'No auto defer'} • $visibility • $conditionLabel';
+    final isBdfd = _responseWorkflow['workflowMode'] == 'bdfd';
+    final modeLabel = isBdfd ? 'BDFD Script' : 'Visual';
+
+    return '$modeLabel • ${autoDefer ? 'Auto defer if actions' : 'No auto defer'} • $visibility • $conditionLabel';
   }
 }

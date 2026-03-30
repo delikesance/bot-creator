@@ -77,6 +77,15 @@ class _BdfdScanner {
     while (!_isAtEnd) {
       final char = _peek();
 
+      // Escape sequences: \$, \[, \], \; produce literal text.
+      if (char == r'\' && !_isAtEnd) {
+        final next = _peekNext();
+        if (next == r'$' || next == '[' || next == ']' || next == ';') {
+          _scanText();
+          continue;
+        }
+      }
+
       if (_isFunctionStart()) {
         _scanFunction();
         continue;
@@ -286,6 +295,16 @@ class _BdfdScanner {
     _mayOpenArgumentList = false;
 
     while (!_isAtEnd) {
+      // Handle escape sequences: \$, \[, \], \;
+      if (_peek() == r'\' && (_index + 1) < source.length) {
+        final next = source[_index + 1];
+        if (next == r'$' || next == '[' || next == ']' || next == ';') {
+          _advance(); // consume backslash
+          buffer.write(_advance()); // consume and keep the escaped char
+          continue;
+        }
+      }
+
       if (_isFunctionStart()) {
         break;
       }
