@@ -129,6 +129,124 @@ class _BdfdTokenParser {
         return _parseEndFor(functionToken);
       case 'endloop':
         return _parseEndLoop(functionToken);
+      case 'addbutton':
+        return _parseAddButton(functionToken);
+      case 'addselectmenuoption':
+        return _parseAddSelectMenuOption(functionToken);
+      case 'addseparator':
+        return _parseAddSeparator(functionToken);
+      case 'addtextdisplay':
+        return _parseAddTextDisplay(functionToken);
+      case 'addtextinput':
+        return _parseAddTextInput(functionToken);
+      case 'editbutton':
+        return _parseEditButton(functionToken);
+      case 'editselectmenu':
+        return _parseEditSelectMenu(functionToken);
+      case 'editselectmenuoption':
+        return _parseEditSelectMenuOption(functionToken);
+      case 'newmodal':
+        return _parseNewModal(functionToken);
+      case 'newselectmenu':
+        return _parseNewSelectMenu(functionToken);
+      case 'removeallcomponents':
+        return _parseRemoveAllComponents(functionToken);
+      case 'removebuttons':
+        return _parseRemoveButtons(functionToken);
+      case 'removecomponent':
+        return _parseRemoveComponent(functionToken);
+      case 'defer':
+        return _parseDefer(functionToken);
+      case 'input':
+        return _parseInput(functionToken);
+      case 'addcontainer':
+        return _parseAddContainer(functionToken);
+      case 'addfield':
+        return _parseAddField(functionToken);
+      case 'addsection':
+        return _parseAddSection(functionToken);
+      case 'addthumbnail':
+        return _parseAddThumbnail(functionToken);
+      case 'addtimestamp':
+        return _parseAddTimestamp(functionToken);
+      case 'author':
+        return _parseAuthor(functionToken);
+      case 'authoricon':
+        return _parseAuthorIcon(functionToken);
+      case 'authorurl':
+        return _parseAuthorURL(functionToken);
+      case 'color':
+        return _parseColor(functionToken);
+      case 'description':
+        return _parseDescription(functionToken);
+      case 'embeddedurl':
+        return _parseEmbeddedURL(functionToken);
+      case 'footer':
+        return _parseFooter(functionToken);
+      case 'footericon':
+        return _parseFooterIcon(functionToken);
+      case 'image':
+        return _parseImage(functionToken);
+      case 'thumbnail':
+        return _parseThumbnail(functionToken);
+      case 'title':
+        return _parseTitle(functionToken);
+      case 'authoravatar':
+        return _parseAuthorAvatar(functionToken);
+      case 'authorid':
+        return _parseAuthorID(functionToken);
+      case 'authorofmessage':
+        return _parseAuthorOfMessage(functionToken);
+      case 'creationdate':
+        return _parseCreationDate(functionToken);
+      case 'discriminator':
+        return _parseDiscriminator(functionToken);
+      case 'displayname':
+        return _parseDisplayName(functionToken);
+      case 'getuserstatus':
+        return _parseGetUserStatus(functionToken);
+      case 'getcustomstatus':
+        return _parseGetCustomStatus(functionToken);
+      case 'isadmin':
+        return _parseIsAdmin(functionToken);
+      case 'isbooster':
+        return _parseIsBooster(functionToken);
+      case 'isbot':
+        return _parseIsBot(functionToken);
+      case 'isuserdmenabled':
+        return _parseIsUserDMEnabled(functionToken);
+      case 'nickname':
+        return _parseNickname(functionToken);
+      case 'useravatar':
+        return _parseUserAvatar(functionToken);
+      case 'userbadges':
+        return _parseUserBadges(functionToken);
+      case 'userbanner':
+        return _parseUserBanner(functionToken);
+      case 'userbannercolor':
+        return _parseUserBannerColor(functionToken);
+      case 'userexists':
+        return _parseUserExists(functionToken);
+      case 'userid':
+        return _parseUserID(functionToken);
+      case 'userinfo':
+        return _parseUserInfo(functionToken);
+      case 'userjoined':
+        return _parseUserJoined(functionToken);
+      case 'userjoineddiscord':
+        return _parseUserJoinedDiscord(functionToken);
+      case 'username':
+        return _parseUsername(functionToken);
+      case 'userperms':
+        return _parseUserPerms(functionToken);
+      case 'userserveravatar':
+        return _parseUserServerAvatar(functionToken);
+      case 'changeusername':
+        return _parseChangeUsername(functionToken);
+      case 'changeusernamewithid':
+        return _parseChangeUsernameWithID(functionToken);
+      case 'finduser':
+        return _parseFindUser(functionToken);
       default:
         return _parseGenericFunctionCall(functionToken);
     }
@@ -200,6 +318,183 @@ class _BdfdTokenParser {
       _parseGenericFunctionCall(functionToken);
 
   BdfdFunctionCallAst _parseEndLoop(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddButton(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddSelectMenuOption(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddSeparator(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddTextDisplay(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddTextInput(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseEditButton(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseEditSelectMenu(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseEditSelectMenuOption(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseNewModal(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseNewSelectMenu(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseRemoveAllComponents(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseRemoveButtons(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseRemoveComponent(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseDefer(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseInput(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddContainer(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddField(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddSection(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddThumbnail(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddTimestamp(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAuthor(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAuthorIcon(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAuthorURL(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseColor(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseDescription(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseEmbeddedURL(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseFooter(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseFooterIcon(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseImage(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseThumbnail(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseTitle(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAuthorAvatar(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAuthorID(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAuthorOfMessage(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseCreationDate(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseDiscriminator(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseDisplayName(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetUserStatus(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetCustomStatus(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseIsAdmin(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseIsBooster(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseIsBot(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseIsUserDMEnabled(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseNickname(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserAvatar(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserBadges(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserBanner(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserBannerColor(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserExists(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserID(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserInfo(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserJoined(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserJoinedDiscord(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUsername(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserPerms(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseUserServerAvatar(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseChangeUsername(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseChangeUsernameWithID(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseFindUser(BdfdToken functionToken) =>
       _parseGenericFunctionCall(functionToken);
 
   BdfdFunctionCallAst _parseGenericFunctionCall(BdfdToken functionToken) {

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:bot_creator_shared/types/action.dart';
 
@@ -60,6 +61,11 @@ class _BdfdAstTranspilationScope {
   final List<Action> _deferredInlineActions = <Action>[];
   dynamic _jsonContext;
   bool _hasJsonContext = false;
+  List<String> _textSplitParts = <String>[];
+  String? _useChannelId;
+  bool _suppressErrors = false;
+  final List<Map<String, dynamic>> _pendingModalInputs =
+      <Map<String, dynamic>>[];
 
   List<Action> transpileScript(BdfdScriptAst script) {
     return _transpileNodes(script.nodes);
@@ -91,7 +97,7 @@ class _BdfdAstTranspilationScope {
       }
 
       if (_isBlockIfSignature(node)) {
-        final flushed = pendingResponse.buildAction();
+        final flushed = pendingResponse.buildAction(channelId: _useChannelId);
         if (flushed != null) {
           actions.add(flushed);
         }
@@ -108,12 +114,29 @@ class _BdfdAstTranspilationScope {
       }
 
       if (_isBlockLoopSignature(node)) {
-        final flushed = pendingResponse.buildAction();
+        final flushed = pendingResponse.buildAction(channelId: _useChannelId);
         if (flushed != null) {
           actions.add(flushed);
         }
 
         final consumed = _consumeLoopBlock(nodes: nodes, startIndex: index);
+        if (consumed == null) {
+          index += 1;
+          continue;
+        }
+
+        actions.addAll(consumed.actions);
+        index = consumed.nextIndex;
+        continue;
+      }
+
+      if (_isBlockTrySignature(node)) {
+        final flushed = pendingResponse.buildAction(channelId: _useChannelId);
+        if (flushed != null) {
+          actions.add(flushed);
+        }
+
+        final consumed = _consumeTryCatchBlock(nodes: nodes, startIndex: index);
         if (consumed == null) {
           index += 1;
           continue;
@@ -152,24 +175,37 @@ class _BdfdAstTranspilationScope {
         continue;
       }
 
+      if (_isStandaloneTryDelimiter(node.normalizedName)) {
+        _diagnostics.add(
+          BdfdTranspileDiagnostic(
+            message:
+                'Unexpected ${node.name} without a matching surrounding ${r'$try'} block.',
+            start: node.start,
+            end: node.end,
+            functionName: node.name,
+          ),
+        );
+        index += 1;
+        continue;
+      }
+
       if (_applyResponseMutation(node, pendingResponse)) {
         actions.addAll(_drainDeferredInlineActions());
         index += 1;
         continue;
       }
 
-          final isCheckUserPermsInlineCandidate =
-            node.normalizedName == 'checkuserperms' ||
-            node.normalizedName == 'checkusersperms';
-          final hasTrailingTextNode =
-            index + 1 < nodes.length && nodes[index + 1] is BdfdTextAst;
-          final allowsTopLevelInline =
-            !isCheckUserPermsInlineCandidate ||
-            pendingResponse.hasPendingContent ||
-            hasTrailingTextNode;
-        final inlineReplacement = allowsTopLevelInline
-          ? _stringifyInlineFunction(node)
-          : null;
+      final isCheckUserPermsInlineCandidate =
+          node.normalizedName == 'checkuserperms' ||
+          node.normalizedName == 'checkusersperms';
+      final hasTrailingTextNode =
+          index + 1 < nodes.length && nodes[index + 1] is BdfdTextAst;
+      final allowsTopLevelInline =
+          !isCheckUserPermsInlineCandidate ||
+          pendingResponse.hasPendingContent ||
+          hasTrailingTextNode;
+      final inlineReplacement =
+          allowsTopLevelInline ? _stringifyInlineFunction(node) : null;
       if (inlineReplacement != null) {
         pendingResponse.appendContent(inlineReplacement);
         actions.addAll(_drainDeferredInlineActions());
@@ -178,7 +214,7 @@ class _BdfdAstTranspilationScope {
       }
 
       if (_requiresPendingResponseFlush(node.normalizedName)) {
-        final flushed = pendingResponse.buildAction();
+        final flushed = pendingResponse.buildAction(channelId: _useChannelId);
         if (flushed != null) {
           actions.add(flushed);
         }
@@ -193,9 +229,28 @@ class _BdfdAstTranspilationScope {
       index += 1;
     }
 
-    final trailingResponse = pendingResponse.buildAction();
+    final trailingResponse = pendingResponse.buildAction(
+      channelId: _useChannelId,
+    );
     if (trailingResponse != null) {
       actions.add(trailingResponse);
+    }
+
+    if (_suppressErrors && actions.isNotEmpty) {
+      return <Action>[
+        Action(
+          type: BotCreatorActionType.ifBlock,
+          payload: <String, dynamic>{
+            'condition.variable': '1',
+            'condition.operator': 'equals',
+            'condition.value': '1',
+            'thenActions': actions.map((action) => action.toJson()).toList(),
+            'elseIfConditions': const <Map<String, dynamic>>[],
+            'elseActions': const <Map<String, dynamic>>[],
+            'suppressErrors': true,
+          },
+        ),
+      ];
     }
 
     return actions;
@@ -218,6 +273,117 @@ class _BdfdAstTranspilationScope {
 
   bool _isStandaloneLoopDelimiter(String normalizedName) {
     return normalizedName == 'endfor' || normalizedName == 'endloop';
+  }
+
+  bool _isBlockTrySignature(BdfdFunctionCallAst node) {
+    return node.normalizedName == 'try' && node.arguments.isEmpty;
+  }
+
+  bool _isStandaloneTryDelimiter(String normalizedName) {
+    return normalizedName == 'catch' ||
+        normalizedName == 'endtry' ||
+        normalizedName == 'error';
+  }
+
+  _ConsumedLoopBlock? _consumeTryCatchBlock({
+    required List<BdfdAstNode> nodes,
+    required int startIndex,
+  }) {
+    final tryNode = nodes[startIndex];
+    if (tryNode is! BdfdFunctionCallAst || !_isBlockTrySignature(tryNode)) {
+      return null;
+    }
+
+    final tryNodes = <BdfdAstNode>[];
+    final catchNodes = <BdfdAstNode>[];
+    List<BdfdAstNode> currentTarget = tryNodes;
+    var hasCatchBranch = false;
+    var nestingDepth = 0;
+
+    for (var cursor = startIndex + 1; cursor < nodes.length; cursor++) {
+      final currentNode = nodes[cursor];
+
+      if (currentNode is BdfdFunctionCallAst) {
+        final name = currentNode.normalizedName;
+
+        if (_isBlockTrySignature(currentNode)) {
+          nestingDepth += 1;
+          currentTarget.add(currentNode);
+          continue;
+        }
+
+        if (name == 'endtry') {
+          if (nestingDepth > 0) {
+            nestingDepth -= 1;
+            currentTarget.add(currentNode);
+            continue;
+          }
+
+          final tryActions = _transpileNodes(tryNodes);
+          final catchActions = _transpileNodes(catchNodes);
+
+          if (catchActions.isEmpty) {
+            return _ConsumedLoopBlock(
+              actions: tryActions,
+              nextIndex: cursor + 1,
+            );
+          }
+
+          final wrappedActions = <Action>[
+            Action(
+              type: BotCreatorActionType.ifBlock,
+              payload: <String, dynamic>{
+                'condition.variable': '((error.message))',
+                'condition.operator': 'isEmpty',
+                'condition.value': '',
+                'thenActions':
+                    tryActions.map((action) => action.toJson()).toList(),
+                'elseIfConditions': const <Map<String, dynamic>>[],
+                'elseActions':
+                    catchActions.map((action) => action.toJson()).toList(),
+              },
+            ),
+          ];
+          return _ConsumedLoopBlock(
+            actions: wrappedActions,
+            nextIndex: cursor + 1,
+          );
+        }
+
+        if (nestingDepth == 0 && name == 'catch') {
+          if (hasCatchBranch) {
+            _diagnostics.add(
+              BdfdTranspileDiagnostic(
+                message: 'Duplicate ${r'$catch'} in ${r'$try'} block.',
+                start: currentNode.start,
+                end: currentNode.end,
+                functionName: currentNode.name,
+              ),
+            );
+            continue;
+          }
+          hasCatchBranch = true;
+          currentTarget = catchNodes;
+          continue;
+        }
+      }
+
+      currentTarget.add(currentNode);
+    }
+
+    _diagnostics.add(
+      BdfdTranspileDiagnostic(
+        message: '${tryNode.name} not closed with ${r'$endtry'}.',
+        start: tryNode.start,
+        end: tryNode.end,
+        functionName: tryNode.name,
+      ),
+    );
+
+    return _ConsumedLoopBlock(
+      actions: _transpileNodes(tryNodes),
+      nextIndex: nodes.length,
+    );
   }
 
   _ConsumedIfBlock? _consumeIfBlock({
@@ -361,7 +527,10 @@ class _BdfdAstTranspilationScope {
 
           final iterations = _parseLoopIterations(loopNode);
           if (iterations == null) {
-            return _ConsumedLoopBlock(actions: const <Action>[], nextIndex: cursor + 1);
+            return _ConsumedLoopBlock(
+              actions: const <Action>[],
+              nextIndex: cursor + 1,
+            );
           }
 
           return _ConsumedLoopBlock(
@@ -379,7 +548,8 @@ class _BdfdAstTranspilationScope {
 
     _diagnostics.add(
       BdfdTranspileDiagnostic(
-        message: '${loopNode.name} not closed with ${r'$endfor'} or ${r'$endloop'}.',
+        message:
+            '${loopNode.name} not closed with ${r'$endfor'} or ${r'$endloop'}.',
         start: loopNode.start,
         end: loopNode.end,
         functionName: loopNode.name,
@@ -388,7 +558,10 @@ class _BdfdAstTranspilationScope {
 
     final iterations = _parseLoopIterations(loopNode);
     if (iterations == null) {
-      return _ConsumedLoopBlock(actions: const <Action>[], nextIndex: nodes.length);
+      return _ConsumedLoopBlock(
+        actions: const <Action>[],
+        nextIndex: nodes.length,
+      );
     }
 
     return _ConsumedLoopBlock(
@@ -418,7 +591,8 @@ class _BdfdAstTranspilationScope {
     if (parsed == null) {
       _diagnostics.add(
         BdfdTranspileDiagnostic(
-          message: '${loopNode.name} iteration count must be an integer literal.',
+          message:
+              '${loopNode.name} iteration count must be an integer literal.',
           start: loopNode.start,
           end: loopNode.end,
           functionName: loopNode.name,
@@ -514,6 +688,7 @@ class _BdfdAstTranspilationScope {
   ) {
     switch (node.normalizedName) {
       case 'nomention':
+        response._allowMentions = false;
         return true;
       case 'title':
         response.ensureEmbed()['title'] = _stringifyArgument(node, 0);
@@ -561,6 +736,157 @@ class _BdfdAstTranspilationScope {
           'inline': _parseBooleanLike(_stringifyArgument(node, 2)),
         };
         response.ensureEmbedFields().add(field);
+        return true;
+      case 'addtimestamp':
+        final timestamp = _stringifyArgument(node, 0);
+        response.ensureEmbed()['timestamp'] =
+            timestamp.isEmpty ? 'now' : timestamp;
+        return true;
+      case 'authoricon':
+        final embed = response.ensureEmbed();
+        final author =
+            (embed['author'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+        author['icon_url'] = _stringifyArgument(node, 0);
+        embed['author'] = author;
+        return true;
+      case 'authorurl':
+        final embed = response.ensureEmbed();
+        final author =
+            (embed['author'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+        author['url'] = _stringifyArgument(node, 0);
+        embed['author'] = author;
+        return true;
+      case 'embeddedurl':
+        response.ensureEmbed()['url'] = _stringifyArgument(node, 0);
+        return true;
+      case 'footericon':
+        final embed = response.ensureEmbed();
+        final footer =
+            (embed['footer'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+        footer['icon_url'] = _stringifyArgument(node, 0);
+        embed['footer'] = footer;
+        return true;
+      case 'addcontainer':
+        response.ensureEmbed()['container'] = <String, dynamic>{
+          'color': _stringifyArgument(node, 0),
+        };
+        return true;
+      case 'addsection':
+        response.ensureEmbed()['section'] = <String, dynamic>{
+          'content': _stringifyArgument(node, 0),
+        };
+        return true;
+      case 'addthumbnail':
+        response.ensureEmbed()['thumbnail'] = <String, dynamic>{
+          'url': _stringifyArgument(node, 0),
+        };
+        return true;
+      case 'addbutton':
+        final newRow = _parseBooleanLike(_stringifyArgument(node, 0));
+        final interactionIdOrUrl = _stringifyArgument(node, 1);
+        final label = _stringifyArgument(node, 2);
+        final style = _stringifyArgument(node, 3).trim().toLowerCase();
+        final disabled = _parseBooleanLike(_stringifyArgument(node, 4));
+        final emoji = _stringifyArgument(node, 5);
+        final messageId = _stringifyArgument(node, 6);
+        response.addButton(
+          newRow: newRow,
+          interactionIdOrUrl: interactionIdOrUrl,
+          label: label,
+          style: style.isEmpty ? 'primary' : style,
+          disabled: disabled,
+          emoji: emoji,
+          messageId: messageId,
+        );
+        return true;
+      case 'addselectmenuoption':
+        final menuId = response._currentSelectMenuId ?? '';
+        final label = _stringifyArgument(node, 0);
+        final value = _stringifyArgument(node, 1);
+        final description = _stringifyArgument(node, 2);
+        final isDefault = _parseBooleanLike(_stringifyArgument(node, 3));
+        final emoji = _stringifyArgument(node, 4);
+        response.addSelectMenuOption(
+          menuId: menuId,
+          label: label,
+          value: value,
+          description: description,
+          isDefault: isDefault,
+          emoji: emoji,
+        );
+        return true;
+      case 'newselectmenu':
+        final customId = _stringifyArgument(node, 0);
+        final placeholder = _stringifyArgument(node, 1);
+        final minValues = _stringifyArgument(node, 2);
+        final maxValues = _stringifyArgument(node, 3);
+        final disabled = _parseBooleanLike(_stringifyArgument(node, 4));
+        response._currentSelectMenuId = customId;
+        response.addComponent(<String, dynamic>{
+          'type': 'selectMenu',
+          'customId': customId,
+          if (placeholder.isNotEmpty) 'placeholder': placeholder,
+          if (minValues.isNotEmpty) 'minValues': int.tryParse(minValues) ?? 1,
+          if (maxValues.isNotEmpty) 'maxValues': int.tryParse(maxValues) ?? 1,
+          'disabled': disabled,
+        });
+        return true;
+      case 'editselectmenu':
+        return true;
+      case 'editselectmenuoption':
+        return true;
+      case 'editbutton':
+        return true;
+      case 'removeallcomponents':
+        response.clearComponents();
+        return true;
+      case 'removebuttons':
+        response.clearButtons();
+        return true;
+      case 'removecomponent':
+        final customId = _stringifyArgument(node, 0);
+        response.removeComponent(customId);
+        return true;
+      case 'addseparator':
+        response.addComponent(<String, dynamic>{
+          'type': 'separator',
+          'spacing': _stringifyArgument(node, 0),
+          'divider': _parseBooleanLike(
+            _stringifyArgument(node, 1).isEmpty
+                ? 'yes'
+                : _stringifyArgument(node, 1),
+          ),
+        });
+        return true;
+      case 'addtextdisplay':
+        response.addComponent(<String, dynamic>{
+          'type': 'textDisplay',
+          'content': _stringifyArgument(node, 0),
+        });
+        return true;
+      case 'ephemeral':
+        response._ephemeral = true;
+        return true;
+      case 'allowmention':
+        response._allowMentions = true;
+        return true;
+      case 'allowusermentions':
+        response._allowUserMentions = true;
+        return true;
+      case 'tts':
+        response._tts = true;
+        return true;
+      case 'removelinks':
+        response._removeLinks = true;
+        return true;
+      case 'allowrolementions':
+        response._allowRoleMentions = true;
+        return true;
+      case 'suppresserrors':
+        _suppressErrors = true;
+        return true;
+      case 'embedsuppresserrors':
+        _suppressErrors = true;
         return true;
       default:
         return false;
@@ -681,6 +1007,237 @@ class _BdfdAstTranspilationScope {
       case 'jsonarrayreverse':
         _jsonArrayReverse(node);
         return null;
+      // Moderation actions
+      case 'ban':
+        return _buildBanAction(node);
+      case 'banid':
+        return _buildBanIdAction(node);
+      case 'unban':
+        return _buildUnbanAction(node);
+      case 'unbanid':
+        return _buildUnbanIdAction(node);
+      case 'kick':
+        return _buildKickAction(node);
+      case 'kickmention':
+        return _buildKickMentionAction(node);
+      case 'timeout':
+        return _buildTimeoutAction(node);
+      case 'mute':
+        return _buildMuteAction(node);
+      case 'untimeout':
+        return _buildUntimeoutAction(node);
+      case 'unmute':
+        return _buildUnmuteAction(node);
+      case 'clear':
+        return _buildClearAction(node);
+      // Role actions
+      case 'giverole':
+        return _buildGiveRoleAction(node);
+      case 'giveroles':
+        final giveRolesActions = _buildMultiRoleAction(node, give: true);
+        if (giveRolesActions.isNotEmpty) {
+          _deferredInlineActions.addAll(giveRolesActions);
+        }
+        return null;
+      case 'rolegrant':
+        final roleGrantActions = _buildRoleGrantAction(node);
+        if (roleGrantActions.isNotEmpty) {
+          _deferredInlineActions.addAll(roleGrantActions);
+        }
+        return null;
+      case 'takerole':
+        return _buildTakeRoleAction(node);
+      case 'takeroles':
+        final takeRolesActions = _buildMultiRoleAction(node, give: false);
+        if (takeRolesActions.isNotEmpty) {
+          _deferredInlineActions.addAll(takeRolesActions);
+        }
+        return null;
+      case 'createrole':
+        return _buildCreateRoleAction(node);
+      case 'deleterole':
+        return _buildDeleteRoleAction(node);
+      case 'colorrole':
+        return _buildColorRoleAction(node);
+      case 'modifyrole':
+        return _buildModifyRoleAction(node);
+      case 'modifyroleperms':
+        return _buildModifyRolePermsAction(node);
+      case 'setuserroles':
+        return _buildSetUserRolesAction(node);
+      // Message actions
+      case 'deletemessage':
+        return _buildDeleteMessageAction(node);
+      case 'deletein':
+        return _buildDeleteInAction(node);
+      case 'dm':
+        return _buildDmAction(node);
+      case 'editmessage':
+        return _buildEditMessageAction(node);
+      case 'editin':
+        return _buildEditInAction(node);
+      case 'editembedin':
+        return _buildEditEmbedInAction(node);
+      case 'pinmessage':
+        return _buildPinMessageAction(node);
+      case 'unpinmessage':
+        return _buildUnpinMessageAction(node);
+      case 'publishmessage':
+        return _buildPublishMessageAction(node);
+      case 'replyin':
+        return _buildReplyInAction(node);
+      case 'sendembedmessage':
+        return _buildSendEmbedMessageAction(node);
+      case 'usechannel':
+        return _buildUseChannelAction(node);
+      // Channel actions
+      case 'createchannel':
+        return _buildCreateChannelAction(node);
+      case 'deletechannels':
+      case 'deletechannelsbyname':
+        return _buildDeleteChannelsAction(node);
+      case 'modifychannel':
+        return _buildModifyChannelAction(node);
+      case 'editchannelperms':
+        return _buildEditChannelPermsAction(node);
+      case 'modifychannelperms':
+        return _buildModifyChannelPermsAction(node);
+      case 'slowmode':
+        return _buildSlowmodeAction(node);
+      // Reaction actions
+      case 'addreactions':
+        return _buildAddReactionsAction(node);
+      case 'addcmdreactions':
+        return _buildAddCmdReactionsAction(node);
+      case 'addmessagereactions':
+        return _buildAddMessageReactionsAction(node);
+      case 'clearreactions':
+        return _buildClearReactionsAction(node);
+      // Emoji actions
+      case 'addemoji':
+        return _buildAddEmojiAction(node);
+      case 'removeemoji':
+        return _buildRemoveEmojiAction(node);
+      // Webhook actions
+      case 'webhooksend':
+        return _buildWebhookSendAction(node);
+      case 'webhookcreate':
+        return _buildWebhookCreateAction(node);
+      case 'webhookdelete':
+        return _buildWebhookDeleteAction(node);
+      // Modal action
+      case 'newmodal':
+        return _buildNewModalAction(node);
+      case 'addtextinput':
+        _pendingModalInputs.add(<String, dynamic>{
+          'label': _stringifyArgument(node, 0),
+          'style': _stringifyArgument(node, 1),
+          'customId': _stringifyArgument(node, 2),
+          'required': _parseBooleanLike(
+            _stringifyArgument(node, 3).isEmpty
+                ? 'yes'
+                : _stringifyArgument(node, 3),
+          ),
+          if (_stringifyArgument(node, 4).isNotEmpty)
+            'value': _stringifyArgument(node, 4),
+          if (_stringifyArgument(node, 5).isNotEmpty)
+            'placeholder': _stringifyArgument(node, 5),
+          if (_stringifyArgument(node, 6).isNotEmpty)
+            'minLength': int.tryParse(_stringifyArgument(node, 6)) ?? 0,
+          if (_stringifyArgument(node, 7).isNotEmpty)
+            'maxLength': int.tryParse(_stringifyArgument(node, 7)) ?? 4000,
+        });
+        return null;
+      // Defer action
+      case 'defer':
+        return Action(
+          type: BotCreatorActionType.respondWithMessage,
+          payload: const <String, dynamic>{
+            'content': '',
+            'deferred': true,
+            'ephemeral': false,
+          },
+        );
+      // Cooldown actions
+      case 'cooldown':
+        return _buildCooldownAction(node, scope: 'user');
+      case 'globalcooldown':
+        return _buildCooldownAction(node, scope: 'global');
+      case 'servercooldown':
+        return _buildCooldownAction(node, scope: 'guild');
+      case 'changecooldowntime':
+        return _buildChangeCooldownTimeAction(node);
+      // Variable operations
+      case 'setvar':
+        // BDFD wiki: $setVar[Variable name;New value;(User ID)]
+        final svUserId =
+            node.arguments.length > 2 ? _stringifyArgument(node, 2).trim() : '';
+        return _buildSetScopedVariableAction(
+          scope: svUserId.isNotEmpty ? 'user' : 'global',
+          node: node,
+        );
+      case 'resetuservar':
+        return _buildResetScopedVariableAction(scope: 'user', node: node);
+      case 'resetservervar':
+      case 'resetguildvar':
+        return _buildResetScopedVariableAction(scope: 'guild', node: node);
+      case 'resetchannelvar':
+        return _buildResetScopedVariableAction(scope: 'channel', node: node);
+      case 'resetmembervar':
+      case 'resetguildmembervar':
+        return _buildResetScopedVariableAction(
+          scope: 'guildMember',
+          node: node,
+        );
+      // Text split state
+      case 'textsplit':
+        _textSplitState(node);
+        return null;
+      // Blacklist guards
+      case 'blacklistids':
+        return _transpileBlacklistIds(node);
+      case 'blacklistroles':
+        return _transpileBlacklistRoles(node);
+      case 'blacklistrolesids':
+      case 'blacklistroleids':
+        return _transpileBlacklistRoleIds(node);
+      case 'blacklistservers':
+        return _transpileBlacklistServers(node);
+      case 'blacklistusers':
+        return _transpileBlacklistUsers(node);
+      // Bot actions
+      case 'botleave':
+        return Action(
+          type: BotCreatorActionType.updateGuild,
+          payload: const <String, dynamic>{'leave': true},
+        );
+      case 'bottyping':
+        return Action(
+          type: BotCreatorActionType.sendMessage,
+          payload: const <String, dynamic>{
+            'targetType': 'typing',
+            'channelId': '((channel.id))',
+          },
+        );
+      // Close/new ticket scaffolding
+      case 'closeticket':
+        // BDFD wiki: $closeTicket[Error message] — error message is sent when
+        // the channel is not a ticket.
+        final ctErrorMsg = _stringifyArgument(node, 0).trim();
+        return Action(
+          type: BotCreatorActionType.updateChannel,
+          payload: <String, dynamic>{
+            'channelId': '((channel.id))',
+            'archived': true,
+            'locked': true,
+            if (ctErrorMsg.isNotEmpty) 'errorMessage': ctErrorMsg,
+          },
+        );
+      case 'newticket':
+        return _buildNewTicketAction(node);
+      // Args check
+      case 'argscheck':
+        return _buildArgsCheckAction(node);
       default:
         _diagnostics.add(
           BdfdTranspileDiagnostic(
@@ -743,7 +1300,9 @@ class _BdfdAstTranspilationScope {
             (username) => _ParsedCondition(
               left: '((author.username))',
               operator: 'matches',
-              right: '(?i)^${RegExp.escape(username)}' r'$',
+              right:
+                  '(?i)^${RegExp.escape(username)}'
+                  r'$',
             ),
           )
           .toList(growable: false),
@@ -1111,7 +1670,8 @@ class _BdfdAstTranspilationScope {
       permissionsStartAt = 0;
     } else {
       final normalizedChannel = _normalizeDiscordIdToken(firstArgumentRaw);
-      channelId = normalizedChannel.isEmpty ? '((channel.id))' : normalizedChannel;
+      channelId =
+          normalizedChannel.isEmpty ? '((channel.id))' : normalizedChannel;
       permissionsStartAt = 1;
     }
 
@@ -1151,7 +1711,10 @@ class _BdfdAstTranspilationScope {
       ),
     );
 
-    final condition = _ParsedCondition.logical(group: 'and', conditions: conditions);
+    final condition = _ParsedCondition.logical(
+      group: 'and',
+      conditions: conditions,
+    );
 
     return _buildGuardIfAction(
       condition: condition,
@@ -1242,7 +1805,11 @@ class _BdfdAstTranspilationScope {
     return _CheckUserPermsParsed(
       condition: _ParsedCondition.logical(
         group: 'or',
-        conditions: <_ParsedCondition>[selfMemberBranch, byIdBranch, ownerBranch],
+        conditions: <_ParsedCondition>[
+          selfMemberBranch,
+          byIdBranch,
+          ownerBranch,
+        ],
       ),
       message: extracted.message,
     );
@@ -1278,33 +1845,38 @@ class _BdfdAstTranspilationScope {
     return _buildGuardIfAction(
       condition: condition,
       thenActions: const <Action>[],
-      elseActions: _buildGuardFailureActions(
-        message: parsed.errorMessage,
-      ),
+      elseActions: _buildGuardFailureActions(message: parsed.errorMessage),
     );
   }
 
   _MessageContainsArgs _extractMessageContainsArgs(BdfdFunctionCallAst node) {
     final defaultMessage = '((message.content))';
     if (node.arguments.isEmpty) {
-      return const _MessageContainsArgs(message: '((message.content))', words: <String>[], errorMessage: '');
+      return const _MessageContainsArgs(
+        message: '((message.content))',
+        words: <String>[],
+        errorMessage: '',
+      );
     }
 
     final rawMessage = _stringifyArgument(node, 0).trim();
     final message = rawMessage.isEmpty ? defaultMessage : rawMessage;
 
     if (node.arguments.length == 1) {
-      return _MessageContainsArgs(message: message, words: const <String>[], errorMessage: '');
+      return _MessageContainsArgs(
+        message: message,
+        words: const <String>[],
+        errorMessage: '',
+      );
     }
 
     final words = <String>[];
     var errorMessage = '';
     final hasErrorMessage =
-      node.arguments.length >= 3 &&
-      _looksLikeLikelyErrorMessage(_stringifyNodes(node.arguments.last));
-    final wordsEndExclusive = hasErrorMessage
-        ? node.arguments.length - 1
-        : node.arguments.length;
+        node.arguments.length >= 3 &&
+        _looksLikeLikelyErrorMessage(_stringifyNodes(node.arguments.last));
+    final wordsEndExclusive =
+        hasErrorMessage ? node.arguments.length - 1 : node.arguments.length;
 
     for (var index = 1; index < wordsEndExclusive; index++) {
       final word = _stringifyArgument(node, index).trim();
@@ -1381,7 +1953,9 @@ class _BdfdAstTranspilationScope {
     );
   }
 
-  _GuardValuesAndMessage _extractGuardValuesAndMessage(BdfdFunctionCallAst node) {
+  _GuardValuesAndMessage _extractGuardValuesAndMessage(
+    BdfdFunctionCallAst node,
+  ) {
     if (node.arguments.isEmpty) {
       return const _GuardValuesAndMessage(values: <String>[], message: '');
     }
@@ -1395,9 +1969,10 @@ class _BdfdAstTranspilationScope {
 
     final lastArgument = _stringifyNodes(node.arguments.last);
     final hasMessage = _looksLikeLikelyErrorMessage(lastArgument);
-    final valueArguments = hasMessage
-        ? node.arguments.sublist(0, node.arguments.length - 1)
-        : node.arguments;
+    final valueArguments =
+        hasMessage
+            ? node.arguments.sublist(0, node.arguments.length - 1)
+            : node.arguments;
     return _GuardValuesAndMessage(
       values: _extractValueArguments(valueArguments),
       message: hasMessage ? lastArgument : '',
@@ -1514,10 +2089,10 @@ class _BdfdAstTranspilationScope {
   }
 
   String _normalizePermissionToken(String raw) {
-    final normalized = raw
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9]'), '');
+    final normalized = raw.trim().toLowerCase().replaceAll(
+      RegExp(r'[^a-z0-9]'),
+      '',
+    );
     if (normalized.isEmpty) {
       return '';
     }
@@ -1841,6 +2416,217 @@ class _BdfdAstTranspilationScope {
         return _inlineMessageArgument(node);
       case 'mentionedchannels':
         return _inlineMentionedChannels(node);
+      case 'username':
+        if (node.arguments.isNotEmpty) {
+          final userId = _stringifyArgument(node, 0).trim();
+          if (userId.isNotEmpty) {
+            return '((user[$userId].username))';
+          }
+        }
+        return _inlineRuntimeVariables['username'];
+      case 'nickname':
+        if (node.arguments.isNotEmpty) {
+          final userId = _stringifyArgument(node, 0).trim();
+          if (userId.isNotEmpty) {
+            return '((member[$userId].nick))';
+          }
+        }
+        return _inlineRuntimeVariables['nickname'];
+      case 'displayname':
+        if (node.arguments.isNotEmpty) {
+          final userId = _stringifyArgument(node, 0).trim();
+          if (userId.isNotEmpty) {
+            return '((member[$userId].nick|user[$userId].username))';
+          }
+        }
+        return _inlineRuntimeVariables['displayname'];
+      // Parametric channel/guild lookups
+      case 'channelid':
+        if (node.arguments.isNotEmpty) {
+          final channelName = _stringifyArgument(node, 0).trim();
+          if (channelName.isNotEmpty) {
+            return '((channel[$channelName].id))';
+          }
+        }
+        return _inlineRuntimeVariables['channelid'];
+      case 'guildid':
+        if (node.arguments.isNotEmpty) {
+          final guildName = _stringifyArgument(node, 0).trim();
+          if (guildName.isNotEmpty) {
+            return '((guild[$guildName].id))';
+          }
+        }
+        return _inlineRuntimeVariables['guildid'];
+      case 'roleid':
+        final roleName = _stringifyArgument(node, 0).trim();
+        if (roleName.isNotEmpty) {
+          return '((role[$roleName].id))';
+        }
+        return '';
+      case 'rolename':
+        final roleId = _stringifyArgument(node, 0).trim();
+        if (roleId.isNotEmpty) {
+          return '((role[$roleId].name))';
+        }
+        return '';
+      case 'roleinfo':
+        final roleId = _stringifyArgument(node, 0).trim();
+        final property = _stringifyArgument(node, 1).trim();
+        if (roleId.isNotEmpty) {
+          if (property.isNotEmpty) {
+            return '((role[$roleId].$property))';
+          }
+          return '((role[$roleId].info))';
+        }
+        return '';
+      case 'roleexists':
+        final roleId = _stringifyArgument(node, 0).trim();
+        if (roleId.isNotEmpty) {
+          return '((role[$roleId].exists))';
+        }
+        return 'false';
+      case 'roleperms':
+        final roleId = _stringifyArgument(node, 0).trim();
+        if (roleId.isNotEmpty) {
+          return '((role[$roleId].permissions))';
+        }
+        return '';
+      case 'roleposition':
+        final roleId = _stringifyArgument(node, 0).trim();
+        if (roleId.isNotEmpty) {
+          return '((role[$roleId].position))';
+        }
+        return '';
+      case 'getrolecolor':
+        final roleId = _stringifyArgument(node, 0).trim();
+        if (roleId.isNotEmpty) {
+          return '((role[$roleId].color))';
+        }
+        return '';
+      case 'ishoisted':
+        final roleId = _stringifyArgument(node, 0).trim();
+        if (roleId.isNotEmpty) {
+          return '((role[$roleId].hoist))';
+        }
+        return 'false';
+      case 'ismentionable':
+        final roleId = _stringifyArgument(node, 0).trim();
+        if (roleId.isNotEmpty) {
+          return '((role[$roleId].mentionable))';
+        }
+        return 'false';
+      case 'findrole':
+        final roleName = _stringifyArgument(node, 0).trim();
+        if (roleName.isNotEmpty) {
+          return '((role[$roleName].id))';
+        }
+        return '';
+      case 'hasrole':
+        final userId = _stringifyArgument(node, 0).trim();
+        final roleId = _stringifyArgument(node, 1).trim();
+        if (roleId.isNotEmpty) {
+          return '((member[$userId].hasRole[$roleId]))';
+        }
+        if (userId.isNotEmpty) {
+          return '((member.hasRole[$userId]))';
+        }
+        return 'false';
+      case 'userswithrole':
+        final uwrRoleId = _stringifyArgument(node, 0).trim();
+        if (uwrRoleId.isNotEmpty) {
+          return '((role[$uwrRoleId].memberCount))';
+        }
+        return '0';
+      // Parametric user info lookups
+      case 'useravatar':
+        if (node.arguments.isNotEmpty) {
+          final userId = _stringifyArgument(node, 0).trim();
+          if (userId.isNotEmpty) {
+            return '((user[$userId].avatar))';
+          }
+        }
+        return _inlineRuntimeVariables['useravatar'];
+      case 'userbanner':
+        if (node.arguments.isNotEmpty) {
+          final userId = _stringifyArgument(node, 0).trim();
+          if (userId.isNotEmpty) {
+            return '((user[$userId].banner))';
+          }
+        }
+        return _inlineRuntimeVariables['userbanner'];
+      // Mentioned helper with index
+      case 'mentioned':
+        if (node.arguments.isNotEmpty) {
+          final indexRaw = _stringifyArgument(node, 0).trim();
+          final index = int.tryParse(indexRaw);
+          if (index != null && index >= 1) {
+            return '((message.mentions[${index - 1}]))';
+          }
+        }
+        return '((message.mentions[0]))';
+      // Reactions
+      case 'getreactions':
+        final emoji = _stringifyArgument(node, 0).trim();
+        if (emoji.isNotEmpty) {
+          return '((message.reactions[$emoji]))';
+        }
+        return '((message.reactions))';
+      case 'userreacted':
+        final userId = _stringifyArgument(node, 0).trim();
+        final emoji = _stringifyArgument(node, 1).trim();
+        return '((message.reactions[$emoji].includes[$userId]))';
+      // Emoji info
+      case 'customemoji':
+        final emojiName = _stringifyArgument(node, 0).trim();
+        if (emojiName.isNotEmpty) {
+          return '((emoji[$emojiName]))';
+        }
+        return '';
+      case 'emotecount':
+      case 'emojicount':
+        return '((guild.emojiCount))';
+      case 'emojiexists':
+        final emojiName = _stringifyArgument(node, 0).trim();
+        if (emojiName.isNotEmpty) {
+          return '((emoji[$emojiName].exists))';
+        }
+        return 'false';
+      case 'emojiname':
+        final emojiId = _stringifyArgument(node, 0).trim();
+        if (emojiId.isNotEmpty) {
+          return '((emoji[$emojiId].name))';
+        }
+        return '';
+      case 'isemojianimated':
+        final emojiId = _stringifyArgument(node, 0).trim();
+        if (emojiId.isNotEmpty) {
+          return '((emoji[$emojiId].animated))';
+        }
+        return 'false';
+      // Webhook info
+      case 'webhookavatarurl':
+        return '((webhook.avatarURL))';
+      case 'webhookcolor':
+        return '((webhook.color))';
+      case 'webhookdescription':
+        return '((webhook.description))';
+      case 'webhookfooter':
+        return '((webhook.footer))';
+      case 'webhooktitle':
+        return '((webhook.title))';
+      case 'webhookusername':
+        return '((webhook.username))';
+      case 'webhookcontent':
+        return '((webhook.content))';
+      // Ticket
+      case 'isticket':
+        return '((channel.isTicket))';
+      // getMessage
+      case 'getmessage':
+        return _inlineGetMessage(node);
+      // $c - comment function, returns empty
+      case 'c':
+        return '';
       default:
         break;
     }
@@ -1851,6 +2637,7 @@ class _BdfdAstTranspilationScope {
     }
 
     switch (node.normalizedName) {
+      // JSON functions
       case 'json':
         return _jsonGet(node);
       case 'jsonexists':
@@ -1869,10 +2656,12 @@ class _BdfdAstTranspilationScope {
         return _jsonArrayPop(node);
       case 'jsonarrayshift':
         return _jsonArrayShift(node);
+      // HTTP results
       case 'httpstatus':
         return _latestHttpStatusPlaceholder(node);
       case 'httpresult':
         return _latestHttpResultPlaceholder(node);
+      // Variable getters
       case 'getuservar':
         return _scopedVariablePlaceholder('user', _stringifyArgument(node, 0));
       case 'getservervar':
@@ -1894,6 +2683,267 @@ class _BdfdAstTranspilationScope {
           'message',
           _stringifyArgument(node, 0),
         );
+      case 'getvar':
+        // BDFD wiki: $getVar[Variable name;(User ID)]
+        final gvUserId =
+            node.arguments.length > 1 ? _stringifyArgument(node, 1).trim() : '';
+        if (gvUserId.isNotEmpty) {
+          return _scopedVariablePlaceholder(
+            'user',
+            _stringifyArgument(node, 0),
+          );
+        }
+        return _scopedVariablePlaceholder(
+          'global',
+          _stringifyArgument(node, 0),
+        );
+      case 'var':
+        return _scopedVariablePlaceholder(
+          'global',
+          _stringifyArgument(node, 0),
+        );
+      case 'varexists':
+        final key = _stringifyArgument(node, 0).trim();
+        if (key.isNotEmpty) {
+          return '((variables.exists[$key]))';
+        }
+        return 'false';
+      case 'varexisterror':
+        return '';
+      case 'getleaderboardposition':
+        return '((leaderboard.position))';
+      case 'getleaderboardvalue':
+        return '((leaderboard.value))';
+      case 'globaluserleaderboard':
+        final guVarName = _stringifyArgument(node, 0).trim();
+        final guSort = _stringifyArgument(node, 1).trim();
+        return '((globalUserLeaderboard[$guVarName${guSort.isNotEmpty ? ';$guSort' : ''}]))';
+      case 'serverleaderboard':
+        final slVarName = _stringifyArgument(node, 0).trim();
+        final slSort = _stringifyArgument(node, 1).trim();
+        return '((serverLeaderboard[$slVarName${slSort.isNotEmpty ? ';$slSort' : ''}]))';
+      case 'userleaderboard':
+        final ulVarName = _stringifyArgument(node, 0).trim();
+        final ulSort = _stringifyArgument(node, 1).trim();
+        return '((userLeaderboard[$ulVarName${ulSort.isNotEmpty ? ';$ulSort' : ''}]))';
+      case 'getcooldown':
+        final cooldownType = _stringifyArgument(node, 0).trim();
+        if (cooldownType.isNotEmpty) {
+          return '((cooldown[$cooldownType].remaining))';
+        }
+        return '((cooldown.remaining))';
+      // Text manipulation (compile-time)
+      case 'replacetext':
+        return _inlineReplaceText(node);
+      case 'tolowercase':
+        return _stringifyArgument(node, 0).toLowerCase();
+      case 'touppercase':
+        return _stringifyArgument(node, 0).toUpperCase();
+      case 'totitlecase':
+        return _inlineTitleCase(_stringifyArgument(node, 0));
+      case 'charcount':
+        return _stringifyArgument(node, 0).length.toString();
+      case 'bytecount':
+        return utf8.encode(_stringifyArgument(node, 0)).length.toString();
+      case 'linescount':
+        final text = _stringifyArgument(node, 0);
+        return text.isEmpty ? '0' : text.split('\n').length.toString();
+      case 'croptext':
+        return _inlineCropText(node);
+      case 'trimcontent':
+        return _stringifyArgument(node, 0).trim();
+      case 'trimspace':
+        return _stringifyArgument(node, 0).trim();
+      case 'unescape':
+        return _stringifyArgument(node, 0);
+      case 'repeatmessage':
+        return _inlineRepeatMessage(node);
+      case 'removecontains':
+        return _inlineRemoveContains(node);
+      case 'numberseparator':
+        return _inlineNumberSeparator(node);
+      case 'splittext':
+        return _inlineSplitText(node);
+      case 'editsplittext':
+        return _inlineEditSplitText(node);
+      case 'gettextsplitindex':
+        return _inlineGetTextSplitIndex(node);
+      case 'gettextsplitlength':
+        return _textSplitParts.length.toString();
+      case 'joinsplittext':
+        return _inlineJoinSplitText(node);
+      case 'removesplittextelement':
+        return _inlineRemoveSplitTextElement(node);
+      // Math functions (compile-time)
+      case 'calculate':
+        return _inlineCalculate(node);
+      case 'ceil':
+        return _inlineMathUnary(node, (v) => v.ceil());
+      case 'floor':
+        return _inlineMathUnary(node, (v) => v.floor());
+      case 'round':
+        return _inlineMathUnary(node, (v) => v.round());
+      case 'sqrt':
+        return _inlineMathUnaryDouble(node, math.sqrt);
+      case 'max':
+        return _inlineMathBinary(node, math.max);
+      case 'min':
+        return _inlineMathBinary(node, math.min);
+      case 'modulo':
+        return _inlineMathBinaryOp(node, (a, b) => b != 0 ? a % b : 0);
+      case 'multi':
+        return _inlineMathBinaryOp(node, (a, b) => a * b);
+      case 'divide':
+        return _inlineMathBinaryOp(node, (a, b) => b != 0 ? a / b : 0);
+      case 'sub':
+        return _inlineMathBinaryOp(node, (a, b) => a - b);
+      case 'sum':
+        return _inlineSum(node);
+      case 'sort':
+        return _inlineSort(node);
+      // Boolean check functions (compile-time)
+      case 'isboolean':
+        return _inlineIsBoolean(node);
+      case 'isinteger':
+        return _inlineIsInteger(node);
+      case 'isnumber':
+        return _inlineIsNumber(node);
+      case 'isvalidhex':
+        return _inlineIsValidHex(node);
+      case 'checkcondition':
+        return _inlineCheckCondition(node);
+      case 'checkcontains':
+        return _inlineCheckContains(node);
+      // Random functions (compile-time)
+      case 'random':
+        return _inlineRandom(node);
+      case 'randomstring':
+        return _inlineRandomString(node);
+      case 'randomtext':
+        return _inlineRandomText(node);
+      // Date/Time functions (compile-time current time)
+      case 'date':
+        return _inlineDate();
+      case 'day':
+        return DateTime.now().toUtc().day.toString();
+      case 'hour':
+        return DateTime.now().toUtc().hour.toString();
+      case 'minute':
+        return DateTime.now().toUtc().minute.toString();
+      case 'month':
+        return DateTime.now().toUtc().month.toString();
+      case 'second':
+        return DateTime.now().toUtc().second.toString();
+      case 'year':
+        return DateTime.now().toUtc().year.toString();
+      case 'time':
+        final now = DateTime.now().toUtc();
+        return '${now.hour.toString().padLeft(2, '0')}:'
+            '${now.minute.toString().padLeft(2, '0')}:'
+            '${now.second.toString().padLeft(2, '0')}';
+      case 'gettimestamp':
+        return (DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000)
+            .toString();
+      // Misc inline
+      case 'getserverinvite':
+        return '((guild.invite))';
+      case 'getinviteinfo':
+        return '((invite.info))';
+      case 'hostingexpiretime':
+        return '((hosting.expireTime))';
+      case 'premiumexpiretime':
+        return '((premium.expireTime))';
+      case 'randomcategoryid':
+        return '((random.categoryId))';
+      case 'randomchannelid':
+        return '((random.channelId))';
+      case 'randomguildid':
+        return '((random.guildId))';
+      case 'randommention':
+        return '((random.mention))';
+      case 'randomroleid':
+        return '((random.roleId))';
+      case 'randomuser':
+        return '((random.user))';
+      case 'randomuserid':
+        return '((random.userId))';
+      // Parameterized inline functions (wiki requires arguments)
+      case 'getbanreason':
+        // BDFD wiki: $getBanReason[User ID;(Guild ID)]
+        final brUserId = _stringifyArgument(node, 0).trim();
+        if (brUserId.isNotEmpty) {
+          final brGuildId = _stringifyArgument(node, 1).trim();
+          if (brGuildId.isNotEmpty) {
+            return '((ban.reason[$brUserId;$brGuildId]))';
+          }
+          return '((ban.reason[$brUserId]))';
+        }
+        return _inlineRuntimeVariables['getbanreason'];
+      case 'isbanned':
+        // BDFD wiki: $isBanned[User ID]
+        final ibUserId = _stringifyArgument(node, 0).trim();
+        if (ibUserId.isNotEmpty) {
+          return '((member[$ibUserId].isBanned))';
+        }
+        return _inlineRuntimeVariables['isbanned'];
+      case 'istimedout':
+        // BDFD wiki: $isTimedOut[User ID]
+        final itUserId = _stringifyArgument(node, 0).trim();
+        if (itUserId.isNotEmpty) {
+          return '((member[$itUserId].isTimedOut))';
+        }
+        return _inlineRuntimeVariables['istimedout'];
+      case 'getslowmode':
+        // BDFD wiki: $getSlowmode[(Channel ID)]
+        if (node.arguments.isNotEmpty) {
+          final smChannelId = _stringifyArgument(node, 0).trim();
+          if (smChannelId.isNotEmpty) {
+            return '((channel[$smChannelId].rateLimitPerUser))';
+          }
+        }
+        return _inlineRuntimeVariables['getslowmode'];
+      case 'isnsfw':
+        // BDFD wiki: $isNSFW[Channel ID]
+        final nsfwChannelId = _stringifyArgument(node, 0).trim();
+        if (nsfwChannelId.isNotEmpty) {
+          return '((channel[$nsfwChannelId].nsfw))';
+        }
+        return _inlineRuntimeVariables['isnsfw'];
+      case 'ismentioned':
+        // BDFD wiki: $isMentioned[User ID]
+        final imUserId = _stringifyArgument(node, 0).trim();
+        if (imUserId.isNotEmpty) {
+          return '((message.isMentioned[$imUserId]))';
+        }
+        return _inlineRuntimeVariables['ismentioned'];
+      case 'ismessageedited':
+        // BDFD wiki: $isMessageEdited[Channel ID;Message ID]
+        final meChannelId = _stringifyArgument(node, 0).trim();
+        final meMessageId = _stringifyArgument(node, 1).trim();
+        if (meChannelId.isNotEmpty && meMessageId.isNotEmpty) {
+          return '((message[$meChannelId;$meMessageId].isEdited))';
+        }
+        return _inlineRuntimeVariables['ismessageedited'];
+      case 'getattachments':
+        // BDFD wiki: $getAttachments[Index]
+        final attIndex = _stringifyArgument(node, 0).trim();
+        if (attIndex.isNotEmpty) {
+          return '((message.attachments[$attIndex]))';
+        }
+        return _inlineRuntimeVariables['getattachments'];
+      case 'getembeddata':
+        // BDFD wiki: $getEmbedData[Channel ID;Message ID;Embed index;Embed property]
+        final edChannelId = _stringifyArgument(node, 0).trim();
+        final edMessageId = _stringifyArgument(node, 1).trim();
+        final edIndex = _stringifyArgument(node, 2).trim();
+        final edProperty = _stringifyArgument(node, 3).trim();
+        if (edChannelId.isNotEmpty && edMessageId.isNotEmpty) {
+          return '((message[$edChannelId;$edMessageId].embeds[${edIndex.isEmpty ? '0' : edIndex}]${edProperty.isNotEmpty ? '.$edProperty' : ''}))';
+        }
+        return _inlineRuntimeVariables['getembeddata'];
+      // eval - return the argument as-is (limited compile-time support)
+      case 'eval':
+        return _stringifyArgument(node, 0);
       default:
         return null;
     }
@@ -1931,6 +2981,120 @@ class _BdfdAstTranspilationScope {
       case 'getmembervar':
       case 'getguildmembervar':
       case 'getmessagevar':
+      case 'getvar':
+      case 'var':
+      case 'varexists':
+      case 'varexisterror':
+      case 'getleaderboardposition':
+      case 'getleaderboardvalue':
+      case 'getcooldown':
+      // Text manipulation
+      case 'replacetext':
+      case 'tolowercase':
+      case 'touppercase':
+      case 'totitlecase':
+      case 'charcount':
+      case 'bytecount':
+      case 'linescount':
+      case 'croptext':
+      case 'trimcontent':
+      case 'trimspace':
+      case 'unescape':
+      case 'repeatmessage':
+      case 'removecontains':
+      case 'numberseparator':
+      case 'splittext':
+      case 'editsplittext':
+      case 'gettextsplitindex':
+      case 'gettextsplitlength':
+      case 'joinsplittext':
+      case 'removesplittextelement':
+      // Math
+      case 'calculate':
+      case 'ceil':
+      case 'floor':
+      case 'round':
+      case 'sqrt':
+      case 'max':
+      case 'min':
+      case 'modulo':
+      case 'multi':
+      case 'divide':
+      case 'sub':
+      case 'sum':
+      case 'sort':
+      // Boolean checks
+      case 'isboolean':
+      case 'isinteger':
+      case 'isnumber':
+      case 'isvalidhex':
+      case 'checkcondition':
+      case 'checkcontains':
+      // Random
+      case 'random':
+      case 'randomstring':
+      case 'randomtext':
+      // Date/Time
+      case 'date':
+      case 'day':
+      case 'hour':
+      case 'minute':
+      case 'month':
+      case 'second':
+      case 'year':
+      case 'time':
+      case 'gettimestamp':
+      // Parametric lookups
+      case 'channelid':
+      case 'guildid':
+      case 'roleid':
+      case 'rolename':
+      case 'roleinfo':
+      case 'roleexists':
+      case 'roleperms':
+      case 'roleposition':
+      case 'getrolecolor':
+      case 'ishoisted':
+      case 'ismentionable':
+      case 'findrole':
+      case 'hasrole':
+      case 'userswithrole':
+      case 'useravatar':
+      case 'userbanner':
+      case 'mentioned':
+      case 'getreactions':
+      case 'userreacted':
+      case 'customemoji':
+      case 'emotecount':
+      case 'emojicount':
+      case 'emojiexists':
+      case 'emojiname':
+      case 'isemojianimated':
+      case 'webhookavatarurl':
+      case 'webhookcolor':
+      case 'webhookdescription':
+      case 'webhookfooter':
+      case 'webhooktitle':
+      case 'webhookusername':
+      case 'webhookcontent':
+      case 'isticket':
+      case 'getmessage':
+      case 'c':
+      case 'eval':
+      case 'globaluserleaderboard':
+      case 'serverleaderboard':
+      case 'userleaderboard':
+      case 'getserverinvite':
+      case 'getinviteinfo':
+      case 'hostingexpiretime':
+      case 'premiumexpiretime':
+      case 'randomcategoryid':
+      case 'randomchannelid':
+      case 'randomguildid':
+      case 'randommention':
+      case 'randomroleid':
+      case 'randomuser':
+      case 'randomuserid':
         return true;
       default:
         return _inlineRuntimeVariables.containsKey(normalizedName);
@@ -1977,9 +3141,97 @@ class _BdfdAstTranspilationScope {
       case 'setmembervar':
       case 'setguildmembervar':
       case 'setmessagevar':
+      case 'setvar':
       case 'awaitfunc':
       case 'changeusername':
       case 'changeusernamewithid':
+      // Moderation
+      case 'ban':
+      case 'banid':
+      case 'unban':
+      case 'unbanid':
+      case 'kick':
+      case 'kickmention':
+      case 'timeout':
+      case 'mute':
+      case 'untimeout':
+      case 'unmute':
+      case 'clear':
+      // Roles
+      case 'giverole':
+      case 'giveroles':
+      case 'rolegrant':
+      case 'takerole':
+      case 'takeroles':
+      case 'createrole':
+      case 'deleterole':
+      case 'colorrole':
+      case 'modifyrole':
+      case 'modifyroleperms':
+      case 'setuserroles':
+      // Messages
+      case 'deletemessage':
+      case 'deletein':
+      case 'dm':
+      case 'editmessage':
+      case 'editin':
+      case 'editembedin':
+      case 'pinmessage':
+      case 'unpinmessage':
+      case 'publishmessage':
+      case 'replyin':
+      case 'sendembedmessage':
+      case 'usechannel':
+      // Channels
+      case 'createchannel':
+      case 'deletechannels':
+      case 'deletechannelsbyname':
+      case 'modifychannel':
+      case 'editchannelperms':
+      case 'modifychannelperms':
+      case 'slowmode':
+      // Reactions
+      case 'addreactions':
+      case 'addcmdreactions':
+      case 'addmessagereactions':
+      case 'clearreactions':
+      // Emoji
+      case 'addemoji':
+      case 'removeemoji':
+      // Webhooks
+      case 'webhooksend':
+      case 'webhookcreate':
+      case 'webhookdelete':
+      // Modal
+      case 'newmodal':
+      case 'defer':
+      // Cooldown
+      case 'cooldown':
+      case 'globalcooldown':
+      case 'servercooldown':
+      case 'changecooldowntime':
+      // Variable reset
+      case 'resetuservar':
+      case 'resetservervar':
+      case 'resetguildvar':
+      case 'resetchannelvar':
+      case 'resetmembervar':
+      case 'resetguildmembervar':
+      // Blacklist
+      case 'blacklistids':
+      case 'blacklistroles':
+      case 'blacklistrolesids':
+      case 'blacklistroleids':
+      case 'blacklistservers':
+      case 'blacklistusers':
+      // Bot actions
+      case 'botleave':
+      case 'bottyping':
+      // Ticket
+      case 'closeticket':
+      case 'newticket':
+      // Args check
+      case 'argscheck':
         return true;
       default:
         return false;
@@ -2846,9 +4098,8 @@ class _BdfdAstTranspilationScope {
     }
 
     final messageExpression = _messageArgumentExpression(first);
-    final optionSource = second.isNotEmpty
-      ? second
-      : (messageExpression == null ? first : '');
+    final optionSource =
+        second.isNotEmpty ? second : (messageExpression == null ? first : '');
     final optionExpression = _optionExpression(optionSource);
 
     if (messageExpression != null && optionExpression != null) {
@@ -2889,9 +4140,8 @@ class _BdfdAstTranspilationScope {
       return null;
     }
 
-    final normalized = trimmed.startsWith('opts.')
-        ? trimmed.substring(5)
-        : trimmed;
+    final normalized =
+        trimmed.startsWith('opts.') ? trimmed.substring(5) : trimmed;
     if (normalized.isEmpty) {
       return null;
     }
@@ -3099,20 +4349,1715 @@ class _BdfdAstTranspilationScope {
       elseActions: const <Action>[],
     );
   }
+
+  // ── Moderation action builders ──────────────────────────────────────
+
+  Action _buildBanAction(BdfdFunctionCallAst node) {
+    return Action(
+      type: BotCreatorActionType.banUser,
+      payload: <String, dynamic>{
+        'userId': '((message.mentions[0]|author.id))',
+        'reason': '',
+        'deleteMessageDays': 0,
+      },
+    );
+  }
+
+  Action _buildBanIdAction(BdfdFunctionCallAst node) {
+    // BDFD wiki: $banID takes no args — the user ID is extracted from the
+    // last word of the author's message at runtime.
+    return Action(
+      type: BotCreatorActionType.banUser,
+      payload: <String, dynamic>{
+        'userId': '((message.args.last))',
+        'reason': '',
+        'deleteMessageDays': 0,
+      },
+    );
+  }
+
+  Action _buildUnbanAction(BdfdFunctionCallAst node) {
+    return Action(
+      type: BotCreatorActionType.unbanUser,
+      payload: <String, dynamic>{'userId': '((message.mentions[0]|author.id))'},
+    );
+  }
+
+  Action _buildUnbanIdAction(BdfdFunctionCallAst node) {
+    final userId = _stringifyArgument(node, 0).trim();
+    return Action(
+      type: BotCreatorActionType.unbanUser,
+      payload: <String, dynamic>{
+        'userId': userId.isEmpty ? '((message.mentions[0]))' : userId,
+      },
+    );
+  }
+
+  Action _buildKickAction(BdfdFunctionCallAst node) {
+    // BDFD wiki: $kick always kicks the command author, not a mentioned user.
+    return Action(
+      type: BotCreatorActionType.kickUser,
+      payload: <String, dynamic>{'userId': '((author.id))', 'reason': ''},
+    );
+  }
+
+  Action _buildKickMentionAction(BdfdFunctionCallAst node) {
+    // BDFD wiki: $kickMention[Reason] kicks the mentioned user with a reason.
+    final reason = _stringifyArgument(node, 0);
+    return Action(
+      type: BotCreatorActionType.kickUser,
+      payload: <String, dynamic>{
+        'userId': '((message.mentions[0]))',
+        'reason': reason,
+      },
+    );
+  }
+
+  Action _buildTimeoutAction(BdfdFunctionCallAst node) {
+    // BDFD wiki: $timeout[Duration;(User ID)]
+    // arg 0 = duration (required), arg 1 = user ID (optional).
+    final duration = _stringifyArgument(node, 0).trim();
+    final userId = _stringifyArgument(node, 1).trim();
+    return Action(
+      type: BotCreatorActionType.muteUser,
+      payload: <String, dynamic>{
+        'userId': userId.isEmpty ? '((message.mentions[0]))' : userId,
+        'duration': duration,
+        'reason': '',
+      },
+    );
+  }
+
+  Action _buildUntimeoutAction(BdfdFunctionCallAst node) {
+    final userId = _stringifyArgument(node, 0).trim();
+    return Action(
+      type: BotCreatorActionType.unmuteUser,
+      payload: <String, dynamic>{
+        'userId': userId.isEmpty ? '((message.mentions[0]))' : userId,
+      },
+    );
+  }
+
+  Action _buildMuteAction(BdfdFunctionCallAst node) {
+    // BDFD wiki: $mute[Muted Role Name] — DEPRECATED.
+    // Assigns the named role to the mentioned user.
+    final roleName = _stringifyArgument(node, 0).trim();
+    return Action(
+      type: BotCreatorActionType.addRole,
+      payload: <String, dynamic>{
+        'userId': '((message.mentions[0]))',
+        'roleName': roleName,
+      },
+    );
+  }
+
+  Action _buildUnmuteAction(BdfdFunctionCallAst node) {
+    // BDFD wiki: $unmute[Muted Role Name] — DEPRECATED.
+    // Removes the named role from the mentioned user.
+    final roleName = _stringifyArgument(node, 0).trim();
+    return Action(
+      type: BotCreatorActionType.removeRole,
+      payload: <String, dynamic>{
+        'userId': '((message.mentions[0]))',
+        'roleName': roleName,
+      },
+    );
+  }
+
+  Action _buildClearAction(BdfdFunctionCallAst node) {
+    // BDFD wiki: $clear takes no args — count from the author's message
+    // content at runtime.
+    return Action(
+      type: BotCreatorActionType.deleteMessages,
+      payload: <String, dynamic>{
+        'channelId': '((channel.id))',
+        'count': '((message.args[0]))',
+      },
+    );
+  }
+
+  // ── Role action builders ──────────────────────────────────────────
+
+  Action _buildGiveRoleAction(BdfdFunctionCallAst node) {
+    final firstArg = _stringifyArgument(node, 0).trim();
+    final secondArg = _stringifyArgument(node, 1).trim();
+    final hasSecondArg = secondArg.isNotEmpty;
+    return Action(
+      type: BotCreatorActionType.addRole,
+      payload: <String, dynamic>{
+        'userId': hasSecondArg ? firstArg : '((message.mentions[0]|author.id))',
+        'roleId': hasSecondArg ? secondArg : firstArg,
+      },
+    );
+  }
+
+  Action _buildTakeRoleAction(BdfdFunctionCallAst node) {
+    final firstArg = _stringifyArgument(node, 0).trim();
+    final secondArg = _stringifyArgument(node, 1).trim();
+    final hasSecondArg = secondArg.isNotEmpty;
+    return Action(
+      type: BotCreatorActionType.removeRole,
+      payload: <String, dynamic>{
+        'userId': hasSecondArg ? firstArg : '((message.mentions[0]|author.id))',
+        'roleId': hasSecondArg ? secondArg : firstArg,
+      },
+    );
+  }
+
+  /// $giveRoles[Role ID;Role ID;...] / $takeRoles[Role ID;Role ID;...]
+  List<Action> _buildMultiRoleAction(
+    BdfdFunctionCallAst node, {
+    required bool give,
+  }) {
+    final actions = <Action>[];
+    for (var i = 0; i < node.arguments.length; i++) {
+      final roleId = _stringifyArgument(node, i).trim();
+      if (roleId.isEmpty) continue;
+      actions.add(
+        Action(
+          type:
+              give
+                  ? BotCreatorActionType.addRole
+                  : BotCreatorActionType.removeRole,
+          payload: <String, dynamic>{
+            'userId': '((message.mentions[0]|author.id))',
+            'roleId': roleId,
+          },
+        ),
+      );
+    }
+    return actions;
+  }
+
+  List<Action> _buildRoleGrantAction(BdfdFunctionCallAst node) {
+    // BDFD wiki: $roleGrant[User ID;+/-Role ID;...]
+    final userId = _stringifyArgument(node, 0).trim();
+    if (userId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a user ID as first argument.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return const <Action>[];
+    }
+    final actions = <Action>[];
+    for (var i = 1; i < node.arguments.length; i++) {
+      final raw = _stringifyArgument(node, i).trim();
+      if (raw.isEmpty) continue;
+      final isRemove = raw.startsWith('-');
+      final isAdd = raw.startsWith('+');
+      final roleId = (isRemove || isAdd) ? raw.substring(1).trim() : raw;
+      if (roleId.isEmpty) continue;
+      actions.add(
+        Action(
+          type:
+              isRemove
+                  ? BotCreatorActionType.removeRole
+                  : BotCreatorActionType.addRole,
+          payload: <String, dynamic>{'userId': userId, 'roleId': roleId},
+        ),
+      );
+    }
+    return actions;
+  }
+
+  Action? _buildCreateRoleAction(BdfdFunctionCallAst node) {
+    final name = _stringifyArgument(node, 0).trim();
+    if (name.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a role name.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    final color = _stringifyArgument(node, 1);
+    final hoist = _parseBooleanLike(_stringifyArgument(node, 2));
+    final mentionable = _parseBooleanLike(_stringifyArgument(node, 3));
+    return Action(
+      type: BotCreatorActionType.addRole,
+      payload: <String, dynamic>{
+        'createNew': true,
+        'name': name,
+        if (color.isNotEmpty) 'color': color,
+        'hoist': hoist,
+        'mentionable': mentionable,
+      },
+    );
+  }
+
+  Action? _buildDeleteRoleAction(BdfdFunctionCallAst node) {
+    final roleId = _stringifyArgument(node, 0).trim();
+    if (roleId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a role ID.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    return Action(
+      type: BotCreatorActionType.removeRole,
+      payload: <String, dynamic>{'roleId': roleId, 'deleteRole': true},
+    );
+  }
+
+  Action? _buildColorRoleAction(BdfdFunctionCallAst node) {
+    final roleId = _stringifyArgument(node, 0).trim();
+    final color = _stringifyArgument(node, 1).trim();
+    if (roleId.isEmpty || color.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a role ID and color.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    return Action(
+      type: BotCreatorActionType.addRole,
+      payload: <String, dynamic>{'roleId': roleId, 'updateColor': color},
+    );
+  }
+
+  Action? _buildModifyRoleAction(BdfdFunctionCallAst node) {
+    final roleId = _stringifyArgument(node, 0).trim();
+    if (roleId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a role ID.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    final name = _stringifyArgument(node, 1);
+    final color = _stringifyArgument(node, 2);
+    final hoist = _stringifyArgument(node, 3);
+    final mentionable = _stringifyArgument(node, 4);
+    final position = _stringifyArgument(node, 5);
+    return Action(
+      type: BotCreatorActionType.addRole,
+      payload: <String, dynamic>{
+        'roleId': roleId,
+        'modify': true,
+        if (name.isNotEmpty) 'name': name,
+        if (color.isNotEmpty) 'color': color,
+        if (hoist.isNotEmpty) 'hoist': _parseBooleanLike(hoist),
+        if (mentionable.isNotEmpty)
+          'mentionable': _parseBooleanLike(mentionable),
+        if (position.isNotEmpty) 'position': int.tryParse(position),
+      },
+    );
+  }
+
+  Action? _buildModifyRolePermsAction(BdfdFunctionCallAst node) {
+    final roleId = _stringifyArgument(node, 0).trim();
+    if (roleId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a role ID.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    final permissions = <String>[];
+    for (var i = 1; i < node.arguments.length; i++) {
+      final perm = _stringifyArgument(node, i).trim();
+      if (perm.isNotEmpty) {
+        permissions.add(_normalizePermissionToken(perm));
+      }
+    }
+    return Action(
+      type: BotCreatorActionType.addRole,
+      payload: <String, dynamic>{
+        'roleId': roleId,
+        'modifyPermissions': permissions,
+      },
+    );
+  }
+
+  Action? _buildSetUserRolesAction(BdfdFunctionCallAst node) {
+    final userId = _stringifyArgument(node, 0).trim();
+    if (userId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a user ID.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    final roleIds = <String>[];
+    for (var i = 1; i < node.arguments.length; i++) {
+      final roleId = _stringifyArgument(node, i).trim();
+      if (roleId.isNotEmpty) {
+        roleIds.add(roleId);
+      }
+    }
+    return Action(
+      type: BotCreatorActionType.addRole,
+      payload: <String, dynamic>{'userId': userId, 'setRoles': roleIds},
+    );
+  }
+
+  // ── Message action builders ──────────────────────────────────────
+
+  Action? _buildDeleteMessageAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    return Action(
+      type: BotCreatorActionType.deleteMessages,
+      payload: <String, dynamic>{
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'messageId': messageId.isEmpty ? '((message.id))' : messageId,
+      },
+    );
+  }
+
+  Action? _buildDeleteInAction(BdfdFunctionCallAst node) {
+    final delay = _stringifyArgument(node, 0).trim();
+    return Action(
+      type: BotCreatorActionType.deleteMessages,
+      payload: <String, dynamic>{
+        'channelId': '((channel.id))',
+        'messageId': '((message.id))',
+        'delay': delay,
+      },
+    );
+  }
+
+  Action _buildDmAction(BdfdFunctionCallAst node) {
+    final userIdArg = _stringifyArgument(node, 0).trim();
+    final contentArg = _stringifyArgument(node, 1);
+    final isContentOnlyMode = userIdArg.isEmpty || node.arguments.isEmpty;
+    return Action(
+      type: BotCreatorActionType.sendMessage,
+      payload: <String, dynamic>{
+        'targetType': 'dm',
+        'userId': isContentOnlyMode ? '((author.id))' : userIdArg,
+        'content': isContentOnlyMode ? '' : contentArg,
+      },
+    );
+  }
+
+  Action? _buildEditMessageAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    final content = _stringifyArgument(node, 2);
+    return Action(
+      type: BotCreatorActionType.editMessage,
+      payload: <String, dynamic>{
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'messageId': messageId,
+        'content': content,
+      },
+    );
+  }
+
+  Action? _buildEditInAction(BdfdFunctionCallAst node) {
+    final delay = _stringifyArgument(node, 0).trim();
+    final content = _stringifyArgument(node, 1);
+    return Action(
+      type: BotCreatorActionType.editMessage,
+      payload: <String, dynamic>{
+        'channelId': '((channel.id))',
+        'messageId': '((message.id))',
+        'content': content,
+        'delay': delay,
+      },
+    );
+  }
+
+  Action? _buildEditEmbedInAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    final title = _stringifyArgument(node, 2);
+    final description = _stringifyArgument(node, 3);
+    final color = _stringifyArgument(node, 4);
+    return Action(
+      type: BotCreatorActionType.editMessage,
+      payload: <String, dynamic>{
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'messageId': messageId,
+        'embeds': <Map<String, dynamic>>[
+          <String, dynamic>{
+            if (title.isNotEmpty) 'title': title,
+            if (description.isNotEmpty) 'description': description,
+            if (color.isNotEmpty) 'color': color,
+          },
+        ],
+      },
+    );
+  }
+
+  Action _buildPinMessageAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    return Action(
+      type: BotCreatorActionType.pinMessage,
+      payload: <String, dynamic>{
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'messageId': messageId.isEmpty ? '((message.id))' : messageId,
+      },
+    );
+  }
+
+  Action _buildUnpinMessageAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    return Action(
+      type: BotCreatorActionType.unpinMessage,
+      payload: <String, dynamic>{
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'messageId': messageId.isEmpty ? '((message.id))' : messageId,
+      },
+    );
+  }
+
+  Action _buildPublishMessageAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    return Action(
+      type: BotCreatorActionType.sendMessage,
+      payload: <String, dynamic>{
+        'targetType': 'crosspost',
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'messageId': messageId.isEmpty ? '((message.id))' : messageId,
+      },
+    );
+  }
+
+  Action _buildReplyInAction(BdfdFunctionCallAst node) {
+    final delay = _stringifyArgument(node, 0).trim();
+    final content = _stringifyArgument(node, 1);
+    return Action(
+      type: BotCreatorActionType.sendMessage,
+      payload: <String, dynamic>{
+        'targetType': 'reply',
+        'channelId': '((channel.id))',
+        'messageId': '((message.id))',
+        'content': content,
+        'delay': delay,
+      },
+    );
+  }
+
+  Action _buildSendEmbedMessageAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final title = _stringifyArgument(node, 1);
+    final description = _stringifyArgument(node, 2);
+    final color = _stringifyArgument(node, 3);
+    return Action(
+      type: BotCreatorActionType.sendMessage,
+      payload: <String, dynamic>{
+        'targetType': 'channel',
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'content': '',
+        'embeds': <Map<String, dynamic>>[
+          <String, dynamic>{
+            if (title.isNotEmpty) 'title': title,
+            if (description.isNotEmpty) 'description': description,
+            if (color.isNotEmpty) 'color': color,
+          },
+        ],
+      },
+    );
+  }
+
+  Action? _buildUseChannelAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    if (channelId.isNotEmpty) {
+      _useChannelId = channelId;
+    }
+    return null;
+  }
+
+  // ── Channel action builders ──────────────────────────────────────
+
+  Action? _buildCreateChannelAction(BdfdFunctionCallAst node) {
+    final name = _stringifyArgument(node, 0).trim();
+    if (name.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a channel name.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    final type = _stringifyArgument(node, 1).trim().toLowerCase();
+    final categoryId = _stringifyArgument(node, 2).trim();
+    return Action(
+      type: BotCreatorActionType.createChannel,
+      payload: <String, dynamic>{
+        'name': name,
+        'type': type.isEmpty ? 'text' : type,
+        if (categoryId.isNotEmpty) 'parentId': categoryId,
+      },
+    );
+  }
+
+  Action? _buildDeleteChannelsAction(BdfdFunctionCallAst node) {
+    // $deleteChannels[Channel ID] - deletes by ID
+    // $deleteChannelsByName[Channel name;...] - deletes by name(s)
+    final isByName = node.normalizedName == 'deletechannelsbyname';
+    final channelIds = <String>[];
+    for (var i = 0; i < node.arguments.length; i++) {
+      final arg = _stringifyArgument(node, i).trim();
+      if (arg.isNotEmpty) {
+        channelIds.add(arg);
+      }
+    }
+    if (channelIds.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message:
+              '${node.name} requires at least one channel ${isByName ? 'name' : 'ID'}.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    return Action(
+      type: BotCreatorActionType.removeChannel,
+      payload: <String, dynamic>{
+        if (isByName)
+          'channelNames': channelIds
+        else
+          'channelId': channelIds.first,
+      },
+    );
+  }
+
+  Action? _buildModifyChannelAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    if (channelId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a channel ID.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    final name = _stringifyArgument(node, 1);
+    final topic = _stringifyArgument(node, 2);
+    final position = _stringifyArgument(node, 3);
+    final nsfw = _stringifyArgument(node, 4);
+    return Action(
+      type: BotCreatorActionType.updateChannel,
+      payload: <String, dynamic>{
+        'channelId': channelId,
+        if (name.isNotEmpty) 'name': name,
+        if (topic.isNotEmpty) 'topic': topic,
+        if (position.isNotEmpty) 'position': int.tryParse(position),
+        if (nsfw.isNotEmpty) 'nsfw': _parseBooleanLike(nsfw),
+      },
+    );
+  }
+
+  Action? _buildEditChannelPermsAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final roleOrUserId = _stringifyArgument(node, 1).trim();
+    if (channelId.isEmpty || roleOrUserId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a channel ID and role/user ID.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    final permissions = <String>[];
+    for (var i = 2; i < node.arguments.length; i++) {
+      final perm = _stringifyArgument(node, i).trim();
+      if (perm.isNotEmpty) {
+        permissions.add(_normalizePermissionToken(perm));
+      }
+    }
+    return Action(
+      type: BotCreatorActionType.editChannelPermissions,
+      payload: <String, dynamic>{
+        'channelId': channelId,
+        'targetId': roleOrUserId,
+        'permissions': permissions,
+      },
+    );
+  }
+
+  /// BDFD wiki: $modifyChannelPerms[Channel ID;Permissions;User/Role ID]
+  /// Arg order differs from $editChannelPerms: permissions come before the
+  /// target ID.
+  Action? _buildModifyChannelPermsAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final permissionsRaw = _stringifyArgument(node, 1).trim();
+    final targetId = _stringifyArgument(node, 2).trim();
+    if (channelId.isEmpty || targetId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a channel ID and a user/role ID.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    final permissions = <String>[];
+    if (permissionsRaw.isNotEmpty) {
+      for (final token in permissionsRaw.split(';')) {
+        final perm = token.trim();
+        if (perm.isNotEmpty) {
+          permissions.add(_normalizePermissionToken(perm));
+        }
+      }
+    }
+    // Also collect any extra arguments beyond arg 2 as additional permissions.
+    for (var i = 3; i < node.arguments.length; i++) {
+      final perm = _stringifyArgument(node, i).trim();
+      if (perm.isNotEmpty) {
+        permissions.add(_normalizePermissionToken(perm));
+      }
+    }
+    return Action(
+      type: BotCreatorActionType.editChannelPermissions,
+      payload: <String, dynamic>{
+        'channelId': channelId,
+        'targetId': targetId,
+        'permissions': permissions,
+      },
+    );
+  }
+
+  Action _buildSlowmodeAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final seconds = _stringifyArgument(node, 1).trim();
+    return Action(
+      type: BotCreatorActionType.updateChannel,
+      payload: <String, dynamic>{
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'rateLimitPerUser': int.tryParse(seconds) ?? 0,
+      },
+    );
+  }
+
+  // ── Reaction action builders ──────────────────────────────────────
+
+  Action _buildAddReactionsAction(BdfdFunctionCallAst node) {
+    final emojis = <String>[];
+    for (var index = 0; index < node.arguments.length; index++) {
+      final emoji = _stringifyArgument(node, index).trim();
+      if (emoji.isNotEmpty) {
+        emojis.add(emoji);
+      }
+    }
+    return Action(
+      type: BotCreatorActionType.addReaction,
+      payload: <String, dynamic>{
+        'channelId': '((channel.id))',
+        'messageId': '((message.id))',
+        'emojis': emojis,
+      },
+    );
+  }
+
+  Action _buildAddCmdReactionsAction(BdfdFunctionCallAst node) {
+    final emojis = <String>[];
+    for (var index = 0; index < node.arguments.length; index++) {
+      final emoji = _stringifyArgument(node, index).trim();
+      if (emoji.isNotEmpty) {
+        emojis.add(emoji);
+      }
+    }
+    return Action(
+      type: BotCreatorActionType.addReaction,
+      payload: <String, dynamic>{
+        'channelId': '((channel.id))',
+        'messageId': '((trigger.message.id|message.id))',
+        'emojis': emojis,
+      },
+    );
+  }
+
+  Action _buildAddMessageReactionsAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    final emojis = <String>[];
+    for (var index = 2; index < node.arguments.length; index++) {
+      final emoji = _stringifyArgument(node, index).trim();
+      if (emoji.isNotEmpty) {
+        emojis.add(emoji);
+      }
+    }
+    return Action(
+      type: BotCreatorActionType.addReaction,
+      payload: <String, dynamic>{
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'messageId': messageId.isEmpty ? '((message.id))' : messageId,
+        'emojis': emojis,
+      },
+    );
+  }
+
+  Action _buildClearReactionsAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    return Action(
+      type: BotCreatorActionType.clearAllReactions,
+      payload: <String, dynamic>{
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'messageId': messageId.isEmpty ? '((message.id))' : messageId,
+      },
+    );
+  }
+
+  // ── Emoji action builders ──────────────────────────────────────
+
+  Action? _buildAddEmojiAction(BdfdFunctionCallAst node) {
+    final name = _stringifyArgument(node, 0).trim();
+    final imageUrl = _stringifyArgument(node, 1).trim();
+    if (name.isEmpty || imageUrl.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a name and image URL.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    return Action(
+      type: BotCreatorActionType.createEmoji,
+      payload: <String, dynamic>{'name': name, 'imageUrl': imageUrl},
+    );
+  }
+
+  Action? _buildRemoveEmojiAction(BdfdFunctionCallAst node) {
+    final emojiId = _stringifyArgument(node, 0).trim();
+    if (emojiId.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires an emoji ID or name.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    return Action(
+      type: BotCreatorActionType.deleteEmoji,
+      payload: <String, dynamic>{'emojiId': emojiId},
+    );
+  }
+
+  // ── Webhook action builders ──────────────────────────────────────
+
+  Action _buildWebhookSendAction(BdfdFunctionCallAst node) {
+    final webhookUrl = _stringifyArgument(node, 0).trim();
+    final content = _stringifyArgument(node, 1);
+    final username = _stringifyArgument(node, 2);
+    final avatarUrl = _stringifyArgument(node, 3);
+    return Action(
+      type: BotCreatorActionType.sendWebhook,
+      payload: <String, dynamic>{
+        'webhookUrl': webhookUrl,
+        'content': content,
+        if (username.isNotEmpty) 'username': username,
+        if (avatarUrl.isNotEmpty) 'avatarUrl': avatarUrl,
+      },
+    );
+  }
+
+  Action _buildWebhookCreateAction(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final name = _stringifyArgument(node, 1).trim();
+    final avatarUrl = _stringifyArgument(node, 2);
+    return Action(
+      type: BotCreatorActionType.sendWebhook,
+      payload: <String, dynamic>{
+        'createWebhook': true,
+        'channelId': channelId.isEmpty ? '((channel.id))' : channelId,
+        'name': name,
+        if (avatarUrl.isNotEmpty) 'avatarUrl': avatarUrl,
+      },
+    );
+  }
+
+  Action _buildWebhookDeleteAction(BdfdFunctionCallAst node) {
+    final webhookUrl = _stringifyArgument(node, 0).trim();
+    return Action(
+      type: BotCreatorActionType.deleteWebhook,
+      payload: <String, dynamic>{'webhookUrl': webhookUrl},
+    );
+  }
+
+  // ── Modal action builder ──────────────────────────────────────
+
+  Action _buildNewModalAction(BdfdFunctionCallAst node) {
+    final customId = _stringifyArgument(node, 0).trim();
+    final title = _stringifyArgument(node, 1).trim();
+    final inputs = List<Map<String, dynamic>>.from(_pendingModalInputs);
+    _pendingModalInputs.clear();
+    return Action(
+      type: BotCreatorActionType.respondWithModal,
+      payload: <String, dynamic>{
+        'customId': customId,
+        'title': title,
+        'components': inputs,
+      },
+    );
+  }
+
+  // ── Cooldown action builders ──────────────────────────────────
+
+  Action _buildCooldownAction(
+    BdfdFunctionCallAst node, {
+    required String scope,
+  }) {
+    final duration = _stringifyArgument(node, 0).trim();
+    final errorMessage = _stringifyArgument(node, 1);
+    final cooldownKey = 'cooldown_${scope}_${node.normalizedName}';
+
+    final checkCondition = _ParsedCondition(
+      left: '(($scope.bc_$cooldownKey))',
+      operator: 'isEmpty',
+      right: '',
+    );
+
+    final setAction = Action(
+      type: BotCreatorActionType.setScopedVariable,
+      payload: <String, dynamic>{
+        'scope': scope == 'global' ? 'user' : scope,
+        'key': cooldownKey,
+        'valueType': 'string',
+        'value': duration,
+        'ttl': duration,
+      },
+    );
+
+    final failureActions =
+        errorMessage.trim().isEmpty
+            ? <Action>[_buildForcedStopAction()]
+            : <Action>[
+              _buildRespondWithMessageAction(content: errorMessage),
+              _buildForcedStopAction(),
+            ];
+
+    return Action(
+      type: BotCreatorActionType.ifBlock,
+      payload: <String, dynamic>{
+        ...checkCondition.toPayload(prefix: 'condition.'),
+        'thenActions': <Map<String, dynamic>>[setAction.toJson()],
+        'elseIfConditions': const <Map<String, dynamic>>[],
+        'elseActions': failureActions.map((action) => action.toJson()).toList(),
+      },
+    );
+  }
+
+  Action? _buildChangeCooldownTimeAction(BdfdFunctionCallAst node) {
+    final cooldownType = _stringifyArgument(node, 0).trim();
+    final duration = _stringifyArgument(node, 1).trim();
+    if (cooldownType.isEmpty || duration.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a cooldown type and new duration.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    return Action(
+      type: BotCreatorActionType.setScopedVariable,
+      payload: <String, dynamic>{
+        'scope': 'user',
+        'key': 'cooldown_$cooldownType',
+        'valueType': 'string',
+        'value': duration,
+        'ttl': duration,
+      },
+    );
+  }
+
+  // ── Variable reset builders ──────────────────────────────────
+
+  Action _buildResetScopedVariableAction({
+    required String scope,
+    required BdfdFunctionCallAst node,
+  }) {
+    final key = _normalizeScopedVariableKey(_stringifyArgument(node, 0));
+    return Action(
+      type: BotCreatorActionType.removeScopedVariable,
+      payload: <String, dynamic>{'scope': scope, 'key': key},
+    );
+  }
+
+  // ── Blacklist guard builders ──────────────────────────────────
+
+  Action? _transpileBlacklistIds(BdfdFunctionCallAst node) {
+    final guard = _extractGuardIdsAndMessage(node);
+    if (guard.ids.isEmpty) {
+      return null;
+    }
+    final condition = _ParsedCondition.logical(
+      group: 'or',
+      conditions: guard.ids
+          .map(
+            (id) => _ParsedCondition(
+              left: '((author.id))',
+              operator: 'equals',
+              right: id,
+            ),
+          )
+          .toList(growable: false),
+    );
+    return _buildGuardIfAction(
+      condition: condition,
+      thenActions: _buildGuardFailureActions(message: guard.message),
+      elseActions: const <Action>[],
+    );
+  }
+
+  Action? _transpileBlacklistRoles(BdfdFunctionCallAst node) {
+    final guard = _extractGuardValuesAndMessage(node);
+    if (guard.values.isEmpty) {
+      return null;
+    }
+    final condition = _ParsedCondition.logical(
+      group: 'or',
+      conditions: guard.values
+          .map(
+            (name) => _ParsedCondition(
+              left: '((member.roleNames))',
+              operator: 'contains',
+              right: name,
+            ),
+          )
+          .toList(growable: false),
+    );
+    return _buildGuardIfAction(
+      condition: condition,
+      thenActions: _buildGuardFailureActions(message: guard.message),
+      elseActions: const <Action>[],
+    );
+  }
+
+  Action? _transpileBlacklistRoleIds(BdfdFunctionCallAst node) {
+    final guard = _extractGuardIdsAndMessage(node);
+    if (guard.ids.isEmpty) {
+      return null;
+    }
+    final condition = _ParsedCondition.logical(
+      group: 'or',
+      conditions: guard.ids
+          .map(
+            (id) => _ParsedCondition(
+              left: '((member.roles))',
+              operator: 'contains',
+              right: id,
+            ),
+          )
+          .toList(growable: false),
+    );
+    return _buildGuardIfAction(
+      condition: condition,
+      thenActions: _buildGuardFailureActions(message: guard.message),
+      elseActions: const <Action>[],
+    );
+  }
+
+  Action? _transpileBlacklistServers(BdfdFunctionCallAst node) {
+    final guard = _extractGuardIdsAndMessage(node);
+    if (guard.ids.isEmpty) {
+      return null;
+    }
+    final condition = _ParsedCondition.logical(
+      group: 'or',
+      conditions: guard.ids
+          .map(
+            (id) => _ParsedCondition(
+              left: '((guild.id))',
+              operator: 'equals',
+              right: id,
+            ),
+          )
+          .toList(growable: false),
+    );
+    return _buildGuardIfAction(
+      condition: condition,
+      thenActions: _buildGuardFailureActions(message: guard.message),
+      elseActions: const <Action>[],
+    );
+  }
+
+  Action? _transpileBlacklistUsers(BdfdFunctionCallAst node) {
+    final guard = _extractGuardValuesAndMessage(node);
+    if (guard.values.isEmpty) {
+      return null;
+    }
+    final condition = _ParsedCondition.logical(
+      group: 'or',
+      conditions: guard.values
+          .map(
+            (username) => _ParsedCondition(
+              left: '((author.username))',
+              operator: 'matches',
+              right:
+                  '(?i)^${RegExp.escape(username)}'
+                  r'$',
+            ),
+          )
+          .toList(growable: false),
+    );
+    return _buildGuardIfAction(
+      condition: condition,
+      thenActions: _buildGuardFailureActions(message: guard.message),
+      elseActions: const <Action>[],
+    );
+  }
+
+  // ── Ticket builder ──────────────────────────────────────────
+
+  Action _buildNewTicketAction(BdfdFunctionCallAst node) {
+    final name = _stringifyArgument(node, 0).trim();
+    final categoryId = _stringifyArgument(node, 1).trim();
+    return Action(
+      type: BotCreatorActionType.createChannel,
+      payload: <String, dynamic>{
+        'name': name.isEmpty ? 'ticket-((user.username))' : name,
+        'type': 'text',
+        if (categoryId.isNotEmpty) 'parentId': categoryId,
+        'isTicket': true,
+      },
+    );
+  }
+
+  // ── Args check builder ──────────────────────────────────────
+
+  Action? _buildArgsCheckAction(BdfdFunctionCallAst node) {
+    final operatorRaw = _stringifyArgument(node, 0).trim();
+    final count = _stringifyArgument(node, 1).trim();
+    final errorMessage = _stringifyArgument(node, 2);
+
+    if (count.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires an operator and count.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+
+    String operator;
+    if (operatorRaw == '>' || operatorRaw == '>=') {
+      operator = operatorRaw == '>=' ? 'greaterOrEqual' : 'greaterThan';
+    } else if (operatorRaw == '<' || operatorRaw == '<=') {
+      operator = operatorRaw == '<=' ? 'lessOrEqual' : 'lessThan';
+    } else {
+      operator = 'greaterOrEqual';
+    }
+
+    final condition = _ParsedCondition(
+      left: '((message.argCount))',
+      operator: operator,
+      right: count,
+    );
+
+    return _buildGuardIfAction(
+      condition: condition,
+      thenActions: const <Action>[],
+      elseActions: _buildGuardFailureActions(message: errorMessage),
+    );
+  }
+
+  // ── Inline computation helpers ──────────────────────────────────
+
+  String _inlineReplaceText(BdfdFunctionCallAst node) {
+    final text = _stringifyArgument(node, 0);
+    final sample = _stringifyArgument(node, 1);
+    final replacement = _stringifyArgument(node, 2);
+    final amountRaw = _stringifyArgument(node, 3).trim();
+    final amount = int.tryParse(amountRaw) ?? 1;
+
+    if (sample.isEmpty) {
+      return text;
+    }
+
+    if (amount == -1) {
+      return text.replaceAll(sample, replacement);
+    }
+
+    var result = text;
+    var count = 0;
+    while (count < amount) {
+      final index = result.indexOf(sample);
+      if (index < 0) {
+        break;
+      }
+      result =
+          result.substring(0, index) +
+          replacement +
+          result.substring(index + sample.length);
+      count++;
+    }
+    return result;
+  }
+
+  String _inlineTitleCase(String text) {
+    if (text.isEmpty) {
+      return '';
+    }
+    return text
+        .split(' ')
+        .map((word) {
+          if (word.isEmpty) {
+            return word;
+          }
+          return word[0].toUpperCase() + word.substring(1).toLowerCase();
+        })
+        .join(' ');
+  }
+
+  String _inlineCropText(BdfdFunctionCallAst node) {
+    final text = _stringifyArgument(node, 0);
+    final lengthRaw = _stringifyArgument(node, 1).trim();
+    final suffix = _stringifyArgument(node, 2);
+    final length = int.tryParse(lengthRaw) ?? text.length;
+    if (length >= text.length) {
+      return text;
+    }
+    return text.substring(0, length) + suffix;
+  }
+
+  String _inlineRepeatMessage(BdfdFunctionCallAst node) {
+    final text = _stringifyArgument(node, 0);
+    final countRaw = _stringifyArgument(node, 1).trim();
+    final count = int.tryParse(countRaw) ?? 1;
+    if (count <= 0) {
+      return '';
+    }
+    if (count > 100) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} repeat count capped at 100.',
+          severity: BdfdTranspileDiagnosticSeverity.warning,
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return text * 100;
+    }
+    return text * count;
+  }
+
+  String _inlineRemoveContains(BdfdFunctionCallAst node) {
+    var text = _stringifyArgument(node, 0);
+    for (var i = 1; i < node.arguments.length; i++) {
+      final target = _stringifyArgument(node, i);
+      if (target.isNotEmpty) {
+        text = text.replaceAll(target, '');
+      }
+    }
+    return text;
+  }
+
+  String _inlineNumberSeparator(BdfdFunctionCallAst node) {
+    final numberRaw = _stringifyArgument(node, 0).trim();
+    final separator = _stringifyArgument(node, 1);
+    final sep = separator.isEmpty ? ',' : separator;
+    final parts = numberRaw.split('.');
+    final intPart = parts[0];
+
+    final buffer = StringBuffer();
+    var count = 0;
+    for (var i = intPart.length - 1; i >= 0; i--) {
+      if (count > 0 && count % 3 == 0 && intPart[i] != '-') {
+        buffer.write(sep);
+      }
+      buffer.write(intPart[i]);
+      count++;
+    }
+
+    final result = buffer.toString().split('').reversed.join();
+    if (parts.length > 1) {
+      return '$result.${parts[1]}';
+    }
+    return result;
+  }
+
+  void _textSplitState(BdfdFunctionCallAst node) {
+    final text = _stringifyArgument(node, 0);
+    final separator = _stringifyArgument(node, 1);
+    _textSplitParts = text.split(separator);
+  }
+
+  String _inlineSplitText(BdfdFunctionCallAst node) {
+    final indexRaw = _stringifyArgument(node, 0).trim();
+    final index = int.tryParse(indexRaw);
+    if (index == null || index < 1 || index > _textSplitParts.length) {
+      return '';
+    }
+    return _textSplitParts[index - 1];
+  }
+
+  String _inlineEditSplitText(BdfdFunctionCallAst node) {
+    final indexRaw = _stringifyArgument(node, 0).trim();
+    final value = _stringifyArgument(node, 1);
+    final index = int.tryParse(indexRaw);
+    if (index == null || index < 1 || index > _textSplitParts.length) {
+      return '';
+    }
+    _textSplitParts[index - 1] = value;
+    return '';
+  }
+
+  String _inlineGetTextSplitIndex(BdfdFunctionCallAst node) {
+    final value = _stringifyArgument(node, 0);
+    final index = _textSplitParts.indexOf(value);
+    return index >= 0 ? (index + 1).toString() : '-1';
+  }
+
+  String _inlineJoinSplitText(BdfdFunctionCallAst node) {
+    final separator = _stringifyArgument(node, 0);
+    return _textSplitParts.join(separator);
+  }
+
+  String _inlineRemoveSplitTextElement(BdfdFunctionCallAst node) {
+    final indexRaw = _stringifyArgument(node, 0).trim();
+    final index = int.tryParse(indexRaw);
+    if (index != null && index >= 1 && index <= _textSplitParts.length) {
+      _textSplitParts.removeAt(index - 1);
+    }
+    return '';
+  }
+
+  // ── Math inline helpers ──────────────────────────────────────
+
+  String _inlineCalculate(BdfdFunctionCallAst node) {
+    final expression = _stringifyArgument(node, 0).trim();
+    if (expression.isEmpty) {
+      return '0';
+    }
+    final result = _evaluateSimpleMathExpression(expression);
+    if (result == null) {
+      return '((calculate[$expression]))';
+    }
+    if (result == result.roundToDouble() && result.abs() < 1e15) {
+      return result.toInt().toString();
+    }
+    return result.toString();
+  }
+
+  double? _evaluateSimpleMathExpression(String expression) {
+    final cleaned = expression.replaceAll(' ', '');
+    if (cleaned.isEmpty) {
+      return null;
+    }
+
+    final directNum = double.tryParse(cleaned);
+    if (directNum != null) {
+      return directNum;
+    }
+
+    final twoOperandPattern = RegExp(
+      r'^(-?[\d.]+)\s*([+\-*/%^])\s*(-?[\d.]+)$',
+    );
+    final match = twoOperandPattern.firstMatch(cleaned);
+    if (match == null) {
+      return null;
+    }
+
+    final left = double.tryParse(match.group(1)!);
+    final operator = match.group(2)!;
+    final right = double.tryParse(match.group(3)!);
+    if (left == null || right == null) {
+      return null;
+    }
+
+    switch (operator) {
+      case '+':
+        return left + right;
+      case '-':
+        return left - right;
+      case '*':
+        return left * right;
+      case '/':
+        return right != 0 ? left / right : 0;
+      case '%':
+        return right != 0 ? left % right : 0;
+      case '^':
+        return math.pow(left, right).toDouble();
+      default:
+        return null;
+    }
+  }
+
+  String _inlineMathUnary(
+    BdfdFunctionCallAst node,
+    int Function(double) operation,
+  ) {
+    final raw = _stringifyArgument(node, 0).trim();
+    final value = double.tryParse(raw);
+    if (value == null) {
+      return '((${node.normalizedName}[$raw]))';
+    }
+    return operation(value).toString();
+  }
+
+  String _inlineMathUnaryDouble(
+    BdfdFunctionCallAst node,
+    double Function(double) operation,
+  ) {
+    final raw = _stringifyArgument(node, 0).trim();
+    final value = double.tryParse(raw);
+    if (value == null) {
+      return '((${node.normalizedName}[$raw]))';
+    }
+    final result = operation(value);
+    if (result == result.roundToDouble() && result.abs() < 1e15) {
+      return result.toInt().toString();
+    }
+    return result.toString();
+  }
+
+  String _inlineMathBinary(
+    BdfdFunctionCallAst node,
+    num Function(num, num) operation,
+  ) {
+    final aRaw = _stringifyArgument(node, 0).trim();
+    final bRaw = _stringifyArgument(node, 1).trim();
+    final a = num.tryParse(aRaw);
+    final b = num.tryParse(bRaw);
+    if (a == null || b == null) {
+      return '((${node.normalizedName}[$aRaw;$bRaw]))';
+    }
+    final result = operation(a, b);
+    if (result is double &&
+        result == result.roundToDouble() &&
+        result.abs() < 1e15) {
+      return result.toInt().toString();
+    }
+    return result.toString();
+  }
+
+  String _inlineMathBinaryOp(
+    BdfdFunctionCallAst node,
+    num Function(num, num) operation,
+  ) {
+    final aRaw = _stringifyArgument(node, 0).trim();
+    final bRaw = _stringifyArgument(node, 1).trim();
+    final a = num.tryParse(aRaw);
+    final b = num.tryParse(bRaw);
+    if (a == null || b == null) {
+      return '((${node.normalizedName}[$aRaw;$bRaw]))';
+    }
+    final result = operation(a, b);
+    if (result is double &&
+        result == result.roundToDouble() &&
+        result.abs() < 1e15) {
+      return result.toInt().toString();
+    }
+    return result.toString();
+  }
+
+  String _inlineSum(BdfdFunctionCallAst node) {
+    num total = 0;
+    for (var i = 0; i < node.arguments.length; i++) {
+      final raw = _stringifyArgument(node, i).trim();
+      final value = num.tryParse(raw);
+      if (value == null) {
+        final args = List.generate(
+          node.arguments.length,
+          (j) => _stringifyArgument(node, j).trim(),
+        ).join(';');
+        return '((sum[$args]))';
+      }
+      total += value;
+    }
+    if (total is double &&
+        total == total.roundToDouble() &&
+        total.abs() < 1e15) {
+      return total.toInt().toString();
+    }
+    return total.toString();
+  }
+
+  String _inlineSort(BdfdFunctionCallAst node) {
+    final values = <String>[];
+    for (var i = 0; i < node.arguments.length; i++) {
+      final raw = _stringifyArgument(node, i).trim();
+      if (raw.isNotEmpty) {
+        values.add(raw);
+      }
+    }
+    final allNumeric = values.every((v) => num.tryParse(v) != null);
+    if (allNumeric) {
+      values.sort((a, b) => num.parse(a).compareTo(num.parse(b)));
+    } else {
+      values.sort();
+    }
+    return values.join(';');
+  }
+
+  // ── Boolean check helpers ──────────────────────────────────────
+
+  String _inlineIsBoolean(BdfdFunctionCallAst node) {
+    final raw = _stringifyArgument(node, 0).trim().toLowerCase();
+    const booleans = {'true', 'false', 'yes', 'no', '1', '0', 'on', 'off'};
+    return booleans.contains(raw) ? 'true' : 'false';
+  }
+
+  String _inlineIsInteger(BdfdFunctionCallAst node) {
+    final raw = _stringifyArgument(node, 0).trim();
+    return int.tryParse(raw) != null ? 'true' : 'false';
+  }
+
+  String _inlineIsNumber(BdfdFunctionCallAst node) {
+    final raw = _stringifyArgument(node, 0).trim();
+    return num.tryParse(raw) != null ? 'true' : 'false';
+  }
+
+  String _inlineIsValidHex(BdfdFunctionCallAst node) {
+    final raw = _stringifyArgument(node, 0).trim();
+    final cleaned = raw.startsWith('#') ? raw.substring(1) : raw;
+    return RegExp(r'^[0-9a-fA-F]+$').hasMatch(cleaned) ? 'true' : 'false';
+  }
+
+  String _inlineCheckCondition(BdfdFunctionCallAst node) {
+    final expression = _stringifyArgument(node, 0).trim();
+    if (expression.isEmpty) {
+      return 'false';
+    }
+    final condition = _parseSimpleCondition(expression);
+    return _evaluateConditionStatically(condition) ? 'true' : 'false';
+  }
+
+  bool _evaluateConditionStatically(_ParsedCondition condition) {
+    switch (condition.operator) {
+      case 'equals':
+        return condition.left == condition.right;
+      case 'notEquals':
+        return condition.left != condition.right;
+      case 'contains':
+        return condition.left.contains(condition.right);
+      case 'notContains':
+        return !condition.left.contains(condition.right);
+      case 'startsWith':
+        return condition.left.startsWith(condition.right);
+      case 'endsWith':
+        return condition.left.endsWith(condition.right);
+      case 'isNotEmpty':
+        return condition.left.isNotEmpty;
+      default:
+        final leftNum = num.tryParse(condition.left);
+        final rightNum = num.tryParse(condition.right);
+        if (leftNum != null && rightNum != null) {
+          switch (condition.operator) {
+            case 'greaterThan':
+              return leftNum > rightNum;
+            case 'lessThan':
+              return leftNum < rightNum;
+            case 'greaterOrEqual':
+              return leftNum >= rightNum;
+            case 'lessOrEqual':
+              return leftNum <= rightNum;
+          }
+        }
+        return false;
+    }
+  }
+
+  String _inlineCheckContains(BdfdFunctionCallAst node) {
+    final text = _stringifyArgument(node, 0);
+    for (var i = 1; i < node.arguments.length; i++) {
+      final target = _stringifyArgument(node, i);
+      if (target.isNotEmpty && text.contains(target)) {
+        return 'true';
+      }
+    }
+    return 'false';
+  }
+
+  // ── Random helpers ──────────────────────────────────────────
+
+  String _inlineRandom(BdfdFunctionCallAst node) {
+    final minRaw = _stringifyArgument(node, 0).trim();
+    final maxRaw = _stringifyArgument(node, 1).trim();
+    final minVal = int.tryParse(minRaw) ?? 0;
+    final maxVal = int.tryParse(maxRaw) ?? 100;
+    if (minVal >= maxVal) {
+      return minVal.toString();
+    }
+    final random = math.Random();
+    return (minVal + random.nextInt(maxVal - minVal + 1)).toString();
+  }
+
+  String _inlineRandomString(BdfdFunctionCallAst node) {
+    final lengthRaw = _stringifyArgument(node, 0).trim();
+    final chars = _stringifyArgument(node, 1);
+    final length = int.tryParse(lengthRaw) ?? 10;
+    final effectiveLength = length.clamp(1, 1000);
+    const defaultChars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    final charSet = chars.isEmpty ? defaultChars : chars;
+    final random = math.Random();
+    final buffer = StringBuffer();
+    for (var i = 0; i < effectiveLength; i++) {
+      buffer.write(charSet[random.nextInt(charSet.length)]);
+    }
+    return buffer.toString();
+  }
+
+  String _inlineRandomText(BdfdFunctionCallAst node) {
+    if (node.arguments.isEmpty) {
+      return '';
+    }
+    final random = math.Random();
+    final index = random.nextInt(node.arguments.length);
+    return _stringifyArgument(node, index);
+  }
+
+  // ── Date helper ──────────────────────────────────────────
+
+  String _inlineDate() {
+    final now = DateTime.now().toUtc();
+    return '${now.year}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+  }
+
+  // ── getMessage helper ──────────────────────────────────────
+
+  String _inlineGetMessage(BdfdFunctionCallAst node) {
+    final channelId = _stringifyArgument(node, 0).trim();
+    final messageId = _stringifyArgument(node, 1).trim();
+    final property = _stringifyArgument(node, 2).trim();
+    if (channelId.isEmpty || messageId.isEmpty) {
+      return '((message.content))';
+    }
+    if (property.isNotEmpty) {
+      return '((getMessage[$channelId;$messageId].$property))';
+    }
+    return '((getMessage[$channelId;$messageId].content))';
+  }
 }
 
 class _PendingResponse {
   final StringBuffer _content = StringBuffer();
   final Map<String, dynamic> _embed = <String, dynamic>{};
+  final List<Map<String, dynamic>> _components = <Map<String, dynamic>>[];
+  bool _ephemeral = false;
+  bool _tts = false;
+  bool _removeLinks = false;
+  bool _allowMentions = true;
+  bool _allowUserMentions = true;
+  bool _allowRoleMentions = false;
+  String? _currentSelectMenuId;
 
   bool get hasPendingContent =>
-      _content.toString().isNotEmpty || _embed.isNotEmpty;
+      _content.toString().isNotEmpty ||
+      _embed.isNotEmpty ||
+      _components.isNotEmpty;
 
   void appendContent(String value) {
     _content.write(value);
   }
 
   Map<String, dynamic> ensureEmbed() => _embed;
+
+  void addComponent(Map<String, dynamic> component) {
+    _components.add(component);
+  }
+
+  void addButton({
+    required bool newRow,
+    required String interactionIdOrUrl,
+    required String label,
+    required String style,
+    bool disabled = false,
+    String emoji = '',
+    String messageId = '',
+  }) {
+    _components.add(<String, dynamic>{
+      'type': 'button',
+      'newRow': newRow,
+      'customId': style != 'link' ? interactionIdOrUrl : '',
+      'url': style == 'link' ? interactionIdOrUrl : '',
+      'label': label,
+      'style': style,
+      'disabled': disabled,
+      if (emoji.isNotEmpty) 'emoji': emoji,
+      if (messageId.isNotEmpty) 'messageId': messageId,
+    });
+  }
+
+  void addSelectMenuOption({
+    required String menuId,
+    required String label,
+    required String value,
+    String description = '',
+    bool isDefault = false,
+    String emoji = '',
+  }) {
+    _components.add(<String, dynamic>{
+      'type': 'selectMenuOption',
+      'menuId': menuId,
+      'label': label,
+      'value': value,
+      if (description.isNotEmpty) 'description': description,
+      'default': isDefault,
+      if (emoji.isNotEmpty) 'emoji': emoji,
+    });
+  }
+
+  void clearComponents() {
+    _components.clear();
+  }
+
+  void clearButtons() {
+    _components.removeWhere((component) => component['type'] == 'button');
+  }
+
+  void removeComponent(String customId) {
+    _components.removeWhere(
+      (component) =>
+          component['customId'] == customId || component['menuId'] == customId,
+    );
+  }
 
   List<Map<String, dynamic>> ensureEmbedFields() {
     final current = _embed['fields'];
@@ -3132,27 +6077,57 @@ class _PendingResponse {
     return fields;
   }
 
-  Action? buildAction() {
-    final content = _content.toString();
+  Action? buildAction({String? channelId}) {
+    var content = _content.toString();
     final hasEmbed = _embed.isNotEmpty;
-    if (content.trim().isEmpty && !hasEmbed) {
+    final hasComponents = _components.isNotEmpty;
+    if (content.trim().isEmpty && !hasEmbed && !hasComponents) {
       return null;
+    }
+
+    // $removeLinks: strip all URLs from the bot response content.
+    if (_removeLinks) {
+      content = content.replaceAll(RegExp(r'https?://[^\s]+'), '');
     }
 
     final embeds =
         hasEmbed
             ? <Map<String, dynamic>>[_cloneMap(_embed)]
             : <Map<String, dynamic>>[];
+    final components =
+        hasComponents
+            ? List<Map<String, dynamic>>.from(_components.map(_cloneMap))
+            : <Map<String, dynamic>>[];
+    final ephemeral = _ephemeral;
+    final tts = _tts;
+    final allowMentions = _allowMentions;
+    final allowUserMentions = _allowUserMentions;
+    final allowRoleMentions = _allowRoleMentions;
     _content.clear();
     _embed.clear();
+    _components.clear();
+    _ephemeral = false;
+    _tts = false;
+    _removeLinks = false;
+    _allowMentions = true;
+    _allowUserMentions = true;
+    _allowRoleMentions = false;
 
     return Action(
       type: BotCreatorActionType.respondWithMessage,
       payload: <String, dynamic>{
         'content': content,
         'embeds': embeds,
-        'components': const <String, dynamic>{},
-        'ephemeral': false,
+        'components':
+            components.isEmpty
+                ? const <String, dynamic>{}
+                : <String, dynamic>{'items': components},
+        'ephemeral': ephemeral,
+        if (tts) 'tts': true,
+        if (!allowMentions) 'allowMentions': false,
+        if (!allowUserMentions) 'allowUserMentions': false,
+        if (allowRoleMentions) 'allowRoleMentions': true,
+        if (channelId != null && channelId.isNotEmpty) 'channelId': channelId,
       },
     );
   }
@@ -3217,10 +6192,7 @@ class _PermissionGuardArgs {
 }
 
 class _CheckUserPermsParsed {
-  const _CheckUserPermsParsed({
-    required this.condition,
-    required this.message,
-  });
+  const _CheckUserPermsParsed({required this.condition, required this.message});
 
   final _ParsedCondition condition;
   final String message;
@@ -3302,9 +6274,10 @@ bool _parseBooleanLike(String raw) {
       normalized == 'on';
 }
 
-    const int _maxSupportedLoopIterations = 100;
+const int _maxSupportedLoopIterations = 100;
 
 const Map<String, String> _inlineRuntimeVariables = <String, String>{
+  // ── User / author info ── (resolved via generateKeyValues / _messageContentExtra)
   'userid': '((user.id))',
   'username': '((user.username))',
   'usertag': '((user.tag))',
@@ -3316,40 +6289,167 @@ const Map<String, String> _inlineRuntimeVariables = <String, String>{
   'authortag': '((author.tag))',
   'authoravatar': '((author.avatar))',
   'authorbanner': '((author.banner))',
-  'creationdate': '((user.createdAt))',
   'discriminator': '((author.tag))',
   'displayname': '((member.nick|author.username))',
-  'getuserstatus': '((user.status))',
-  'getcustomstatus': '((user.customStatus))',
   'isadmin': '((member.isAdmin))',
-  'isbooster': '((member.isBooster))',
   'isbot': '((author.isBot))',
-  'isuserdmenabled': '((user.dmEnabled))',
   'nickname': '((member.nick))',
   'memberid': '((member.id))',
   'membernick': '((member.nick))',
   'userperms': '((member.permissions))',
-  'guildid': '((guild.id))',
-  'guildname': '((guild.name))',
-  'guildicon': '((guild.icon))',
-  'guildcount': '((guild.count))',
-  'membercount': '((guild.count))',
-  'serverid': '((guild.id))',
-  'servername': '((guild.name))',
-  'servericon': '((guild.icon))',
-  'channelid': '((channel.id))',
-  'channelname': '((channel.name))',
-  'channeltype': '((channel.type))',
+  'userserveravatar': '((member.avatar))',
+  'finduser': '((user.id))',
+  // ── User info — not yet resolved by runner (need runtime support) ──
+  'creationdate': '((user.createdAt))',
+  'getuserstatus': '((user.status))',
+  'getcustomstatus': '((user.customStatus))',
+  'isbooster': '((member.isBooster))',
+  'isuserdmenabled': '((user.dmEnabled))',
   'userbadges': '((user.badges))',
   'userbannercolor': '((user.bannerColor))',
   'userexists': '((user.exists))',
   'userinfo': '((user.info))',
   'userjoined': '((member.joinedAt))',
   'userjoineddiscord': '((user.createdAt))',
-  'userserveravatar': '((member.avatar))',
-  'finduser': '((user.id))',
+  'hypesquad': '((user.hypesquad))',
+  // ── Guild / server info ── (resolved via generateKeyValues + extractGuildRuntimeDetails)
+  'guildid': '((guild.id))',
+  'guildname': '((guild.name))',
+  'guildicon': '((guildIcon))',
+  'guildcount': '((guild.count))',
+  'membercount': '((guild.memberCount))',
+  'allmemberscount': '((guild.memberCount))',
+  'memberscount': '((guild.memberCount))',
+  'getmemberscount': '((guild.memberCount))',
+  'serverid': '((guild.id))',
+  'servername': '((guild.name))',
+  'servericon': '((guildIcon))',
+  'serverdescription': '((guild.description))',
+  'serverowner': '((guild.ownerId))',
+  'serververificationlvl': '((guild.verificationLevel))',
+  'serververificationlevel': '((guild.verificationLevel))',
+  'serverboostcount': '((guild.premiumSubscriptionCount))',
+  'serverfeatures': '((guild.features))',
+  'servervanityurl': '((guild.vanityUrlCode))',
+  'boostcount': '((guild.premiumSubscriptionCount))',
+  'boostlevel': '((guild.premiumTier))',
+  // ── Guild info — not yet resolved by runner (need runtime support) ──
+  'guildbanner': '((guild.banner))',
+  'guildexists': '((guild.exists))',
+  'onlinemembers': '((guild.onlineMembers))',
+  'serveremojis': '((guild.emojis))',
+  'stickercount': '((guild.stickerCount))',
+  'serverinfo': '((guild.info))',
+  'serverregion': '((guild.region))',
+  'serverbanner': '((guild.banner))',
+  'serversplash': '((guild.splash))',
+  'servercount': '((bot.guildCount))',
+  'servernames': '((bot.guildNames))',
+  'afktimeout': '((guild.afkTimeout))',
+  // ── Channel info ── (resolved via generateKeyValues + extractChannelRuntimeDetails)
+  'channelid': '((channel.id))',
+  'channelname': '((channel.name))',
+  'channeltype': '((channel.type))',
+  'channeltopic': '((channel.topic))',
+  'channelposition': '((channel.position))',
+  'parentid': '((channel.parentId))',
+  'categoryid': '((channel.parentId))',
+  'channelcategoryid': '((channel.parentId))',
+  'ruleschannelid': '((guild.rulesChannelId))',
+  'systemchannelid': '((guild.systemChannelId))',
+  'afkchannelid': '((guild.afkChannelId))',
+  'getslowmode': '((channel.slowmode))',
+  'voiceuserlimit': '((channel.userLimit))',
+  'isnsfw': '((channel.nsfw))',
+  'channelnsfw': '((channel.nsfw))',
+  'findchannel': '((channel.id))',
+  // ── Channel info — not yet resolved by runner (need runtime support) ──
+  'channelcount': '((guild.channelCount))',
+  'channelexists': '((channel.exists))',
+  'channelnames': '((guild.channelNames))',
+  'channelidfromname': '((channel.idByName))',
+  'categorycount': '((guild.categoryCount))',
+  'categorychannels': '((channel.parent.channels))',
+  'dmchannelid': '((user.dmChannelId))',
+  'lastmessageid': '((channel.lastMessageId))',
+  'lastpintimestamp': '((channel.lastPinTimestamp))',
+  'usersinchannel': '((channel.userCount))',
+  'serverchannelexists': '((channel.exists))',
+  // ── Bot info — not yet resolved by runner (need bot.* injection) ──
+  'botid': '((bot.id))',
+  'botownerid': '((bot.ownerId))',
+  'botname': '((bot.username))',
+  'botcount': '((bot.guildCount))',
+  'botcommands': '((bot.commands))',
+  'ping': '((bot.ping))',
+  'uptime': '((bot.uptime))',
+  'executiontime': '((execution.time))',
+  'shardid': '((bot.shardId))',
+  'nodeversion': '((bot.nodeVersion))',
+  'scriptlanguage': 'BDFD',
+  'slashcommandscount': '((bot.slashCommandsCount))',
+  'commandscount': '((bot.commandsCount))',
+  'getbotinvite': '((bot.invite))',
+  // ── Command / interaction context ── (resolved via generateKeyValues / runner)
   'commandname': '((commandName))',
   'commandtype': '((commandType))',
+  'commandtrigger': '((commandName))',
+  'customid': '((interaction.customId))',
+  'slashid': '((interaction.id))',
+  // ── Command — not yet resolved ──
+  'commandfolder': '((command.folder))',
+  'input': '((interaction.input))',
+  // ── Message info ── (_messageContentExtra)
+  'messageid': '((message.id))',
+  'messagetype': '((message.type))',
+  'mentioned': '((message.mentions[0]))',
+  // ── Message info — not yet resolved by runner (need runtime support) ──
+  'messageurl': '((message.url))',
+  'messagetimestamp': '((message.timestamp))',
+  'repliedmessageid': '((message.referencedMessage.id))',
+  'ismessageedited': '((message.isEdited))',
+  'messageeditedtimestamp': '((message.editedTimestamp))',
+  'ismentioned': '((message.isMentioned))',
+  'nomentionmessage': '((message.cleanContent))',
+  'getattachments': '((message.attachments))',
+  'getembeddata': '((message.embeds))',
+  'url': '((message.url))',
+  // ── Role info — not yet resolved by runner (need runtime support) ──
+  'userroles': '((member.roles))',
+  'rolenames': '((guild.roleNames))',
+  'rolecount': '((guild.roleCount))',
+  'mentionedroles': '((message.roleMentions))',
+  'highestrole': '((member.highestRole))',
+  'lowestrole': '((member.lowestRole))',
+  'highestrolewithperms': '((member.highestRoleWithPerms))',
+  'lowestrolewithperms': '((member.lowestRoleWithPerms))',
+  // ── Thread info — not yet resolved by runner ──
+  'threadmessagecount': '((thread.messageCount))',
+  'threadusercount': '((thread.memberCount))',
+  // ── Moderation query — not yet resolved by runner ──
+  'isbanned': '((target.isBanned))',
+  'istimedout': '((target.isTimedOut))',
+  'getbanreason': '((target.banReason))',
+  // ── Error handling ── (only available in try/catch context)
+  'error': '((error.message))',
+  // ── Misc ──
+  'argcount': '((args.count))',
+  'isslash': '((interaction.isSlash))',
+  'enabled': '((command.enabled))',
+  'variablescount': '((variables.count))',
+  // ── No-op compatibility (return empty string) ──
+  'alternativeparsing': '',
+  'disableinnerspaceremoval': '',
+  'disablespecialescaping': '',
+  'enabledecimals': '',
+  'optoff': '',
+  'ignorelinks': '',
+  'botlistdescription': '',
+  'botlisthide': '',
+  'botnode': '',
+  'deletecommand': '',
+  'registerguildcommands': '',
+  'unregisterguildcommands': '',
 };
 
 const Set<String> _knownBdfdPermissionTokens = <String>{

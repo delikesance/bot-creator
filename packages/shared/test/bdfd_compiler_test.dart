@@ -33,7 +33,10 @@ void main() {
 
       expect(result.hasErrors, isFalse);
       expect(result.actions, hasLength(1));
-      expect(result.actions.single.type, BotCreatorActionType.respondWithMessage);
+      expect(
+        result.actions.single.type,
+        BotCreatorActionType.respondWithMessage,
+      );
       expect(
         result.actions.single.payload['content'],
         '((message.content[0]|opts.text))|((opts.text))|((last(split(message.content, " "))))',
@@ -45,7 +48,10 @@ void main() {
 
       expect(result.hasErrors, isFalse);
       expect(result.actions, hasLength(1));
-      expect(result.actions.single.type, BotCreatorActionType.respondWithMessage);
+      expect(
+        result.actions.single.type,
+        BotCreatorActionType.respondWithMessage,
+      );
       expect(result.actions.single.payload['content'], '((message.content))');
     });
 
@@ -57,10 +63,7 @@ void main() {
       expect(result.hasErrors, isFalse);
       expect(result.actions, hasLength(1));
       expect(result.actions.single.type, BotCreatorActionType.sendMessage);
-      expect(
-        result.actions.single.payload['channelId'],
-        '123456789012345678',
-      );
+      expect(result.actions.single.payload['channelId'], '123456789012345678');
       expect(result.actions.single.payload['content'], 'Hello!');
     });
 
@@ -71,7 +74,10 @@ void main() {
 
       expect(result.hasErrors, isFalse);
       expect(result.actions, hasLength(1));
-      expect(result.actions.single.type, BotCreatorActionType.respondWithMessage);
+      expect(
+        result.actions.single.type,
+        BotCreatorActionType.respondWithMessage,
+      );
       expect(
         result.actions.single.payload['content'],
         '((message.mentions[0]))|((message.mentions[0]|channel.id))',
@@ -80,12 +86,13 @@ void main() {
 
     test('compiles user identity helper functions without diagnostics', () {
       final result = BdfdCompiler().compile(
-        r'$reply[$authorAvatar|$authorID|$authorOfMessage|$creationDate|$discriminator|$displayName|$displayName[123]|$getUserStatus|$getCustomStatus|$isAdmin|$isBooster|$isBot|$isUserDMEnabled|$nickname|$nickname[123]|$userAvatar|$userBadges|$userBanner|$userBannerColor|$userExists|$userID|$userInfo|$userJoined|$userJoinedDiscord|$username|$username[123]|$userPerms|$userServerAvatar|$findUser]'
+        r'$reply[$authorAvatar|$authorID|$authorOfMessage|$creationDate|$discriminator|$displayName|$displayName[123]|$getUserStatus|$getCustomStatus|$isAdmin|$isBooster|$isBot|$isUserDMEnabled|$nickname|$nickname[123]|$userAvatar|$userBadges|$userBanner|$userBannerColor|$userExists|$userID|$userInfo|$userJoined|$userJoinedDiscord|$username|$username[123]|$userPerms|$userServerAvatar|$findUser]',
       );
 
       expect(result.hasErrors, isFalse);
       expect(result.actions, hasLength(1));
-      final content = result.actions.single.payload['content']?.toString() ?? '';
+      final content =
+          result.actions.single.payload['content']?.toString() ?? '';
       expect(content, contains('((author.avatar))'));
       expect(content, contains('((author.id))'));
       expect(content, contains('((member.permissions))'));
@@ -106,12 +113,12 @@ void main() {
     });
 
     test('surfaces unsupported functions as compile errors', () {
-      final result = BdfdCompiler().compile(r'$ban[$authorID]');
+      final result = BdfdCompiler().compile(r'$totallyFakeFunction[$authorID]');
 
       expect(result.hasErrors, isTrue);
       expect(result.actions, isEmpty);
       expect(result.diagnostics, hasLength(1));
-      expect(result.diagnostics.single.functionName, r'$ban');
+      expect(result.diagnostics.single.functionName, r'$totallyFakeFunction');
       expect(
         result.diagnostics.single.stage,
         BdfdCompileDiagnosticStage.transpiler,
@@ -261,7 +268,7 @@ void main() {
         r'$onlyIf[((score))>=5;Need at least five points]'
         r'$onlyForUsers[Nicky;Jeremy;Not authorized]'
         r'$onlyForChannels[333;Wrong channel]'
-        r'$ignoreChannels[444;555;❌ That command can\'t be used in this channel!]'
+        r"$ignoreChannels[444;555;❌ That command can't be used in this channel!]"
         r'$onlyNSFW[NSFW channel only]',
       );
 
@@ -367,18 +374,14 @@ void main() {
       );
 
       expect(result.hasErrors, isFalse);
-      expect(result.actions, hasLength(2));
+      expect(result.actions, hasLength(1));
       expect(result.actions[0].type, BotCreatorActionType.ifBlock);
-      expect(result.actions[1].type, BotCreatorActionType.ifBlock);
 
-      final firstConditions = List<Map<String, dynamic>>.from(
+      final conditions = List<Map<String, dynamic>>.from(
         result.actions[0].payload['condition.conditions'] as List,
       );
-      final secondConditions = List<Map<String, dynamic>>.from(
-        result.actions[1].payload['condition.conditions'] as List,
-      );
-      expect(firstConditions[1]['conditions'][0]['value'], 'administrator');
-      expect(secondConditions[1]['conditions'][0]['value'], 'administrator');
+      expect(result.actions[0].payload['condition.group'], 'or');
+      expect(conditions[1]['conditions'][0]['value'], 'administrator');
     });
 
     test('compiles wave 3 guards without diagnostics', () {

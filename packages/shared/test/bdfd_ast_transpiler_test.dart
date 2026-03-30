@@ -1261,4 +1261,444 @@ void main() {
       );
     });
   });
+
+  group('embed new functions', () {
+    test(r'transpiles $addTimestamp without argument to "now"', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [BdfdFunctionCallAst(name: r'$addTimestamp')],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      expect(result.actions, hasLength(1));
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['timestamp'], 'now');
+    });
+
+    test(r'transpiles $addTimestamp with explicit value', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$addTimestamp',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('2026-03-30T12:00:00Z')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['timestamp'], '2026-03-30T12:00:00Z');
+    });
+
+    test(r'transpiles $authorIcon standalone into author.icon_url', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$author',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('Jeremy')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$authorIcon',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('https://example.com/icon.png')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      final author = Map<String, dynamic>.from(embeds.single['author'] as Map);
+      expect(author['name'], 'Jeremy');
+      expect(author['icon_url'], 'https://example.com/icon.png');
+    });
+
+    test(r'transpiles $authorURL standalone into author.url', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$author',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('Jeremy')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$authorURL',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('https://example.com')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      final author = Map<String, dynamic>.from(embeds.single['author'] as Map);
+      expect(author['name'], 'Jeremy');
+      expect(author['url'], 'https://example.com');
+    });
+
+    test(r'transpiles $embeddedURL into embed url', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$title',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('Click me')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$embeddedURL',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('https://example.com')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['title'], 'Click me');
+      expect(embeds.single['url'], 'https://example.com');
+    });
+
+    test(r'transpiles $footerIcon standalone into footer.icon_url', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$footer',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('My footer')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$footerIcon',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('https://example.com/icon.png')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      final footer = Map<String, dynamic>.from(embeds.single['footer'] as Map);
+      expect(footer['text'], 'My footer');
+      expect(footer['icon_url'], 'https://example.com/icon.png');
+    });
+
+    test(r'transpiles $addContainer into embed container', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$addContainer',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('#ff0000')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      final container = Map<String, dynamic>.from(
+        embeds.single['container'] as Map,
+      );
+      expect(container['color'], '#ff0000');
+    });
+
+    test(r'transpiles $addSection into embed section', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$addSection',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('Section text')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      final section = Map<String, dynamic>.from(
+        embeds.single['section'] as Map,
+      );
+      expect(section['content'], 'Section text');
+    });
+
+    test(r'transpiles $addThumbnail into embed thumbnail', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$addThumbnail',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('https://example.com/thumb.png')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      final thumbnail = Map<String, dynamic>.from(
+        embeds.single['thumbnail'] as Map,
+      );
+      expect(thumbnail['url'], 'https://example.com/thumb.png');
+    });
+  });
+
+  group('user/profile inline functions', () {
+    test(r'$username without args resolves to ((user.username))', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[BdfdFunctionCallAst(name: r'$username')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['description'], '((user.username))');
+    });
+
+    test(r'$username[userID] resolves to ((user[id].username))', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[
+                  BdfdFunctionCallAst(
+                    name: r'$username',
+                    arguments: [
+                      <BdfdAstNode>[BdfdTextAst('123456')],
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['description'], '((user[123456].username))');
+    });
+
+    test(r'$nickname without args resolves to ((member.nick))', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[BdfdFunctionCallAst(name: r'$nickname')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['description'], '((member.nick))');
+    });
+
+    test(r'$nickname[userID] resolves to ((member[id].nick))', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[
+                  BdfdFunctionCallAst(
+                    name: r'$nickname',
+                    arguments: [
+                      <BdfdAstNode>[BdfdTextAst('789')],
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['description'], '((member[789].nick))');
+    });
+
+    test(r'$displayName without args resolves to fallback', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[BdfdFunctionCallAst(name: r'$displayName')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['description'], '((member.nick|author.username))');
+    });
+
+    test(r'$displayName[userID] resolves to targeted fallback', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[
+                  BdfdFunctionCallAst(
+                    name: r'$displayName',
+                    arguments: [
+                      <BdfdAstNode>[BdfdTextAst('456')],
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(
+        embeds.single['description'],
+        '((member[456].nick|user[456].username))',
+      );
+    });
+
+    test(r'$authorAvatar resolves to ((author.avatar))', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[BdfdFunctionCallAst(name: r'$authorAvatar')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['description'], '((author.avatar))');
+    });
+
+    test(r'$authorID resolves to ((author.id))', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[BdfdFunctionCallAst(name: r'$authorID')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['description'], '((author.id))');
+    });
+
+    test(r'$findUser resolves to ((user.id))', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$description',
+              arguments: [
+                <BdfdAstNode>[BdfdFunctionCallAst(name: r'$findUser')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final embeds = List<Map<String, dynamic>>.from(
+        result.actions.single.payload['embeds'] as List,
+      );
+      expect(embeds.single['description'], '((user.id))');
+    });
+  });
 }

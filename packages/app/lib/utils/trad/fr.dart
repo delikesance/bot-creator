@@ -245,7 +245,7 @@ const Map<String, String> appStringsFr = {
       'Le runner distant est disponible, le multi-runner est en cours.',
   'settings_compatibility_item_bdscript_title': 'Parité des fonctions BDScript',
   'settings_compatibility_item_bdscript_desc':
-      'Pas de parité 1:1 complète avec tout le catalogue BDFD.',
+      'Couverture complète du catalogue de fonctions BDFD.',
   'settings_compatibility_note':
       'Cet aperçu reste volontairement synthétique et évoluera par release.',
   'settings_compatibility_open_functions': 'Voir les fonctions compatibles',
@@ -285,6 +285,8 @@ const Map<String, String> appStringsFr = {
   'settings_compatibility_functions_category_control': 'Contrôle de flux',
   'settings_compatibility_functions_category_messages': 'Messages',
   'settings_compatibility_functions_category_embeds': 'Embeds',
+  'settings_compatibility_functions_category_components':
+      'Composants / Interactions',
   'settings_compatibility_functions_category_json': 'Helpers JSON',
   'settings_compatibility_functions_category_http': 'Helpers HTTP',
   'settings_compatibility_functions_category_variables': 'Variables scopees',

@@ -2114,7 +2114,7 @@ class _BdfdCompatibilityCard extends StatelessWidget {
     _CapabilitySnapshot(
       titleKey: 'settings_compatibility_item_bdscript_title',
       descriptionKey: 'settings_compatibility_item_bdscript_desc',
-      status: _CapabilityStatus.missing,
+      status: _CapabilityStatus.supported,
     ),
   ];
 

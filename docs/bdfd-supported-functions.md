@@ -52,6 +52,43 @@ Note: deroulage compile-time avec limite de securite.
 - sendMessage
 - channelSendMessage
 
+### Composants / Interactions
+
+- addButton
+- addSelectMenuOption
+- addSeparator
+- addTextDisplay
+- addTextInput
+- editButton
+- editSelectMenu
+- editSelectMenuOption
+- newModal
+- newSelectMenu
+- removeAllComponents / removeAllComponents[]
+- removeButtons / removeButtons[]
+- removeComponent
+- defer
+- input
+
+### Embeds
+
+- title
+- description
+- color
+- footer (avec footerIcon optionnel en arg 2)
+- footerIcon (standalone)
+- thumbnail
+- image
+- author (avec authorIcon en arg 2, authorURL en arg 3)
+- authorIcon (standalone)
+- authorURL (standalone)
+- addField
+- addTimestamp / addTimestamp[]
+- embeddedURL
+- addContainer
+- addSection
+- addThumbnail
+
 ### Threads
 
 - startThread
@@ -127,28 +164,26 @@ Note: deroulage compile-time avec limite de securite.
 ### Runtime placeholders alias
 
 - userID
-- username
+- username / username[userID]
 - userTag
 - userAvatar
 - userBanner
 - authorID
 - authorOfMessage
+- authorAvatar
 - authorUsername
 - authorTag
-- authorAvatar
 - authorBanner
 - creationDate
 - discriminator
-- displayName
-- displayName[]
+- displayName / displayName[userID]
 - getUserStatus
 - getCustomStatus
 - isAdmin
 - isBooster
 - isBot
 - isUserDMEnabled
-- nickname
-- nickname[]
+- nickname / nickname[userID]
 - userBadges
 - userBannerColor
 - userExists
@@ -179,5 +214,5 @@ Toute fonction absente des listes ci-dessus est non supportee pour le moment et 
 ## Notes importantes vs BDFD
 
 - Certaines fonctions de type "placeholder" sont mappees vers des variables runtime Bot Creator. Le rendu depend donc de la disponibilite effective des variables dans le contexte d execution.
-- Certaines variantes BDFD avec arguments optionnels (par exemple displayName[], nickname[], username[]) sont acceptees mais actuellement resolues via mapping simplifie.
+- Certaines variantes BDFD avec arguments optionnels (par exemple displayName[userID], nickname[userID], username[userID]) sont resolues vers des placeholders cibles: `((user[id].username))`, `((member[id].nick))`, `((member[id].nick|user[id].username))`.
 - checkUserPerms est supportee en mode guard et en mode inline (booleen via variable message temporaire).
