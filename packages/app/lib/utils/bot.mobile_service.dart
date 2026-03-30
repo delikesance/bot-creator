@@ -238,6 +238,7 @@ void stopCallback() {
 @pragma('vm:entry-point')
 class DiscordBotTaskHandler extends TaskHandler {
   final Map<String, NyxxGateway> _clients = <String, NyxxGateway>{};
+  final Map<String, DateTime> _mobileStartedAt = <String, DateTime>{};
   final Map<String, Timer> _mobileStatusRotationTimers = <String, Timer>{};
   final Map<String, bool> _readyBots = <String, bool>{};
   AppManager? _manager;
@@ -470,6 +471,7 @@ class DiscordBotTaskHandler extends TaskHandler {
       );
 
       _clients[resolvedBotId] = gateway;
+      _mobileStartedAt[resolvedBotId] = DateTime.now();
       _readyBots[resolvedBotId] = false;
 
       gateway.onReady.listen((event) async {
@@ -521,6 +523,7 @@ class DiscordBotTaskHandler extends TaskHandler {
 
     final client = _clients.remove(trimmedBotId);
     _readyBots.remove(trimmedBotId);
+    _mobileStartedAt.remove(trimmedBotId);
     if (client != null) {
       await client.close();
     }

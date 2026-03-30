@@ -644,6 +644,52 @@ Future<void> _executeLocalEventWorkflow(
     ...context.variables,
     'workflow.type': workflowTypeEvent,
   };
+
+  // Inject bot-level variables.
+  runtimeVariables.addAll(shared_global.extractBotRuntimeDetails(gateway));
+  _injectLocalGatewayBotVariables(
+    gateway,
+    runtimeVariables,
+    startedAt: _botStartedAt(botId),
+  );
+
+  // Inject guild, channel and member variables for event workflows.
+  final eventGuildId = context.guildId;
+  Guild? eventGuild;
+  if (eventGuildId != null) {
+    try {
+      final fetched = await gateway.guilds.fetch(eventGuildId);
+      eventGuild = fetched;
+      runtimeVariables.addAll(
+        shared_global.extractGuildRuntimeDetails(fetched),
+      );
+    } catch (_) {}
+  }
+
+  final eventChannelId = context.channelId;
+  if (eventChannelId != null) {
+    try {
+      final channel = await gateway.channels.fetch(eventChannelId);
+      runtimeVariables.addAll(
+        shared_global.extractChannelRuntimeDetails(channel),
+      );
+    } catch (_) {}
+  }
+
+  final eventUserId = context.userId;
+  if (eventGuild != null && eventUserId != null) {
+    try {
+      final member = await eventGuild.members.fetch(eventUserId);
+      runtimeVariables.addAll(
+        shared_global.extractMemberRuntimeDetails(
+          member: member,
+          guild: eventGuild,
+          guildId: eventGuildId.toString(),
+        ),
+      );
+    } catch (_) {}
+  }
+
   await hydrateRuntimeVariables(
     store: manager,
     botId: botId,

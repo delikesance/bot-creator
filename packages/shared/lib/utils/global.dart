@@ -151,6 +151,28 @@ Future<Guild?> _fetchGuildCached(dynamic client, Snowflake guildId) async {
   );
 }
 
+Map<String, String> extractBotRuntimeDetails(NyxxRest client) {
+  final botUserId = client.user.id;
+  final guildCache = client.guilds.cache;
+
+  final details = <String, String>{
+    'bot.id': botUserId.toString(),
+    'bot.guildCount': guildCache.length.toString(),
+    'bot.guildNames': guildCache.values.map((g) => g.name).join(', '),
+    'bot.invite':
+        'https://discord.com/oauth2/authorize?client_id=$botUserId&scope=bot+applications.commands',
+  };
+
+  try {
+    final cachedUser = client.users.cache[botUserId];
+    if (cachedUser != null) {
+      details['bot.username'] = cachedUser.username;
+    }
+  } catch (_) {}
+
+  return details;
+}
+
 Map<String, String> extractMemberRuntimeDetails({
   required dynamic member,
   required dynamic guild,
@@ -677,6 +699,7 @@ Future<Map<String, String>> generateKeyValues(
       memberDetails: invokingMemberDetails,
     ),
   );
+  listOfArgs.addAll(extractBotRuntimeDetails(interaction.manager.client));
   final command = interaction.data;
   listOfArgs["commandName"] = command.name;
   listOfArgs["commandId"] = command.id.toString();

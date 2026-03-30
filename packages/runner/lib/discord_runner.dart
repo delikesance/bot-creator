@@ -150,6 +150,7 @@ class DiscordRunner {
   final CommandStatsStore? statsStore;
 
   NyxxGateway? _gateway;
+  DateTime? _startedAt;
   Timer? _statusRotationTimer;
   final Random _random = Random();
 
@@ -180,6 +181,7 @@ class DiscordRunner {
         plugins: [Logging(logLevel: Level.INFO)],
       ),
     );
+    _startedAt = DateTime.now();
 
     _gateway!.onReady.listen((event) async {
       final botId = event.gateway.client.user.id.toString();
@@ -210,6 +212,21 @@ class DiscordRunner {
   }
 
   // ── Internal ─────────────────────────────────────────────────────────────
+
+  void _injectGatewayBotVariables(Map<String, String> variables) {
+    if (_gateway == null) return;
+    try {
+      variables['bot.ping'] =
+          _gateway!.gateway.latency.inMilliseconds.toString();
+    } catch (_) {}
+    try {
+      variables['bot.shardId'] = _gateway!.gateway.shardIds.join(',');
+    } catch (_) {}
+    if (_startedAt != null) {
+      variables['bot.uptime'] =
+          DateTime.now().difference(_startedAt!).inSeconds.toString();
+    }
+  }
 
   Future<void> _handleInteraction(InteractionCreateEvent event) async {
     final interaction = event.interaction;
@@ -1943,6 +1960,22 @@ class DiscordRunner {
       'workflow.type': workflowTypeEvent,
     };
 
+    // Inject bot-level variables.
+    if (_gateway != null) {
+      runtimeVariables.addAll(extractBotRuntimeDetails(_gateway!));
+      try {
+        runtimeVariables['bot.ping'] =
+            _gateway!.gateway.latency.inMilliseconds.toString();
+      } catch (_) {}
+      try {
+        runtimeVariables['bot.shardId'] = _gateway!.gateway.shardIds.join(',');
+      } catch (_) {}
+      if (_startedAt != null) {
+        runtimeVariables['bot.uptime'] =
+            DateTime.now().difference(_startedAt!).inSeconds.toString();
+      }
+    }
+
     // Inject guild, channel and member variables for event workflows.
     final eventGuildId = context.guildId;
     Guild? eventGuild;
@@ -2060,6 +2093,7 @@ class DiscordRunner {
 
     // Build runtime variables from interaction
     final runtimeVariables = await generateKeyValues(interaction);
+    _injectGatewayBotVariables(runtimeVariables);
     final interactionType = _commandTypeToStorage(interaction.data.type);
     final storedType = _storedCommandType(commandData);
     runtimeVariables['command.type'] = interactionType;
@@ -2418,6 +2452,7 @@ class DiscordRunner {
 
       final focusedOption = findFocusedOption(interaction.data.options);
       final runtimeVariables = await generateKeyValues(interaction);
+      _injectGatewayBotVariables(runtimeVariables);
       runtimeVariables['command.type'] = 'chatInput';
       runtimeVariables['interaction.command.type'] = 'chatInput';
       runtimeVariables['config.command.type'] = 'chatInput';

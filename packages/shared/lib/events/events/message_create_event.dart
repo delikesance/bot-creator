@@ -7,6 +7,9 @@ EventExecutionContext buildMessageCreateEventContext(MessageCreateEvent event) {
   if (guildId != null) {
     extra['message.url'] =
         'https://discord.com/channels/$guildId/${message.channelId}/${message.id}';
+  } else {
+    extra['message.url'] =
+        'https://discord.com/channels/@me/${message.channelId}/${message.id}';
   }
   return _baseEventContext(
     eventName: 'messageCreate',

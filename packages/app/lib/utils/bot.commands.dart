@@ -37,6 +37,11 @@ Future<void> handleLocalCommands(
       );
       final listOfArgs = await generateKeyValues(interaction);
       final runtimeVariables = <String, String>{...listOfArgs};
+      _injectLocalGatewayBotVariables(
+        event.gateway.client,
+        runtimeVariables,
+        startedAt: _botStartedAt(clientId),
+      );
       final dynamic rawInteraction = interaction;
       String? normalizeContextId(String? value) {
         final trimmed = (value ?? '').trim();
@@ -565,6 +570,11 @@ Future<void> _handleLocalCommandAutocomplete(
               : commandOptionTypeToText(focusedOption.type),
       'workflow.type': workflowTypeGeneral,
     };
+    _injectLocalGatewayBotVariables(
+      event.gateway.client,
+      runtimeVariables,
+      startedAt: _botStartedAt(clientId),
+    );
     final dynamic rawInteraction = interaction;
 
     await hydrateRuntimeVariables(
