@@ -531,6 +531,7 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.queryArray:
         return 'HTTP & Variables';
       case BotCreatorActionType.runWorkflow:
+      case BotCreatorActionType.runBdfdScript:
         return 'Workflows';
       case BotCreatorActionType.stopUnless:
       case BotCreatorActionType.ifBlock:
@@ -743,6 +744,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Filter, sort and page any runtime JSON array';
       case BotCreatorActionType.runWorkflow:
         return 'Execute a saved workflow (supports entry point + arguments)';
+      case BotCreatorActionType.runBdfdScript:
+        return 'Compile and run a BDFD script inline as workflow actions';
       case BotCreatorActionType.respondWithMessage:
         return 'Reply to command with a normal message';
       case BotCreatorActionType.respondWithComponentV2:

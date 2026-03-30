@@ -89,6 +89,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return AppStrings.t('action_name_queryArray');
       case BotCreatorActionType.runWorkflow:
         return AppStrings.t('action_name_runWorkflow');
+      case BotCreatorActionType.runBdfdScript:
+        return AppStrings.t('action_name_runBdfdScript');
       case BotCreatorActionType.respondWithMessage:
         return AppStrings.t('action_name_respondWithMessage');
       case BotCreatorActionType.respondWithComponentV2:
@@ -241,6 +243,8 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.inventory_2;
       case BotCreatorActionType.runWorkflow:
         return Icons.account_tree;
+      case BotCreatorActionType.runBdfdScript:
+        return Icons.code;
       case BotCreatorActionType.respondWithMessage:
         return Icons.chat;
       case BotCreatorActionType.respondWithComponentV2:
@@ -1677,6 +1681,16 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.map,
             defaultValue: <String, dynamic>{},
             hint: 'Optional key/value arguments injected as ((arg.key))',
+          ),
+        ];
+      case BotCreatorActionType.runBdfdScript:
+        return [
+          ParameterDefinition(
+            key: 'scriptContent',
+            type: ParameterType.string,
+            defaultValue: '',
+            hint: 'BDFD script source code to compile and execute',
+            required: true,
           ),
         ];
       case BotCreatorActionType.respondWithMessage:

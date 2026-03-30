@@ -337,6 +337,7 @@ const Map<String, String> appStringsFr = {
   'action_name_queryArray': 'Interroger un tableau',
 
   'action_name_runWorkflow': 'Exécuter un workflow',
+  'action_name_runBdfdScript': 'Exécuter un script BDFD',
   'action_name_respondWithMessage': 'Répondre avec un message',
   'action_name_respondWithComponentV2': 'Répondre avec un composant V2',
   'action_name_respondWithModal': 'Répondre avec un modal',

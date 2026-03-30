@@ -158,4 +158,128 @@ void main() {
       expect(executed, <String>['removeReaction']);
     });
   });
+
+  group('executeControlFlowAction runBdfdScript', () {
+    Future<bool> runBdfdScript({
+      required Map<String, dynamic> payload,
+      required Map<String, String> results,
+      required List<String> executed,
+      Map<String, String> variables = const <String, String>{},
+    }) {
+      return executeControlFlowAction(
+        type: BotCreatorActionType.runBdfdScript,
+        payload: payload,
+        resultKey: 'bdfd',
+        results: results,
+        variables: Map<String, String>.of(variables),
+        resolveValue: (input) => input,
+        onLog: null,
+        activeWorkflowStack: <String>{},
+        getWorkflowByName: (_) async => null,
+        executeActions: (actions) async {
+          executed.addAll(actions.map((action) => action.type.name));
+          return <String, String>{'nested': 'ok'};
+        },
+      );
+    }
+
+    test('compiles and executes a simple BDFD script', () async {
+      final results = <String, String>{};
+      final executed = <String>[];
+
+      final handled = await runBdfdScript(
+        payload: <String, dynamic>{'scriptContent': r'Hello $username!'},
+        results: results,
+        executed: executed,
+      );
+
+      expect(handled, isTrue);
+      expect(results['bdfd'], 'BDFD_OK');
+      expect(executed, contains('respondWithMessage'));
+    });
+
+    test('returns BDFD_EMPTY for blank script', () async {
+      final results = <String, String>{};
+      final executed = <String>[];
+
+      final handled = await runBdfdScript(
+        payload: <String, dynamic>{'scriptContent': '   '},
+        results: results,
+        executed: executed,
+      );
+
+      expect(handled, isTrue);
+      expect(results['bdfd'], 'BDFD_EMPTY');
+      expect(executed, isEmpty);
+    });
+
+    test('returns BDFD_EMPTY when scriptContent is missing', () async {
+      final results = <String, String>{};
+      final executed = <String>[];
+
+      final handled = await runBdfdScript(
+        payload: <String, dynamic>{},
+        results: results,
+        executed: executed,
+      );
+
+      expect(handled, isTrue);
+      expect(results['bdfd'], 'BDFD_EMPTY');
+    });
+
+    test('throws on compile error', () async {
+      final results = <String, String>{};
+      final executed = <String>[];
+
+      expect(
+        () => runBdfdScript(
+          payload: <String, dynamic>{'scriptContent': r'$if['},
+          results: results,
+          executed: executed,
+        ),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            contains('BDFD compile error'),
+          ),
+        ),
+      );
+    });
+
+    test('propagates nested results', () async {
+      final results = <String, String>{};
+      final executed = <String>[];
+
+      await runBdfdScript(
+        payload: <String, dynamic>{'scriptContent': 'Hello world!'},
+        results: results,
+        executed: executed,
+      );
+
+      expect(results['bdfd.nested'], 'ok');
+    });
+
+    test('propagates __stopped__ from nested execution', () async {
+      final results = <String, String>{};
+
+      await executeControlFlowAction(
+        type: BotCreatorActionType.runBdfdScript,
+        payload: <String, dynamic>{'scriptContent': 'Hello!'},
+        resultKey: 'bdfd',
+        results: results,
+        variables: <String, String>{},
+        resolveValue: (input) => input,
+        onLog: null,
+        activeWorkflowStack: <String>{},
+        getWorkflowByName: (_) async => null,
+        executeActions: (actions) async {
+          return <String, String>{'__stopped__': 'true'};
+        },
+      );
+
+      expect(results['__stopped__'], 'true');
+      expect(results['bdfd'], 'BDFD_OK');
+    });
+  });
 }

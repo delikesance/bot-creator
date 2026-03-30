@@ -260,6 +260,14 @@ class _AppHomePageState extends State<AppHomePage>
               final localId = (c!['id'] ?? '').toString();
               if (reconciledLocalIds.contains(localId)) return false;
               if (localId == commandId) return false;
+              // Never reconcile legacy-only commands — they are local-only
+              // and must not be absorbed into a Discord command.
+              final localData = (c['data'] as Map?)?.cast<String, dynamic>();
+              if (localData != null &&
+                  localData['legacyModeEnabled'] == true &&
+                  localData['legacyLocalOnly'] == true) {
+                return false;
+              }
               final localName = (c['name'] ?? '').toString();
               final localType =
                   (c['type'] ?? 'chatInput').toString().toLowerCase();
@@ -279,7 +287,7 @@ class _AppHomePageState extends State<AppHomePage>
             ...local,
             'id': commandId,
             'name': command.name,
-            'description': command.description,
+            if (command.description != null) 'description': command.description,
           };
           await appManager.saveAppCommand(botId, commandId, merged);
         }

@@ -57,7 +57,9 @@ class _BdfdAstTranspilationScope {
   int _httpRequestCounter = 0;
   int _threadActionCounter = 0;
   int _permissionCheckCounter = 0;
+  int _callWorkflowCounter = 0;
   String? _lastHttpRequestKey;
+  String? _lastCallWorkflowKey;
   final List<Action> _deferredInlineActions = <Action>[];
   dynamic _jsonContext;
   bool _hasJsonContext = false;
@@ -67,6 +69,7 @@ class _BdfdAstTranspilationScope {
   int _loopIterationIndex = 0;
   int _loopDepth = 0;
   Map<String, int> _loopVariables = <String, int>{};
+  final Map<String, String> _tempVariables = <String, String>{};
   final List<Map<String, dynamic>> _pendingModalInputs =
       <Map<String, dynamic>>[];
 
@@ -1666,6 +1669,9 @@ class _BdfdAstTranspilationScope {
       // Args check
       case 'argscheck':
         return _buildArgsCheckAction(node);
+      // Workflow call
+      case 'callworkflow':
+        return _buildCallWorkflowAction(node);
       default:
         _diagnostics.add(
           BdfdTranspileDiagnostic(
@@ -3138,6 +3144,18 @@ class _BdfdAstTranspilationScope {
           _stringifyArgument(node, 0),
         );
       case 'var':
+        if (node.arguments.length >= 2) {
+          final key = _stringifyArgument(node, 0).trim();
+          final value = _stringifyArgument(node, 1);
+          if (key.isNotEmpty) {
+            _tempVariables[key] = value;
+          }
+          return '';
+        }
+        final tvKey = _stringifyArgument(node, 0).trim();
+        if (tvKey.isNotEmpty && _tempVariables.containsKey(tvKey)) {
+          return _tempVariables[tvKey]!;
+        }
         return _scopedVariablePlaceholder(
           'global',
           _stringifyArgument(node, 0),
@@ -3172,6 +3190,9 @@ class _BdfdAstTranspilationScope {
           return '((cooldown[$cooldownType].remaining))';
         }
         return '((cooldown.remaining))';
+      // Workflow response
+      case 'workflowresponse':
+        return _latestWorkflowResponsePlaceholder(node);
       // Text manipulation (compile-time)
       case 'replacetext':
         return _inlineReplaceText(node);
@@ -3433,6 +3454,7 @@ class _BdfdAstTranspilationScope {
       case 'var':
       case 'varexists':
       case 'varexisterror':
+      case 'workflowresponse':
       case 'getleaderboardposition':
       case 'getleaderboardvalue':
       case 'getcooldown':
@@ -3680,6 +3702,8 @@ class _BdfdAstTranspilationScope {
       case 'newticket':
       // Args check
       case 'argscheck':
+      // Workflow call
+      case 'callworkflow':
         return true;
       default:
         return false;
@@ -5949,6 +5973,78 @@ class _BdfdAstTranspilationScope {
       thenActions: const <Action>[],
       elseActions: _buildGuardFailureActions(message: errorMessage),
     );
+  }
+
+  // ── Inline computation helpers ──────────────────────────────────
+
+  // ── Workflow call builder ─────────────────────────────────────
+
+  Action? _buildCallWorkflowAction(BdfdFunctionCallAst node) {
+    final workflowName = _stringifyArgument(node, 0).trim();
+    if (workflowName.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: '${node.name} requires a workflow name as first argument.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+
+    final arguments = <String, dynamic>{};
+    for (var i = 1; i < node.arguments.length; i++) {
+      final raw = _stringifyArgument(node, i);
+      final equalsIndex = raw.indexOf('=');
+      if (equalsIndex > 0) {
+        final key = raw.substring(0, equalsIndex).trim();
+        final value = raw.substring(equalsIndex + 1);
+        if (key.isNotEmpty) {
+          arguments[key] = value;
+          continue;
+        }
+      }
+      arguments['$i'] = raw;
+    }
+
+    final key = '_bdfd_callworkflow_${_callWorkflowCounter++}';
+    _lastCallWorkflowKey = key;
+
+    return Action(
+      type: BotCreatorActionType.runWorkflow,
+      key: key,
+      payload: <String, dynamic>{
+        'workflowName': workflowName,
+        if (arguments.isNotEmpty) 'arguments': arguments,
+      },
+    );
+  }
+
+  String? _latestWorkflowResponsePlaceholder(BdfdFunctionCallAst node) {
+    final requestKey = _lastCallWorkflowKey;
+    if (requestKey == null || requestKey.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message:
+              '${node.name} requires a preceding \$callWorkflow in the same BDFD script.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+
+    if (node.arguments.isEmpty) {
+      return '((workflow.response))';
+    }
+
+    final property = _stringifyArgument(node, 0).trim();
+    if (property.isEmpty) {
+      return '((workflow.response))';
+    }
+    return '((workflow.response.$property))';
   }
 
   // ── Inline computation helpers ──────────────────────────────────

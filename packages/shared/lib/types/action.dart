@@ -40,6 +40,7 @@ enum BotCreatorActionType {
   removeArrayElement,
   queryArray,
   runWorkflow,
+  runBdfdScript,
   // Logic & Flow actions
   stopUnless,
   ifBlock,
