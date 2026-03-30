@@ -237,6 +237,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         if (isRunning) {
           appendBotLog('Bot stop requested', botId: botId);
           await client.stopBot(botId);
+          endBotLogSession(botId: botId);
           if (mounted) {
             setState(() {
               _runningBotIds = <String>{..._runningBotIds}..remove(botId);
@@ -284,6 +285,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         if (isRunning) {
           appendBotLog('Bot stop requested', botId: botId);
           await stopMobileBotSession(botId: botId);
+          endBotLogSession(botId: botId);
           if (mounted) {
             setState(() {
               _runningBotIds = <String>{..._runningBotIds}..remove(botId);
@@ -330,6 +332,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             botId: botId,
           );
           await stopDesktopBot();
+          endBotLogSession(botId: botId);
           setBotRuntimeActive(false);
           clearBotBaselineRss();
           if (mounted) {

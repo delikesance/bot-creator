@@ -1,4 +1,5 @@
 import 'package:bot_creator_shared/utils/global.dart';
+import 'package:nyxx/nyxx.dart';
 import 'package:test/test.dart';
 
 class _FakeChannel {
@@ -55,6 +56,31 @@ class _FakeGuild {
   final int? premiumSubscriptionCount;
   final List<String>? features;
   final int? memberCount;
+}
+
+class _FakeRolePermissions {
+  const _FakeRolePermissions(this.value);
+
+  final int value;
+}
+
+class _FakeRole {
+  const _FakeRole({required this.id, required this.permissions});
+
+  final String id;
+  final _FakeRolePermissions permissions;
+}
+
+class _FakeGuildWithRoles {
+  const _FakeGuildWithRoles({required this.roleList});
+
+  final List<_FakeRole> roleList;
+}
+
+class _FakeMemberWithRoles {
+  const _FakeMemberWithRoles({required this.roleIds});
+
+  final List<String> roleIds;
 }
 
 void main() {
@@ -120,6 +146,51 @@ void main() {
       expect(details['guild.features'], 'COMMUNITY,INVITES_DISABLED');
       expect(details['guild.features.count'], '2');
       expect(details['guild.memberCount'], '1200');
+    });
+  });
+
+  group('extractMemberRuntimeDetails', () {
+    test('extracts admin flag and permission tokens from role bitmask', () {
+      final details = extractMemberRuntimeDetails(
+        member: const _FakeMemberWithRoles(roleIds: <String>['200']),
+        guild: _FakeGuildWithRoles(
+          roleList: <_FakeRole>[
+            _FakeRole(
+              id: '100',
+              permissions: _FakeRolePermissions(Permissions.sendMessages.value),
+            ),
+            _FakeRole(
+              id: '200',
+              permissions: _FakeRolePermissions(
+                Permissions.administrator.value | Permissions.banMembers.value,
+              ),
+            ),
+          ],
+        ),
+        guildId: '100',
+      );
+
+      expect(details['member.isAdmin'], 'true');
+      final permissions = details['member.permissions'] ?? '';
+      expect(permissions, contains('administrator'));
+      expect(permissions, contains('banmembers'));
+      expect(permissions, contains('sendmessages'));
+    });
+
+    test('maps member details to by-id permission keys', () {
+      final mapped = extractPermissionsByIdRuntimeDetails(
+        userId: '243117191774470146',
+        memberDetails: const <String, String>{
+          'member.permissions': 'administrator,banmembers',
+          'member.isAdmin': 'true',
+        },
+      );
+
+      expect(
+        mapped['permissions.byId.243117191774470146'],
+        'administrator,banmembers',
+      );
+      expect(mapped['isAdmin.byId.243117191774470146'], 'true');
     });
   });
 }

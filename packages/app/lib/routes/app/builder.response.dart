@@ -557,6 +557,8 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
       case BotCreatorActionType.deleteInvite:
       case BotCreatorActionType.getInvite:
       case BotCreatorActionType.createThread:
+      case BotCreatorActionType.addThreadMember:
+      case BotCreatorActionType.removeThreadMember:
       case BotCreatorActionType.editChannelPermissions:
       case BotCreatorActionType.deleteChannelPermission:
         return 'Channels';
@@ -805,6 +807,10 @@ class _ActionsBuilderPageState extends State<ActionsBuilderPage> {
         return 'Update current bot user profile (username/avatar)';
       case BotCreatorActionType.createThread:
         return 'Create a thread in a supported text channel';
+      case BotCreatorActionType.addThreadMember:
+        return 'Add a member to a thread';
+      case BotCreatorActionType.removeThreadMember:
+        return 'Remove a member from a thread';
       case BotCreatorActionType.editChannelPermissions:
         return 'Create or update channel permission overwrites';
       case BotCreatorActionType.deleteChannelPermission:

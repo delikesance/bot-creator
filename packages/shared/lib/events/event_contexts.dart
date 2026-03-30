@@ -115,11 +115,27 @@ Map<String, String> _messageContentExtra(Message message) {
   final content = message.content;
   final words = content.trim().split(RegExp(r'\s+'));
   final mentionIds = message.mentions.map((u) => u.id.toString()).toList();
+  final roleMentionIds =
+      message.roleMentionIds.map((id) => id.toString()).toList();
   final isBot = author is User ? author.isBot : false;
   final authorId = author.id.toString();
   final authorName = author.username;
   final authorTag = author is User ? author.discriminator : '';
   final authorAvatar = author is User ? (author.avatar.url.toString()) : '';
+
+  String authorBanner = '';
+  String userCreatedAt = '';
+  String userBannerColor = '';
+  if (author is User) {
+    authorBanner = author.banner?.url.toString() ?? '';
+    userCreatedAt = author.id.timestamp.toIso8601String();
+    final accentColor = author.accentColor;
+    if (accentColor != null) {
+      userBannerColor =
+          '#${accentColor.value.toRadixString(16).padLeft(6, '0')}';
+    }
+  }
+
   final extra = <String, String>{
     'message.id': message.id.toString(),
     'message.content': content,
@@ -131,12 +147,24 @@ Map<String, String> _messageContentExtra(Message message) {
     'message.type': message.type.value.toString(),
     'message.mentions': mentionIds.join(','),
     'message.mention.count': mentionIds.length.toString(),
+    'message.timestamp': message.timestamp.millisecondsSinceEpoch.toString(),
+    'message.isEdited': (message.editedTimestamp != null).toString(),
+    'message.isPinned': message.isPinned.toString(),
+    'message.attachments': message.attachments
+        .map((a) => a.url.toString())
+        .join(','),
+    'message.attachments.count': message.attachments.length.toString(),
+    'message.embeds.count': message.embeds.length.toString(),
+    'message.roleMentions': roleMentionIds.join(','),
+    'message.roleMentions.count': roleMentionIds.length.toString(),
+    'message.mentionsEveryone': message.mentionsEveryone.toString(),
     'author.id': authorId,
     'author.name': authorName,
     'author.username': authorName,
     'author.tag': authorTag,
     'author.isBot': isBot.toString(),
     'author.avatar': authorAvatar,
+    'author.banner': authorBanner,
     'userId': authorId,
     'userName': authorName,
     'userAvatar': authorAvatar,
@@ -145,11 +173,24 @@ Map<String, String> _messageContentExtra(Message message) {
     'user.username': authorName,
     'user.tag': authorTag,
     'user.avatar': authorAvatar,
+    'user.banner': authorBanner,
+    'user.createdAt': userCreatedAt,
+    'user.bannerColor': userBannerColor,
     'interaction.user.id': authorId,
     'interaction.user.username': authorName,
     'interaction.user.tag': authorTag,
     'interaction.user.avatar': authorAvatar,
   };
+
+  if (message.editedTimestamp != null) {
+    extra['message.editedTimestamp'] =
+        message.editedTimestamp!.millisecondsSinceEpoch.toString();
+  }
+  final referencedMessage = message.referencedMessage;
+  if (referencedMessage != null) {
+    extra['message.referencedMessage.id'] = referencedMessage.id.toString();
+  }
+
   for (var idx = 0; idx < words.length && idx < 10; idx++) {
     extra['message.content[$idx]'] = words[idx];
   }

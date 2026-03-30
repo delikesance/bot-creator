@@ -337,10 +337,9 @@ class _BotLogsPageState extends State<BotLogsPage> {
                           vertical: 8,
                         ),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: 0.4),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer.withValues(alpha: 0.4),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
@@ -357,14 +356,14 @@ class _BotLogsPageState extends State<BotLogsPage> {
                                   'logs_runner_source',
                                   params: {'name': _runnerLabel!},
                                 ),
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onPrimaryContainer,
-                                    ),
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.bodySmall?.copyWith(
+                                  color:
+                                      Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimaryContainer,
+                                ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -555,6 +554,28 @@ class _BotLogsPageState extends State<BotLogsPage> {
 
   _ParsedLog _parseLog(String raw) {
     final source = _stripAnsi(raw).trimLeft();
+    final runnerIsoMatch = RegExp(
+      r'^\[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)\]\s*\[([^\]]+)\]\s*([^:]+):\s*(.*)$',
+    ).firstMatch(source);
+    if (runnerIsoMatch != null) {
+      final isoRaw = runnerIsoMatch.group(1) ?? '';
+      final level = (runnerIsoMatch.group(2) ?? 'LOG').trim();
+      final logger = (runnerIsoMatch.group(3) ?? '').trim();
+      final message = (runnerIsoMatch.group(4) ?? '').trimLeft();
+      final parsedIso = DateTime.tryParse(isoRaw)?.toLocal();
+      final time =
+          parsedIso == null
+              ? '--:--:--'
+              : '${parsedIso.hour.toString().padLeft(2, '0')}:${parsedIso.minute.toString().padLeft(2, '0')}:${parsedIso.second.toString().padLeft(2, '0')}';
+      return _ParsedLog(
+        time: time,
+        level: level,
+        logger: logger,
+        message: message,
+        isDebug: level.toUpperCase() == 'DEBUG',
+      );
+    }
+
     final timeMatch = RegExp(
       r'\[\s*(\d{1,2})\s*:\s*(\d{2})\s*:\s*(\d{2})(?:\s*\.\s*\d+)?\s*\]',
     ).firstMatch(source);

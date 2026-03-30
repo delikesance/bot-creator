@@ -187,6 +187,8 @@ Future<bool> executeHttpAction({
   }
 
   results[resultKey] = 'HTTP $status';
+  variables['http.status'] = '$status';
+  variables['http.body'] = responseBody;
   variables['action.$resultKey.status'] = '$status';
   variables['action.$resultKey.body'] = responseBody;
   variables['$resultKey.status'] = '$status';
@@ -223,6 +225,7 @@ Future<bool> executeHttpAction({
                 : (extracted is num || extracted is bool)
                 ? extracted.toString()
                 : jsonEncode(extracted);
+        variables['http.jsonPath'] = extractedAsString;
         variables['action.$resultKey.jsonPath'] = extractedAsString;
         variables['$resultKey.jsonPath'] = extractedAsString;
         // Note: saveJsonPathToGlobalVar removed — use {{resultKey.jsonPath}}

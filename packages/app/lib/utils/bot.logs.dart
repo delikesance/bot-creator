@@ -454,10 +454,74 @@ void startBotLogSession({required String botId}) {
   appendBotLog('Log session started', botId: botId);
 }
 
+void endBotLogSession({required String botId, bool clearLogs = true}) {
+  final key = botId.trim();
+  if (key.isEmpty) {
+    return;
+  }
+
+  if (clearLogs) {
+    _botLogsByBot.remove(key);
+  }
+  _botMetricsByBot.remove(key);
+
+  if (_activeBotLogBotId == key) {
+    _activeBotLogBotId = null;
+  }
+
+  _publishBotLogs();
+
+  if (!_botMetricsByBotController.isClosed) {
+    _botMetricsByBotController.add(
+      Map<String, BotRuntimeMetrics>.unmodifiable(_botMetricsByBot),
+    );
+  }
+
+  final selectedKey = _resolveBotBucketKey(_activeBotLogBotId);
+  final selected = _botMetricsByBot[selectedKey];
+  _botProcessRssBytes = selected?.rssBytes;
+  _botEstimatedRssBytes = selected?.estimatedRssBytes;
+  _botProcessCpuPercent = selected?.cpuPercent;
+  _botProcessStorageBytes = selected?.storageBytes;
+
+  if (!_botProcessRssController.isClosed) {
+    _botProcessRssController.add(_botProcessRssBytes);
+  }
+  if (!_botEstimatedRssController.isClosed) {
+    _botEstimatedRssController.add(_botEstimatedRssBytes);
+  }
+  if (!_botProcessCpuController.isClosed) {
+    _botProcessCpuController.add(_botProcessCpuPercent);
+  }
+  if (!_botProcessStorageController.isClosed) {
+    _botProcessStorageController.add(_botProcessStorageBytes);
+  }
+}
+
+bool _startsWithTimestamp(String message) {
+  final trimmed = message.trimLeft();
+  if (trimmed.isEmpty) {
+    return false;
+  }
+
+  final hhmmssPattern = RegExp(
+    r'^\[(?:[01]?\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?\]',
+  );
+  if (hhmmssPattern.hasMatch(trimmed)) {
+    return true;
+  }
+
+  final isoPattern = RegExp(
+    r'^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z\]',
+  );
+  return isoPattern.hasMatch(trimmed);
+}
+
 void appendBotLog(String message, {String? botId}) {
   final key = _resolveBotBucketKey(botId);
   final logs = _botLogsByBot.putIfAbsent(key, () => <String>[]);
-  final line = '[${_timestampNow()}] $message';
+  final line =
+      _startsWithTimestamp(message) ? message : '[${_timestampNow()}] $message';
   logs.add(line);
   if (logs.length > _maxBotLogLines) {
     _botLogsByBot[key] = logs.sublist(logs.length - _maxBotLogLines);
@@ -560,6 +624,7 @@ void consumeForegroundTaskDataForBotLogs(Object data) {
     if (state == 'stopped') {
       if (botId != null && botId.isNotEmpty) {
         removeMobileRunningBotId(botId);
+        endBotLogSession(botId: botId);
       } else {
         setMobileRunningBotId(null);
       }

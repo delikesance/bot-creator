@@ -73,10 +73,63 @@ class AutoBackupRunResult {
 
 class RecoveryManager {
   static const String _fileName = 'recovery_settings.json';
+  static const String _snapshotsCacheFileName = 'recovery_snapshots_cache.json';
 
   static Future<io.File> _settingsFile() async {
     final docs = await getApplicationDocumentsDirectory();
     return io.File('${docs.path}/$_fileName');
+  }
+
+  static Future<io.File> _snapshotsCacheFile() async {
+    final docs = await getApplicationDocumentsDirectory();
+    return io.File('${docs.path}/$_snapshotsCacheFileName');
+  }
+
+  static Future<List<BackupSnapshotSummary>> loadCachedSnapshots() async {
+    try {
+      final file = await _snapshotsCacheFile();
+      if (!await file.exists()) {
+        return const <BackupSnapshotSummary>[];
+      }
+
+      final raw = await file.readAsString();
+      if (raw.trim().isEmpty) {
+        return const <BackupSnapshotSummary>[];
+      }
+
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        return const <BackupSnapshotSummary>[];
+      }
+
+      return decoded
+          .whereType<Map>()
+          .map((entry) => Map<String, dynamic>.from(entry))
+          .map(BackupSnapshotSummary.fromJson)
+          .toList(growable: false);
+    } catch (_) {
+      return const <BackupSnapshotSummary>[];
+    }
+  }
+
+  static Future<void> saveCachedSnapshots(
+    List<BackupSnapshotSummary> snapshots,
+  ) async {
+    final file = await _snapshotsCacheFile();
+    final payload = snapshots
+        .map(
+          (snapshot) => <String, dynamic>{
+            'snapshotId': snapshot.snapshotId,
+            'label': snapshot.label,
+            'createdAt': snapshot.createdAt.toUtc().toIso8601String(),
+            'fileCount': snapshot.fileCount,
+            'totalBytes': snapshot.totalBytes,
+            'appCount': snapshot.appCount,
+            'apps': snapshot.apps,
+          },
+        )
+        .toList(growable: false);
+    await file.writeAsString(jsonEncode(payload), flush: true);
   }
 
   static Future<RecoverySettings> loadSettings() async {

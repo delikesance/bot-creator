@@ -61,6 +61,24 @@ Duration? _parseDuration(dynamic value) {
   }
 }
 
+int? _parseArchiveMinutes(dynamic value) {
+  if (value == null) {
+    return null;
+  }
+  final text = value.toString().trim();
+  if (text.isEmpty || text.toLowerCase() == '!unchanged') {
+    return null;
+  }
+  final parsed = int.tryParse(text);
+  if (parsed == null) {
+    return null;
+  }
+  const allowed = <int>[60, 1440, 4320, 10080];
+  return allowed.reduce(
+    (prev, curr) => (curr - parsed).abs() < (prev - parsed).abs() ? curr : prev,
+  );
+}
+
 Future<Map<String, String>> updateChannelAction(
   NyxxGateway client, {
   required Map<String, dynamic> payload,
@@ -83,8 +101,25 @@ Future<Map<String, String>> updateChannelAction(
     final slowmode = _parseDuration(
       resolve((payload['slowmode'] ?? '').toString()),
     );
+    final archived = _toBool(resolve((payload['archived'] ?? '').toString()));
+    final locked = _toBool(resolve((payload['locked'] ?? '').toString()));
+    final archiveMinutes = _parseArchiveMinutes(
+      resolve((payload['autoArchiveDuration'] ?? '').toString()),
+    );
 
-    if (channel is GuildTextChannel) {
+    if (channel is Thread) {
+      final builder = ThreadUpdateBuilder(
+        name: name.isNotEmpty ? name : null,
+        isArchived: archived,
+        isLocked: locked,
+        autoArchiveDuration:
+            archiveMinutes == null ? null : Duration(minutes: archiveMinutes),
+      );
+      if (slowmode != null) {
+        builder.rateLimitPerUser = slowmode;
+      }
+      await channel.update(builder);
+    } else if (channel is GuildTextChannel) {
       await channel.update(
         GuildTextChannelUpdateBuilder(
           name: name.isNotEmpty ? name : null,

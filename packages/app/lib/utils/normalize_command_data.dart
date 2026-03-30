@@ -105,6 +105,11 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
   final rawEditorMode =
       (rawData['editorMode'] ?? 'advanced').toString().toLowerCase();
   final editorMode = rawEditorMode == 'simple' ? 'simple' : 'advanced';
+  final rawExecutionMode =
+      (rawData['executionMode'] ?? 'workflow').toString().toLowerCase();
+  final executionMode =
+      rawExecutionMode == 'bdfd_script' ? 'bdfd_script' : 'workflow';
+  final bdfdScriptContent = (rawData['bdfdScriptContent'] ?? '').toString();
   final legacyModeEnabled = rawData['legacyModeEnabled'] == true;
   final legacyLocalOnly = rawData['legacyLocalOnly'] == true;
   final legacyPrefixOverride =
@@ -186,6 +191,8 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
     'version': 1,
     'commandType': commandType,
     'editorMode': editorMode,
+    'executionMode': executionMode,
+    'bdfdScriptContent': bdfdScriptContent,
     'legacyModeEnabled': legacyModeEnabled,
     'legacyLocalOnly': legacyLocalOnly,
     'legacyPrefixOverride': legacyPrefixOverride,

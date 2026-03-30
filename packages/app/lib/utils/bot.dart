@@ -1,6 +1,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
@@ -13,10 +14,12 @@ import 'package:bot_creator_shared/actions/handle_component_interaction.dart';
 import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator_shared/types/action.dart';
+import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
 import 'package:bot_creator_shared/utils/command_autocomplete.dart';
 import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/global.dart';
+import 'package:bot_creator_shared/utils/global.dart' as shared_global;
 import 'package:bot_creator/utils/mobile_sessions_orchestrator.dart';
 import 'package:bot_creator/utils/template_resolver.dart';
 import 'package:bot_creator/utils/workflow_call.dart';
@@ -33,7 +36,57 @@ part 'bot.mobile_service.dart';
 part 'bot.commands.dart';
 part 'bot.event_workflows.dart';
 
+String _formatBdfdRuntimeDiagnostics(List<BdfdCompileDiagnostic> diagnostics) {
+  if (diagnostics.isEmpty) {
+    return 'This BDFD script could not be compiled.';
+  }
+
+  final summary = diagnostics
+      .take(5)
+      .map((diagnostic) {
+        final location =
+            (diagnostic.line != null && diagnostic.column != null)
+                ? 'L${diagnostic.line}:C${diagnostic.column} '
+                : '';
+        return '- $location${diagnostic.message}';
+      })
+      .join('\n');
+  return 'This BDFD script could not be compiled:\n$summary';
+}
+
+/// Injects gateway-only bot variables (ping, uptime, shardId) into
+/// a runtime variables map.  Works for both desktop and mobile sessions.
+void _injectLocalGatewayBotVariables(
+  NyxxGateway gateway,
+  Map<String, String> variables, {
+  DateTime? startedAt,
+}) {
+  try {
+    variables['bot.ping'] = gateway.gateway.latency.inMilliseconds.toString();
+  } catch (_) {}
+  try {
+    variables['bot.shardId'] = gateway.gateway.shardIds.join(',');
+  } catch (_) {}
+  if (startedAt != null) {
+    variables['bot.uptime'] =
+        DateTime.now().difference(startedAt).inSeconds.toString();
+  }
+}
+
+/// Returns the [DateTime] at which the given bot session was started,
+/// checking desktop first, then the mobile sessions map.
+DateTime? _botStartedAt(String botId) {
+  if (_desktopRunningBotId == botId && _desktopStartedAt != null) {
+    return _desktopStartedAt;
+  }
+  // Mobile sessions are tracked in DiscordBotTaskHandler._mobileStartedAt
+  // but that instance is not directly accessible from here.  We only have
+  // _desktopStartedAt for the desktop path.
+  return null;
+}
+
 NyxxGateway? _desktopGateway;
+DateTime? _desktopStartedAt;
 StreamSubscription<LogRecord>? _desktopNyxxLogsSubscription;
 Timer? _desktopMetricsTimer;
 Timer? _desktopStatusRotationTimer;
@@ -244,6 +297,7 @@ Future<void> startDesktopBot(String token) async {
       plugins: [Logging(logLevel: Level.ALL)],
     ),
   );
+  _desktopStartedAt = DateTime.now();
 
   gateway.onReady.listen((event) async {
     final botId = event.gateway.client.user.id.toString();
@@ -284,6 +338,7 @@ Future<void> stopDesktopBot() async {
   _desktopStatusRotationTimer = null;
   await _desktopGateway?.close();
   _desktopGateway = null;
+  _desktopStartedAt = null;
   _desktopRunningBotId = null;
   await _desktopNyxxLogsSubscription?.cancel();
   _desktopNyxxLogsSubscription = null;

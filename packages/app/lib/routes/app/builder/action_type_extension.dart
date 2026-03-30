@@ -153,6 +153,10 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return AppStrings.t('action_name_updateSelfUser');
       case BotCreatorActionType.createThread:
         return AppStrings.t('action_name_createThread');
+      case BotCreatorActionType.addThreadMember:
+        return AppStrings.t('action_name_addThreadMember');
+      case BotCreatorActionType.removeThreadMember:
+        return AppStrings.t('action_name_removeThreadMember');
       case BotCreatorActionType.editChannelPermissions:
         return AppStrings.t('action_name_editChannelPermissions');
       case BotCreatorActionType.deleteChannelPermission:
@@ -301,6 +305,10 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
         return Icons.account_circle;
       case BotCreatorActionType.createThread:
         return Icons.forum;
+      case BotCreatorActionType.addThreadMember:
+        return Icons.person_add;
+      case BotCreatorActionType.removeThreadMember:
+        return Icons.person_remove;
       case BotCreatorActionType.editChannelPermissions:
         return Icons.lock_open;
       case BotCreatorActionType.deleteChannelPermission:
@@ -2589,6 +2597,42 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             type: ParameterType.string,
             defaultValue: '',
             hint: 'Audit log reason',
+          ),
+        ];
+
+      case BotCreatorActionType.addThreadMember:
+        return [
+          ParameterDefinition(
+            key: 'threadId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Thread to add the member to',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User to add to the thread',
+            required: true,
+          ),
+        ];
+
+      case BotCreatorActionType.removeThreadMember:
+        return [
+          ParameterDefinition(
+            key: 'threadId',
+            type: ParameterType.channelId,
+            defaultValue: '',
+            hint: 'Thread to remove the member from',
+            required: true,
+          ),
+          ParameterDefinition(
+            key: 'userId',
+            type: ParameterType.userId,
+            defaultValue: '',
+            hint: 'User to remove from the thread',
+            required: true,
           ),
         ];
 

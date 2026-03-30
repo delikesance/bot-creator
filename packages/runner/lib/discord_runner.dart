@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -8,6 +9,7 @@ import 'package:bot_creator_shared/actions/interaction_response.dart';
 import 'package:bot_creator_shared/bot/bot_config.dart';
 import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator_shared/utils/command_autocomplete.dart';
+import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
 import 'package:bot_creator_shared/utils/global.dart';
 import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart';
@@ -21,6 +23,125 @@ import 'stores/command_stats_store.dart';
 
 final _log = Logger('BotRunner');
 
+class _AwaitedLegacyTrigger {
+  const _AwaitedLegacyTrigger({
+    required this.name,
+    required this.isErrorTrigger,
+    this.filter,
+  });
+
+  final String name;
+  final bool isErrorTrigger;
+  final String? filter;
+}
+
+class _AwaitedLegacyCallbacks {
+  const _AwaitedLegacyCallbacks({
+    this.successCommand,
+    this.errorCommand,
+    this.filter,
+  });
+
+  final Map<String, dynamic>? successCommand;
+  final Map<String, dynamic>? errorCommand;
+  final String? filter;
+
+  _AwaitedLegacyCallbacks copyWith({
+    Map<String, dynamic>? successCommand,
+    Map<String, dynamic>? errorCommand,
+    String? filter,
+  }) {
+    return _AwaitedLegacyCallbacks(
+      successCommand: successCommand ?? this.successCommand,
+      errorCommand: errorCommand ?? this.errorCommand,
+      filter: filter ?? this.filter,
+    );
+  }
+}
+
+_AwaitedLegacyTrigger? _parseAwaitedLegacyTrigger(String rawName) {
+  final name = rawName.trim();
+  final successMatch = RegExp(
+    r'^\$awaitedcommand\[(.+?);(.*)\]$',
+    caseSensitive: false,
+  ).firstMatch(name);
+  if (successMatch != null) {
+    final awaitedName = successMatch.group(1)?.trim().toLowerCase() ?? '';
+    final filter = successMatch.group(2)?.trim();
+    if (awaitedName.isEmpty) {
+      return null;
+    }
+    return _AwaitedLegacyTrigger(
+      name: awaitedName,
+      isErrorTrigger: false,
+      filter: filter == null || filter.isEmpty ? null : filter,
+    );
+  }
+
+  final errorMatch = RegExp(
+    r'^\$awaitedcommanderror\[(.+?)\]$',
+    caseSensitive: false,
+  ).firstMatch(name);
+  if (errorMatch != null) {
+    final awaitedName = errorMatch.group(1)?.trim().toLowerCase() ?? '';
+    if (awaitedName.isEmpty) {
+      return null;
+    }
+    return _AwaitedLegacyTrigger(name: awaitedName, isErrorTrigger: true);
+  }
+
+  return null;
+}
+
+bool _matchesAwaitedFilter(String message, String? rawFilter) {
+  final filter = (rawFilter ?? '').trim();
+  if (filter.isEmpty) {
+    return true;
+  }
+
+  if (!filter.startsWith('<') || !filter.endsWith('>')) {
+    return true;
+  }
+
+  final body = filter.substring(1, filter.length - 1).trim();
+  if (body.isEmpty) {
+    return true;
+  }
+
+  if (body.toLowerCase() == 'numeric') {
+    return RegExp(r'^-?\d+(\.\d+)?$').hasMatch(message.trim());
+  }
+
+  final allowed =
+      body
+          .split('/')
+          .map((entry) => entry.trim().toLowerCase())
+          .where((entry) => entry.isNotEmpty)
+          .toSet();
+  if (allowed.isEmpty) {
+    return true;
+  }
+  return allowed.contains(message.trim().toLowerCase());
+}
+
+String _formatRunnerBdfdDiagnostics(List<BdfdCompileDiagnostic> diagnostics) {
+  if (diagnostics.isEmpty) {
+    return 'This BDFD script could not be compiled.';
+  }
+
+  final summary = diagnostics
+      .take(5)
+      .map((diagnostic) {
+        final location =
+            (diagnostic.line != null && diagnostic.column != null)
+                ? 'L${diagnostic.line}:C${diagnostic.column} '
+                : '';
+        return '- $location${diagnostic.message}';
+      })
+      .join('\n');
+  return 'This BDFD script could not be compiled:\n$summary';
+}
+
 /// Connects to Discord via nyxx, registers command listeners, and dispatches
 /// interactions to the shared action handlers — matching commands by their Discord ID.
 class DiscordRunner {
@@ -29,6 +150,7 @@ class DiscordRunner {
   final CommandStatsStore? statsStore;
 
   NyxxGateway? _gateway;
+  DateTime? _startedAt;
   Timer? _statusRotationTimer;
   final Random _random = Random();
 
@@ -59,6 +181,7 @@ class DiscordRunner {
         plugins: [Logging(logLevel: Level.INFO)],
       ),
     );
+    _startedAt = DateTime.now();
 
     _gateway!.onReady.listen((event) async {
       final botId = event.gateway.client.user.id.toString();
@@ -89,6 +212,21 @@ class DiscordRunner {
   }
 
   // ── Internal ─────────────────────────────────────────────────────────────
+
+  void _injectGatewayBotVariables(Map<String, String> variables) {
+    if (_gateway == null) return;
+    try {
+      variables['bot.ping'] =
+          _gateway!.gateway.latency.inMilliseconds.toString();
+    } catch (_) {}
+    try {
+      variables['bot.shardId'] = _gateway!.gateway.shardIds.join(',');
+    } catch (_) {}
+    if (_startedAt != null) {
+      variables['bot.uptime'] =
+          DateTime.now().difference(_startedAt!).inSeconds.toString();
+    }
+  }
 
   Future<void> _handleInteraction(InteractionCreateEvent event) async {
     final interaction = event.interaction;
@@ -1464,7 +1602,20 @@ class DiscordRunner {
       return true;
     }
 
+    final handledAwaited = await _tryExecuteAwaitedLegacyInput(
+      context,
+      botId: botId,
+      legacyCommands: legacyCommands,
+    );
+    if (handledAwaited) {
+      return true;
+    }
+
     for (final command in legacyCommands) {
+      if (_parseAwaitedLegacyTrigger((command['name'] ?? '').toString()) !=
+          null) {
+        continue;
+      }
       final data = Map<String, dynamic>.from(
         (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
@@ -1540,12 +1691,19 @@ class DiscordRunner {
       final response = Map<String, dynamic>.from(
         (value['response'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
-      final actionsJson = List<Map<String, dynamic>>.from(
-        (value['actions'] as List?)?.whereType<Map>().map(
-              (entry) => Map<String, dynamic>.from(entry),
-            ) ??
-            const <Map<String, dynamic>>[],
+      final actionsJson = await _resolveLegacyActionsJson(
+        value: value,
+        commandName: commandName,
       );
+      if (actionsJson == null) {
+        await _sendLegacyMessage(
+          context: context,
+          content: 'Failed to compile BDFD script for command "$commandName".',
+          embeds: const <EmbedBuilder>[],
+          asReply: _effectiveLegacyResponseTarget(value) == 'reply',
+        );
+        return true;
+      }
 
       if (actionsJson.isNotEmpty) {
         final actions = actionsJson
@@ -1583,6 +1741,203 @@ class DiscordRunner {
     return false;
   }
 
+  Future<List<Map<String, dynamic>>?> _resolveLegacyActionsJson({
+    required Map<String, dynamic> value,
+    required String commandName,
+  }) async {
+    final executionMode =
+        (value['executionMode'] ?? 'workflow').toString().trim().toLowerCase();
+    if (executionMode != 'bdfd_script') {
+      return List<Map<String, dynamic>>.from(
+        (value['actions'] as List?)?.whereType<Map>().map(
+              (entry) => Map<String, dynamic>.from(entry),
+            ) ??
+            const <Map<String, dynamic>>[],
+      );
+    }
+
+    final source = (value['bdfdScriptContent'] ?? '').toString();
+    final compileResult = BdfdCompiler().compile(source);
+    if (compileResult.hasErrors) {
+      _log.warning(
+        'BDFD compile errors in legacy command "$commandName": '
+        '${_formatRunnerBdfdDiagnostics(compileResult.diagnostics)}',
+      );
+      return null;
+    }
+
+    return compileResult.actions
+        .map((action) => action.toJson())
+        .toList(growable: false);
+  }
+
+  Future<bool> _tryExecuteAwaitedLegacyInput(
+    EventExecutionContext context, {
+    required String botId,
+    required List<Map<String, dynamic>> legacyCommands,
+  }) async {
+    final authorId =
+        (context.variables['author.id'] ?? context.variables['user.id'] ?? '')
+            .trim();
+    final channelId =
+        (context.variables['channel.id'] ?? context.channelId?.toString() ?? '')
+            .trim();
+    final messageContent = (context.variables['message.content'] ?? '').trim();
+    if (authorId.isEmpty || channelId.isEmpty || messageContent.isEmpty) {
+      return false;
+    }
+
+    final callbacks = <String, _AwaitedLegacyCallbacks>{};
+    for (final command in legacyCommands) {
+      final trigger = _parseAwaitedLegacyTrigger(
+        (command['name'] ?? '').toString(),
+      );
+      if (trigger == null) {
+        continue;
+      }
+
+      final current =
+          callbacks[trigger.name] ?? const _AwaitedLegacyCallbacks();
+      callbacks[trigger.name] =
+          trigger.isErrorTrigger
+              ? current.copyWith(errorCommand: command)
+              : current.copyWith(
+                successCommand: command,
+                filter: trigger.filter,
+              );
+    }
+
+    if (callbacks.isEmpty) {
+      return false;
+    }
+
+    for (final entry in callbacks.entries) {
+      final awaitName = entry.key;
+      final awaitKey = 'await_$awaitName';
+      final pendingRaw = await store.getScopedVariable(
+        botId,
+        'user',
+        authorId,
+        awaitKey,
+      );
+      if (pendingRaw == null) {
+        continue;
+      }
+
+      Map<String, dynamic> pending = <String, dynamic>{};
+      if (pendingRaw is Map) {
+        pending = Map<String, dynamic>.from(pendingRaw);
+      } else {
+        final text = pendingRaw.toString();
+        try {
+          final decoded = jsonDecode(text);
+          if (decoded is Map) {
+            pending = Map<String, dynamic>.from(decoded);
+          }
+        } catch (_) {
+          pending = <String, dynamic>{};
+        }
+      }
+
+      final expectedUser = (pending['userId'] ?? authorId).toString().trim();
+      final expectedChannel =
+          (pending['channelId'] ?? channelId).toString().trim();
+      if (expectedUser.isNotEmpty && expectedUser != authorId) {
+        continue;
+      }
+      if (expectedChannel.isNotEmpty && expectedChannel != channelId) {
+        continue;
+      }
+
+      final callbackSet = entry.value;
+      final passesFilter = _matchesAwaitedFilter(
+        messageContent,
+        callbackSet.filter,
+      );
+      final selected =
+          passesFilter ? callbackSet.successCommand : callbackSet.errorCommand;
+
+      if (selected == null) {
+        return true;
+      }
+
+      final data = Map<String, dynamic>.from(
+        (selected['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final value = Map<String, dynamic>.from(
+        (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
+      );
+
+      final runtimeVariables = <String, String>{
+        ...context.variables,
+        'workflow.type': 'command',
+      };
+      await hydrateRuntimeVariables(
+        store: store,
+        botId: botId,
+        runtimeVariables: runtimeVariables,
+        guildContextId:
+            context.variables['guildId'] ?? context.guildId?.toString(),
+        channelContextId: channelId,
+        userContextId: authorId,
+        messageContextId:
+            context.variables['messageId'] ?? context.variables['message.id'],
+      );
+
+      final commandName =
+          (selected['name'] ?? '').toString().trim().toLowerCase();
+      runtimeVariables['legacy.command.name'] = commandName;
+      runtimeVariables['command.type'] = 'legacy';
+      runtimeVariables['interaction.command.type'] = 'legacy';
+      runtimeVariables['config.command.type'] = 'chatInput';
+      runtimeVariables['interaction.command.name'] = commandName;
+      runtimeVariables['interaction.command.route'] = '';
+
+      final response = Map<String, dynamic>.from(
+        (value['response'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final actionsJson = await _resolveLegacyActionsJson(
+        value: value,
+        commandName: commandName,
+      );
+      if (actionsJson != null && actionsJson.isNotEmpty) {
+        final actions = actionsJson
+            .map((json) => _adaptLegacyActionForMessageCreate(json, context))
+            .map(Action.fromJson)
+            .toList(growable: false);
+        final actionResults = await handleActions(
+          _gateway!,
+          null,
+          actions: actions,
+          store: store,
+          botId: botId,
+          variables: runtimeVariables,
+          resolveTemplate:
+              (input) => resolveTemplatePlaceholders(input, runtimeVariables),
+          fallbackChannelId: context.channelId,
+          fallbackGuildId: context.guildId,
+          onLog: (msg) => _log.info(msg),
+        );
+        for (final resultEntry in actionResults.entries) {
+          runtimeVariables['action.${resultEntry.key}'] = resultEntry.value;
+        }
+      }
+
+      await _sendLegacyWorkflowResponse(
+        context: context,
+        response: response,
+        runtimeVariables: runtimeVariables,
+        responseTarget: _effectiveLegacyResponseTarget(value),
+      );
+
+      await store.removeScopedVariable(botId, 'user', authorId, awaitKey);
+      _log.info('Awaited legacy callback executed: $awaitName');
+      return true;
+    }
+
+    return false;
+  }
+
   Future<void> _executeEventWorkflow({
     required String botId,
     required Map<String, dynamic> workflow,
@@ -1605,12 +1960,52 @@ class DiscordRunner {
       'workflow.type': workflowTypeEvent,
     };
 
-    // Inject guild variables (systemChannelId, etc.) for event workflows.
+    // Inject bot-level variables.
+    if (_gateway != null) {
+      runtimeVariables.addAll(extractBotRuntimeDetails(_gateway!));
+      try {
+        runtimeVariables['bot.ping'] =
+            _gateway!.gateway.latency.inMilliseconds.toString();
+      } catch (_) {}
+      try {
+        runtimeVariables['bot.shardId'] = _gateway!.gateway.shardIds.join(',');
+      } catch (_) {}
+      if (_startedAt != null) {
+        runtimeVariables['bot.uptime'] =
+            DateTime.now().difference(_startedAt!).inSeconds.toString();
+      }
+    }
+
+    // Inject guild, channel and member variables for event workflows.
     final eventGuildId = context.guildId;
+    Guild? eventGuild;
     if (eventGuildId != null && _gateway != null) {
       try {
-        final guild = await _gateway!.guilds.fetch(eventGuildId);
-        runtimeVariables.addAll(extractGuildRuntimeDetails(guild));
+        final fetched = await _gateway!.guilds.fetch(eventGuildId);
+        eventGuild = fetched;
+        runtimeVariables.addAll(extractGuildRuntimeDetails(fetched));
+      } catch (_) {}
+    }
+
+    final eventChannelId = context.channelId;
+    if (eventChannelId != null && _gateway != null) {
+      try {
+        final channel = await _gateway!.channels.fetch(eventChannelId);
+        runtimeVariables.addAll(extractChannelRuntimeDetails(channel));
+      } catch (_) {}
+    }
+
+    final eventUserId = context.userId;
+    if (eventGuild != null && eventUserId != null) {
+      try {
+        final member = await eventGuild.members.fetch(eventUserId);
+        runtimeVariables.addAll(
+          extractMemberRuntimeDetails(
+            member: member,
+            guild: eventGuild,
+            guildId: eventGuildId.toString(),
+          ),
+        );
       } catch (_) {}
     }
 
@@ -1698,6 +2093,7 @@ class DiscordRunner {
 
     // Build runtime variables from interaction
     final runtimeVariables = await generateKeyValues(interaction);
+    _injectGatewayBotVariables(runtimeVariables);
     final interactionType = _commandTypeToStorage(interaction.data.type);
     final storedType = _storedCommandType(commandData);
     runtimeVariables['command.type'] = interactionType;
@@ -1747,6 +2143,110 @@ class DiscordRunner {
           normalizeContextId(rawInteraction.message?.id?.toString()) ??
           normalizeContextId(rawInteraction.id?.toString()),
     );
+
+    final executionMode =
+        (value['executionMode'] ?? 'workflow').toString().trim().toLowerCase();
+    if (executionMode == 'bdfd_script') {
+      final scriptSource =
+          (executionValue['bdfdScriptContent'] ??
+                  value['bdfdScriptContent'] ??
+                  '')
+              .toString();
+      final compileResult = BdfdCompiler().compile(scriptSource);
+
+      if (compileResult.hasErrors) {
+        await sendWorkflowResponse(
+          interaction: interaction,
+          response: {
+            'type': 'normal',
+            'text': _formatRunnerBdfdDiagnostics(compileResult.diagnostics),
+            'embeds': const <Map<String, dynamic>>[],
+            'components': const <String, dynamic>{},
+            'modal': const <String, dynamic>{},
+            'workflow': const {
+              'visibility': 'ephemeral',
+              'conditional': {'enabled': false},
+            },
+          },
+          runtimeVariables: runtimeVariables,
+          botId: botId,
+          isEphemeral: true,
+          onLog: (msg, {required botId}) async => _log.info(msg),
+          onDebugLog: (msg, {required botId}) async => _log.fine(msg),
+        );
+        return;
+      }
+
+      if (compileResult.actions.isEmpty) {
+        await sendWorkflowResponse(
+          interaction: interaction,
+          response: {
+            'type': 'normal',
+            'text':
+                'This BDFD script compiled successfully but did not produce any action.',
+            'embeds': const <Map<String, dynamic>>[],
+            'components': const <String, dynamic>{},
+            'modal': const <String, dynamic>{},
+            'workflow': const {
+              'visibility': 'ephemeral',
+              'conditional': {'enabled': false},
+            },
+          },
+          runtimeVariables: runtimeVariables,
+          botId: botId,
+          isEphemeral: true,
+          onLog: (msg, {required botId}) async => _log.info(msg),
+          onDebugLog: (msg, {required botId}) async => _log.fine(msg),
+        );
+        return;
+      }
+
+      try {
+        final actionResults = await handleActions(
+          client,
+          interaction,
+          actions: compileResult.actions,
+          store: store,
+          botId: botId,
+          variables: runtimeVariables,
+          resolveTemplate:
+              (input) => resolveTemplatePlaceholders(
+                input,
+                Map<String, String>.from(runtimeVariables),
+              ),
+          onLog: (msg) => _log.info(msg),
+        );
+        for (final entry in actionResults.entries) {
+          runtimeVariables['action.${entry.key}'] = entry.value;
+        }
+      } catch (e, st) {
+        _log.severe(
+          'Error executing BDFD script ${commandData['name']}: $e',
+          e,
+          st,
+        );
+        await sendWorkflowResponse(
+          interaction: interaction,
+          response: {
+            'type': 'normal',
+            'text': 'An error occurred while executing this BDFD script.',
+            'embeds': const <Map<String, dynamic>>[],
+            'components': const <String, dynamic>{},
+            'modal': const <String, dynamic>{},
+            'workflow': const {
+              'visibility': 'ephemeral',
+              'conditional': {'enabled': false},
+            },
+          },
+          runtimeVariables: runtimeVariables,
+          botId: botId,
+          isEphemeral: true,
+          onLog: (msg, {required botId}) async => _log.info(msg),
+          onDebugLog: (msg, {required botId}) async => _log.fine(msg),
+        );
+      }
+      return;
+    }
 
     // Collect actions
     var actionsJson = List<Map<String, dynamic>>.from(
@@ -1952,6 +2452,7 @@ class DiscordRunner {
 
       final focusedOption = findFocusedOption(interaction.data.options);
       final runtimeVariables = await generateKeyValues(interaction);
+      _injectGatewayBotVariables(runtimeVariables);
       runtimeVariables['command.type'] = 'chatInput';
       runtimeVariables['interaction.command.type'] = 'chatInput';
       runtimeVariables['config.command.type'] = 'chatInput';

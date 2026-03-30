@@ -19,7 +19,8 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
     actionReason: _simpleActionReasonController.text,
     muteDuration: _simpleMuteDurationController.text,
     banDeleteMessageDays: _simpleBanDeleteDaysController.text,
-    deleteMessagesDefaultCount: _simpleDeleteMessagesDefaultCountController.text,
+    deleteMessagesDefaultCount:
+        _simpleDeleteMessagesDefaultCountController.text,
     inviteMaxAge: _simpleInviteMaxAgeController.text,
     inviteMaxUses: _simpleInviteMaxUsesController.text,
     inviteTemporary: _simpleInviteTemporary,
@@ -34,7 +35,9 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
   }
 
   void _applySimpleConfig(Map<String, dynamic> config) {
-    final normalized = SimpleModeConfig.fromJson(_normalizeSimpleConfig(config));
+    final normalized = SimpleModeConfig.fromJson(
+      _normalizeSimpleConfig(config),
+    );
     _simpleDeleteMessages = normalized.deleteMessages;
     _simpleKickUser = normalized.kickUser;
     _simpleBanUser = normalized.banUser;
@@ -193,6 +196,266 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildExecutionModeCard() {
+    final isWorkflowMode = !_isBdfdScriptMode;
+
+    Widget buildModeTile({
+      required String value,
+      required String title,
+      required String subtitle,
+      required IconData icon,
+    }) {
+      return RadioListTile<String>(
+        value: value,
+        contentPadding: EdgeInsets.zero,
+        title: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title)),
+          ],
+        ),
+        subtitle: Text(subtitle),
+      );
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              AppStrings.t('cmd_execution_mode_title'),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              AppStrings.t('cmd_execution_mode_desc'),
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            RadioGroup<String>(
+              groupValue: _executionMode,
+              onChanged: (next) {
+                if (next == null) return;
+                _applyStateUpdate(() {
+                  _executionMode = next;
+                  _bdfdCompileResult = _bdfdCompiler.compile(
+                    _bdfdScriptController.text,
+                  );
+                });
+              },
+              child: Column(
+                children: [
+                  buildModeTile(
+                    value: _CommandCreatePageState._executionModeWorkflow,
+                    title: AppStrings.t('cmd_execution_mode_workflow'),
+                    subtitle: AppStrings.t('cmd_execution_mode_workflow_desc'),
+                    icon: Icons.account_tree_outlined,
+                  ),
+                  buildModeTile(
+                    value: _CommandCreatePageState._executionModeBdfdScript,
+                    title: AppStrings.t('cmd_execution_mode_bdfd'),
+                    subtitle: AppStrings.t('cmd_execution_mode_bdfd_desc'),
+                    icon: Icons.code_outlined,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color:
+                    isWorkflowMode
+                        ? Colors.blueGrey.shade50
+                        : Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color:
+                      isWorkflowMode
+                          ? Colors.blueGrey.shade100
+                          : Colors.orange.shade200,
+                ),
+              ),
+              child: Text(
+                AppStrings.t(
+                  isWorkflowMode
+                      ? 'cmd_execution_mode_workflow_note'
+                      : 'cmd_execution_mode_bdfd_note',
+                ),
+                style: TextStyle(
+                  fontSize: 12,
+                  color:
+                      isWorkflowMode
+                          ? Colors.blueGrey.shade700
+                          : Colors.orange.shade800,
+                ),
+              ),
+            ),
+            if (_isBdfdScriptMode) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _bdfdScriptController,
+                minLines: 10,
+                maxLines: 18,
+                decoration: InputDecoration(
+                  labelText: AppStrings.t('cmd_bdfd_script_label'),
+                  hintText: AppStrings.t('cmd_bdfd_script_hint'),
+                  border: const OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                style: const TextStyle(fontFamily: 'monospace'),
+                onChanged: (value) {
+                  _refreshBdfdCompileResult();
+                },
+                onTap: () {
+                  if (!mounted) {
+                    return;
+                  }
+                  _applyStateUpdate(() {});
+                },
+              ),
+              const SizedBox(height: 8),
+              _buildBdfdAutocompletePanel(),
+              const SizedBox(height: 12),
+              _buildBdfdDiagnosticsPanel(),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBdfdAutocompletePanel() {
+    final entries = _bdfdAutocompleteEntries;
+    if (entries.isEmpty) {
+      return Text(
+        AppStrings.t('cmd_bdfd_autocomplete_hint'),
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          AppStrings.t('cmd_bdfd_autocomplete_title'),
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ...entries.map((entry) {
+              final label = entry.value;
+              return ActionChip(
+                label: Text(label),
+                onPressed: () => _insertBdfdAutocompleteTemplate(label),
+              );
+            }),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBdfdDiagnosticsPanel() {
+    final diagnostics = _bdfdDiagnostics;
+    if (diagnostics.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.green.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.green.shade200),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.green.shade700),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.t('cmd_bdfd_diagnostics_title'),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    AppStrings.t('cmd_bdfd_diagnostics_clean'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.green.shade800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color:
+            _hasBdfdCompileErrors ? Colors.red.shade50 : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color:
+              _hasBdfdCompileErrors
+                  ? Colors.red.shade200
+                  : Colors.orange.shade200,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppStrings.t('cmd_bdfd_diagnostics_title'),
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          ...diagnostics.map((diagnostic) {
+            final isError =
+                diagnostic.severity == BdfdCompileDiagnosticSeverity.error;
+            final icon =
+                isError ? Icons.error_outline : Icons.warning_amber_rounded;
+            final label = AppStrings.t(
+              isError
+                  ? 'cmd_bdfd_diagnostics_error'
+                  : 'cmd_bdfd_diagnostics_warning',
+            );
+            final color =
+                isError ? Colors.red.shade800 : Colors.orange.shade900;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(icon, size: 18, color: color),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '$label: ${_formatBdfdDiagnostic(diagnostic)}',
+                      style: TextStyle(fontSize: 12, color: color),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -371,7 +634,9 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
                 _buildSimpleActionToggle(
                   value: _simpleCreateInvite,
                   title: AppStrings.t('cmd_simple_action_create_invite'),
-                  subtitle: AppStrings.t('cmd_simple_action_create_invite_desc'),
+                  subtitle: AppStrings.t(
+                    'cmd_simple_action_create_invite_desc',
+                  ),
                   onChanged: (value) {
                     _applyStateUpdate(() {
                       _simpleCreateInvite = value;

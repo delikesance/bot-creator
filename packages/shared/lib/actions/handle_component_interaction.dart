@@ -183,6 +183,8 @@ Future<void> _runListenerWorkflow({
       return;
     }
 
+    variables.addAll(extractBotRuntimeDetails(client));
+
     await hydrateRuntimeVariables(
       store: store,
       botId: botId,

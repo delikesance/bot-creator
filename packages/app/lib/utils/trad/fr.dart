@@ -207,6 +207,12 @@ const Map<String, String> appStringsFr = {
   'settings_auto_backup_check_loading': 'Vérification auto-sauvegarde…',
   'settings_snapshots_title': 'Snapshots',
   'settings_snapshots_refresh': 'Actualiser les snapshots',
+  'settings_snapshots_delete_all': 'Supprimer tous les snapshots',
+  'settings_snapshots_delete_all_title': 'Supprimer tous les snapshots',
+  'settings_snapshots_delete_all_confirm':
+      'Supprimer définitivement {count} snapshot(s) ? Cette action est irréversible.',
+  'settings_snapshots_delete_all_loading': 'Suppression de tous les snapshots…',
+  'settings_snapshots_delete_all_done': '{count} snapshot(s) supprimé(s).',
   'settings_snapshots_refresh_loading': 'Actualisation des snapshots…',
   'settings_snapshots_empty': 'Aucun snapshot trouvé pour le moment.',
   'settings_snapshot_list_entry': '{date} • {count} fichiers • {size}',
@@ -218,6 +224,74 @@ const Map<String, String> appStringsFr = {
   'settings_legal_desc':
       'Consultez la manière dont vos données sont traitées et stockées.',
   'settings_privacy_policy': 'Politique de confidentialité',
+  'settings_compatibility_title': 'Aperçu compatibilité BDFD',
+  'settings_compatibility_desc':
+      'Vue rapide de la couverture fonctionnelle pour les utilisateurs venant de BDFD.',
+  'settings_compatibility_status_supported': 'Supporté',
+  'settings_compatibility_status_partial': 'Partiel',
+  'settings_compatibility_status_missing': 'Absent',
+  'settings_compatibility_item_workflows_title': 'Éditeur de workflows',
+  'settings_compatibility_item_workflows_desc':
+      'Les workflows visuels de commandes et de réponses sont disponibles.',
+  'settings_compatibility_item_variables_title':
+      'Variables runtime et templates',
+  'settings_compatibility_item_variables_desc':
+      'Les variables dynamiques et helpers de template sont pris en charge.',
+  'settings_compatibility_item_events_title': 'Couverture des événements',
+  'settings_compatibility_item_events_desc':
+      'Les événements courants sont couverts, certains restent limités en runtime.',
+  'settings_compatibility_item_runner_title': 'Architecture runner',
+  'settings_compatibility_item_runner_desc':
+      'Le runner distant est disponible, le multi-runner est en cours.',
+  'settings_compatibility_item_bdscript_title': 'Parité des fonctions BDScript',
+  'settings_compatibility_item_bdscript_desc':
+      'Couverture complète du catalogue de fonctions BDFD.',
+  'settings_compatibility_note':
+      'Cet aperçu reste volontairement synthétique et évoluera par release.',
+  'settings_compatibility_open_functions': 'Voir les fonctions compatibles',
+  'settings_compatibility_functions_title': 'Fonctions BDFD compatibles',
+  'settings_compatibility_functions_subtitle':
+      'Fonctions actuellement implémentées et utilisables dans le mode BDFD de Bot Creator.',
+  'settings_compatibility_functions_matrix_subtitle':
+      'Vue diff entre l\'implémentation Bot Creator et la référence des fonctions BDFD.',
+  'settings_compatibility_functions_count': 'Fonctions compatibles : {count}',
+  'settings_compatibility_functions_count_bot_creator':
+      'Supportées sur Bot Creator : {count}',
+  'settings_compatibility_functions_count_bdfd':
+      'Total référence BDFD : {count}',
+  'settings_compatibility_functions_count_both':
+      'Supportées sur les deux : {count}',
+  'settings_compatibility_functions_count_missing':
+      'Manquantes sur Bot Creator : {count}',
+  'settings_compatibility_functions_count_bot_only':
+      'Exclusives Bot Creator : {count}',
+  'settings_compatibility_functions_note':
+      'Cette page reflète l’implémentation actuelle et évoluera au fil des mises à jour.',
+  'settings_compatibility_functions_matrix_note':
+      'Les entrées BDFD uniquement correspondent aux fonctions de la liste BDFD fournie qui ne sont pas encore implémentées dans Bot Creator.',
+  'settings_compatibility_functions_search_hint':
+      'Rechercher une fonction (exemple : \$userJoined)',
+  'settings_compatibility_functions_section_both':
+      'Supportées sur Bot Creator et BDFD',
+  'settings_compatibility_functions_section_bot_only':
+      'Supportées uniquement sur Bot Creator',
+  'settings_compatibility_functions_section_bot_only_note':
+      'Les helpers de boucle sont actuellement spécifiques à Bot Creator.',
+  'settings_compatibility_functions_section_missing':
+      'Disponibles sur BDFD mais manquantes sur Bot Creator',
+  'settings_compatibility_functions_empty':
+      'Aucune fonction dans cette section.',
+  'settings_compatibility_functions_category_guards': 'Gardes et permissions',
+  'settings_compatibility_functions_category_control': 'Contrôle de flux',
+  'settings_compatibility_functions_category_messages': 'Messages',
+  'settings_compatibility_functions_category_embeds': 'Embeds',
+  'settings_compatibility_functions_category_components':
+      'Composants / Interactions',
+  'settings_compatibility_functions_category_json': 'Helpers JSON',
+  'settings_compatibility_functions_category_http': 'Helpers HTTP',
+  'settings_compatibility_functions_category_variables': 'Variables scopees',
+  'settings_compatibility_functions_category_threads': 'Threads',
+  'settings_compatibility_functions_category_runtime': 'Placeholders runtime',
   'settings_ads_privacy_manage': 'Gérer les choix de confidentialité pub',
 
   // Noms des actions
@@ -596,6 +670,34 @@ const Map<String, String> appStringsFr = {
   'cmd_editor_mode_switch_adv_confirm': 'Passer',
   'cmd_editor_mode_locked':
       'Le mode avancé est verrouillé pour cette commande.',
+  'cmd_execution_mode_title': 'Mode d’exécution',
+  'cmd_execution_mode_desc':
+      'La définition de commande reste dans le builder visuel. Choisissez ensuite comment exécuter le corps de la commande.',
+  'cmd_execution_mode_workflow': 'Mode workflow',
+  'cmd_execution_mode_workflow_desc':
+      'Utilise le builder visuel actuel pour la réponse et les actions.',
+  'cmd_execution_mode_workflow_note':
+      'Le mode workflow reste le chemin de production actuel et continue d’être totalement pris en charge.',
+  'cmd_execution_mode_bdfd': 'Mode script BDFD',
+  'cmd_execution_mode_bdfd_desc':
+      'Écrivez le corps de commande en script compatible BDFD tout en gardant la définition visuelle.',
+  'cmd_execution_mode_bdfd_note':
+      'Le script est compilé vers les actions internes, avec diagnostics avant sauvegarde et réutilisation au runtime.',
+  'cmd_bdfd_script_label': 'Corps du script BDFD',
+  'cmd_bdfd_script_hint':
+      r'$nomention\n$if[$hasPerms[$authorID;administrator]==true]\nHello from Bot Creator',
+  'cmd_bdfd_diagnostics_title': 'Diagnostics BDFD',
+  'cmd_bdfd_diagnostics_clean':
+      'Aucun problème bloquant détecté dans le script courant.',
+  'cmd_bdfd_diagnostics_error': 'Erreur',
+  'cmd_bdfd_diagnostics_warning': 'Avertissement',
+  'cmd_bdfd_script_empty_error':
+      'Le corps du script BDFD ne peut pas être vide.',
+  'cmd_bdfd_script_validation_error':
+      'Ce script BDFD contient encore des diagnostics bloquants :',
+  'cmd_bdfd_autocomplete_title': 'Auto-complétion BDFD par préfixe',
+  'cmd_bdfd_autocomplete_hint':
+      'Tapez \$ puis le début d’une fonction pour afficher des suggestions rapides.',
   'cmd_simple_actions_title': 'Actions simplifiées',
   'cmd_simple_actions_desc':
       'Sélectionnez ce que la commande doit faire. Les options sont générées automatiquement.',

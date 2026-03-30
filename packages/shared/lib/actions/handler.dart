@@ -677,6 +677,54 @@ Future<Map<String, String>> handleActions(
           variables['$resultKey.threadId'] = ctResult['threadId'] ?? '';
           variables['$resultKey.name'] = ctResult['name'] ?? '';
           variables['$resultKey.parentId'] = ctResult['parentId'] ?? '';
+          variables['thread.lastId'] = ctResult['threadId'] ?? '';
+          variables['thread.lastName'] = ctResult['name'] ?? '';
+          break;
+
+        case BotCreatorActionType.addThreadMember:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.manageThreads],
+              actionLabel: 'add thread members',
+            );
+            if (permError != null) throw Exception(permError);
+          }
+          final atmResult = await addThreadMemberAction(
+            client,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (atmResult['error'] != null) {
+            throw Exception(atmResult['error']);
+          }
+          results[resultKey] = 'ADDED';
+          variables['$resultKey.threadId'] = atmResult['threadId'] ?? '';
+          variables['$resultKey.userId'] = atmResult['userId'] ?? '';
+          break;
+
+        case BotCreatorActionType.removeThreadMember:
+          if (guildId != null) {
+            final permError = await checkBotGuildPermission(
+              client,
+              guildId: guildId,
+              requiredPermissions: [Permissions.manageThreads],
+              actionLabel: 'remove thread members',
+            );
+            if (permError != null) throw Exception(permError);
+          }
+          final rtmResult = await removeThreadMemberAction(
+            client,
+            payload: action.payload,
+            resolve: resolveValue,
+          );
+          if (rtmResult['error'] != null) {
+            throw Exception(rtmResult['error']);
+          }
+          results[resultKey] = 'REMOVED';
+          variables['$resultKey.threadId'] = rtmResult['threadId'] ?? '';
+          variables['$resultKey.userId'] = rtmResult['userId'] ?? '';
           break;
 
         // ─── Channel permissions ──────────────────────────────────────────
