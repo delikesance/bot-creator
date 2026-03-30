@@ -211,7 +211,6 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
     }) {
       return RadioListTile<String>(
         value: value,
-        groupValue: _executionMode,
         contentPadding: EdgeInsets.zero,
         title: Row(
           children: [
@@ -221,17 +220,6 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
           ],
         ),
         subtitle: Text(subtitle),
-        onChanged: (next) {
-          if (next == null) {
-            return;
-          }
-          _applyStateUpdate(() {
-            _executionMode = next;
-            _bdfdCompileResult = _bdfdCompiler.compile(
-              _bdfdScriptController.text,
-            );
-          });
-        },
       );
     }
 
@@ -251,17 +239,33 @@ extension _CommandCreateSimpleMode on _CommandCreatePageState {
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 12),
-            buildModeTile(
-              value: _CommandCreatePageState._executionModeWorkflow,
-              title: AppStrings.t('cmd_execution_mode_workflow'),
-              subtitle: AppStrings.t('cmd_execution_mode_workflow_desc'),
-              icon: Icons.account_tree_outlined,
-            ),
-            buildModeTile(
-              value: _CommandCreatePageState._executionModeBdfdScript,
-              title: AppStrings.t('cmd_execution_mode_bdfd'),
-              subtitle: AppStrings.t('cmd_execution_mode_bdfd_desc'),
-              icon: Icons.code_outlined,
+            RadioGroup<String>(
+              groupValue: _executionMode,
+              onChanged: (next) {
+                if (next == null) return;
+                _applyStateUpdate(() {
+                  _executionMode = next;
+                  _bdfdCompileResult = _bdfdCompiler.compile(
+                    _bdfdScriptController.text,
+                  );
+                });
+              },
+              child: Column(
+                children: [
+                  buildModeTile(
+                    value: _CommandCreatePageState._executionModeWorkflow,
+                    title: AppStrings.t('cmd_execution_mode_workflow'),
+                    subtitle: AppStrings.t('cmd_execution_mode_workflow_desc'),
+                    icon: Icons.account_tree_outlined,
+                  ),
+                  buildModeTile(
+                    value: _CommandCreatePageState._executionModeBdfdScript,
+                    title: AppStrings.t('cmd_execution_mode_bdfd'),
+                    subtitle: AppStrings.t('cmd_execution_mode_bdfd_desc'),
+                    icon: Icons.code_outlined,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 8),
             Container(

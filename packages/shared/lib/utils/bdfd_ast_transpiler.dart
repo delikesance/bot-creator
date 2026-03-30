@@ -64,6 +64,9 @@ class _BdfdAstTranspilationScope {
   List<String> _textSplitParts = <String>[];
   String? _useChannelId;
   bool _suppressErrors = false;
+  int _loopIterationIndex = 0;
+  int _loopDepth = 0;
+  Map<String, int> _loopVariables = <String, int>{};
   final List<Map<String, dynamic>> _pendingModalInputs =
       <Map<String, dynamic>>[];
 
@@ -114,18 +117,60 @@ class _BdfdAstTranspilationScope {
       }
 
       if (_isBlockLoopSignature(node)) {
-        final flushed = pendingResponse.buildAction(channelId: _useChannelId);
-        if (flushed != null) {
-          actions.add(flushed);
-        }
-
         final consumed = _consumeLoopBlock(nodes: nodes, startIndex: index);
         if (consumed == null) {
           index += 1;
           continue;
         }
 
-        actions.addAll(consumed.actions);
+        if (consumed.isCStyleLoop) {
+          final extraNames = consumed.cStyleInit!.keys.toSet();
+          if (_isResponseOnlyLoopBody(
+            consumed.bodyNodes,
+            extraInlineNames: extraNames,
+          )) {
+            _applyCStyleLoopBodyToResponse(
+              bodyNodes: consumed.bodyNodes,
+              initVars: consumed.cStyleInit!,
+              condition: consumed.cStyleCondition!,
+              update: consumed.cStyleUpdate!,
+              response: pendingResponse,
+            );
+          } else {
+            final flushed = pendingResponse.buildAction(
+              channelId: _useChannelId,
+            );
+            if (flushed != null) {
+              actions.add(flushed);
+            }
+            actions.addAll(
+              _transpileCStyleLoop(
+                bodyNodes: consumed.bodyNodes,
+                initVars: consumed.cStyleInit!,
+                condition: consumed.cStyleCondition!,
+                update: consumed.cStyleUpdate!,
+              ),
+            );
+          }
+        } else if (_isResponseOnlyLoopBody(consumed.bodyNodes)) {
+          _applyLoopBodyToResponse(
+            bodyNodes: consumed.bodyNodes,
+            iterations: consumed.iterations,
+            response: pendingResponse,
+          );
+        } else {
+          final flushed = pendingResponse.buildAction(channelId: _useChannelId);
+          if (flushed != null) {
+            actions.add(flushed);
+          }
+          final loopActions =
+              consumed.precomputedActions ??
+              _transpileLoopIterations(
+                bodyNodes: consumed.bodyNodes,
+                iterations: consumed.iterations,
+              );
+          actions.addAll(loopActions);
+        }
         index = consumed.nextIndex;
         continue;
       }
@@ -142,7 +187,7 @@ class _BdfdAstTranspilationScope {
           continue;
         }
 
-        actions.addAll(consumed.actions);
+        actions.addAll(consumed.precomputedActions ?? const <Action>[]);
         index = consumed.nextIndex;
         continue;
       }
@@ -268,7 +313,7 @@ class _BdfdAstTranspilationScope {
 
   bool _isBlockLoopSignature(BdfdFunctionCallAst node) {
     return (node.normalizedName == 'for' || node.normalizedName == 'loop') &&
-        node.arguments.length <= 1;
+        (node.arguments.length <= 1 || node.arguments.length == 3);
   }
 
   bool _isStandaloneLoopDelimiter(String normalizedName) {
@@ -324,8 +369,10 @@ class _BdfdAstTranspilationScope {
 
           if (catchActions.isEmpty) {
             return _ConsumedLoopBlock(
-              actions: tryActions,
+              precomputedActions: tryActions,
               nextIndex: cursor + 1,
+              bodyNodes: const <BdfdAstNode>[],
+              iterations: 0,
             );
           }
 
@@ -345,8 +392,10 @@ class _BdfdAstTranspilationScope {
             ),
           ];
           return _ConsumedLoopBlock(
-            actions: wrappedActions,
+            precomputedActions: wrappedActions,
             nextIndex: cursor + 1,
+            bodyNodes: const <BdfdAstNode>[],
+            iterations: 0,
           );
         }
 
@@ -381,8 +430,10 @@ class _BdfdAstTranspilationScope {
     );
 
     return _ConsumedLoopBlock(
-      actions: _transpileNodes(tryNodes),
+      precomputedActions: _transpileNodes(tryNodes),
       nextIndex: nodes.length,
+      bodyNodes: const <BdfdAstNode>[],
+      iterations: 0,
     );
   }
 
@@ -525,19 +576,9 @@ class _BdfdAstTranspilationScope {
             continue;
           }
 
-          final iterations = _parseLoopIterations(loopNode);
-          if (iterations == null) {
-            return _ConsumedLoopBlock(
-              actions: const <Action>[],
-              nextIndex: cursor + 1,
-            );
-          }
-
-          return _ConsumedLoopBlock(
-            actions: _transpileLoopIterations(
-              bodyNodes: loopBodyNodes,
-              iterations: iterations,
-            ),
+          return _buildConsumedLoop(
+            loopNode: loopNode,
+            bodyNodes: loopBodyNodes,
             nextIndex: cursor + 1,
           );
         }
@@ -556,21 +597,279 @@ class _BdfdAstTranspilationScope {
       ),
     );
 
+    return _buildConsumedLoop(
+      loopNode: loopNode,
+      bodyNodes: loopBodyNodes,
+      nextIndex: nodes.length,
+    );
+  }
+
+  _ConsumedLoopBlock _buildConsumedLoop({
+    required BdfdFunctionCallAst loopNode,
+    required List<BdfdAstNode> bodyNodes,
+    required int nextIndex,
+  }) {
+    // C-style for: $for[init; condition; update]
+    if (loopNode.arguments.length == 3) {
+      final initStr = _stringifyArgument(loopNode, 0);
+      final condStr = _stringifyArgument(loopNode, 1).trim();
+      final updateStr = _stringifyArgument(loopNode, 2);
+
+      final initVars = _parseCStyleLoopInit(initStr, loopNode);
+      if (initVars == null) {
+        return _ConsumedLoopBlock(
+          nextIndex: nextIndex,
+          bodyNodes: bodyNodes,
+          iterations: 0,
+        );
+      }
+
+      if (!_validateCStyleCondition(condStr, initVars, loopNode)) {
+        return _ConsumedLoopBlock(
+          nextIndex: nextIndex,
+          bodyNodes: bodyNodes,
+          iterations: 0,
+        );
+      }
+
+      return _ConsumedLoopBlock(
+        nextIndex: nextIndex,
+        bodyNodes: bodyNodes,
+        iterations: 0,
+        cStyleInit: initVars,
+        cStyleCondition: condStr,
+        cStyleUpdate: updateStr,
+      );
+    }
+
+    // Simple for: $for[n]
     final iterations = _parseLoopIterations(loopNode);
     if (iterations == null) {
       return _ConsumedLoopBlock(
-        actions: const <Action>[],
-        nextIndex: nodes.length,
+        nextIndex: nextIndex,
+        bodyNodes: bodyNodes,
+        iterations: 0,
       );
     }
 
     return _ConsumedLoopBlock(
-      actions: _transpileLoopIterations(
-        bodyNodes: loopBodyNodes,
-        iterations: iterations,
-      ),
-      nextIndex: nodes.length,
+      nextIndex: nextIndex,
+      bodyNodes: bodyNodes,
+      iterations: iterations,
     );
+  }
+
+  static final RegExp _cStyleConditionPattern = RegExp(
+    r'^(\w+)\s*(<=|>=|<|>|==|!=)\s*(-?\w+)$',
+  );
+
+  Map<String, int>? _parseCStyleLoopInit(String raw, BdfdFunctionCallAst node) {
+    final vars = <String, int>{};
+    for (final part in raw.split(',')) {
+      final trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+      final eqIndex = trimmed.indexOf('=');
+      if (eqIndex < 0) {
+        _diagnostics.add(
+          BdfdTranspileDiagnostic(
+            message:
+                'Invalid loop init: expected "variable = value", got "$trimmed".',
+            start: node.start,
+            end: node.end,
+            functionName: node.name,
+          ),
+        );
+        return null;
+      }
+      final name = trimmed.substring(0, eqIndex).trim().toLowerCase();
+      final valueStr = trimmed.substring(eqIndex + 1).trim();
+      final value = int.tryParse(valueStr);
+      if (value == null) {
+        _diagnostics.add(
+          BdfdTranspileDiagnostic(
+            message:
+                'Loop init variable "$name" must be an integer literal, got "$valueStr".',
+            start: node.start,
+            end: node.end,
+            functionName: node.name,
+          ),
+        );
+        return null;
+      }
+      vars[name] = value;
+    }
+    if (vars.isEmpty) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message: 'Loop init must declare at least one variable.',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return null;
+    }
+    return vars;
+  }
+
+  bool _validateCStyleCondition(
+    String raw,
+    Map<String, int> initVars,
+    BdfdFunctionCallAst node,
+  ) {
+    final match = _cStyleConditionPattern.firstMatch(raw);
+    if (match == null) {
+      _diagnostics.add(
+        BdfdTranspileDiagnostic(
+          message:
+              'Invalid loop condition: expected "variable op value", got "$raw".',
+          start: node.start,
+          end: node.end,
+          functionName: node.name,
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
+  int _resolveCStyleOperand(String token, Map<String, int> vars) {
+    final asVar = vars[token.toLowerCase()];
+    if (asVar != null) return asVar;
+    return int.tryParse(token) ?? 0;
+  }
+
+  bool _evaluateCStyleCondition(String raw, Map<String, int> vars) {
+    final match = _cStyleConditionPattern.firstMatch(raw);
+    if (match == null) return false;
+    final left = _resolveCStyleOperand(match.group(1)!, vars);
+    final op = match.group(2)!;
+    final right = _resolveCStyleOperand(match.group(3)!, vars);
+    switch (op) {
+      case '<':
+        return left < right;
+      case '<=':
+        return left <= right;
+      case '>':
+        return left > right;
+      case '>=':
+        return left >= right;
+      case '==':
+        return left == right;
+      case '!=':
+        return left != right;
+      default:
+        return false;
+    }
+  }
+
+  void _applyCStyleLoopUpdate(String raw, Map<String, int> vars) {
+    for (final part in raw.split(',')) {
+      final trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+      if (trimmed.endsWith('++')) {
+        final name =
+            trimmed.substring(0, trimmed.length - 2).trim().toLowerCase();
+        vars[name] = (vars[name] ?? 0) + 1;
+      } else if (trimmed.endsWith('--')) {
+        final name =
+            trimmed.substring(0, trimmed.length - 2).trim().toLowerCase();
+        vars[name] = (vars[name] ?? 0) - 1;
+      } else if (trimmed.contains('+=')) {
+        final sides = trimmed.split('+=');
+        final name = sides[0].trim().toLowerCase();
+        final value = int.tryParse(sides[1].trim()) ?? 0;
+        vars[name] = (vars[name] ?? 0) + value;
+      } else if (trimmed.contains('-=')) {
+        final sides = trimmed.split('-=');
+        final name = sides[0].trim().toLowerCase();
+        final value = int.tryParse(sides[1].trim()) ?? 0;
+        vars[name] = (vars[name] ?? 0) - value;
+      } else if (trimmed.contains('*=')) {
+        final sides = trimmed.split('*=');
+        final name = sides[0].trim().toLowerCase();
+        final value = int.tryParse(sides[1].trim()) ?? 1;
+        vars[name] = (vars[name] ?? 0) * value;
+      }
+    }
+  }
+
+  List<Action> _transpileCStyleLoop({
+    required List<BdfdAstNode> bodyNodes,
+    required Map<String, int> initVars,
+    required String condition,
+    required String update,
+  }) {
+    if (bodyNodes.isEmpty) return const <Action>[];
+
+    final previousIndex = _loopIterationIndex;
+    final previousVars = Map<String, int>.from(_loopVariables);
+    _loopDepth += 1;
+    _loopVariables = Map<String, int>.from(initVars);
+
+    final actions = <Action>[];
+    var iterationCount = 0;
+
+    while (_evaluateCStyleCondition(condition, _loopVariables) &&
+        iterationCount < _maxSupportedLoopIterations) {
+      _loopIterationIndex = iterationCount;
+      actions.addAll(_transpileNodes(bodyNodes));
+      _applyCStyleLoopUpdate(update, _loopVariables);
+      iterationCount++;
+    }
+
+    _loopDepth -= 1;
+    _loopIterationIndex = previousIndex;
+    _loopVariables = previousVars;
+
+    return actions;
+  }
+
+  void _applyCStyleLoopBodyToResponse({
+    required List<BdfdAstNode> bodyNodes,
+    required Map<String, int> initVars,
+    required String condition,
+    required String update,
+    required _PendingResponse response,
+  }) {
+    if (bodyNodes.isEmpty) return;
+
+    final previousIndex = _loopIterationIndex;
+    final previousVars = Map<String, int>.from(_loopVariables);
+    _loopDepth += 1;
+    _loopVariables = Map<String, int>.from(initVars);
+
+    var iterationCount = 0;
+
+    while (_evaluateCStyleCondition(condition, _loopVariables) &&
+        iterationCount < _maxSupportedLoopIterations) {
+      _loopIterationIndex = iterationCount;
+      for (final node in bodyNodes) {
+        if (node is BdfdTextAst) {
+          response.appendContent(node.value);
+          continue;
+        }
+        if (node is! BdfdFunctionCallAst) continue;
+        if (_applyResponseMutation(node, response)) continue;
+        final inlineResult = _stringifyInlineFunction(node);
+        if (inlineResult != null) {
+          response.appendContent(inlineResult);
+          continue;
+        }
+        final placeholder = _inlineRuntimePlaceholder(node);
+        if (placeholder != null) {
+          response.appendContent(placeholder);
+          continue;
+        }
+        _transpileStandaloneFunction(node);
+      }
+      _applyCStyleLoopUpdate(update, _loopVariables);
+      iterationCount++;
+    }
+
+    _loopDepth -= 1;
+    _loopIterationIndex = previousIndex;
+    _loopVariables = previousVars;
   }
 
   int? _parseLoopIterations(BdfdFunctionCallAst loopNode) {
@@ -638,11 +937,140 @@ class _BdfdAstTranspilationScope {
       return const <Action>[];
     }
 
+    final previousIndex = _loopIterationIndex;
+    _loopDepth += 1;
     final actions = <Action>[];
     for (var index = 0; index < iterations; index++) {
+      _loopIterationIndex = index;
       actions.addAll(_transpileNodes(bodyNodes));
     }
+    _loopDepth -= 1;
+    _loopIterationIndex = previousIndex;
     return actions;
+  }
+
+  /// Returns `true` when every node in [bodyNodes] is either plain text,
+  /// an inline-only function, or a response-mutation function.  In that case
+  /// the loop body can be unrolled directly into the current pending response
+  /// instead of flushing the response and creating separate actions.
+  bool _isResponseOnlyLoopBody(
+    List<BdfdAstNode> bodyNodes, {
+    Set<String>? extraInlineNames,
+  }) {
+    for (final node in bodyNodes) {
+      if (node is BdfdTextAst) continue;
+      if (node is! BdfdFunctionCallAst) return false;
+      final name = node.normalizedName;
+      if (_isInlineOnlyFunction(name)) continue;
+      if (_inlineRuntimeVariables.containsKey(name)) continue;
+      if (_isResponseMutationFunction(name)) continue;
+      // JSON helpers that mutate compile-time state only (no action produced).
+      if (_isJsonMutationFunction(name)) continue;
+      if (extraInlineNames != null && extraInlineNames.contains(name)) continue;
+      return false;
+    }
+    return true;
+  }
+
+  bool _isResponseMutationFunction(String normalizedName) {
+    switch (normalizedName) {
+      case 'nomention':
+      case 'title':
+      case 'description':
+      case 'color':
+      case 'footer':
+      case 'footericon':
+      case 'thumbnail':
+      case 'image':
+      case 'author':
+      case 'authoricon':
+      case 'authorurl':
+      case 'addfield':
+      case 'addtimestamp':
+      case 'embeddedurl':
+      case 'addcontainer':
+      case 'addsection':
+      case 'addthumbnail':
+      case 'addbutton':
+      case 'addselectmenuoption':
+      case 'newselectmenu':
+      case 'editselectmenu':
+      case 'editselectmenuoption':
+      case 'editbutton':
+      case 'removeallcomponents':
+      case 'removebuttons':
+      case 'removecomponent':
+      case 'addseparator':
+      case 'addtextdisplay':
+      case 'ephemeral':
+      case 'allowmention':
+      case 'allowusermentions':
+      case 'tts':
+      case 'removelinks':
+      case 'allowrolementions':
+      case 'suppresserrors':
+      case 'embedsuppresserrors':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool _isJsonMutationFunction(String normalizedName) {
+    switch (normalizedName) {
+      case 'jsonparse':
+      case 'jsonset':
+      case 'jsonsetstring':
+      case 'jsonunset':
+      case 'jsonclear':
+      case 'jsonarray':
+      case 'jsonarrayappend':
+      case 'jsonarrayunshift':
+      case 'jsonarraysort':
+      case 'jsonarrayreverse':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  /// Applies the loop body's mutations directly to [response] for each
+  /// iteration, without flushing or creating separate actions.
+  void _applyLoopBodyToResponse({
+    required List<BdfdAstNode> bodyNodes,
+    required int iterations,
+    required _PendingResponse response,
+  }) {
+    if (iterations <= 0 || bodyNodes.isEmpty) return;
+
+    final previousIndex = _loopIterationIndex;
+    _loopDepth += 1;
+    for (var index = 0; index < iterations; index++) {
+      _loopIterationIndex = index;
+      for (final node in bodyNodes) {
+        if (node is BdfdTextAst) {
+          response.appendContent(node.value);
+          continue;
+        }
+        if (node is! BdfdFunctionCallAst) continue;
+        if (_applyResponseMutation(node, response)) continue;
+        // Inline function or runtime variable — resolve and append.
+        final inlineResult = _stringifyInlineFunction(node);
+        if (inlineResult != null) {
+          response.appendContent(inlineResult);
+          continue;
+        }
+        final placeholder = _inlineRuntimePlaceholder(node);
+        if (placeholder != null) {
+          response.appendContent(placeholder);
+          continue;
+        }
+        // JSON mutation functions — apply side-effect only.
+        _transpileStandaloneFunction(node);
+      }
+    }
+    _loopDepth -= 1;
+    _loopIterationIndex = previousIndex;
   }
 
   Action _buildIfAction({
@@ -2384,6 +2812,11 @@ class _BdfdAstTranspilationScope {
   }
 
   String? _stringifyInlineFunction(BdfdFunctionCallAst node) {
+    // C-style loop variables take precedence (e.g. $i, $j in a for loop).
+    if (_loopDepth > 0 && node.arguments.isEmpty) {
+      final loopVar = _loopVariables[node.normalizedName];
+      if (loopVar != null) return loopVar.toString();
+    }
     switch (node.normalizedName) {
       case 'startthread':
         final action = _buildStartThreadAction(node);
@@ -2413,7 +2846,14 @@ class _BdfdAstTranspilationScope {
       case 'checkusersperms':
         return _inlineCheckUserPerms(node);
       case 'message':
+      case 'args':
         return _inlineMessageArgument(node);
+      case 'i':
+      case 'loopindex':
+      case 'loopiteration':
+        return _loopDepth > 0 ? _loopIterationIndex.toString() : '0';
+      case 'loopcount':
+        return _loopDepth > 0 ? (_loopIterationIndex + 1).toString() : '0';
       case 'mentionedchannels':
         return _inlineMentionedChannels(node);
       case 'username':
@@ -2954,6 +3394,9 @@ class _BdfdAstTranspilationScope {
   }
 
   bool _isInlineOnlyFunction(String normalizedName) {
+    if (_loopDepth > 0 && _loopVariables.containsKey(normalizedName)) {
+      return true;
+    }
     switch (normalizedName) {
       case 'json':
       case 'jsonexists':
@@ -2971,6 +3414,11 @@ class _BdfdAstTranspilationScope {
       case 'checkuserperms':
       case 'checkusersperms':
       case 'message':
+      case 'args':
+      case 'i':
+      case 'loopindex':
+      case 'loopiteration':
+      case 'loopcount':
       case 'mentionedchannels':
       case 'httpstatus':
       case 'httpresult':
@@ -6260,10 +6708,28 @@ class _ConsumedIfBlock {
 }
 
 class _ConsumedLoopBlock {
-  const _ConsumedLoopBlock({required this.actions, required this.nextIndex});
+  const _ConsumedLoopBlock({
+    this.precomputedActions,
+    required this.nextIndex,
+    required this.bodyNodes,
+    required this.iterations,
+    this.cStyleInit,
+    this.cStyleCondition,
+    this.cStyleUpdate,
+  });
 
-  final List<Action> actions;
+  /// Pre-computed actions (used by try/catch blocks that reuse this class).
+  final List<Action>? precomputedActions;
   final int nextIndex;
+  final List<BdfdAstNode> bodyNodes;
+  final int iterations;
+
+  /// C-style for loop fields (non-null when [isCStyleLoop] is true).
+  final Map<String, int>? cStyleInit;
+  final String? cStyleCondition;
+  final String? cStyleUpdate;
+
+  bool get isCStyleLoop => cStyleInit != null;
 }
 
 bool _parseBooleanLike(String raw) {

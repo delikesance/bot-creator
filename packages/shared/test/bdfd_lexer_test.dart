@@ -102,5 +102,77 @@ void main() {
       expect(functionToken.line, 2);
       expect(functionToken.column, 1);
     });
+
+    test('preserves Markdown link brackets inside function arguments', () {
+      final result = BdfdLexer().tokenize(
+        r'$description[Check **[port 16](https://example.com/status)**]',
+      );
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [
+        r'function:$description',
+        'openBracket:[',
+        'text:Check **[port 16](https://example.com/status)**',
+        'closeBracket:]',
+        'eof:',
+      ]);
+    });
+
+    test('preserves JSON array brackets inside function arguments', () {
+      final result = BdfdLexer().tokenize(r'$jsonParse[{"arr":[1,2,3]}]');
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [
+        r'function:$jsonParse',
+        'openBracket:[',
+        'text:{"arr":[1,2,3]}',
+        'closeBracket:]',
+        'eof:',
+      ]);
+    });
+
+    test('handles nested function inside literal brackets', () {
+      final result = BdfdLexer().tokenize(
+        r'$description[text [before $username after] end]',
+      );
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [
+        r'function:$description',
+        'openBracket:[',
+        'text:text [before ',
+        r'function:$username',
+        'text: after] end',
+        'closeBracket:]',
+        'eof:',
+      ]);
+    });
+
+    test('handles nested function with brackets inside literal brackets', () {
+      final result = BdfdLexer().tokenize(
+        r'$description[pre [lit] $getVar[key] post [lit2] end]',
+      );
+
+      expect(result.diagnostics, isEmpty);
+      expect(summarizeTokens(result), [
+        r'function:$description',
+        'openBracket:[',
+        'text:pre [lit] ',
+        r'function:$getVar',
+        'openBracket:[',
+        'text:key',
+        'closeBracket:]',
+        'text: post [lit2] end',
+        'closeBracket:]',
+        'eof:',
+      ]);
+    });
+
+    test('still reports unexpected ] outside function brackets', () {
+      final result = BdfdLexer().tokenize('text ] more');
+
+      expect(result.diagnostics, hasLength(1));
+      expect(result.diagnostics.first.message, 'Unexpected closing bracket.');
+    });
   });
 }

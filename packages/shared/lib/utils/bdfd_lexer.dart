@@ -291,10 +291,31 @@ class _BdfdScanner {
       }
 
       final char = _peek();
-      if (char == ']' || (char == ';' && _bracketStack.isNotEmpty)) {
+
+      // Track literal '[' inside function arguments for paired-bracket
+      // balancing.  This lets Markdown links like [text](url) and JSON
+      // arrays like [1,2,3] survive inside BDFD function arguments.
+      if (char == '[' && _bracketStack.isNotEmpty) {
+        _bracketStack.last.literalBracketDepth += 1;
+        buffer.write(_advance());
+        continue;
+      }
+
+      if (char == ']') {
+        if (_bracketStack.isNotEmpty &&
+            _bracketStack.last.literalBracketDepth > 0) {
+          _bracketStack.last.literalBracketDepth -= 1;
+          buffer.write(_advance());
+          continue;
+        }
         break;
       }
-      if (char == '[' && _mayOpenArgumentList) {
+
+      if (char == ';' && _bracketStack.isNotEmpty) {
+        if (_bracketStack.last.literalBracketDepth > 0) {
+          buffer.write(_advance());
+          continue;
+        }
         break;
       }
 
@@ -319,7 +340,7 @@ class _BdfdScanner {
 }
 
 class _BdfdBracketFrame {
-  const _BdfdBracketFrame({
+  _BdfdBracketFrame({
     required this.functionLexeme,
     required this.start,
     required this.end,
@@ -332,4 +353,10 @@ class _BdfdBracketFrame {
   final int end;
   final int line;
   final int column;
+
+  /// Tracks unmatched literal `[` characters inside this bracket frame so that
+  /// a corresponding `]` is consumed as text rather than closing the function
+  /// bracket.  This allows Markdown links (`[text](url)`) and JSON arrays
+  /// (`[1,2,3]`) to appear inside BDFD function arguments.
+  int literalBracketDepth = 0;
 }
