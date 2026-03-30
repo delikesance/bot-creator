@@ -269,6 +269,7 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.respondWithAutocomplete:
         case BotCreatorActionType.httpRequest:
         case BotCreatorActionType.runWorkflow:
+        case BotCreatorActionType.runBdfdScript:
         case BotCreatorActionType.stopUnless:
         case BotCreatorActionType.ifBlock:
         case BotCreatorActionType.calculate:

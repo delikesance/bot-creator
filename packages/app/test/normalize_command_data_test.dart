@@ -515,4 +515,256 @@ void main() {
       expect(jsonEncode(first), jsonEncode(second));
     });
   });
+
+  group('normalizeCommandData – legacy embed migration edge cases', () {
+    test('migrates legacy embed with only color field', () {
+      final command = _makeCommand(
+        data: {
+          'response': {
+            'mode': 'embed',
+            'text': '',
+            'type': 'normal',
+            'embed': {
+              'title': '',
+              'description': '',
+              'url': '',
+              'color': '#FF0000',
+            },
+            'embeds': [],
+          },
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final embeds = result['data']['response']['embeds'] as List;
+      expect(embeds.length, 1);
+      expect(embeds[0]['color'], '#FF0000');
+      expect(result['data']['response']['mode'], 'embed');
+    });
+
+    test('migrates legacy embed with only footer', () {
+      final command = _makeCommand(
+        data: {
+          'response': {
+            'mode': 'embed',
+            'text': '',
+            'type': 'normal',
+            'embed': {
+              'title': '',
+              'description': '',
+              'url': '',
+              'footer': {'text': 'My footer'},
+            },
+            'embeds': [],
+          },
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final embeds = result['data']['response']['embeds'] as List;
+      expect(embeds.length, 1);
+      expect(embeds[0]['footer'], {'text': 'My footer'});
+    });
+
+    test('migrates legacy embed with only fields', () {
+      final command = _makeCommand(
+        data: {
+          'response': {
+            'mode': 'embed',
+            'text': '',
+            'type': 'normal',
+            'embed': {
+              'title': '',
+              'description': '',
+              'url': '',
+              'fields': [
+                {'name': 'Field 1', 'value': 'Val 1', 'inline': true},
+              ],
+            },
+            'embeds': [],
+          },
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final embeds = result['data']['response']['embeds'] as List;
+      expect(embeds.length, 1);
+      expect((embeds[0]['fields'] as List).length, 1);
+    });
+
+    test('migrates legacy embed with only image', () {
+      final command = _makeCommand(
+        data: {
+          'response': {
+            'mode': 'embed',
+            'text': '',
+            'type': 'normal',
+            'embed': {
+              'title': '',
+              'description': '',
+              'url': '',
+              'image': 'https://example.com/img.png',
+            },
+            'embeds': [],
+          },
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final embeds = result['data']['response']['embeds'] as List;
+      expect(embeds.length, 1);
+      expect(embeds[0]['image'], 'https://example.com/img.png');
+    });
+
+    test('migrates legacy embed with only thumbnail', () {
+      final command = _makeCommand(
+        data: {
+          'response': {
+            'mode': 'embed',
+            'text': '',
+            'type': 'normal',
+            'embed': {
+              'title': '',
+              'description': '',
+              'url': '',
+              'thumbnail': 'https://example.com/thumb.png',
+            },
+            'embeds': [],
+          },
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final embeds = result['data']['response']['embeds'] as List;
+      expect(embeds.length, 1);
+      expect(embeds[0]['thumbnail'], 'https://example.com/thumb.png');
+    });
+
+    test('migrates legacy embed with only author', () {
+      final command = _makeCommand(
+        data: {
+          'response': {
+            'mode': 'embed',
+            'text': '',
+            'type': 'normal',
+            'embed': {
+              'title': '',
+              'description': '',
+              'url': '',
+              'author': {'name': 'Bot Author'},
+            },
+            'embeds': [],
+          },
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final embeds = result['data']['response']['embeds'] as List;
+      expect(embeds.length, 1);
+      expect(embeds[0]['author'], {'name': 'Bot Author'});
+    });
+
+    test('does not migrate truly empty legacy embed', () {
+      final command = _makeCommand(
+        data: {
+          'response': {
+            'mode': 'text',
+            'text': 'Hello',
+            'type': 'normal',
+            'embed': {'title': '', 'description': '', 'url': ''},
+            'embeds': [],
+          },
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final embeds = result['data']['response']['embeds'] as List;
+      expect(embeds, isEmpty);
+      expect(result['data']['response']['mode'], 'text');
+    });
+  });
+
+  group('normalizeCommandData – legacy command preservation', () {
+    test('preserves legacy flags through normalization', () {
+      final command = _makeCommand(
+        data: {
+          'legacyModeEnabled': true,
+          'legacyLocalOnly': true,
+          'legacyPrefixOverride': '!!',
+          'legacyResponseTarget': 'channelSend',
+          'response': {
+            'mode': 'text',
+            'text': 'Legacy response',
+            'type': 'normal',
+          },
+          'actions': [
+            {
+              'type': 'reply',
+              'payload': {'content': 'Hi'},
+            },
+          ],
+        },
+      );
+
+      final result = normalizeCommandData(command);
+      final data = result['data'] as Map<String, dynamic>;
+      expect(data['legacyModeEnabled'], isTrue);
+      expect(data['legacyLocalOnly'], isTrue);
+      expect(data['legacyPrefixOverride'], '!!');
+      expect(data['legacyResponseTarget'], 'channelSend');
+      expect(data['response']['text'], 'Legacy response');
+      expect((data['actions'] as List).length, 1);
+    });
+
+    test('preserves legacy flags through JSON round-trip', () {
+      final command = _makeCommand(
+        data: {
+          'legacyModeEnabled': true,
+          'legacyLocalOnly': true,
+          'legacyPrefixOverride': '?',
+          'legacyResponseTarget': 'reply',
+          'response': {
+            'mode': 'embed',
+            'text': '',
+            'type': 'normal',
+            'embeds': [
+              {'title': 'Legacy embed', 'description': 'Desc'},
+            ],
+          },
+        },
+      );
+
+      final reloaded = roundTrip(command);
+      final data = reloaded['data'] as Map<String, dynamic>;
+      expect(data['legacyModeEnabled'], isTrue);
+      expect(data['legacyLocalOnly'], isTrue);
+      final embeds = data['response']['embeds'] as List;
+      expect(embeds.length, 1);
+      expect(embeds[0]['title'], 'Legacy embed');
+    });
+
+    test('null description does not corrupt existing description', () {
+      final command = <String, dynamic>{
+        'name': 'test',
+        'description': 'My description',
+        'type': 'chatInput',
+        'data': {
+          'response': {'mode': 'text', 'text': 'Hello', 'type': 'normal'},
+        },
+      };
+
+      // Simulate what sync merge does with null description
+      final merged = <String, dynamic>{
+        ...normalizeCommandData(command),
+        'id': '123',
+        'name': 'test',
+        // description intentionally omitted (as if null was filtered)
+      };
+
+      final result = normalizeCommandData(merged);
+      expect(result['data']['response']['text'], 'Hello');
+      // description should fall back to whatever was in the spread
+      expect(result['description'], 'My description');
+    });
+  });
 }

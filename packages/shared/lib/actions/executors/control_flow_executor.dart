@@ -1,4 +1,5 @@
 import '../../types/action.dart';
+import '../../utils/bdfd_compiler.dart';
 import '../../utils/workflow_call.dart';
 
 bool _evaluateCondition({
@@ -180,6 +181,40 @@ Future<bool> executeControlFlowAction({
   executeActions,
 }) async {
   switch (type) {
+    case BotCreatorActionType.runBdfdScript:
+      final bdfdSource = resolveValue(
+        (payload['scriptContent'] ?? '').toString(),
+      );
+      if (bdfdSource.trim().isEmpty) {
+        results[resultKey] = 'BDFD_EMPTY';
+        return true;
+      }
+
+      final compileResult = BdfdCompiler().compile(bdfdSource);
+      if (compileResult.hasErrors) {
+        final summary = compileResult.diagnostics
+            .where((d) => d.severity == BdfdCompileDiagnosticSeverity.error)
+            .take(5)
+            .map((d) => d.message)
+            .join('; ');
+        throw Exception('BDFD compile error: $summary');
+      }
+
+      if (compileResult.actions.isEmpty) {
+        results[resultKey] = 'BDFD_NO_ACTIONS';
+        return true;
+      }
+
+      final bdfdResults = await executeActions(compileResult.actions);
+      for (final entry in bdfdResults.entries) {
+        results['$resultKey.${entry.key}'] = entry.value;
+      }
+      if (bdfdResults.containsKey('__stopped__')) {
+        results['__stopped__'] = 'true';
+      }
+      results[resultKey] = 'BDFD_OK';
+      return true;
+
     case BotCreatorActionType.runWorkflow:
       final workflowName =
           resolveValue((payload['workflowName'] ?? '').toString()).trim();
@@ -238,7 +273,9 @@ Future<bool> executeControlFlowAction({
 
       for (final entry in workflowResults.entries) {
         results['$resultKey.${entry.key}'] = entry.value;
+        variables['workflow.response.${entry.key}'] = entry.value;
       }
+      variables['workflow.response'] = 'WORKFLOW_OK:$workflowEntryPoint';
       results[resultKey] = 'WORKFLOW_OK:$workflowEntryPoint';
       return true;
 

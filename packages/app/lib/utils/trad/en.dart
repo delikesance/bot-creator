@@ -332,6 +332,7 @@ const Map<String, String> appStringsEn = {
   'action_name_queryArray': 'Query Array',
 
   'action_name_runWorkflow': 'Run Workflow',
+  'action_name_runBdfdScript': 'Run BDFD Script',
   'action_name_respondWithMessage': 'Respond with Message',
   'action_name_respondWithComponentV2': 'Respond with Component V2',
   'action_name_respondWithModal': 'Respond with Modal',

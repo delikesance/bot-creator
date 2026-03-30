@@ -51,7 +51,16 @@ Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {
   final hasLegacyEmbed =
       (legacySingleEmbed['title']?.toString().isNotEmpty ?? false) ||
       (legacySingleEmbed['description']?.toString().isNotEmpty ?? false) ||
-      (legacySingleEmbed['url']?.toString().isNotEmpty ?? false);
+      (legacySingleEmbed['url']?.toString().isNotEmpty ?? false) ||
+      (legacySingleEmbed['color']?.toString().isNotEmpty ?? false) ||
+      (legacySingleEmbed['footer'] is Map &&
+          (legacySingleEmbed['footer'] as Map).isNotEmpty) ||
+      (legacySingleEmbed['thumbnail']?.toString().isNotEmpty ?? false) ||
+      (legacySingleEmbed['image']?.toString().isNotEmpty ?? false) ||
+      (legacySingleEmbed['author'] is Map &&
+          (legacySingleEmbed['author'] as Map).isNotEmpty) ||
+      (legacySingleEmbed['fields'] is List &&
+          (legacySingleEmbed['fields'] as List).isNotEmpty);
   if (embeds.isEmpty && hasLegacyEmbed) {
     embeds.add(legacySingleEmbed);
   }
