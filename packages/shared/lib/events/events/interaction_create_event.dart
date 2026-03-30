@@ -93,6 +93,50 @@ EventExecutionContext buildInteractionCreateEventContext(
   final interaction = event.interaction;
   final dynamic data = interaction.data;
 
+  final extra = <String, String>{
+    ...buildInteractionRuntimeVariables(interaction),
+    'interaction.id': interaction.id.toString(),
+    'interaction.token': interaction.token,
+    'interaction.applicationId': interaction.applicationId.toString(),
+    'interaction.data.type': data?.type?.toString() ?? '',
+  };
+
+  // Enrich with member details when available (guild interactions).
+  final member = interaction.member;
+  if (member != null) {
+    extra['member.id'] = member.id.toString();
+    extra['member.nick'] = member.nick ?? '';
+    extra['member.avatar'] = member.avatar?.url.toString() ?? '';
+    extra['member.joinedAt'] = member.joinedAt.toIso8601String();
+    extra['member.roles'] = member.roleIds.map((id) => id.toString()).join(',');
+    extra['member.isBooster'] = (member.premiumSince != null).toString();
+    if (member.communicationDisabledUntil != null) {
+      extra['member.communicationDisabledUntil'] =
+          member.communicationDisabledUntil!.toIso8601String();
+    }
+  }
+
+  // Enrich with user details when available.
+  final user = interaction.user ?? member?.user;
+  if (user != null) {
+    extra['user.id'] = user.id.toString();
+    extra['user.username'] = user.username;
+    extra['user.tag'] = user.discriminator;
+    extra['user.avatar'] = user.avatar.url.toString();
+    extra['user.banner'] = user.banner?.url.toString() ?? '';
+    extra['user.createdAt'] = user.id.timestamp.toIso8601String();
+    extra['author.id'] = user.id.toString();
+    extra['author.username'] = user.username;
+    extra['author.tag'] = user.discriminator;
+    extra['author.avatar'] = user.avatar.url.toString();
+    extra['author.banner'] = user.banner?.url.toString() ?? '';
+    final accentColor = user.accentColor;
+    if (accentColor != null) {
+      extra['user.bannerColor'] =
+          '#${accentColor.value.toRadixString(16).padLeft(6, '0')}';
+    }
+  }
+
   return _baseEventContext(
     eventName: 'interactionCreate',
     guildId: _asSnowflake(interaction.guildId),
@@ -100,12 +144,6 @@ EventExecutionContext buildInteractionCreateEventContext(
     userId:
         _asSnowflake(interaction.user?.id) ??
         _asSnowflake(interaction.member?.user?.id),
-    extra: <String, String>{
-      ...buildInteractionRuntimeVariables(interaction),
-      'interaction.id': interaction.id.toString(),
-      'interaction.token': interaction.token,
-      'interaction.applicationId': interaction.applicationId.toString(),
-      'interaction.data.type': data?.type?.toString() ?? '',
-    },
+    extra: extra,
   );
 }

@@ -6277,7 +6277,7 @@ bool _parseBooleanLike(String raw) {
 const int _maxSupportedLoopIterations = 100;
 
 const Map<String, String> _inlineRuntimeVariables = <String, String>{
-  // ── User / author info ── (resolved via generateKeyValues / _messageContentExtra)
+  // ── User / author info ── (resolved via generateKeyValues / _messageContentExtra / buildInteractionCreateEventContext)
   'userid': '((user.id))',
   'username': '((user.username))',
   'usertag': '((user.tag))',
@@ -6299,18 +6299,18 @@ const Map<String, String> _inlineRuntimeVariables = <String, String>{
   'userperms': '((member.permissions))',
   'userserveravatar': '((member.avatar))',
   'finduser': '((user.id))',
-  // ── User info — not yet resolved by runner (need runtime support) ──
   'creationdate': '((user.createdAt))',
+  'userjoineddiscord': '((user.createdAt))',
+  'isbooster': '((member.isBooster))',
+  'userbannercolor': '((user.bannerColor))',
+  'userjoined': '((member.joinedAt))',
+  // ── User info — not yet resolved (need runtime support) ──
   'getuserstatus': '((user.status))',
   'getcustomstatus': '((user.customStatus))',
-  'isbooster': '((member.isBooster))',
   'isuserdmenabled': '((user.dmEnabled))',
   'userbadges': '((user.badges))',
-  'userbannercolor': '((user.bannerColor))',
   'userexists': '((user.exists))',
   'userinfo': '((user.info))',
-  'userjoined': '((member.joinedAt))',
-  'userjoineddiscord': '((user.createdAt))',
   'hypesquad': '((user.hypesquad))',
   // ── Guild / server info ── (resolved via generateKeyValues + extractGuildRuntimeDetails)
   'guildid': '((guild.id))',
@@ -6333,19 +6333,21 @@ const Map<String, String> _inlineRuntimeVariables = <String, String>{
   'servervanityurl': '((guild.vanityUrlCode))',
   'boostcount': '((guild.premiumSubscriptionCount))',
   'boostlevel': '((guild.premiumTier))',
-  // ── Guild info — not yet resolved by runner (need runtime support) ──
   'guildbanner': '((guild.banner))',
+  'serverbanner': '((guild.banner))',
+  'serversplash': '((guild.splash))',
+  'afktimeout': '((guild.afkTimeout))',
+  'stickercount': '((guild.stickerCount))',
+  'rolenames': '((guild.roleNames))',
+  'rolecount': '((guild.roleCount))',
+  // ── Guild info — not yet resolved (need runtime support) ──
   'guildexists': '((guild.exists))',
   'onlinemembers': '((guild.onlineMembers))',
   'serveremojis': '((guild.emojis))',
-  'stickercount': '((guild.stickerCount))',
   'serverinfo': '((guild.info))',
   'serverregion': '((guild.region))',
-  'serverbanner': '((guild.banner))',
-  'serversplash': '((guild.splash))',
   'servercount': '((bot.guildCount))',
   'servernames': '((bot.guildNames))',
-  'afktimeout': '((guild.afkTimeout))',
   // ── Channel info ── (resolved via generateKeyValues + extractChannelRuntimeDetails)
   'channelid': '((channel.id))',
   'channelname': '((channel.name))',
@@ -6363,7 +6365,7 @@ const Map<String, String> _inlineRuntimeVariables = <String, String>{
   'isnsfw': '((channel.nsfw))',
   'channelnsfw': '((channel.nsfw))',
   'findchannel': '((channel.id))',
-  // ── Channel info — not yet resolved by runner (need runtime support) ──
+  // ── Channel info — not yet resolved (need runtime support) ──
   'channelcount': '((guild.channelCount))',
   'channelexists': '((channel.exists))',
   'channelnames': '((guild.channelNames))',
@@ -6375,7 +6377,7 @@ const Map<String, String> _inlineRuntimeVariables = <String, String>{
   'lastpintimestamp': '((channel.lastPinTimestamp))',
   'usersinchannel': '((channel.userCount))',
   'serverchannelexists': '((channel.exists))',
-  // ── Bot info — not yet resolved by runner (need bot.* injection) ──
+  // ── Bot info — not yet resolved (need bot.* injection) ──
   'botid': '((bot.id))',
   'botownerid': '((bot.ownerId))',
   'botname': '((bot.username))',
@@ -6399,34 +6401,33 @@ const Map<String, String> _inlineRuntimeVariables = <String, String>{
   // ── Command — not yet resolved ──
   'commandfolder': '((command.folder))',
   'input': '((interaction.input))',
-  // ── Message info ── (_messageContentExtra)
+  // ── Message info ── (resolved via _messageContentExtra)
   'messageid': '((message.id))',
   'messagetype': '((message.type))',
   'mentioned': '((message.mentions[0]))',
-  // ── Message info — not yet resolved by runner (need runtime support) ──
   'messageurl': '((message.url))',
   'messagetimestamp': '((message.timestamp))',
   'repliedmessageid': '((message.referencedMessage.id))',
   'ismessageedited': '((message.isEdited))',
   'messageeditedtimestamp': '((message.editedTimestamp))',
+  'getattachments': '((message.attachments))',
+  'url': '((message.url))',
+  'mentionedroles': '((message.roleMentions))',
+  // ── Message info — not yet resolved (need runtime support) ──
   'ismentioned': '((message.isMentioned))',
   'nomentionmessage': '((message.cleanContent))',
-  'getattachments': '((message.attachments))',
   'getembeddata': '((message.embeds))',
-  'url': '((message.url))',
-  // ── Role info — not yet resolved by runner (need runtime support) ──
+  // ── Role info ── (resolved via extractMemberRuntimeDetails + extractGuildRuntimeDetails)
   'userroles': '((member.roles))',
-  'rolenames': '((guild.roleNames))',
-  'rolecount': '((guild.roleCount))',
-  'mentionedroles': '((message.roleMentions))',
+  // ── Role info — not yet resolved (need runtime support) ──
   'highestrole': '((member.highestRole))',
   'lowestrole': '((member.lowestRole))',
   'highestrolewithperms': '((member.highestRoleWithPerms))',
   'lowestrolewithperms': '((member.lowestRoleWithPerms))',
-  // ── Thread info — not yet resolved by runner ──
+  // ── Thread info — not yet resolved ──
   'threadmessagecount': '((thread.messageCount))',
   'threadusercount': '((thread.memberCount))',
-  // ── Moderation query — not yet resolved by runner ──
+  // ── Moderation query — not yet resolved ──
   'isbanned': '((target.isBanned))',
   'istimedout': '((target.isTimedOut))',
   'getbanreason': '((target.banReason))',

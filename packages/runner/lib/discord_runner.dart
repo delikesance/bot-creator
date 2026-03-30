@@ -1943,12 +1943,36 @@ class DiscordRunner {
       'workflow.type': workflowTypeEvent,
     };
 
-    // Inject guild variables (systemChannelId, etc.) for event workflows.
+    // Inject guild, channel and member variables for event workflows.
     final eventGuildId = context.guildId;
+    Guild? eventGuild;
     if (eventGuildId != null && _gateway != null) {
       try {
-        final guild = await _gateway!.guilds.fetch(eventGuildId);
-        runtimeVariables.addAll(extractGuildRuntimeDetails(guild));
+        final fetched = await _gateway!.guilds.fetch(eventGuildId);
+        eventGuild = fetched;
+        runtimeVariables.addAll(extractGuildRuntimeDetails(fetched));
+      } catch (_) {}
+    }
+
+    final eventChannelId = context.channelId;
+    if (eventChannelId != null && _gateway != null) {
+      try {
+        final channel = await _gateway!.channels.fetch(eventChannelId);
+        runtimeVariables.addAll(extractChannelRuntimeDetails(channel));
+      } catch (_) {}
+    }
+
+    final eventUserId = context.userId;
+    if (eventGuild != null && eventUserId != null) {
+      try {
+        final member = await eventGuild.members.fetch(eventUserId);
+        runtimeVariables.addAll(
+          extractMemberRuntimeDetails(
+            member: member,
+            guild: eventGuild,
+            guildId: eventGuildId.toString(),
+          ),
+        );
       } catch (_) {}
     }
 

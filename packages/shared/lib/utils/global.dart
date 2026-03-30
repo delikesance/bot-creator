@@ -203,13 +203,41 @@ Map<String, String> extractMemberRuntimeDetails({
 
   final permissions = Permissions(mask);
   final tokens = _permissionTokensFromPermissions(permissions);
-  return <String, String>{
+  final details = <String, String>{
     'member.isAdmin': permissions.isAdministrator ? 'true' : 'false',
     'member.permissions': tokens.join(','),
     'interaction.member.isAdmin':
         permissions.isAdministrator ? 'true' : 'false',
     'interaction.member.permissions': tokens.join(','),
+    'member.roles': roleIds.join(','),
   };
+
+  // Extra member fields that may not be available on every PartialMember.
+  try {
+    final dynamic joinedAt = member.joinedAt;
+    if (joinedAt is DateTime) {
+      details['member.joinedAt'] = joinedAt.toIso8601String();
+    }
+  } catch (_) {}
+
+  try {
+    final dynamic premiumSince = member.premiumSince;
+    details['member.isBooster'] = (premiumSince != null).toString();
+    if (premiumSince is DateTime) {
+      details['member.premiumSince'] = premiumSince.toIso8601String();
+    }
+  } catch (_) {}
+
+  try {
+    final dynamic communicationDisabledUntil =
+        member.communicationDisabledUntil;
+    if (communicationDisabledUntil is DateTime) {
+      details['member.communicationDisabledUntil'] =
+          communicationDisabledUntil.toIso8601String();
+    }
+  } catch (_) {}
+
+  return details;
 }
 
 List<String> _permissionTokensFromPermissions(Permissions permissions) {
@@ -457,6 +485,30 @@ Map<String, String> extractGuildRuntimeDetails(dynamic guild) {
   trySet('guild.systemChannelId', () => _asSnowflake(guild.systemChannelId));
   trySet('guild.rulesChannelId', () => _asSnowflake(guild.rulesChannelId));
   trySet('guild.afkChannelId', () => _asSnowflake(guild.afkChannelId));
+  trySet('guild.banner', () => guild.banner?.url);
+  trySet('guild.splash', () => guild.splash?.url);
+  trySet('guild.afkTimeout', () => guild.afkTimeout?.inSeconds);
+  trySet('guild.roleCount', () {
+    final roleList = guild.roleList;
+    return roleList is Iterable ? roleList.length : null;
+  });
+  trySet('guild.roleNames', () {
+    final roleList = guild.roleList;
+    if (roleList is Iterable) {
+      return roleList
+          .map((role) => (role as dynamic).name.toString())
+          .join(',');
+    }
+    return null;
+  });
+  trySet('guild.stickerCount', () {
+    final stickerList = guild.stickerList;
+    return stickerList is Iterable ? stickerList.length : null;
+  });
+  trySet('guild.emojiCount', () {
+    final emojiList = guild.emojiList;
+    return emojiList is Iterable ? emojiList.length : null;
+  });
 
   details.removeWhere((key, value) => value.isEmpty);
   return details;
