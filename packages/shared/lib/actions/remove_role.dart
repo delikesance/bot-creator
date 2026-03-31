@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
@@ -45,7 +46,10 @@ Future<Map<String, String>> removeRoleAction(
     }
 
     final reason = payload['reason']?.toString().trim();
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) {
+      return {'error': 'Guild not found', 'userId': '', 'roleId': ''};
+    }
     await guild.members[userId].removeRole(
       roleId,
       auditLogReason:

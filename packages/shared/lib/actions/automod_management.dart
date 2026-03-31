@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
@@ -202,7 +203,8 @@ Future<Map<String, String>> createAutoModRuleAction(
       );
     }
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     final rule = await guild.autoModerationRules.create(
       AutoModerationRuleBuilder(
         name: name,
@@ -262,7 +264,8 @@ Future<Map<String, String>> deleteAutoModRuleAction(
 
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     await guild.autoModerationRules.delete(
       ruleId,
       auditLogReason: reason.isNotEmpty ? reason : null,
@@ -296,7 +299,8 @@ Future<Map<String, String>> listAutoModRulesAction(
       return {'error': permError};
     }
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     final rules = await guild.autoModerationRules.list();
 
     final rulesJson = jsonEncode(

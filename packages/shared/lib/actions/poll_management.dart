@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -88,7 +89,7 @@ Future<Map<String, String>> createPollAction(
     final allowMultiselect =
         allowMultiselectRaw == 'true' || allowMultiselectRaw == '1';
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
     if (channel is! TextChannel) {
       return {'error': 'Channel is not a text channel'};
     }
@@ -144,7 +145,7 @@ Future<Map<String, String>> endPollAction(
       return {'error': 'messageId is required for endPoll'};
     }
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
     if (channel is! TextChannel) {
       return {'error': 'Channel is not a text channel'};
     }

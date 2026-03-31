@@ -1,5 +1,6 @@
 ﻿import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator_shared/actions/permission_checks.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -41,7 +42,8 @@ Future<Map<String, String>> banUserAction(
     );
     final deleteDays = (deleteDaysRaw ?? 0).clamp(0, 7);
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found', 'userId': ''};
     await guild.createBan(
       userId,
       deleteMessages:

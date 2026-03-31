@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -63,7 +64,7 @@ Future<Map<String, String>> createInviteAction(
 
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
     if (channel is! GuildChannel) {
       return {'error': 'Channel is not a guild channel'};
     }

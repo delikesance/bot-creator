@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -57,7 +58,7 @@ Future<Map<String, String>> createThreadAction(
       resolve((payload['messageId'] ?? '').toString()),
     );
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
 
     Thread thread;
     if (messageId != null && channel is GuildTextChannel) {
@@ -147,7 +148,7 @@ Future<Map<String, String>> editThreadAction(
       return {'error': 'threadId is required for editThread'};
     }
 
-    final channel = await client.channels.get(threadId);
+    final channel = await fetchChannelCached(client, threadId);
     if (channel is! Thread) {
       return {'error': 'Provided channel is not a thread'};
     }
@@ -192,7 +193,7 @@ Future<Map<String, String>> addThreadMemberAction(
       return {'error': 'threadId and userId are required for threadAddMember'};
     }
 
-    final channel = await client.channels.get(threadId);
+    final channel = await fetchChannelCached(client, threadId);
     if (channel is! Thread) {
       return {'error': 'Provided channel is not a thread'};
     }
@@ -220,7 +221,7 @@ Future<Map<String, String>> removeThreadMemberAction(
       };
     }
 
-    final channel = await client.channels.get(threadId);
+    final channel = await fetchChannelCached(client, threadId);
     if (channel is! Thread) {
       return {'error': 'Provided channel is not a thread'};
     }

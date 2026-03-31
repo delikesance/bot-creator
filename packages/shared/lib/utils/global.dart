@@ -3,63 +3,6 @@
 import 'command_autocomplete.dart';
 
 const String discordUrl = "https://discord.com/api/v10";
-const Duration runtimeFetchCacheTtl = Duration(seconds: 20);
-
-class _RuntimeCacheEntry<T> {
-  const _RuntimeCacheEntry({required this.value, required this.expiresAt});
-
-  final T value;
-  final DateTime expiresAt;
-}
-
-final Map<String, _RuntimeCacheEntry<User>> _runtimeUserCache =
-    <String, _RuntimeCacheEntry<User>>{};
-final Map<String, _RuntimeCacheEntry<Member>> _runtimeMemberCache =
-    <String, _RuntimeCacheEntry<Member>>{};
-final Map<String, _RuntimeCacheEntry<Guild>> _runtimeGuildCache =
-    <String, _RuntimeCacheEntry<Guild>>{};
-final Map<String, _RuntimeCacheEntry<Channel>> _runtimeChannelCache =
-    <String, _RuntimeCacheEntry<Channel>>{};
-
-T? _runtimeCacheGet<T>(Map<String, _RuntimeCacheEntry<T>> cache, String key) {
-  final entry = cache[key];
-  if (entry == null) {
-    return null;
-  }
-  if (entry.expiresAt.isBefore(DateTime.now())) {
-    cache.remove(key);
-    return null;
-  }
-  return entry.value;
-}
-
-void _runtimeCacheSet<T>(
-  Map<String, _RuntimeCacheEntry<T>> cache,
-  String key,
-  T value,
-) {
-  cache[key] = _RuntimeCacheEntry<T>(
-    value: value,
-    expiresAt: DateTime.now().add(runtimeFetchCacheTtl),
-  );
-}
-
-Future<T?> _runtimeFetchWithCache<T>({
-  required Map<String, _RuntimeCacheEntry<T>> cache,
-  required String key,
-  required Future<T?> Function() fetch,
-}) async {
-  final cached = _runtimeCacheGet(cache, key);
-  if (cached != null) {
-    return cached;
-  }
-
-  final fetched = await fetch();
-  if (fetched != null) {
-    _runtimeCacheSet(cache, key, fetched);
-  }
-  return fetched;
-}
 
 Snowflake? _asSnowflake(dynamic value) {
   if (value == null) {
@@ -79,18 +22,11 @@ Snowflake? _asSnowflake(dynamic value) {
 }
 
 Future<User?> _fetchUserCached(dynamic client, Snowflake userId) async {
-  return _runtimeFetchWithCache<User>(
-    cache: _runtimeUserCache,
-    key: userId.toString(),
-    fetch: () async {
-      try {
-        final fetched = await client.users.fetch(userId);
-        return fetched is User ? fetched : null;
-      } catch (_) {
-        return null;
-      }
-    },
-  );
+  try {
+    return await client.users.get(userId);
+  } catch (_) {
+    return null;
+  }
 }
 
 Future<Member?> _fetchMemberCached(
@@ -98,57 +34,21 @@ Future<Member?> _fetchMemberCached(
   required Snowflake guildId,
   required Snowflake userId,
 }) async {
-  final cacheKey = '${guildId.toString()}:${userId.toString()}';
-  return _runtimeFetchWithCache<Member>(
-    cache: _runtimeMemberCache,
-    key: cacheKey,
-    fetch: () async {
-      try {
-        final dynamic guild = (interaction as dynamic).guild;
-        final fetched = await guild?.members?.fetch(userId);
-        if (fetched is Member) {
-          return fetched;
-        }
-      } catch (_) {}
-
-      try {
-        final dynamic client = interaction.manager.client;
-        final dynamic guild = await client.guilds.fetch(guildId);
-        final fetched = await guild?.members?.fetch(userId);
-        if (fetched is Member) {
-          return fetched;
-        }
-      } catch (_) {}
-
-      return null;
-    },
-  );
+  try {
+    final guild = await fetchGuildCached(interaction.manager.client, guildId);
+    if (guild == null) return null;
+    return await guild.members.get(userId);
+  } catch (_) {
+    return null;
+  }
 }
 
-Future<Guild?> _fetchGuildCached(dynamic client, Snowflake guildId) async {
-  return _runtimeFetchWithCache<Guild>(
-    cache: _runtimeGuildCache,
-    key: guildId.toString(),
-    fetch: () async {
-      try {
-        final dynamic fetched = await client.guilds.fetch(
-          guildId,
-          withCounts: true,
-        );
-        if (fetched is Guild) {
-          return fetched;
-        }
-      } catch (_) {}
-
-      try {
-        final dynamic fetched = await client.guilds.fetch(guildId);
-        if (fetched is Guild) {
-          return fetched;
-        }
-      } catch (_) {}
-      return null;
-    },
-  );
+Future<Guild?> fetchGuildCached(dynamic client, Snowflake guildId) async {
+  try {
+    return await client.guilds.get(guildId);
+  } catch (_) {
+    return null;
+  }
 }
 
 Map<String, String> extractBotRuntimeDetails(NyxxRest client) {
@@ -371,22 +271,12 @@ final List<MapEntry<Flag<Permissions>, String>> _permissionTokenFlags =
       MapEntry(Permissions.viewGuildInsights, 'viewguildinsights'),
     ];
 
-Future<Channel?> _fetchChannelCached(
-  dynamic client,
-  Snowflake channelId,
-) async {
-  return _runtimeFetchWithCache<Channel>(
-    cache: _runtimeChannelCache,
-    key: channelId.toString(),
-    fetch: () async {
-      try {
-        final fetched = await client.channels.fetch(channelId);
-        return fetched is Channel ? fetched : null;
-      } catch (_) {
-        return null;
-      }
-    },
-  );
+Future<Channel?> fetchChannelCached(dynamic client, Snowflake channelId) async {
+  try {
+    return await client.channels.get(channelId);
+  } catch (_) {
+    return null;
+  }
 }
 
 Future<User> getDiscordUser(String botToken) async {
@@ -579,10 +469,7 @@ Future<Map<String, String>> generateKeyValues(
   PartialGuild? guild = interaction.guild;
   final guildId = _asSnowflake((interaction as dynamic).guildId) ?? guild?.id;
   if (guild is! Guild && guildId != null) {
-    final fetched = await _fetchGuildCached(
-      interaction.manager.client,
-      guildId,
-    );
+    final fetched = await fetchGuildCached(interaction.manager.client, guildId);
     if (fetched != null) {
       guild = fetched;
     }
@@ -592,7 +479,7 @@ Future<Map<String, String>> generateKeyValues(
   final channelId =
       _asSnowflake((interaction as dynamic).channelId) ?? channel?.id;
   if (channel is! Channel && channelId != null) {
-    final fetched = await _fetchChannelCached(
+    final fetched = await fetchChannelCached(
       interaction.manager.client,
       channelId,
     );
@@ -899,7 +786,7 @@ Future<Map<String, String>> generateKeyValuesFromInteractionOption(
           _asSnowflake((interaction as dynamic).guildId) ??
           interaction.guild?.id;
       if (resolvedGuildId != null) {
-        final guild = await _fetchGuildCached(
+        final guild = await fetchGuildCached(
           interaction.manager.client,
           resolvedGuildId,
         );
@@ -952,7 +839,7 @@ Future<Map<String, String>> generateKeyValuesFromInteractionOption(
       return optionResult;
     case CommandOptionType.channel:
       final channelId = Snowflake(int.parse(value.value.toString()));
-      final channel = await _fetchChannelCached(client, channelId);
+      final channel = await fetchChannelCached(client, channelId);
       if (channel == null) {
         return {
           value.name: channelId.toString(),
@@ -1048,7 +935,7 @@ Future<Map<String, String>> generateInteractionContextKeyValues(
     guild = raw.guild as Guild;
   }
   if (guild == null && guildId != null) {
-    guild = await _fetchGuildCached(interaction.manager.client, guildId);
+    guild = await fetchGuildCached(interaction.manager.client, guildId);
   }
 
   Channel? channel;
@@ -1056,7 +943,7 @@ Future<Map<String, String>> generateInteractionContextKeyValues(
     channel = raw.channel as Channel;
   }
   if (channel == null && channelId != null) {
-    channel = await _fetchChannelCached(interaction.manager.client, channelId);
+    channel = await fetchChannelCached(interaction.manager.client, channelId);
   }
 
   final userIdText = userId?.toString() ?? '';

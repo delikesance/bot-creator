@@ -1,4 +1,5 @@
 ﻿import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'permission_checks.dart';
 
 const _keywordRuleName = 'BotCreator - Keyword Filter';
@@ -82,7 +83,8 @@ Future<Map<String, String>> updateAutoModAction(
     final maxMentions = (maxMentionsRaw ?? 5).clamp(1, 50);
     final reason = payload['reason']?.toString().trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     final existingRules = await guild.autoModerationRules.list();
 
     final keywordRule = _findRuleByName(existingRules, _keywordRuleName);

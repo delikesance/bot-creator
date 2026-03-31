@@ -1,4 +1,5 @@
 ﻿import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import '../types/component.dart';
 import '../utils/component_workflow_bindings.dart';
 import '../utils/embed_fields.dart';
@@ -49,7 +50,7 @@ Future<Map<String, String>> sendMessageToChannel(
       };
     }
 
-    final channel = await client.channels.get(targetChannelId);
+    final channel = await fetchChannelCached(client, targetChannelId);
     if (channel is! TextChannel) {
       return {'error': 'Channel is not a text channel', 'messageId': ''};
     }

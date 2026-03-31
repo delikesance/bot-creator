@@ -1,6 +1,7 @@
 ﻿import 'dart:async';
 
 import 'package:bot_creator_shared/actions/action_runtime.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'package:nyxx/nyxx.dart';
 
 Future<Map<String, String>> deleteMessage(
@@ -24,7 +25,9 @@ Future<Map<String, String>> deleteMessage(
       );
     }
 
-    final channel = await runWithTimeout(() => client.channels.get(channelId));
+    final channel = await runWithTimeout(
+      () => fetchChannelCached(client, channelId),
+    );
     if (channel is! TextChannel) {
       return actionError(
         code: 'invalid_channel_type',
