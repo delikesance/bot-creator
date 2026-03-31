@@ -39,6 +39,52 @@ void main() {
       },
     );
 
+    test('falls back when the first resolved value is an empty string', () {
+      final resolved = resolveTemplatePlaceholders(
+        'Prefix: ((user.bc_prefix | guild.bc_prefix))',
+        <String, String>{'user.bc_prefix': '', 'guild.bc_prefix': '!'},
+      );
+
+      expect(resolved, 'Prefix: !');
+    });
+
+    test('supports bare punctuation literal fallback values', () {
+      final resolved = resolveTemplatePlaceholders(
+        'Prefix: ((user.bc_prefix | guild.bc_prefix | !))',
+        <String, String>{'user.bc_prefix': '', 'guild.bc_prefix': ''},
+      );
+
+      expect(resolved, 'Prefix: !');
+    });
+
+    test('resolves nested placeholders inside variable keys', () {
+      final resolved = resolveTemplatePlaceholders(
+        'Perms: ((permissions.byId.((author.id))|member.permissions))',
+        <String, String>{
+          'author.id': '243117191774470146',
+          'permissions.byId.243117191774470146': 'manageguild,banmembers',
+          'member.permissions': 'fallback',
+        },
+      );
+
+      expect(resolved, 'Perms: manageguild,banmembers');
+    });
+
+    test(
+      'falls back after nested key resolution when dynamic key is missing',
+      () {
+        final resolved = resolveTemplatePlaceholders(
+          'Perms: ((permissions.byId.((author.id))|member.permissions))',
+          <String, String>{
+            'author.id': '243117191774470146',
+            'member.permissions': 'manageguild',
+          },
+        );
+
+        expect(resolved, 'Perms: manageguild');
+      },
+    );
+
     test('serializes slice results back to JSON text', () {
       final resolved = resolveTemplatePlaceholders(
         'Slice: ((slice(scores.\$, 1, 3)))',

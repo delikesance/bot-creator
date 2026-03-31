@@ -71,15 +71,18 @@ Map<String, String> _roleExtra(dynamic role) => <String, String>{
   'role.hoist': ((role?.isHoisted ?? false) == true).toString(),
 };
 
-Map<String, String> _reactionEmojiExtra(
-  dynamic raw,
-  dynamic emoji,
-) => <String, String>{
-  'message.id': _idString(raw.messageId),
-  'reaction.emoji.name': (emoji?.name ?? '').toString(),
-  'reaction.emoji.id': _idString(emoji?.id),
-  'reaction.emoji.animated': ((emoji?.animated ?? false) == true).toString(),
-};
+Map<String, String> _reactionEmojiExtra(dynamic raw, dynamic emoji) {
+  bool animated = false;
+  try {
+    animated = (emoji?.isAnimated ?? false) == true;
+  } catch (_) {}
+  return <String, String>{
+    'message.id': _idString(raw.messageId),
+    'reaction.emoji.name': (emoji?.name ?? '').toString(),
+    'reaction.emoji.id': _idString(emoji?.id),
+    'reaction.emoji.animated': animated.toString(),
+  };
+}
 
 Map<String, String> _memberBasicExtra(
   String memberId,

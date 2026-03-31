@@ -155,6 +155,27 @@ String? _lookupVariableValue(String key, Map<String, String> updates) {
   return null;
 }
 
+bool _isMeaningfulResolvedValue(dynamic value) {
+  if (value == null) {
+    return false;
+  }
+  if (value is String) {
+    return value.trim().isNotEmpty;
+  }
+  return true;
+}
+
+bool _looksLikeLiteralFallback(String expression) {
+  final trimmed = expression.trim();
+  if (trimmed.isEmpty) {
+    return false;
+  }
+  if (_isWrappedStringLiteral(trimmed)) {
+    return true;
+  }
+  return RegExp(r'^[^A-Za-z0-9_.$\[\]()]+$').hasMatch(trimmed);
+}
+
 dynamic _resolveComputedVariableValue(String key, Map<String, String> updates) {
   final markerIndex = key.lastIndexOf('.\$');
   if (markerIndex == -1) {
@@ -881,14 +902,26 @@ _ResolvedExpression _evaluateSingleExpression(
     return _ResolvedExpression(found: true, value: value);
   }
 
-  final direct = _lookupVariableValue(trimmed, updates);
+  String resolvedKey = trimmed;
+  if (trimmed.contains('((')) {
+    final nestedResolved = resolveTemplatePlaceholders(trimmed, updates).trim();
+    if (nestedResolved.isNotEmpty) {
+      resolvedKey = nestedResolved;
+    }
+  }
+
+  final direct = _lookupVariableValue(resolvedKey, updates);
   if (direct != null) {
     return _ResolvedExpression(found: true, value: direct);
   }
 
-  final computed = _resolveComputedVariableValue(trimmed, updates);
+  final computed = _resolveComputedVariableValue(resolvedKey, updates);
   if (computed != null) {
     return _ResolvedExpression(found: true, value: computed);
+  }
+
+  if (_looksLikeLiteralFallback(trimmed)) {
+    return _ResolvedExpression(found: true, value: resolvedKey);
   }
 
   return const _ResolvedExpression(found: false);
@@ -905,7 +938,7 @@ _ResolvedExpression _evaluateExpression(
 
   for (final candidate in candidates) {
     final outcome = _evaluateSingleExpression(candidate, updates);
-    if (outcome.found) {
+    if (outcome.found && _isMeaningfulResolvedValue(outcome.value)) {
       return outcome;
     }
   }

@@ -1766,6 +1766,64 @@ dynamic _adaptLocalLegacyValueForMessageCreate(
   return raw;
 }
 
+Future<void> _populateLocalLegacyAuthorPermissions(
+  NyxxGateway gateway, {
+  required EventExecutionContext context,
+  required Map<String, String> runtimeVariables,
+  void Function(String message)? onLog,
+}) async {
+  final guildIdText =
+      (runtimeVariables['guildId'] ??
+              runtimeVariables['guild.id'] ??
+              context.guildId?.toString() ??
+              '')
+          .trim();
+  final userIdText =
+      (runtimeVariables['author.id'] ??
+              runtimeVariables['user.id'] ??
+              runtimeVariables['userId'] ??
+              context.userId?.toString() ??
+              '')
+          .trim();
+
+  if (guildIdText.isEmpty || userIdText.isEmpty) {
+    return;
+  }
+
+  final byIdKey = 'permissions.byId.$userIdText';
+  if ((runtimeVariables[byIdKey] ?? '').trim().isNotEmpty &&
+      (runtimeVariables['member.permissions'] ?? '').trim().isNotEmpty) {
+    return;
+  }
+
+  final guildIdValue = int.tryParse(guildIdText);
+  final userIdValue = int.tryParse(userIdText);
+  if (guildIdValue == null || userIdValue == null) {
+    return;
+  }
+
+  try {
+    final guild = await gateway.guilds.get(Snowflake(guildIdValue));
+    final member = await guild.members.fetch(Snowflake(userIdValue));
+    final memberDetails = shared_global.extractMemberRuntimeDetails(
+      member: member,
+      guild: guild,
+      guildId: guildIdText,
+    );
+    runtimeVariables.addAll(memberDetails);
+    runtimeVariables.addAll(
+      shared_global.extractPermissionsByIdRuntimeDetails(
+        userId: userIdText,
+        memberDetails: memberDetails,
+      ),
+    );
+  } catch (error) {
+    onLog?.call(
+      'Unable to populate legacy author permissions for user $userIdText in guild $guildIdText: $error',
+    );
+  }
+}
+
 Future<bool> _tryExecuteLocalLegacyCommand(
   NyxxGateway gateway, {
   required AppManager manager,
@@ -1854,6 +1912,12 @@ Future<bool> _tryExecuteLocalLegacyCommand(
           context.variables['userId'] ?? context.variables['author.id'],
       messageContextId:
           context.variables['messageId'] ?? context.variables['message.id'],
+    );
+    await _populateLocalLegacyAuthorPermissions(
+      gateway,
+      context: context,
+      runtimeVariables: runtimeVariables,
+      onLog: onLog,
     );
 
     final overridePrefix =
