@@ -792,12 +792,115 @@ class ComponentV2Definition {
     List<ComponentNode> extractedComponents = [];
 
     // Parse the new v2 standard format
-    if (json.containsKey('components')) {
+    if (json.containsKey('components') && json['components'] is List) {
       extractedComponents =
-          (json['components'] as List? ?? [])
+          (json['components'] as List)
               .whereType<Map>()
               .map((c) => ComponentNode.fromJson(Map<String, dynamic>.from(c)))
               .toList();
+    }
+    // Flat items format produced by the BDFD transpiler.
+    // Reconstructs the hierarchy: buttons → ActionRows, selects → ActionRows,
+    // layout components (container, section, thumbnail, etc.) → direct.
+    else if (json.containsKey('items')) {
+      ActionRowNode? currentRow;
+      for (final rawItem in (json['items'] as List? ?? []).whereType<Map>()) {
+        final item = Map<String, dynamic>.from(rawItem);
+        final type = item['type']?.toString() ?? '';
+        switch (type) {
+          case 'button':
+            final newRow = item['newRow'] == true;
+            if (newRow || currentRow == null) {
+              currentRow = ActionRowNode(components: []);
+              extractedComponents.add(currentRow);
+            }
+            currentRow.components.add(ButtonNode.fromJson(item));
+          case 'selectMenu':
+            currentRow = null;
+            final menu = SelectMenuNode.fromJson(item);
+            extractedComponents.add(ActionRowNode(components: [menu]));
+          case 'selectMenuOption':
+            // Append to the SelectMenu in the most recent ActionRow that
+            // holds the matching menuId (or the last select menu if unset).
+            final menuId = item['menuId']?.toString() ?? '';
+            for (var i = extractedComponents.length - 1; i >= 0; i--) {
+              final node = extractedComponents[i];
+              if (node is! ActionRowNode) continue;
+              for (final child in node.components) {
+                if (child is SelectMenuNode &&
+                    (child.customId == menuId || menuId.isEmpty)) {
+                  child.options.add(SelectMenuOption.fromJson(item));
+                  break;
+                }
+              }
+              break;
+            }
+          case 'separator':
+            currentRow = null;
+            final divider = item['divider'];
+            final isDivider =
+                divider is bool
+                    ? divider
+                    : (divider?.toString().toLowerCase() == 'true' ||
+                        divider?.toString().toLowerCase() == 'yes');
+            final spacingRaw = item['spacing'];
+            final spacing =
+                spacingRaw is int
+                    ? spacingRaw
+                    : int.tryParse(spacingRaw?.toString() ?? '1') ?? 1;
+            extractedComponents.add(
+              SeparatorNode(isDivider: isDivider, spacing: spacing),
+            );
+          case 'textDisplay':
+            currentRow = null;
+            extractedComponents.add(
+              TextDisplayNode(content: (item['content'] ?? '').toString()),
+            );
+          case 'container':
+            currentRow = null;
+            extractedComponents.add(
+              ContainerNode(
+                accentColor:
+                    (item['accentColor'] ?? item['color'] ?? '').toString(),
+              ),
+            );
+          case 'section':
+            currentRow = null;
+            extractedComponents.add(
+              SectionNode(
+                components: [
+                  TextDisplayNode(content: (item['content'] ?? '').toString()),
+                ],
+              ),
+            );
+          case 'thumbnail':
+            currentRow = null;
+            extractedComponents.add(
+              ThumbnailNode(
+                media: UnfurledMediaItemNode(
+                  url: (item['url'] ?? '').toString(),
+                ),
+              ),
+            );
+          case 'mediaGallery':
+            currentRow = null;
+            final galleryItems = (item['items'] as List? ?? [])
+                .whereType<Map>()
+                .map(
+                  (i) => MediaGalleryItemNode(
+                    media: UnfurledMediaItemNode(
+                      url: (i['url'] ?? '').toString(),
+                    ),
+                    description: (i['description'] ?? '').toString(),
+                  ),
+                )
+                .toList(growable: true);
+            extractedComponents.add(MediaGalleryNode(items: galleryItems));
+          default:
+            // Unknown item type — skip.
+            break;
+        }
+      }
     }
     // Fallback parser for the legacy rows format
     else if (json.containsKey('rows')) {

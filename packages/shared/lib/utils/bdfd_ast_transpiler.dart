@@ -69,6 +69,7 @@ class _BdfdAstTranspilationScope {
   int _loopIterationIndex = 0;
   int _loopDepth = 0;
   Map<String, int> _loopVariables = <String, int>{};
+  Set<String>? _runtimeLoopVarNames;
   final Map<String, String> _tempVariables = <String, String>{};
   final List<Map<String, dynamic>> _pendingModalInputs =
       <Map<String, dynamic>>[];
@@ -123,6 +124,16 @@ class _BdfdAstTranspilationScope {
         final consumed = _consumeLoopBlock(nodes: nodes, startIndex: index);
         if (consumed == null) {
           index += 1;
+          continue;
+        }
+
+        if (consumed.isRuntimeLoop) {
+          final flushed = pendingResponse.buildAction(channelId: _useChannelId);
+          if (flushed != null) {
+            actions.add(flushed);
+          }
+          actions.add(_buildRuntimeForLoopAction(consumed));
+          index = consumed.nextIndex;
           continue;
         }
 
@@ -618,6 +629,31 @@ class _BdfdAstTranspilationScope {
       final condStr = _stringifyArgument(loopNode, 1).trim();
       final updateStr = _stringifyArgument(loopNode, 2);
 
+      // Detect runtime placeholders in any of the three parts.
+      final hasRuntimeInit = initStr.contains('((');
+      final hasRuntimeCond = condStr.contains('((');
+      final hasRuntimeUpdate = updateStr.contains('((');
+      if (hasRuntimeInit || hasRuntimeCond || hasRuntimeUpdate) {
+        // Extract declared variable names from init for body placeholder mapping.
+        final varNames = <String>{};
+        for (final part in initStr.split(',')) {
+          final eqIndex = part.indexOf('=');
+          if (eqIndex >= 0) {
+            varNames.add(part.substring(0, eqIndex).trim().toLowerCase());
+          }
+        }
+        return _ConsumedLoopBlock(
+          nextIndex: nextIndex,
+          bodyNodes: bodyNodes,
+          iterations: 0,
+          isRuntimeLoop: true,
+          runtimeInit: initStr,
+          runtimeCondition: condStr,
+          runtimeUpdate: updateStr,
+          runtimeVarNames: varNames,
+        );
+      }
+
       final initVars = _parseCStyleLoopInit(initStr, loopNode);
       if (initVars == null) {
         return _ConsumedLoopBlock(
@@ -646,6 +682,17 @@ class _BdfdAstTranspilationScope {
     }
 
     // Simple for: $for[n]
+    final rawIterations = _stringifyArgument(loopNode, 0).trim();
+    if (rawIterations.contains('((')) {
+      return _ConsumedLoopBlock(
+        nextIndex: nextIndex,
+        bodyNodes: bodyNodes,
+        iterations: 0,
+        isRuntimeLoop: true,
+        runtimeIterations: rawIterations,
+      );
+    }
+
     final iterations = _parseLoopIterations(loopNode);
     if (iterations == null) {
       return _ConsumedLoopBlock(
@@ -816,7 +863,12 @@ class _BdfdAstTranspilationScope {
     while (_evaluateCStyleCondition(condition, _loopVariables) &&
         iterationCount < _maxSupportedLoopIterations) {
       _loopIterationIndex = iterationCount;
-      actions.addAll(_transpileNodes(bodyNodes));
+      final iterActions = _transpileNodes(bodyNodes);
+      for (final a in iterActions) {
+        a.payload['_debugLoopDepth'] = _loopDepth;
+        a.payload['_debugLoopIteration'] = iterationCount;
+      }
+      actions.addAll(iterActions);
       _applyCStyleLoopUpdate(update, _loopVariables);
       iterationCount++;
     }
@@ -945,11 +997,68 @@ class _BdfdAstTranspilationScope {
     final actions = <Action>[];
     for (var index = 0; index < iterations; index++) {
       _loopIterationIndex = index;
-      actions.addAll(_transpileNodes(bodyNodes));
+      final iterActions = _transpileNodes(bodyNodes);
+      for (final a in iterActions) {
+        a.payload['_debugLoopDepth'] = _loopDepth;
+        a.payload['_debugLoopIteration'] = index;
+      }
+      actions.addAll(iterActions);
     }
     _loopDepth -= 1;
     _loopIterationIndex = previousIndex;
     return actions;
+  }
+
+  /// Builds a runtime [BotCreatorActionType.forLoop] action whose body is
+  /// transpiled with loop-variable references emitted as `((_loop.var.{name}))`
+  /// or `((_loop.index))` / `((_loop.count))` placeholders that the handler
+  /// will resolve on each iteration.
+  Action _buildRuntimeForLoopAction(_ConsumedLoopBlock consumed) {
+    // Save transpiler state.
+    final previousIndex = _loopIterationIndex;
+    final previousVars = Map<String, int>.from(_loopVariables);
+    final previousDepth = _loopDepth;
+
+    // Enter a special "runtime loop" scope: set _loopDepth so that $i / $loopCount /
+    // C-style variable names are recognised, but map them to placeholder strings instead
+    // of concrete integers. We achieve this by *not* touching _loopIterationIndex (unused
+    // at runtime) and by populating _loopVariables with a sentinel that we intercept in
+    // _stringifyInlineFunction via a new flag.
+    _loopDepth += 1;
+    _runtimeLoopVarNames = consumed.runtimeVarNames ?? const <String>{};
+    _loopVariables = <String, int>{};
+    // Seed _loopVariables so the normal `_loopVariables[name]` lookup falls through
+    // but `_isInlineOnlyFunction` still recognises the names.
+    for (final name in _runtimeLoopVarNames!) {
+      _loopVariables[name] = 0; // sentinel – overridden by placeholder path
+    }
+
+    final bodyActions = _transpileNodes(consumed.bodyNodes);
+
+    // Restore transpiler state.
+    _runtimeLoopVarNames = null;
+    _loopDepth = previousDepth;
+    _loopIterationIndex = previousIndex;
+    _loopVariables = previousVars;
+
+    final payload = <String, dynamic>{
+      'bodyActions': bodyActions.map((action) => action.toJson()).toList(),
+      'maxIterations': _maxSupportedLoopIterations,
+    };
+
+    if (consumed.isRuntimeCStyleLoop) {
+      payload['mode'] = 'cstyle';
+      payload['init'] = consumed.runtimeInit!;
+      payload['condition'] = consumed.runtimeCondition!;
+      payload['update'] = consumed.runtimeUpdate!;
+      payload['varNames'] =
+          consumed.runtimeVarNames?.toList(growable: false) ?? const <String>[];
+    } else {
+      payload['mode'] = 'simple';
+      payload['iterations'] = consumed.runtimeIterations!;
+    }
+
+    return Action(type: BotCreatorActionType.forLoop, payload: payload);
   }
 
   /// Returns `true` when every node in [bodyNodes] is either plain text,
@@ -994,6 +1103,7 @@ class _BdfdAstTranspilationScope {
       case 'addcontainer':
       case 'addsection':
       case 'addthumbnail':
+      case 'addmediagallery':
       case 'addbutton':
       case 'addselectmenuoption':
       case 'newselectmenu':
@@ -1198,19 +1308,38 @@ class _BdfdAstTranspilationScope {
         embed['footer'] = footer;
         return true;
       case 'addcontainer':
-        response.ensureEmbed()['container'] = <String, dynamic>{
-          'color': _stringifyArgument(node, 0),
-        };
+        response.addComponent(<String, dynamic>{
+          'type': 'container',
+          'accentColor': _stringifyArgument(node, 0),
+        });
         return true;
       case 'addsection':
-        response.ensureEmbed()['section'] = <String, dynamic>{
+        response.addComponent(<String, dynamic>{
+          'type': 'section',
           'content': _stringifyArgument(node, 0),
-        };
+        });
         return true;
       case 'addthumbnail':
-        response.ensureEmbed()['thumbnail'] = <String, dynamic>{
+        response.addComponent(<String, dynamic>{
+          'type': 'thumbnail',
           'url': _stringifyArgument(node, 0),
+        });
+        return true;
+      case 'addmediagallery':
+        final galleryUrl = _stringifyArgument(node, 0);
+        final galleryDesc = _stringifyArgument(node, 1);
+        final galleryItem = <String, dynamic>{
+          'url': galleryUrl,
+          if (galleryDesc.isNotEmpty) 'description': galleryDesc,
         };
+        if (response.lastComponentType == 'mediaGallery') {
+          (response.lastComponent!['items'] as List).add(galleryItem);
+        } else {
+          response.addComponent(<String, dynamic>{
+            'type': 'mediaGallery',
+            'items': [galleryItem],
+          });
+        }
         return true;
       case 'addbutton':
         final newRow = _parseBooleanLike(_stringifyArgument(node, 0));
@@ -1263,10 +1392,65 @@ class _BdfdAstTranspilationScope {
         });
         return true;
       case 'editselectmenu':
+        final editMenuId = _stringifyArgument(node, 0);
+        final editMenuPlaceholder = _stringifyArgument(node, 1);
+        final editMenuMinStr = _stringifyArgument(node, 2);
+        final editMenuMaxStr = _stringifyArgument(node, 3);
+        final editMenuDisabledStr = _stringifyArgument(node, 4);
+        response.editSelectMenu(
+          customId: editMenuId,
+          placeholder: editMenuPlaceholder.isEmpty ? null : editMenuPlaceholder,
+          minValues:
+              editMenuMinStr.isEmpty ? null : int.tryParse(editMenuMinStr),
+          maxValues:
+              editMenuMaxStr.isEmpty ? null : int.tryParse(editMenuMaxStr),
+          disabled:
+              editMenuDisabledStr.isEmpty
+                  ? null
+                  : _parseBooleanLike(editMenuDisabledStr),
+        );
         return true;
       case 'editselectmenuoption':
+        final editOptMenuId = _stringifyArgument(node, 0);
+        final editOptIndex = int.tryParse(_stringifyArgument(node, 1)) ?? 1;
+        final editOptLabel = _stringifyArgument(node, 2);
+        final editOptValue = _stringifyArgument(node, 3);
+        final editOptDesc = _stringifyArgument(node, 4);
+        final editOptDefaultStr = _stringifyArgument(node, 5);
+        final editOptEmoji = _stringifyArgument(node, 6);
+        response.editSelectMenuOption(
+          menuId: editOptMenuId,
+          index: editOptIndex,
+          label: editOptLabel.isEmpty ? null : editOptLabel,
+          value: editOptValue.isEmpty ? null : editOptValue,
+          description: editOptDesc,
+          isDefault:
+              editOptDefaultStr.isEmpty
+                  ? null
+                  : _parseBooleanLike(editOptDefaultStr),
+          emoji: editOptEmoji,
+        );
         return true;
       case 'editbutton':
+        final editBtnRow = int.tryParse(_stringifyArgument(node, 0)) ?? 1;
+        final editBtnCol = int.tryParse(_stringifyArgument(node, 1)) ?? 1;
+        final editBtnLabel = _stringifyArgument(node, 2);
+        final editBtnStyle = _stringifyArgument(node, 3).trim().toLowerCase();
+        final editBtnCustomId = _stringifyArgument(node, 4);
+        final editBtnDisabledStr = _stringifyArgument(node, 5);
+        final editBtnEmoji = _stringifyArgument(node, 6);
+        response.editButton(
+          row: editBtnRow,
+          col: editBtnCol,
+          label: editBtnLabel.isEmpty ? null : editBtnLabel,
+          style: editBtnStyle.isEmpty ? null : editBtnStyle,
+          customIdOrUrl: editBtnCustomId.isEmpty ? null : editBtnCustomId,
+          disabled:
+              editBtnDisabledStr.isEmpty
+                  ? null
+                  : _parseBooleanLike(editBtnDisabledStr),
+          emoji: editBtnEmoji.isEmpty ? null : editBtnEmoji,
+        );
         return true;
       case 'removeallcomponents':
         response.clearComponents();
@@ -1672,6 +1856,12 @@ class _BdfdAstTranspilationScope {
       // Workflow call
       case 'callworkflow':
         return _buildCallWorkflowAction(node);
+      // Dynamic eval
+      case 'eval':
+        return _buildEvalAction(node);
+      // Debug profiling
+      case 'debug':
+        return _buildDebugAction(node);
       default:
         _diagnostics.add(
           BdfdTranspileDiagnostic(
@@ -2818,6 +3008,21 @@ class _BdfdAstTranspilationScope {
   }
 
   String? _stringifyInlineFunction(BdfdFunctionCallAst node) {
+    // Runtime loop variable placeholders (e.g. $i → ((_loop.var.i))).
+    if (_runtimeLoopVarNames != null &&
+        _loopDepth > 0 &&
+        node.arguments.isEmpty) {
+      final name = node.normalizedName;
+      if (_runtimeLoopVarNames!.contains(name)) {
+        return '((_loop.var.$name))';
+      }
+      if (name == 'i' || name == 'loopindex' || name == 'loopiteration') {
+        return '((_loop.index))';
+      }
+      if (name == 'loopcount') {
+        return '((_loop.count))';
+      }
+    }
     // C-style loop variables take precedence (e.g. $i, $j in a for loop).
     if (_loopDepth > 0 && node.arguments.isEmpty) {
       final loopVar = _loopVariables[node.normalizedName];
@@ -3311,8 +3516,9 @@ class _BdfdAstTranspilationScope {
             '${now.minute.toString().padLeft(2, '0')}:'
             '${now.second.toString().padLeft(2, '0')}';
       case 'gettimestamp':
-        return (DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000)
-            .toString();
+        return '((getTimestamp))';
+      case 'gettimestampms':
+        return '((getTimestampMs))';
       // Misc inline
       case 'getserverinvite':
         return '((guild.invite))';
@@ -3410,9 +3616,6 @@ class _BdfdAstTranspilationScope {
           return '((message[$edChannelId;$edMessageId].embeds[${edIndex.isEmpty ? '0' : edIndex}]${edProperty.isNotEmpty ? '.$edProperty' : ''}))';
         }
         return _inlineRuntimeVariables['getembeddata'];
-      // eval - return the argument as-is (limited compile-time support)
-      case 'eval':
-        return _stringifyArgument(node, 0);
       default:
         return null;
     }
@@ -3424,6 +3627,10 @@ class _BdfdAstTranspilationScope {
 
   bool _isInlineOnlyFunction(String normalizedName) {
     if (_loopDepth > 0 && _loopVariables.containsKey(normalizedName)) {
+      return true;
+    }
+    if (_runtimeLoopVarNames != null &&
+        _runtimeLoopVarNames!.contains(normalizedName)) {
       return true;
     }
     switch (normalizedName) {
@@ -3522,6 +3729,7 @@ class _BdfdAstTranspilationScope {
       case 'year':
       case 'time':
       case 'gettimestamp':
+      case 'gettimestampms':
       // Parametric lookups
       case 'channelid':
       case 'guildid':
@@ -3558,7 +3766,6 @@ class _BdfdAstTranspilationScope {
       case 'isticket':
       case 'getmessage':
       case 'c':
-      case 'eval':
       case 'globaluserleaderboard':
       case 'serverleaderboard':
       case 'userleaderboard':
@@ -3712,6 +3919,10 @@ class _BdfdAstTranspilationScope {
       case 'argscheck':
       // Workflow call
       case 'callworkflow':
+      // Dynamic eval
+      case 'eval':
+      // Debug profiling
+      case 'debug':
         return true;
       default:
         return false;
@@ -6033,6 +6244,25 @@ class _BdfdAstTranspilationScope {
     );
   }
 
+  // ── Debug profiling builder ──────────────────────────────────
+
+  Action _buildDebugAction(BdfdFunctionCallAst node) {
+    return Action(
+      type: BotCreatorActionType.debugProfile,
+      payload: <String, dynamic>{},
+    );
+  }
+
+  // ── Dynamic eval builder ─────────────────────────────────────
+
+  Action _buildEvalAction(BdfdFunctionCallAst node) {
+    final scriptContent = _stringifyArgument(node, 0);
+    return Action(
+      type: BotCreatorActionType.runBdfdScript,
+      payload: <String, dynamic>{'scriptContent': scriptContent},
+    );
+  }
+
   String? _latestWorkflowResponsePlaceholder(BdfdFunctionCallAst node) {
     final requestKey = _lastCallWorkflowKey;
     if (requestKey == null || requestKey.isEmpty) {
@@ -6555,6 +6785,12 @@ class _PendingResponse {
 
   Map<String, dynamic> ensureEmbed() => _embed;
 
+  String? get lastComponentType =>
+      _components.isEmpty ? null : _components.last['type']?.toString();
+
+  Map<String, dynamic>? get lastComponent =>
+      _components.isEmpty ? null : _components.last;
+
   void addComponent(Map<String, dynamic> component) {
     _components.add(component);
   }
@@ -6615,6 +6851,106 @@ class _PendingResponse {
     );
   }
 
+  /// Edits the button at the given 1-based [row] and [col] position.
+  /// Only non-null arguments overwrite the existing value.
+  void editButton({
+    required int row,
+    required int col,
+    String? label,
+    String? style,
+    String? customIdOrUrl,
+    bool? disabled,
+    String? emoji,
+  }) {
+    int currentRow = 0;
+    int currentCol = 0;
+    for (final component in _components) {
+      if (component['type'] != 'button') continue;
+      if (currentCol == 0 || component['newRow'] == true) {
+        currentRow++;
+        currentCol = 1;
+      } else {
+        currentCol++;
+      }
+      if (currentRow == row && currentCol == col) {
+        if (label != null) component['label'] = label;
+        if (style != null) component['style'] = style;
+        if (customIdOrUrl != null) {
+          final resolvedStyle = style ?? component['style']?.toString() ?? '';
+          if (resolvedStyle == 'link') {
+            component['url'] = customIdOrUrl;
+            component['customId'] = '';
+          } else {
+            component['customId'] = customIdOrUrl;
+            component['url'] = '';
+          }
+        }
+        if (disabled != null) component['disabled'] = disabled;
+        if (emoji != null) component['emoji'] = emoji;
+        break;
+      }
+    }
+  }
+
+  /// Edits the select menu with the given [customId].
+  /// Only non-null arguments overwrite the existing value.
+  void editSelectMenu({
+    required String customId,
+    String? placeholder,
+    int? minValues,
+    int? maxValues,
+    bool? disabled,
+  }) {
+    for (final component in _components) {
+      if (component['type'] != 'selectMenu') continue;
+      if (component['customId'] != customId) continue;
+      if (placeholder != null) component['placeholder'] = placeholder;
+      if (minValues != null) component['minValues'] = minValues;
+      if (maxValues != null) component['maxValues'] = maxValues;
+      if (disabled != null) component['disabled'] = disabled;
+      break;
+    }
+  }
+
+  /// Edits the select menu option at 1-based [index] inside menu [menuId].
+  /// Empty string values are treated as "clear the field".
+  void editSelectMenuOption({
+    required String menuId,
+    required int index,
+    String? label,
+    String? value,
+    String? description,
+    bool? isDefault,
+    String? emoji,
+  }) {
+    int currentIndex = 0;
+    for (final component in _components) {
+      if (component['type'] != 'selectMenuOption') continue;
+      if (component['menuId'] != menuId) continue;
+      currentIndex++;
+      if (currentIndex == index) {
+        if (label != null) component['label'] = label;
+        if (value != null) component['value'] = value;
+        if (description != null) {
+          if (description.isNotEmpty) {
+            component['description'] = description;
+          } else {
+            component.remove('description');
+          }
+        }
+        if (isDefault != null) component['default'] = isDefault;
+        if (emoji != null) {
+          if (emoji.isNotEmpty) {
+            component['emoji'] = emoji;
+          } else {
+            component.remove('emoji');
+          }
+        }
+        break;
+      }
+    }
+  }
+
   List<Map<String, dynamic>> ensureEmbedFields() {
     final current = _embed['fields'];
     if (current is List<Map<String, dynamic>>) {
@@ -6668,6 +7004,30 @@ class _PendingResponse {
     _allowMentions = true;
     _allowUserMentions = true;
     _allowRoleMentions = false;
+
+    const richV2Types = {
+      'container',
+      'section',
+      'thumbnail',
+      'separator',
+      'textDisplay',
+      'mediaGallery',
+    };
+    final hasRichV2 = components.any(
+      (c) => richV2Types.contains(c['type']?.toString()),
+    );
+
+    if (hasRichV2) {
+      return Action(
+        type: BotCreatorActionType.respondWithComponentV2,
+        payload: <String, dynamic>{
+          if (content.trim().isNotEmpty) 'content': content,
+          'components': <String, dynamic>{'items': components},
+          'ephemeral': ephemeral,
+          if (channelId != null && channelId.isNotEmpty) 'channelId': channelId,
+        },
+      );
+    }
 
     return Action(
       type: BotCreatorActionType.respondWithMessage,
@@ -6824,6 +7184,12 @@ class _ConsumedLoopBlock {
     this.cStyleInit,
     this.cStyleCondition,
     this.cStyleUpdate,
+    this.isRuntimeLoop = false,
+    this.runtimeIterations,
+    this.runtimeInit,
+    this.runtimeCondition,
+    this.runtimeUpdate,
+    this.runtimeVarNames,
   });
 
   /// Pre-computed actions (used by try/catch blocks that reuse this class).
@@ -6838,6 +7204,15 @@ class _ConsumedLoopBlock {
   final String? cStyleUpdate;
 
   bool get isCStyleLoop => cStyleInit != null;
+
+  /// Runtime loop fields (when loop bounds depend on runtime placeholders).
+  final bool isRuntimeLoop;
+  final String? runtimeIterations;
+  final String? runtimeInit;
+  final String? runtimeCondition;
+  final String? runtimeUpdate;
+  final Set<String>? runtimeVarNames;
+  bool get isRuntimeCStyleLoop => runtimeInit != null;
 }
 
 bool _parseBooleanLike(String raw) {

@@ -214,10 +214,15 @@ class DiscordRunner {
   // ── Internal ─────────────────────────────────────────────────────────────
 
   void _injectGatewayBotVariables(Map<String, String> variables) {
+    // Keep a deterministic fallback so ((bot.ping)) never resolves to empty.
+    variables['bot.ping'] = '0';
+    variables['ping'] = '0';
     if (_gateway == null) return;
     try {
-      variables['bot.ping'] =
-          _gateway!.gateway.latency.inMilliseconds.toString();
+      final latencyMs = _gateway!.gateway.latency.inMilliseconds;
+      final ping = latencyMs < 0 ? '0' : latencyMs.toString();
+      variables['bot.ping'] = ping;
+      variables['ping'] = ping;
     } catch (_) {}
     try {
       variables['bot.shardId'] = _gateway!.gateway.shardIds.join(',');
@@ -1609,6 +1614,7 @@ class DiscordRunner {
       ...context.variables,
       'workflow.type': 'command',
     };
+    _injectGatewayBotVariables(baseRuntimeVariables);
     await hydrateRuntimeVariables(
       store: store,
       botId: botId,
@@ -1655,22 +1661,7 @@ class DiscordRunner {
       final value = Map<String, dynamic>.from(
         (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
       );
-      final runtimeVariables = <String, String>{...context.variables};
-      runtimeVariables['workflow.type'] = 'command';
-
-      await hydrateRuntimeVariables(
-        store: store,
-        botId: botId,
-        runtimeVariables: runtimeVariables,
-        guildContextId:
-            context.variables['guildId'] ?? context.guildId?.toString(),
-        channelContextId:
-            context.variables['channelId'] ?? context.channelId?.toString(),
-        userContextId:
-            context.variables['userId'] ?? context.variables['author.id'],
-        messageContextId:
-            context.variables['messageId'] ?? context.variables['message.id'],
-      );
+      final runtimeVariables = <String, String>{...baseRuntimeVariables};
 
       final prefix = await _resolveLegacyPrefix(
         value: value,

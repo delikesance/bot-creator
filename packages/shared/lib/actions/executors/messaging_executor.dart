@@ -32,6 +32,7 @@ Future<bool> executeMessagingAction({
   required Snowflake? guildId,
   required Snowflake? fallbackChannelId,
   required String Function(String input) resolveValue,
+  BotPermissionCache? permissionCache,
 }) async {
   switch (type) {
     case BotCreatorActionType.deleteMessages:
@@ -44,6 +45,7 @@ Future<bool> executeMessagingAction({
             Permissions.readMessageHistory,
           ],
           actionLabel: 'delete messages',
+          cache: permissionCache,
         );
         if (permError != null) {
           throw Exception(permError);
@@ -152,6 +154,7 @@ Future<bool> executeMessagingAction({
           guildId: guildId,
           requiredPermissions: [Permissions.sendMessages],
           actionLabel: 'send messages',
+          cache: permissionCache,
         );
         if (permError != null) {
           throw Exception(permError);

@@ -2,6 +2,7 @@ import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator_shared/utils/bdfd_autocomplete.dart';
 import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
 import 'package:bot_creator_shared/utils/bdfd_lexer.dart';
+import 'package:bot_creator_shared/utils/bdfd_signature_hints.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -86,6 +87,8 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
   int _autocompleteSelectedIndex = 0;
   List<MapEntry<String, String>> _autocompleteEntries =
       const <MapEntry<String, String>>[];
+  BdfdSignatureContext? _signatureContext;
+  final BdfdLexer _signatureLexer = BdfdLexer();
 
   bool get _isDesktopLike {
     final platform = Theme.of(context).platform;
@@ -99,6 +102,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
     super.initState();
     _controller = BdfdSyntaxController(text: widget.initialCode);
     _controller.addListener(_updateAutocomplete);
+    _controller.addListener(_updateSignatureHint);
     _editorScrollController.addListener(_syncLineNumberScroll);
     _recompile();
   }
@@ -106,6 +110,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
   @override
   void dispose() {
     _controller.removeListener(_updateAutocomplete);
+    _controller.removeListener(_updateSignatureHint);
     _editorScrollController.removeListener(_syncLineNumberScroll);
     _editorScrollController.dispose();
     _editorHorizontalScrollController.dispose();
@@ -117,6 +122,11 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
 
   bool get _isAutocompleteVisible =>
       _autocompleteEntries.isNotEmpty && _editorFocusNode.hasFocus;
+
+  bool get _isSignatureHintVisible =>
+      _signatureContext != null &&
+      _editorFocusNode.hasFocus &&
+      !_isAutocompleteVisible;
 
   void _syncLineNumberScroll() {
     if (_lineNumberScrollController.hasClients &&
@@ -226,6 +236,30 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
           _autocompleteSelectedIndex = 0;
         }
       });
+    }
+  }
+
+  void _updateSignatureHint() {
+    final source = _controller.text;
+    final sel = _controller.selection;
+    if (!sel.isValid || source.isEmpty) {
+      if (_signatureContext != null) {
+        setState(() => _signatureContext = null);
+      }
+      return;
+    }
+
+    final caret = sel.baseOffset;
+    final lexerResult = _signatureLexer.tokenize(source);
+    final ctx = bdfdSignatureContextAt(source, caret, lexerResult);
+
+    if (ctx != _signatureContext) {
+      final changed =
+          ctx?.functionName != _signatureContext?.functionName ||
+          ctx?.activeIndex != _signatureContext?.activeIndex;
+      if (changed || (ctx == null) != (_signatureContext == null)) {
+        setState(() => _signatureContext = ctx);
+      }
     }
   }
 
@@ -408,6 +442,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [_buildLineNumbers(), Expanded(child: editorField)],
               ),
+              _buildSignatureHintOverlay(constraints),
               _buildAutocompleteOverlay(constraints),
             ],
           );
@@ -428,10 +463,117 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
                 ),
               ],
             ),
+            _buildSignatureHintOverlay(constraints),
             _buildAutocompleteOverlay(constraints),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildSignatureHintOverlay(BoxConstraints constraints) {
+    if (!_isSignatureHintVisible) {
+      return const SizedBox.shrink();
+    }
+
+    final ctx = _signatureContext!;
+
+    const lineHeight = 20.0;
+    const charWidth = 7.8;
+    const editorTopPadding = 12.0;
+    const editorLeftPadding = 8.0;
+
+    final caret = _caretLineColumn();
+
+    final scrollY =
+        _editorScrollController.hasClients
+            ? _editorScrollController.offset
+            : 0.0;
+    final scrollX =
+        (!_wordWrap && _editorHorizontalScrollController.hasClients)
+            ? _editorHorizontalScrollController.offset
+            : 0.0;
+
+    final desiredLeft =
+        _lineNumberGutterWidth +
+        editorLeftPadding +
+        (caret.column * charWidth) -
+        scrollX;
+    // Position above the current line.
+    final desiredTop =
+        editorTopPadding + (caret.line * lineHeight) - scrollY - 32;
+
+    final maxLeft = (constraints.maxWidth - 320).clamp(0.0, double.infinity);
+    final left = desiredLeft.clamp(_lineNumberGutterWidth + 4, maxLeft);
+    final top = desiredTop.clamp(0.0, constraints.maxHeight - 40);
+
+    // Build the parameter spans with the active one highlighted.
+    final spans = <InlineSpan>[];
+    spans.add(
+      TextSpan(
+        text: '${ctx.functionName}[ ',
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 12,
+          color: _BdfdSyntaxColors.function,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+
+    for (var i = 0; i < ctx.parameters.length; i++) {
+      if (i > 0) {
+        spans.add(
+          const TextSpan(
+            text: ' ; ',
+            style: TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+              color: _BdfdSyntaxColors.semicolon,
+            ),
+          ),
+        );
+      }
+
+      final isActive = i == ctx.activeIndex;
+      spans.add(
+        TextSpan(
+          text: ctx.parameters[i],
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 12,
+            color: isActive ? Colors.white : Colors.grey.shade500,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            decoration: isActive ? TextDecoration.underline : null,
+            decorationColor: isActive ? Colors.blue.shade300 : null,
+          ),
+        ),
+      );
+    }
+
+    spans.add(
+      const TextSpan(
+        text: ' ]',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 12,
+          color: _BdfdSyntaxColors.bracket,
+        ),
+      ),
+    );
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(6),
+        color: const Color(0xFF1E293B),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          child: RichText(text: TextSpan(children: spans)),
+        ),
+      ),
     );
   }
 
@@ -517,14 +659,17 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
                   child: Row(
                     children: [
                       Icon(
-                        Icons.functions,
+                        entry.value.contains('\n')
+                            ? Icons.segment
+                            : Icons.functions,
                         size: 14,
                         color: isSelected ? Colors.white : Colors.blue.shade200,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          entry.value,
+                          entry.value.replaceAll('\n', ' ↵ '),
+                          maxLines: 1,
                           style: TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 12,

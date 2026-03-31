@@ -118,9 +118,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         // Plateforme non supportée.
       }
     } else {
-      if (isDesktopBotRunning && desktopRunningBotId != null) {
-        runningIds.add(desktopRunningBotId!);
-      }
+      runningIds.addAll(desktopRunningBotIds);
     }
     if (!mounted) return;
     setState(() {
@@ -331,20 +329,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             AppStrings.t('home_log_desktop_stop_requested'),
             botId: botId,
           );
-          await stopDesktopBot();
+          await stopDesktopBot(botId: botId);
           endBotLogSession(botId: botId);
-          setBotRuntimeActive(false);
+          setBotRuntimeActive(
+            isDesktopBotRunning || mobileRunningBotIds.isNotEmpty,
+          );
           clearBotBaselineRss();
           if (mounted) {
             setState(() {
-              _runningBotIds = <String>{};
+              _runningBotIds = <String>{..._runningBotIds}..remove(botId);
             });
           }
         } else {
           await startDesktopBot(token);
           if (mounted) {
             setState(() {
-              _runningBotIds = <String>{botId};
+              _runningBotIds = <String>{..._runningBotIds, botId};
             });
           }
         }
@@ -599,13 +599,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         final guildCount = app['guild_count'] as int?;
                         final isRunning = _runningBotIds.contains(id);
                         const runtimeToggleAllowed = true;
-                        // En mode runner, plusieurs bots peuvent tourner en parallèle.
+                        // Multi-bot is allowed on runner, mobile foreground, and
+                        // local desktop runtimes. Disable only while a toggle
+                        // operation is currently in progress.
                         final canToggle =
-                            runtimeToggleAllowed &&
-                            ((_runnerModeEnabled || _supportsForegroundTask)
-                                ? !_isTogglingBot
-                                : (!_isTogglingBot &&
-                                    (_runningBotIds.isEmpty || isRunning)));
+                            runtimeToggleAllowed && !_isTogglingBot;
 
                         final pulseCtrl = _getOrCreatePulseController(id);
 

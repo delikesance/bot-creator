@@ -57,9 +57,21 @@ class BdfdCompileResult {
 
 class BdfdCompiler {
   BdfdCompileResult compile(String source) {
+    final compileStopwatch = Stopwatch()..start();
     final lexerResult = BdfdLexer().tokenize(source);
     final parserResult = BdfdParser().parseTokens(lexerResult.tokens);
     final transpileResult = BdfdAstTranspiler().transpile(parserResult.ast);
+    compileStopwatch.stop();
+
+    // Inject compilation timing into any debugProfile action.
+    for (final action in transpileResult.actions) {
+      if (action.type == BotCreatorActionType.debugProfile) {
+        action.payload['compilationMs'] = compileStopwatch.elapsedMilliseconds;
+        action.payload['sourceLength'] = source.length;
+        action.payload['actionCount'] = transpileResult.actions.length;
+        break;
+      }
+    }
     final diagnostics = <BdfdCompileDiagnostic>[
       ...lexerResult.diagnostics.map(
         (diagnostic) => BdfdCompileDiagnostic(

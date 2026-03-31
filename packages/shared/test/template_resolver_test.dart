@@ -3,6 +3,14 @@ import 'package:test/test.dart';
 
 void main() {
   group('resolveTemplatePlaceholders', () {
+    test('resolves bot.ping placeholder', () {
+      final resolved = resolveTemplatePlaceholders('Ping: ((bot.ping)) ms', {
+        'bot.ping': '65',
+      });
+
+      expect(resolved, 'Ping: 65 ms');
+    });
+
     test(
       'resolves direct keys case-insensitively with exact-match priority',
       () {

@@ -152,6 +152,14 @@ String? _lookupVariableValue(String key, Map<String, String> updates) {
     }
   }
 
+  // Dynamic time variables resolved at template evaluation time.
+  if (loweredKey == 'gettimestamp') {
+    return (DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000).toString();
+  }
+  if (loweredKey == 'gettimestampms') {
+    return DateTime.now().toUtc().millisecondsSinceEpoch.toString();
+  }
+
   return null;
 }
 
@@ -440,6 +448,228 @@ bool _isWrappedStringLiteral(String input) {
     name: name,
     inner: expression.substring(openIndex + 1, expression.length - 1),
   );
+}
+
+({String name, String inner})? _parseBracketFunctionCall(String expression) {
+  final openIndex = expression.indexOf('[');
+  if (openIndex <= 0 || !expression.endsWith(']')) {
+    return null;
+  }
+
+  final name = expression.substring(0, openIndex).trim();
+  if (!RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$').hasMatch(name)) {
+    return null;
+  }
+
+  var depth = 0;
+  String? quote;
+  var escaping = false;
+  for (var index = openIndex; index < expression.length; index++) {
+    final char = expression[index];
+
+    if (quote != null) {
+      if (escaping) {
+        escaping = false;
+      } else if (char == r'\') {
+        escaping = true;
+      } else if (char == quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (char == '"' || char == "'") {
+      quote = char;
+      continue;
+    }
+
+    if (char == '[') {
+      depth++;
+      continue;
+    }
+
+    if (char == ']') {
+      depth--;
+      if (depth == 0 && index != expression.length - 1) {
+        return null;
+      }
+      if (depth < 0) {
+        return null;
+      }
+    }
+  }
+
+  if (depth != 0) {
+    return null;
+  }
+
+  return (
+    name: name,
+    inner: expression.substring(openIndex + 1, expression.length - 1),
+  );
+}
+
+double? _evaluateSimpleMathExpression(String expression) {
+  final cleaned = expression.replaceAll(' ', '');
+  if (cleaned.isEmpty) {
+    return null;
+  }
+
+  final directNum = double.tryParse(cleaned);
+  if (directNum != null) {
+    return directNum;
+  }
+
+  final twoOperandPattern = RegExp(r'^(-?[\d.]+)\s*([+\-*/%^])\s*(-?[\d.]+)$');
+  final match = twoOperandPattern.firstMatch(cleaned);
+  if (match == null) {
+    return null;
+  }
+
+  final left = double.tryParse(match.group(1)!);
+  final operator = match.group(2)!;
+  final right = double.tryParse(match.group(3)!);
+  if (left == null || right == null) {
+    return null;
+  }
+
+  switch (operator) {
+    case '+':
+      return left + right;
+    case '-':
+      return left - right;
+    case '*':
+      return left * right;
+    case '/':
+      return right != 0 ? left / right : 0;
+    case '%':
+      return right != 0 ? left % right : 0;
+    case '^':
+      return pow(left, right).toDouble();
+    default:
+      return null;
+  }
+}
+
+dynamic _applyBdfdBracketFunction(
+  String rawName,
+  List<String> rawArgs,
+  List<dynamic> resolvedArgs,
+  Map<String, String> updates,
+) {
+  final name = rawName.trim().toLowerCase();
+  switch (name) {
+    case 'calculate':
+      if (rawArgs.isEmpty) {
+        return null;
+      }
+      final expression =
+          resolveTemplatePlaceholders(rawArgs.first, updates).trim();
+      final result = _evaluateSimpleMathExpression(expression);
+      if (result == null) {
+        return null;
+      }
+      if (result == result.roundToDouble() && result.abs() < 1e15) {
+        return result.toInt();
+      }
+      return result;
+    case 'ceil':
+      final ceilValue =
+          resolvedArgs.isEmpty ? null : _coerceNum(resolvedArgs[0]);
+      return ceilValue?.ceil();
+    case 'floor':
+      final floorValue =
+          resolvedArgs.isEmpty ? null : _coerceNum(resolvedArgs[0]);
+      return floorValue?.floor();
+    case 'round':
+      final roundValue =
+          resolvedArgs.isEmpty ? null : _coerceNum(resolvedArgs[0]);
+      return roundValue?.round();
+    case 'sqrt':
+      final sqrtValue =
+          resolvedArgs.isEmpty ? null : _coerceNum(resolvedArgs[0]);
+      if (sqrtValue == null) {
+        return null;
+      }
+      final result = sqrt(sqrtValue.toDouble());
+      if (result == result.roundToDouble() && result.abs() < 1e15) {
+        return result.toInt();
+      }
+      return result;
+    case 'max':
+      if (resolvedArgs.length < 2) {
+        return null;
+      }
+      final left = _coerceNum(resolvedArgs[0]);
+      final right = _coerceNum(resolvedArgs[1]);
+      if (left == null || right == null) {
+        return null;
+      }
+      return max(left, right);
+    case 'min':
+      if (resolvedArgs.length < 2) {
+        return null;
+      }
+      final left = _coerceNum(resolvedArgs[0]);
+      final right = _coerceNum(resolvedArgs[1]);
+      if (left == null || right == null) {
+        return null;
+      }
+      return min(left, right);
+    case 'modulo':
+    case 'multi':
+    case 'divide':
+    case 'sub':
+      if (resolvedArgs.length < 2) {
+        return null;
+      }
+      final left = _coerceNum(resolvedArgs[0]);
+      final right = _coerceNum(resolvedArgs[1]);
+      if (left == null || right == null) {
+        return null;
+      }
+      switch (name) {
+        case 'modulo':
+          return right != 0 ? left % right : 0;
+        case 'multi':
+          return left * right;
+        case 'divide':
+          return right != 0 ? left / right : 0;
+        case 'sub':
+          return left - right;
+      }
+      return null;
+    case 'sum':
+      if (resolvedArgs.isEmpty) {
+        return null;
+      }
+      if (resolvedArgs.length == 1) {
+        final source = _coerceList(resolvedArgs[0]);
+        if (source != null) {
+          num total = 0;
+          for (final item in source) {
+            final numeric = _coerceNum(item);
+            if (numeric != null) {
+              total += numeric;
+            }
+          }
+          return total;
+        }
+      }
+      num total = 0;
+      var foundNumeric = false;
+      for (final arg in resolvedArgs) {
+        final numeric = _coerceNum(arg);
+        if (numeric == null) {
+          return null;
+        }
+        foundNumeric = true;
+        total += numeric;
+      }
+      return foundNumeric ? total : null;
+    default:
+      return null;
+  }
 }
 
 int? _coerceInt(dynamic value) {
@@ -902,11 +1132,36 @@ _ResolvedExpression _evaluateSingleExpression(
     return _ResolvedExpression(found: true, value: value);
   }
 
+  final bracketFunctionCall = _parseBracketFunctionCall(trimmed);
+  if (bracketFunctionCall != null) {
+    final rawArgs = _splitTopLevel(bracketFunctionCall.inner, ';');
+    final resolvedArgs = <dynamic>[];
+    for (final arg in rawArgs) {
+      final outcome = _evaluateExpression(arg, updates);
+      if (!outcome.found) {
+        return const _ResolvedExpression(found: false);
+      }
+      resolvedArgs.add(outcome.value);
+    }
+    final value = _applyBdfdBracketFunction(
+      bracketFunctionCall.name,
+      rawArgs,
+      resolvedArgs,
+      updates,
+    );
+    if (value != null) {
+      return _ResolvedExpression(found: true, value: value);
+    }
+  }
+
   String resolvedKey = trimmed;
   if (trimmed.contains('((')) {
     final nestedResolved = resolveTemplatePlaceholders(trimmed, updates).trim();
     if (nestedResolved.isNotEmpty) {
       resolvedKey = nestedResolved;
+      if (trimmed.startsWith('((') && trimmed.endsWith('))')) {
+        return _ResolvedExpression(found: true, value: resolvedKey);
+      }
     }
   }
 

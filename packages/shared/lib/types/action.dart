@@ -44,6 +44,7 @@ enum BotCreatorActionType {
   // Logic & Flow actions
   stopUnless,
   ifBlock,
+  forLoop,
   // Interaction / Component actions
   respondWithMessage,
   respondWithComponentV2,
@@ -89,6 +90,8 @@ enum BotCreatorActionType {
   removeThreadMember,
   editChannelPermissions,
   deleteChannelPermission,
+  // Debugging
+  debugProfile,
 }
 
 enum ActionOnErrorMode { stop, continueMode }

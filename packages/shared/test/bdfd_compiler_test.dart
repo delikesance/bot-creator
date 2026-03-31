@@ -1,5 +1,6 @@
 import 'package:bot_creator_shared/types/action.dart';
 import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
+import 'package:bot_creator_shared/utils/template_resolver.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -53,6 +54,66 @@ void main() {
         BotCreatorActionType.respondWithMessage,
       );
       expect(result.actions.single.payload['content'], '((message.content))');
+    });
+
+    test('compiles getTimestampMs as runtime placeholder', () {
+      final result = BdfdCompiler().compile(r'$reply[$getTimestampMs]');
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+
+      final raw = result.actions.single.payload['content']?.toString() ?? '';
+      expect(raw, '((getTimestampMs))');
+
+      // Verify it resolves to a current-ish timestamp at runtime.
+      final resolved = resolveTemplatePlaceholders(raw, <String, String>{});
+      final value = int.tryParse(resolved);
+      expect(value, isNotNull);
+      final now = DateTime.now().toUtc().millisecondsSinceEpoch;
+      expect(value! >= now - 1000, isTrue);
+      expect(value <= now + 1000, isTrue);
+    });
+
+    test(
+      'resolves sub with getTimestampMs and messageTimestamp at runtime',
+      () {
+        final result = BdfdCompiler().compile(
+          r'$reply[Latency: $sub[$getTimestampMs;$messageTimestamp] ms]',
+        );
+
+        expect(result.hasErrors, isFalse);
+        expect(result.actions, hasLength(1));
+
+        final compiled =
+            result.actions.single.payload['content']?.toString() ?? '';
+        final messageTimestamp =
+            DateTime.now().toUtc().millisecondsSinceEpoch - 25;
+        final resolved = resolveTemplatePlaceholders(compiled, <String, String>{
+          'message.timestamp': messageTimestamp.toString(),
+        });
+
+        final match = RegExp(r'^Latency: (\d+) ms$').firstMatch(resolved);
+        expect(match, isNotNull);
+        expect(int.parse(match!.group(1)!), greaterThanOrEqualTo(0));
+      },
+    );
+
+    test('resolves ping compiled to bot.ping at runtime', () {
+      final result = BdfdCompiler().compile(r'$reply[Ping: $ping ms]');
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+
+      final compiled =
+          result.actions.single.payload['content']?.toString() ?? '';
+      // Verify the compiled output contains bot.ping reference
+      expect(compiled, contains('bot.ping'));
+
+      final resolved = resolveTemplatePlaceholders(compiled, <String, String>{
+        'bot.ping': '52',
+      });
+
+      expect(resolved, 'Ping: 52 ms');
     });
 
     test('compiles channelSendMessage helper', () {
@@ -703,6 +764,98 @@ void main() {
       expect(result.actions[4].payload['content'], 'inner=10');
       expect(result.actions[5].payload['content'], 'inner=11');
     });
+
+    test('simple runtime loop emits forLoop action for dynamic iterations', () {
+      final result = BdfdCompiler().compile(
+        r'$for[$args[2]]$reply[hello]$endfor',
+      );
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions.single.type, BotCreatorActionType.forLoop);
+      expect(result.actions.single.payload['mode'], 'simple');
+      expect(result.actions.single.payload['iterations'], contains('(('));
+      final bodyActions = result.actions.single.payload['bodyActions'] as List;
+      expect(bodyActions, hasLength(1));
+    });
+
+    test('simple runtime loop with \$loop alias', () {
+      final result = BdfdCompiler().compile(
+        r'$loop[$args[1]]$reply[hi]$endloop',
+      );
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions.single.type, BotCreatorActionType.forLoop);
+      expect(result.actions.single.payload['mode'], 'simple');
+    });
+
+    test(
+      'C-style runtime loop emits forLoop action when condition has placeholder',
+      () {
+        final result = BdfdCompiler().compile(
+          r'$for[i=0;i<$args[2];i++]$reply[$i]$endfor',
+        );
+
+        expect(result.hasErrors, isFalse);
+        expect(result.actions, hasLength(1));
+        final action = result.actions.single;
+        expect(action.type, BotCreatorActionType.forLoop);
+        expect(action.payload['mode'], 'cstyle');
+        expect(action.payload['init'], 'i=0');
+        expect(action.payload['condition'], contains('(('));
+        expect(action.payload['update'], 'i++');
+        expect(action.payload['varNames'], contains('i'));
+        final bodyActions = action.payload['bodyActions'] as List;
+        expect(bodyActions, hasLength(1));
+        // Body should contain loop variable placeholder.
+        final bodyPayload = bodyActions[0] as Map;
+        final content = (bodyPayload['payload'] as Map)['content'] as String;
+        expect(content, contains('((_loop.var.i))'));
+      },
+    );
+
+    test('C-style runtime loop with runtime init value', () {
+      final result = BdfdCompiler().compile(
+        r'$for[i=$args[0];i<$args[2];i++]$reply[$i]$endfor',
+      );
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      final action = result.actions.single;
+      expect(action.type, BotCreatorActionType.forLoop);
+      expect(action.payload['mode'], 'cstyle');
+      expect(action.payload['init'], contains('(('));
+    });
+
+    test('static loops still unrolled at compile-time (backward compat)', () {
+      final result = BdfdCompiler().compile(r'$for[3]$reply[x]$endfor');
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(3));
+      // Should NOT be a forLoop action – should be unrolled.
+      for (final action in result.actions) {
+        expect(action.type, isNot(BotCreatorActionType.forLoop));
+      }
+    });
+
+    test(
+      'runtime loop body uses ((_loop.index)) and ((_loop.count)) placeholders',
+      () {
+        final result = BdfdCompiler().compile(
+          r'$for[$args[0]]$reply[$i is $loopCount]$endfor',
+        );
+
+        expect(result.hasErrors, isFalse);
+        expect(result.actions, hasLength(1));
+        final action = result.actions.single;
+        expect(action.type, BotCreatorActionType.forLoop);
+        final bodyActions = action.payload['bodyActions'] as List;
+        final content = (bodyActions[0] as Map)['payload']['content'] as String;
+        expect(content, contains('((_loop.index))'));
+        expect(content, contains('((_loop.count))'));
+      },
+    );
   });
 
   group('temporary variables via \$var', () {
@@ -898,6 +1051,115 @@ void main() {
         result.actions[1].payload['content'],
         contains('((workflow.response.KEY))'),
       );
+    });
+  });
+
+  group(r'$eval', () {
+    test('emits runBdfdScript action with script content', () {
+      final result = BdfdCompiler().compile(r'$eval[$username]');
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions[0].type, BotCreatorActionType.runBdfdScript);
+      expect(result.actions[0].payload['scriptContent'], r'((user.username))');
+    });
+
+    test('passes through runtime placeholders in script content', () {
+      final result = BdfdCompiler().compile(r'$eval[((opts.script))]');
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions[0].type, BotCreatorActionType.runBdfdScript);
+      expect(result.actions[0].payload['scriptContent'], '((opts.script))');
+    });
+
+    test('flushes pending response before eval', () {
+      final result = BdfdCompiler().compile(
+        'Hello\n'
+        r'$eval[$username]',
+      );
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(2));
+      expect(result.actions[0].type, BotCreatorActionType.respondWithMessage);
+      expect(result.actions[0].payload['content'], contains('Hello'));
+      expect(result.actions[1].type, BotCreatorActionType.runBdfdScript);
+    });
+
+    test('eval with complex BDFD content', () {
+      final result = BdfdCompiler().compile(r'$eval[$reply[Hello $username]]');
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions[0].type, BotCreatorActionType.runBdfdScript);
+    });
+
+    test('eval with empty argument', () {
+      final result = BdfdCompiler().compile(r'$eval[]');
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions[0].type, BotCreatorActionType.runBdfdScript);
+      expect(result.actions[0].payload['scriptContent'], '');
+    });
+  });
+
+  group(r'$debug', () {
+    test('emits debugProfile action', () {
+      final result = BdfdCompiler().compile(r'$debug');
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions[0].type, BotCreatorActionType.debugProfile);
+    });
+
+    test('flushes pending response before debug', () {
+      final result = BdfdCompiler().compile(
+        'Hello\n'
+        r'$debug',
+      );
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(2));
+      expect(result.actions[0].type, BotCreatorActionType.respondWithMessage);
+      expect(result.actions[0].payload['content'], contains('Hello'));
+      expect(result.actions[1].type, BotCreatorActionType.debugProfile);
+    });
+
+    test('produces correct action sequence with other functions', () {
+      final result = BdfdCompiler().compile(
+        r'$debug'
+        '\n'
+        r'$reply[pong]',
+      );
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(2));
+      expect(result.actions[0].type, BotCreatorActionType.debugProfile);
+      expect(result.actions[1].type, BotCreatorActionType.respondWithMessage);
+    });
+
+    test('carries compilation timing metadata', () {
+      final result = BdfdCompiler().compile(r'$debug');
+      expect(result.hasErrors, isFalse);
+      final debugAction = result.actions[0];
+      expect(debugAction.payload['compilationMs'], isA<int>());
+      expect(debugAction.payload['sourceLength'], equals(6));
+      expect(debugAction.payload['actionCount'], equals(1));
+    });
+
+    test('loop actions carry iteration metadata', () {
+      final result = BdfdCompiler().compile(
+        r'$debug'
+        '\n'
+        r'$for[3]'
+        '\n'
+        r'  $channelSendMessage[$channelID;iter $i]'
+        '\n'
+        r'$endfor',
+      );
+      expect(result.hasErrors, isFalse);
+      // debugProfile + 3 sendMessage
+      expect(result.actions, hasLength(4));
+      expect(result.actions[0].type, BotCreatorActionType.debugProfile);
+      for (var i = 1; i <= 3; i++) {
+        final a = result.actions[i];
+        expect(a.type, BotCreatorActionType.sendMessage);
+        expect(a.payload['_debugLoopDepth'], equals(1));
+        expect(a.payload['_debugLoopIteration'], equals(i - 1));
+      }
     });
   });
 }

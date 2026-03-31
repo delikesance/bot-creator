@@ -165,6 +165,8 @@ class _BdfdTokenParser {
         return _parseAddField(functionToken);
       case 'addsection':
         return _parseAddSection(functionToken);
+      case 'addmediagallery':
+        return _parseAddMediaGallery(functionToken);
       case 'addthumbnail':
         return _parseAddThumbnail(functionToken);
       case 'addtimestamp':
@@ -372,6 +374,9 @@ class _BdfdTokenParser {
       _parseGenericFunctionCall(functionToken);
 
   BdfdFunctionCallAst _parseAddSection(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddMediaGallery(BdfdToken functionToken) =>
       _parseGenericFunctionCall(functionToken);
 
   BdfdFunctionCallAst _parseAddThumbnail(BdfdToken functionToken) =>

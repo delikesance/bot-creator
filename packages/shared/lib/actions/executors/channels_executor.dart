@@ -25,6 +25,7 @@ Future<bool> executeChannelsAction({
   required String resultKey,
   required Map<String, String> results,
   required String Function(String input) resolveValue,
+  BotPermissionCache? permissionCache,
 }) async {
   switch (type) {
     case BotCreatorActionType.createChannel:
@@ -51,6 +52,7 @@ Future<bool> executeChannelsAction({
           guildId: guildId,
           requiredPermissions: [Permissions.manageChannels],
           actionLabel: 'update channels',
+          cache: permissionCache,
         );
         if (permError != null) {
           throw Exception(permError);
@@ -74,6 +76,7 @@ Future<bool> executeChannelsAction({
           guildId: guildId,
           requiredPermissions: [Permissions.manageChannels],
           actionLabel: 'delete channels',
+          cache: permissionCache,
         );
         if (permError != null) {
           throw Exception(permError);

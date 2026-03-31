@@ -17,6 +17,7 @@ Future<bool> executeWebhooksAction({
   required Snowflake? fallbackChannelId,
   required Snowflake? fallbackGuildId,
   required String Function(String input) resolveValue,
+  BotPermissionCache? permissionCache,
 }) async {
   switch (type) {
     case BotCreatorActionType.sendWebhook:
@@ -51,6 +52,7 @@ Future<bool> executeWebhooksAction({
           guildId: fallbackGuildId,
           requiredPermissions: [Permissions.manageWebhooks],
           actionLabel: 'list webhooks',
+          cache: permissionCache,
         );
         if (permError != null) {
           throw Exception(permError);
