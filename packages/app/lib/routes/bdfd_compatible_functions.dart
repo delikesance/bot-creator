@@ -9,7 +9,8 @@ class BdfdCompatibleFunctionsPage extends StatefulWidget {
       _BdfdCompatibleFunctionsPageState();
 }
 
-class _BdfdCompatibleFunctionsPageState extends State<BdfdCompatibleFunctionsPage> {
+class _BdfdCompatibleFunctionsPageState
+    extends State<BdfdCompatibleFunctionsPage> {
   String _query = '';
 
   static const List<_FunctionCategory> _categories = [
@@ -110,6 +111,7 @@ class _BdfdCompatibleFunctionsPageState extends State<BdfdCompatibleFunctionsPag
         r'$addTimestamp[]',
         r'$embeddedURL',
         r'$addContainer',
+        r'$addMediaGallery',
         r'$addSection',
         r'$addThumbnail',
       ],
@@ -566,11 +568,7 @@ class _BdfdCompatibleFunctionsPageState extends State<BdfdCompatibleFunctionsPag
     ),
     _FunctionCategory(
       titleKey: 'settings_compatibility_functions_category_tickets',
-      functions: [
-        r'$newTicket',
-        r'$isTicket',
-        r'$closeTicket',
-      ],
+      functions: [r'$newTicket', r'$isTicket', r'$closeTicket'],
     ),
     _FunctionCategory(
       titleKey: 'settings_compatibility_functions_category_misc',
@@ -596,21 +594,22 @@ class _BdfdCompatibleFunctionsPageState extends State<BdfdCompatibleFunctionsPag
     ),
   ];
 
-    static final Map<String, String> _botCreatorSupportedMap =
+  static final Map<String, String> _botCreatorSupportedMap =
       _buildBotCreatorSupportedMap();
-    static final Map<String, String> _bdfdReferenceMap =
-      _buildBdfdReferenceMap();
+  static final Map<String, String> _bdfdReferenceMap = _buildBdfdReferenceMap();
 
-    static final Set<String> _botCreatorSupported =
+  static final Set<String> _botCreatorSupported =
       _botCreatorSupportedMap.keys.toSet();
-    static final Set<String> _bdfdReference = _bdfdReferenceMap.keys.toSet();
+  static final Set<String> _bdfdReference = _bdfdReferenceMap.keys.toSet();
 
   List<String> _filtered(List<String> values) {
     final query = _query.trim().toLowerCase();
     if (query.isEmpty) {
       return values;
     }
-    return values.where((value) => value.toLowerCase().contains(query)).toList();
+    return values
+        .where((value) => value.toLowerCase().contains(query))
+        .toList();
   }
 
   List<String> _sortedFromMap(Set<String> keys, Map<String, String> source) {
@@ -699,51 +698,60 @@ class _BdfdCompatibleFunctionsPageState extends State<BdfdCompatibleFunctionsPag
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    AppStrings.t('settings_compatibility_functions_matrix_subtitle'),
+                    AppStrings.t(
+                      'settings_compatibility_functions_matrix_subtitle',
+                    ),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    AppStrings.tr('settings_compatibility_functions_count_bot_creator', params: {
-                      'count': _botCreatorSupported.length.toString(),
-                    }),
+                    AppStrings.tr(
+                      'settings_compatibility_functions_count_bot_creator',
+                      params: {'count': _botCreatorSupported.length.toString()},
+                    ),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    AppStrings.tr('settings_compatibility_functions_count_bdfd', params: {
-                      'count': _bdfdReference.length.toString(),
-                    }),
+                    AppStrings.tr(
+                      'settings_compatibility_functions_count_bdfd',
+                      params: {'count': _bdfdReference.length.toString()},
+                    ),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    AppStrings.tr('settings_compatibility_functions_count_both', params: {
-                      'count': supportedByBoth.length.toString(),
-                    }),
+                    AppStrings.tr(
+                      'settings_compatibility_functions_count_both',
+                      params: {'count': supportedByBoth.length.toString()},
+                    ),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    AppStrings.tr('settings_compatibility_functions_count_missing', params: {
-                      'count': missingInBotCreator.length.toString(),
-                    }),
+                    AppStrings.tr(
+                      'settings_compatibility_functions_count_missing',
+                      params: {'count': missingInBotCreator.length.toString()},
+                    ),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    AppStrings.tr('settings_compatibility_functions_count_bot_only', params: {
-                      'count': botCreatorOnly.length.toString(),
-                    }),
+                    AppStrings.tr(
+                      'settings_compatibility_functions_count_bot_only',
+                      params: {'count': botCreatorOnly.length.toString()},
+                    ),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     onChanged: (value) => setState(() => _query = value),
                     decoration: InputDecoration(
-                      hintText: AppStrings.t('settings_compatibility_functions_search_hint'),
+                      hintText: AppStrings.t(
+                        'settings_compatibility_functions_search_hint',
+                      ),
                       prefixIcon: const Icon(Icons.search),
                       border: const OutlineInputBorder(),
                       isDense: true,
@@ -751,7 +759,9 @@ class _BdfdCompatibleFunctionsPageState extends State<BdfdCompatibleFunctionsPag
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    AppStrings.t('settings_compatibility_functions_matrix_note'),
+                    AppStrings.t(
+                      'settings_compatibility_functions_matrix_note',
+                    ),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -762,22 +772,30 @@ class _BdfdCompatibleFunctionsPageState extends State<BdfdCompatibleFunctionsPag
           ),
           const SizedBox(height: 12),
           _StatusSectionCard(
-            title: AppStrings.t('settings_compatibility_functions_section_both'),
+            title: AppStrings.t(
+              'settings_compatibility_functions_section_both',
+            ),
             color: Theme.of(context).colorScheme.primaryContainer,
             textColor: Theme.of(context).colorScheme.onPrimaryContainer,
             functions: visibleBoth,
           ),
           const SizedBox(height: 12),
           _StatusSectionCard(
-            title: AppStrings.t('settings_compatibility_functions_section_bot_only'),
+            title: AppStrings.t(
+              'settings_compatibility_functions_section_bot_only',
+            ),
             color: Theme.of(context).colorScheme.tertiaryContainer,
             textColor: Theme.of(context).colorScheme.onTertiaryContainer,
             functions: visibleBotOnly,
-            subtitle: AppStrings.t('settings_compatibility_functions_section_bot_only_note'),
+            subtitle: AppStrings.t(
+              'settings_compatibility_functions_section_bot_only_note',
+            ),
           ),
           const SizedBox(height: 12),
           _StatusSectionCard(
-            title: AppStrings.t('settings_compatibility_functions_section_missing'),
+            title: AppStrings.t(
+              'settings_compatibility_functions_section_missing',
+            ),
             color: Theme.of(context).colorScheme.errorContainer,
             textColor: Theme.of(context).colorScheme.onErrorContainer,
             functions: visibleMissing,
@@ -813,9 +831,9 @@ class _StatusSectionCard extends StatelessWidget {
           children: [
             Text(
               '$title (${functions.length})',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
             ),
             if (subtitle != null) ...[
               const SizedBox(height: 6),

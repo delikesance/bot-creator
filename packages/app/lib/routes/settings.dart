@@ -479,12 +479,174 @@ class _SettingPageState extends State<SettingPage> {
     );
   }
 
+  Future<void> _deleteSnapshot(BackupSnapshotSummary snapshot) async {
+    await _runWithLoading(
+      AppStrings.t('settings_snapshot_delete_loading'),
+      () async {
+        try {
+          await _ensureDriveApiConnected();
+          await deleteBackupSnapshot(
+            driveApi!,
+            snapshotId: snapshot.snapshotId,
+          );
+          await _refreshSnapshots();
+          if (!mounted) {
+            return;
+          }
+          _showSnack(AppStrings.t('settings_snapshot_deleted'));
+        } catch (e, st) {
+          debugPrint('Delete snapshot failed: $e');
+          debugPrintStack(stackTrace: st);
+          if (!mounted) {
+            return;
+          }
+          _showSnack(_formatErrorMessage(e));
+        }
+      },
+    );
+  }
+
+  Future<void> _restoreSnapshot(BackupSnapshotSummary snapshot) async {
+    await _runWithLoading(
+      AppStrings.t('settings_snapshot_restore_loading'),
+      () async {
+        try {
+          await _ensureDriveApiConnected();
+          final message = await restoreBackupSnapshot(
+            driveApi!,
+            appManager,
+            snapshotId: snapshot.snapshotId,
+          );
+          await appManager.refreshApps();
+          await _refreshSnapshots();
+          if (!mounted) {
+            return;
+          }
+          _showSnack(message);
+        } catch (e, st) {
+          debugPrint('Restore snapshot failed: $e');
+          debugPrintStack(stackTrace: st);
+          if (!mounted) {
+            return;
+          }
+          _showSnack(_formatErrorMessage(e));
+        }
+      },
+    );
+  }
+
+  Widget _buildSnapshotDetailsContent(BackupSnapshotSummary snapshot) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            AppStrings.tr(
+              'settings_snapshot_id',
+              params: {'id': snapshot.snapshotId},
+            ),
+          ),
+          Text(
+            AppStrings.tr(
+              'settings_snapshot_label',
+              params: {'label': snapshot.label},
+            ),
+          ),
+          Text(
+            AppStrings.tr(
+              'settings_snapshot_created_at',
+              params: {'date': snapshot.createdAt.toLocal().toString()},
+            ),
+          ),
+          Text(
+            AppStrings.tr(
+              'settings_snapshot_files_size',
+              params: {
+                'count': snapshot.fileCount.toString(),
+                'size': _formatBytes(snapshot.totalBytes),
+              },
+            ),
+          ),
+          Text(
+            AppStrings.tr(
+              'settings_snapshot_apps_count',
+              params: {'count': snapshot.appCount.toString()},
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            AppStrings.t('settings_snapshot_apps_list'),
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 6),
+          if (snapshot.apps.isEmpty)
+            Text(AppStrings.t('settings_snapshot_no_metadata'))
+          else
+            ...snapshot.apps.map((entry) {
+              final appName = (entry['name'] ?? '').trim();
+              final appId = (entry['id'] ?? '').trim();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(appName.isEmpty ? appId : '$appName ($appId)'),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showSnapshotPreview(BackupSnapshotSummary snapshot) async {
-    if (!kDebugMode) {
+    if (!mounted) {
       return;
     }
 
-    if (!mounted) {
+    final isCompact = MediaQuery.of(context).size.width < 700;
+
+    if (isCompact) {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (sheetContext) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  AppStrings.t('settings_snapshot_preview_title'),
+                  style: Theme.of(sheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                Flexible(child: _buildSnapshotDetailsContent(snapshot)),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _restoreSnapshot(snapshot);
+                  },
+                  icon: const Icon(Icons.restore),
+                  label: Text(AppStrings.t('settings_restore_snapshot')),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _deleteSnapshot(snapshot);
+                  },
+                  child: Text(AppStrings.t('delete')),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(sheetContext).pop(),
+                  child: Text(AppStrings.t('close')),
+                ),
+              ],
+            ),
+          );
+        },
+      );
       return;
     }
 
@@ -495,94 +657,13 @@ class _SettingPageState extends State<SettingPage> {
           title: Text(AppStrings.t('settings_snapshot_preview_title')),
           content: SizedBox(
             width: 560,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    AppStrings.tr(
-                      'settings_snapshot_id',
-                      params: {'id': snapshot.snapshotId},
-                    ),
-                  ),
-                  Text(
-                    AppStrings.tr(
-                      'settings_snapshot_label',
-                      params: {'label': snapshot.label},
-                    ),
-                  ),
-                  Text(
-                    AppStrings.tr(
-                      'settings_snapshot_created_at',
-                      params: {'date': snapshot.createdAt.toLocal().toString()},
-                    ),
-                  ),
-                  Text(
-                    AppStrings.tr(
-                      'settings_snapshot_files_size',
-                      params: {
-                        'count': snapshot.fileCount.toString(),
-                        'size': _formatBytes(snapshot.totalBytes),
-                      },
-                    ),
-                  ),
-                  Text(
-                    AppStrings.tr(
-                      'settings_snapshot_apps_count',
-                      params: {'count': snapshot.appCount.toString()},
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    AppStrings.t('settings_snapshot_apps_list'),
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 6),
-                  if (snapshot.apps.isEmpty)
-                    Text(AppStrings.t('settings_snapshot_no_metadata'))
-                  else
-                    ...snapshot.apps.map((entry) {
-                      final appName = (entry['name'] ?? '').trim();
-                      final appId = (entry['id'] ?? '').trim();
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          appName.isEmpty ? appId : '$appName ($appId)',
-                        ),
-                      );
-                    }),
-                ],
-              ),
-            ),
+            child: _buildSnapshotDetailsContent(snapshot),
           ),
           actions: [
             TextButton(
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
-                await _runWithLoading(
-                  AppStrings.t('settings_snapshot_delete_loading'),
-                  () async {
-                    try {
-                      await _ensureDriveApiConnected();
-                      await deleteBackupSnapshot(
-                        driveApi!,
-                        snapshotId: snapshot.snapshotId,
-                      );
-                      await _refreshSnapshots();
-                      if (!mounted) {
-                        return;
-                      }
-                      _showSnack(AppStrings.t('settings_snapshot_deleted'));
-                    } catch (e, st) {
-                      debugPrint('Delete snapshot failed: $e');
-                      debugPrintStack(stackTrace: st);
-                      if (!mounted) {
-                        return;
-                      }
-                      _showSnack(_formatErrorMessage(e));
-                    }
-                  },
-                );
+                await _deleteSnapshot(snapshot);
               },
               child: Text(AppStrings.t('delete')),
             ),
@@ -593,32 +674,7 @@ class _SettingPageState extends State<SettingPage> {
             FilledButton.icon(
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
-                await _runWithLoading(
-                  AppStrings.t('settings_snapshot_restore_loading'),
-                  () async {
-                    try {
-                      await _ensureDriveApiConnected();
-                      final message = await restoreBackupSnapshot(
-                        driveApi!,
-                        appManager,
-                        snapshotId: snapshot.snapshotId,
-                      );
-                      await appManager.refreshApps();
-                      await _refreshSnapshots();
-                      if (!mounted) {
-                        return;
-                      }
-                      _showSnack(message);
-                    } catch (e, st) {
-                      debugPrint('Restore snapshot failed: $e');
-                      debugPrintStack(stackTrace: st);
-                      if (!mounted) {
-                        return;
-                      }
-                      _showSnack(_formatErrorMessage(e));
-                    }
-                  },
-                );
+                await _restoreSnapshot(snapshot);
               },
               icon: const Icon(Icons.restore),
               label: Text(AppStrings.t('settings_restore_snapshot')),
@@ -1851,14 +1907,8 @@ class _SettingPageState extends State<SettingPage> {
                                 subtitle: Text(
                                   _snapshotListEntryLabel(snapshot),
                                 ),
-                                trailing:
-                                    kDebugMode
-                                        ? const Icon(Icons.chevron_right)
-                                        : null,
-                                onTap:
-                                    kDebugMode
-                                        ? () => _showSnapshotPreview(snapshot)
-                                        : null,
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => _showSnapshotPreview(snapshot),
                               );
                             }),
                         ],

@@ -194,52 +194,54 @@ Future<void> hydrateRuntimeVariables({
           ? '$normalizedGuildId:$normalizedUserId'
           : null;
 
-  await injectScopedRuntimeVariables(
-    store: store,
-    botId: botId,
-    scope: 'guild',
-    contextId: guildContextId,
-    runtimeVariables: runtimeVariables,
-    legacyContextIds: _legacyContextIdsForScope('guild', guildContextId),
-    scopedDefinitions: scopedDefinitions,
-  );
-  await injectScopedRuntimeVariables(
-    store: store,
-    botId: botId,
-    scope: 'channel',
-    contextId: channelContextId,
-    runtimeVariables: runtimeVariables,
-    legacyContextIds: _legacyContextIdsForScope('channel', channelContextId),
-    scopedDefinitions: scopedDefinitions,
-  );
-  await injectScopedRuntimeVariables(
-    store: store,
-    botId: botId,
-    scope: 'user',
-    contextId: userContextId,
-    runtimeVariables: runtimeVariables,
-    legacyContextIds: _legacyContextIdsForScope('user', userContextId),
-    scopedDefinitions: scopedDefinitions,
-  );
-  await injectScopedRuntimeVariables(
-    store: store,
-    botId: botId,
-    scope: 'guildMember',
-    contextId: guildMemberContextId,
-    runtimeVariables: runtimeVariables,
-    legacyContextIds: _legacyContextIdsForScope(
-      'guildMember',
-      guildMemberContextId,
+  await Future.wait([
+    injectScopedRuntimeVariables(
+      store: store,
+      botId: botId,
+      scope: 'guild',
+      contextId: guildContextId,
+      runtimeVariables: runtimeVariables,
+      legacyContextIds: _legacyContextIdsForScope('guild', guildContextId),
+      scopedDefinitions: scopedDefinitions,
     ),
-    scopedDefinitions: scopedDefinitions,
-  );
-  await injectScopedRuntimeVariables(
-    store: store,
-    botId: botId,
-    scope: 'message',
-    contextId: messageContextId,
-    runtimeVariables: runtimeVariables,
-    legacyContextIds: _legacyContextIdsForScope('message', messageContextId),
-    scopedDefinitions: scopedDefinitions,
-  );
+    injectScopedRuntimeVariables(
+      store: store,
+      botId: botId,
+      scope: 'channel',
+      contextId: channelContextId,
+      runtimeVariables: runtimeVariables,
+      legacyContextIds: _legacyContextIdsForScope('channel', channelContextId),
+      scopedDefinitions: scopedDefinitions,
+    ),
+    injectScopedRuntimeVariables(
+      store: store,
+      botId: botId,
+      scope: 'user',
+      contextId: userContextId,
+      runtimeVariables: runtimeVariables,
+      legacyContextIds: _legacyContextIdsForScope('user', userContextId),
+      scopedDefinitions: scopedDefinitions,
+    ),
+    injectScopedRuntimeVariables(
+      store: store,
+      botId: botId,
+      scope: 'guildMember',
+      contextId: guildMemberContextId,
+      runtimeVariables: runtimeVariables,
+      legacyContextIds: _legacyContextIdsForScope(
+        'guildMember',
+        guildMemberContextId,
+      ),
+      scopedDefinitions: scopedDefinitions,
+    ),
+    injectScopedRuntimeVariables(
+      store: store,
+      botId: botId,
+      scope: 'message',
+      contextId: messageContextId,
+      runtimeVariables: runtimeVariables,
+      legacyContextIds: _legacyContextIdsForScope('message', messageContextId),
+      scopedDefinitions: scopedDefinitions,
+    ),
+  ]);
 }

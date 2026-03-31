@@ -658,7 +658,7 @@ Future<void> _executeLocalEventWorkflow(
   Guild? eventGuild;
   if (eventGuildId != null) {
     try {
-      final fetched = await gateway.guilds.fetch(eventGuildId);
+      final fetched = await gateway.guilds.get(eventGuildId);
       eventGuild = fetched;
       runtimeVariables.addAll(
         shared_global.extractGuildRuntimeDetails(fetched),
@@ -669,7 +669,7 @@ Future<void> _executeLocalEventWorkflow(
   final eventChannelId = context.channelId;
   if (eventChannelId != null) {
     try {
-      final channel = await gateway.channels.fetch(eventChannelId);
+      final channel = await gateway.channels.get(eventChannelId);
       runtimeVariables.addAll(
         shared_global.extractChannelRuntimeDetails(channel),
       );
@@ -851,6 +851,14 @@ bool _matchesAwaitedLocalFilter(String message, String? rawFilter) {
   return allowed.contains(message.trim().toLowerCase());
 }
 
+final RegExp _bdfdPermissionPattern = RegExp(
+  r'\$(?:hasPerms|authorPerms|memberPerms|userPerms|isAdmin|hasRole|getRole'
+  r'|roleId|highestRole|lowestRole|boostingSince|memberJoined|isBanned'
+  r'|nickname|getRoleColor|getRoleName|roleCount|rolePosition'
+  r'|checkUserPerms|modifyRole|addRole|removeRole|takeRole|giveRole)',
+  caseSensitive: false,
+);
+
 Future<List<Map<String, dynamic>>?> _resolveLocalLegacyActionsJson({
   required Map<String, dynamic> data,
   required String commandName,
@@ -977,6 +985,11 @@ Future<bool> _tryExecuteLocalAwaitedInput(
       ...context.variables,
       'workflow.type': 'command',
     };
+    _injectLocalGatewayBotVariables(
+      gateway,
+      runtimeVariables,
+      startedAt: _botStartedAt(botId),
+    );
     await hydrateRuntimeVariables(
       store: manager,
       botId: botId,
@@ -1304,7 +1317,7 @@ Future<Map<String, String>?> _parseLocalLegacyOptionValue(
           return <String, String>{'value': idText, 'id': idText};
         }
         try {
-          final channel = await gateway.channels.fetch(Snowflake(parsedId));
+          final channel = await gateway.channels.get(Snowflake(parsedId));
           return <String, String>{
             'value': getChannelName(channel),
             'id': channel.id.toString(),
@@ -1319,7 +1332,7 @@ Future<Map<String, String>?> _parseLocalLegacyOptionValue(
           return null;
         }
         try {
-          final guild = await gateway.guilds.fetch(context.guildId!);
+          final guild = await gateway.guilds.get(context.guildId!);
           final channels = await guild.fetchChannels();
           for (final channel in channels) {
             final name = channel.name.toLowerCase();
@@ -1372,7 +1385,7 @@ Future<Map<String, String>?> _parseLocalLegacyOptionValue(
         return <String, String>{'value': idText, 'id': idText};
       }
       try {
-        final guild = await gateway.guilds.fetch(context.guildId!);
+        final guild = await gateway.guilds.get(context.guildId!);
         final role = await guild.roles.fetch(Snowflake(parsedId));
         return <String, String>{'value': role.name, 'id': role.id.toString()};
       } catch (_) {}
@@ -1410,7 +1423,7 @@ Future<Map<String, String>?> _parseLocalLegacyOptionValue(
         final parsedId = int.tryParse(id);
         if (parsedId != null && context.guildId != null) {
           try {
-            final guild = await gateway.guilds.fetch(context.guildId!);
+            final guild = await gateway.guilds.get(context.guildId!);
             final role = await guild.roles.fetch(Snowflake(parsedId));
             return <String, String>{
               'value': role.name,
@@ -1445,7 +1458,7 @@ Future<Map<String, String>?> _parseLocalLegacyOptionValue(
         }
         if (parsedId != null && context.guildId != null) {
           try {
-            final guild = await gateway.guilds.fetch(context.guildId!);
+            final guild = await gateway.guilds.get(context.guildId!);
             final role = await guild.roles.fetch(Snowflake(parsedId));
             return <String, String>{
               'value': role.name,
@@ -1546,7 +1559,7 @@ Future<void> _sendLocalLegacyMessage(
     return;
   }
 
-  final channel = await gateway.channels.fetch(context.channelId!);
+  final channel = await gateway.channels.get(context.channelId!);
   final builder = MessageBuilder(
     content: content.isEmpty ? null : content,
     embeds: embeds.isEmpty ? null : embeds,
@@ -1837,19 +1850,22 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     return false;
   }
 
-  final allCommands = await manager.listAppCommands(botId);
-  final legacyCommands = allCommands
-      .where(_isLegacyLocalCommand)
-      .toList(growable: false);
-  if (legacyCommands.isEmpty) {
-    return false;
-  }
+  // Start loading commands (cached after first call).
+  final allCommandsFuture = manager.listAppCommands(botId);
 
   final baseRuntimeVariables = <String, String>{
     ...context.variables,
     'workflow.type': 'command',
   };
-  await hydrateRuntimeVariables(
+  _injectLocalGatewayBotVariables(
+    gateway,
+    baseRuntimeVariables,
+    startedAt: _botStartedAt(botId),
+  );
+
+  // Hydrate runtime variables in parallel with command loading.
+  // Must run before matching because prefixes can reference global variables.
+  final hydrateFuture = hydrateRuntimeVariables(
     store: manager,
     botId: botId,
     runtimeVariables: baseRuntimeVariables,
@@ -1861,6 +1877,16 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     messageContextId:
         context.variables['messageId'] ?? context.variables['message.id'],
   );
+
+  final allCommands = await allCommandsFuture;
+  final legacyCommands = allCommands
+      .where(_isLegacyLocalCommand)
+      .toList(growable: false);
+  if (legacyCommands.isEmpty) {
+    return false;
+  }
+
+  await hydrateFuture;
 
   final handledBuiltInHelp = await _tryExecuteBuiltInLocalLegacyHelp(
     gateway,
@@ -1896,35 +1922,12 @@ Future<bool> _tryExecuteLocalLegacyCommand(
       (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
 
-    final runtimeVariables = <String, String>{
-      ...context.variables,
-      'workflow.type': 'command',
-    };
-    await hydrateRuntimeVariables(
-      store: manager,
-      botId: botId,
-      runtimeVariables: runtimeVariables,
-      guildContextId:
-          context.variables['guildId'] ?? context.guildId?.toString(),
-      channelContextId:
-          context.variables['channelId'] ?? context.channelId?.toString(),
-      userContextId:
-          context.variables['userId'] ?? context.variables['author.id'],
-      messageContextId:
-          context.variables['messageId'] ?? context.variables['message.id'],
-    );
-    await _populateLocalLegacyAuthorPermissions(
-      gateway,
-      context: context,
-      runtimeVariables: runtimeVariables,
-      onLog: onLog,
-    );
-
+    // ── Cheap prefix / command-name matching FIRST ──────────────────
     final overridePrefix =
         (data['legacyPrefixOverride'] ?? '').toString().trim();
     final globalPrefix = (appData['prefix'] ?? '!').toString();
     final rawPrefix = overridePrefix.isNotEmpty ? overridePrefix : globalPrefix;
-    final prefix = updateString(rawPrefix, runtimeVariables).trim();
+    final prefix = updateString(rawPrefix, baseRuntimeVariables).trim();
     if (prefix.isEmpty || !content.startsWith(prefix)) {
       continue;
     }
@@ -1945,6 +1948,36 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     final commandName = (command['name'] ?? '').toString().trim().toLowerCase();
     if (tokens.first.toLowerCase() != commandName) {
       continue;
+    }
+
+    // ── Command matched — now do the expensive work ─────────────────
+    final runtimeVariables = <String, String>{...baseRuntimeVariables};
+
+    // Compile BDFD / resolve actions first (fast, pure CPU).
+    final actionsJson = await _resolveLocalLegacyActionsJson(
+      data: data,
+      commandName: commandName,
+      onLog: onLog,
+    );
+
+    // Determine whether expensive permission population is needed.
+    final executionMode =
+        (data['executionMode'] ?? 'workflow').toString().trim().toLowerCase();
+    final bool needsPermissions;
+    if (executionMode == 'bdfd_script') {
+      final source = (data['bdfdScriptContent'] ?? '').toString();
+      needsPermissions = _bdfdPermissionPattern.hasMatch(source);
+    } else {
+      needsPermissions = true;
+    }
+
+    if (needsPermissions) {
+      await _populateLocalLegacyAuthorPermissions(
+        gateway,
+        context: context,
+        runtimeVariables: runtimeVariables,
+        onLog: onLog,
+      );
     }
 
     final args = tokens.length > 1 ? tokens.sublist(1) : const <String>[];
@@ -1984,13 +2017,6 @@ Future<bool> _tryExecuteLocalLegacyCommand(
 
     final response = Map<String, dynamic>.from(
       (data['response'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-    final executionMode =
-        (data['executionMode'] ?? 'workflow').toString().trim().toLowerCase();
-    final actionsJson = await _resolveLocalLegacyActionsJson(
-      data: data,
-      commandName: commandName,
-      onLog: onLog,
     );
     if (actionsJson == null) {
       await _sendLocalLegacyMessage(

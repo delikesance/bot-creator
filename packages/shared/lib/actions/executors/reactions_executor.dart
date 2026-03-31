@@ -14,6 +14,7 @@ Future<bool> executeReactionsAction({
   required Map<String, String> results,
   required Snowflake? fallbackChannelId,
   Snowflake? guildId,
+  BotPermissionCache? permissionCache,
 }) async {
   switch (type) {
     case BotCreatorActionType.addReaction:
@@ -26,6 +27,7 @@ Future<bool> executeReactionsAction({
             Permissions.readMessageHistory,
           ],
           actionLabel: 'add reactions',
+          cache: permissionCache,
         );
         if (permError != null) {
           throw Exception(permError);
@@ -61,6 +63,7 @@ Future<bool> executeReactionsAction({
           guildId: guildId,
           requiredPermissions: [Permissions.manageMessages],
           actionLabel: 'clear reactions',
+          cache: permissionCache,
         );
         if (permError != null) {
           throw Exception(permError);

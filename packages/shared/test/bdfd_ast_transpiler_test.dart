@@ -1262,7 +1262,7 @@ void main() {
     });
   });
 
-  group('embed new functions', () {
+  group('embed helper functions', () {
     test(r'transpiles $addTimestamp without argument to "now"', () {
       final result = BdfdAstTranspiler().transpile(
         const BdfdScriptAst(
@@ -1414,14 +1414,14 @@ void main() {
       expect(footer['icon_url'], 'https://example.com/icon.png');
     });
 
-    test(r'transpiles $addContainer into embed container', () {
+    test(r'transpiles $thumbnail into an embed thumbnail', () {
       final result = BdfdAstTranspiler().transpile(
         const BdfdScriptAst(
           nodes: [
             BdfdFunctionCallAst(
-              name: r'$addContainer',
+              name: r'$thumbnail',
               arguments: [
-                <BdfdAstNode>[BdfdTextAst('#ff0000')],
+                <BdfdAstNode>[BdfdTextAst('https://embed-thumb.example.com')],
               ],
             ),
           ],
@@ -1429,16 +1429,50 @@ void main() {
       );
 
       expect(result.diagnostics, isEmpty);
+      expect(
+        result.actions.single.type,
+        BotCreatorActionType.respondWithMessage,
+      );
       final embeds = List<Map<String, dynamic>>.from(
         result.actions.single.payload['embeds'] as List,
       );
-      final container = Map<String, dynamic>.from(
-        embeds.single['container'] as Map,
-      );
-      expect(container['color'], '#ff0000');
+      expect(embeds.single['thumbnail'], {
+        'url': 'https://embed-thumb.example.com',
+      });
     });
+  });
 
-    test(r'transpiles $addSection into embed section', () {
+  group('ComponentV2 builder functions', () {
+    test(
+      r'transpiles $addContainer into a ComponentV2 container component',
+      () {
+        final result = BdfdAstTranspiler().transpile(
+          const BdfdScriptAst(
+            nodes: [
+              BdfdFunctionCallAst(
+                name: r'$addContainer',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('#ff0000')],
+                ],
+              ),
+            ],
+          ),
+        );
+
+        expect(result.diagnostics, isEmpty);
+        expect(
+          result.actions.single.type,
+          BotCreatorActionType.respondWithComponentV2,
+        );
+        final items = List<Map<String, dynamic>>.from(
+          (result.actions.single.payload['components'] as Map)['items'] as List,
+        );
+        expect(items.single['type'], 'container');
+        expect(items.single['accentColor'], '#ff0000');
+      },
+    );
+
+    test(r'transpiles $addSection into a ComponentV2 section component', () {
       final result = BdfdAstTranspiler().transpile(
         const BdfdScriptAst(
           nodes: [
@@ -1453,23 +1487,61 @@ void main() {
       );
 
       expect(result.diagnostics, isEmpty);
-      final embeds = List<Map<String, dynamic>>.from(
-        result.actions.single.payload['embeds'] as List,
+      expect(
+        result.actions.single.type,
+        BotCreatorActionType.respondWithComponentV2,
       );
-      final section = Map<String, dynamic>.from(
-        embeds.single['section'] as Map,
+      final items = List<Map<String, dynamic>>.from(
+        (result.actions.single.payload['components'] as Map)['items'] as List,
       );
-      expect(section['content'], 'Section text');
+      expect(items.single['type'], 'section');
+      expect(items.single['content'], 'Section text');
     });
 
-    test(r'transpiles $addThumbnail into embed thumbnail', () {
+    test(
+      r'transpiles $addThumbnail into a ComponentV2 thumbnail component',
+      () {
+        final result = BdfdAstTranspiler().transpile(
+          const BdfdScriptAst(
+            nodes: [
+              BdfdFunctionCallAst(
+                name: r'$addThumbnail',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('https://example.com/thumb.png')],
+                ],
+              ),
+            ],
+          ),
+        );
+
+        expect(result.diagnostics, isEmpty);
+        expect(
+          result.actions.single.type,
+          BotCreatorActionType.respondWithComponentV2,
+        );
+        final items = List<Map<String, dynamic>>.from(
+          (result.actions.single.payload['components'] as Map)['items'] as List,
+        );
+        expect(items.single['type'], 'thumbnail');
+        expect(items.single['url'], 'https://example.com/thumb.png');
+      },
+    );
+
+    test(r'$addMediaGallery adds items to a new media gallery', () {
       final result = BdfdAstTranspiler().transpile(
         const BdfdScriptAst(
           nodes: [
             BdfdFunctionCallAst(
-              name: r'$addThumbnail',
+              name: r'$addMediaGallery',
               arguments: [
-                <BdfdAstNode>[BdfdTextAst('https://example.com/thumb.png')],
+                <BdfdAstNode>[BdfdTextAst('https://example.com/img1.png')],
+                <BdfdAstNode>[BdfdTextAst('First image')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$addMediaGallery',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('https://example.com/img2.png')],
               ],
             ),
           ],
@@ -1477,13 +1549,364 @@ void main() {
       );
 
       expect(result.diagnostics, isEmpty);
-      final embeds = List<Map<String, dynamic>>.from(
-        result.actions.single.payload['embeds'] as List,
+      expect(
+        result.actions.single.type,
+        BotCreatorActionType.respondWithComponentV2,
       );
-      final thumbnail = Map<String, dynamic>.from(
-        embeds.single['thumbnail'] as Map,
+      final items = List<Map<String, dynamic>>.from(
+        (result.actions.single.payload['components'] as Map)['items'] as List,
       );
-      expect(thumbnail['url'], 'https://example.com/thumb.png');
+      expect(items, hasLength(1));
+      expect(items.single['type'], 'mediaGallery');
+      final galleryItems = List<Map<String, dynamic>>.from(
+        items.single['items'] as List,
+      );
+      expect(galleryItems, hasLength(2));
+      expect(galleryItems[0]['url'], 'https://example.com/img1.png');
+      expect(galleryItems[0]['description'], 'First image');
+      expect(galleryItems[1]['url'], 'https://example.com/img2.png');
+      expect(galleryItems[1].containsKey('description'), isFalse);
+    });
+
+    test(
+      r'$addMediaGallery starts a new gallery after a non-gallery component',
+      () {
+        final result = BdfdAstTranspiler().transpile(
+          const BdfdScriptAst(
+            nodes: [
+              BdfdFunctionCallAst(
+                name: r'$addMediaGallery',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('https://example.com/a.png')],
+                ],
+              ),
+              BdfdFunctionCallAst(name: r'$addSeparator'),
+              BdfdFunctionCallAst(
+                name: r'$addMediaGallery',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('https://example.com/b.png')],
+                ],
+              ),
+            ],
+          ),
+        );
+
+        expect(result.diagnostics, isEmpty);
+        final items = List<Map<String, dynamic>>.from(
+          (result.actions.single.payload['components'] as Map)['items'] as List,
+        );
+        // gallery, separator, gallery
+        expect(items, hasLength(3));
+        expect(items[0]['type'], 'mediaGallery');
+        expect(items[1]['type'], 'separator');
+        expect(items[2]['type'], 'mediaGallery');
+        expect(
+          (items[0]['items'] as List).single['url'],
+          'https://example.com/a.png',
+        );
+        expect(
+          (items[2]['items'] as List).single['url'],
+          'https://example.com/b.png',
+        );
+      },
+    );
+
+    test(r'rich V2 components produce respondWithComponentV2 action type', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$addTextDisplay',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('Hello ComponentV2')],
+              ],
+            ),
+            BdfdFunctionCallAst(name: r'$addSeparator'),
+            BdfdFunctionCallAst(
+              name: r'$addButton',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('no')],
+                <BdfdAstNode>[BdfdTextAst('cmd_ok')],
+                <BdfdAstNode>[BdfdTextAst('OK')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      expect(
+        result.actions.single.type,
+        BotCreatorActionType.respondWithComponentV2,
+      );
+      final items = List<Map<String, dynamic>>.from(
+        (result.actions.single.payload['components'] as Map)['items'] as List,
+      );
+      expect(items[0]['type'], 'textDisplay');
+      expect(items[1]['type'], 'separator');
+      expect(items[2]['type'], 'button');
+    });
+
+    test(
+      r'pure buttons without rich V2 keep respondWithMessage action type',
+      () {
+        final result = BdfdAstTranspiler().transpile(
+          const BdfdScriptAst(
+            nodes: [
+              BdfdFunctionCallAst(
+                name: r'$addButton',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('no')],
+                  <BdfdAstNode>[BdfdTextAst('cmd_a')],
+                  <BdfdAstNode>[BdfdTextAst('Click')],
+                ],
+              ),
+            ],
+          ),
+        );
+
+        expect(result.diagnostics, isEmpty);
+        expect(
+          result.actions.single.type,
+          BotCreatorActionType.respondWithMessage,
+        );
+      },
+    );
+  });
+
+  group('ComponentV2 editing functions', () {
+    test(r'$editButton modifies the button at given row/col position', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$addButton',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('no')],
+                <BdfdAstNode>[BdfdTextAst('cmd_a')],
+                <BdfdAstNode>[BdfdTextAst('Alpha')],
+                <BdfdAstNode>[BdfdTextAst('primary')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$addButton',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('no')],
+                <BdfdAstNode>[BdfdTextAst('cmd_b')],
+                <BdfdAstNode>[BdfdTextAst('Beta')],
+                <BdfdAstNode>[BdfdTextAst('secondary')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$addButton',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('yes')],
+                <BdfdAstNode>[BdfdTextAst('cmd_c')],
+                <BdfdAstNode>[BdfdTextAst('Gamma')],
+                <BdfdAstNode>[BdfdTextAst('danger')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$editButton',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('1')],
+                <BdfdAstNode>[BdfdTextAst('2')],
+                <BdfdAstNode>[BdfdTextAst('BetaEdited')],
+                <BdfdAstNode>[BdfdTextAst('success')],
+                <BdfdAstNode>[BdfdTextAst('cmd_b_edited')],
+                <BdfdAstNode>[BdfdTextAst('yes')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final components = List<Map<String, dynamic>>.from(
+        (result.actions.single.payload['components'] as Map)['items'] as List,
+      );
+      final buttons = components
+          .where((c) => c['type'] == 'button')
+          .toList(growable: false);
+      // Row 1: Alpha (col 1), BetaEdited (col 2)
+      // Row 2: Gamma (col 1)
+      expect(buttons[0]['label'], 'Alpha');
+      expect(buttons[1]['label'], 'BetaEdited');
+      expect(buttons[1]['style'], 'success');
+      expect(buttons[1]['customId'], 'cmd_b_edited');
+      expect(buttons[1]['disabled'], true);
+      expect(buttons[2]['label'], 'Gamma');
+    });
+
+    test(r'$editButton on a link-style button sets url not customId', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$addButton',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('no')],
+                <BdfdAstNode>[BdfdTextAst('https://old.example.com')],
+                <BdfdAstNode>[BdfdTextAst('Visit')],
+                <BdfdAstNode>[BdfdTextAst('link')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$editButton',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('1')],
+                <BdfdAstNode>[BdfdTextAst('1')],
+                <BdfdAstNode>[BdfdTextAst('Go')],
+                <BdfdAstNode>[BdfdTextAst('link')],
+                <BdfdAstNode>[BdfdTextAst('https://new.example.com')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final components = List<Map<String, dynamic>>.from(
+        (result.actions.single.payload['components'] as Map)['items'] as List,
+      );
+      final button = components.firstWhere((c) => c['type'] == 'button');
+      expect(button['label'], 'Go');
+      expect(button['url'], 'https://new.example.com');
+      expect(button['customId'], '');
+    });
+
+    test(r'$editSelectMenu updates placeholder and disabled state', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$newSelectMenu',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('menu_1')],
+                <BdfdAstNode>[BdfdTextAst('Pick one')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$editSelectMenu',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('menu_1')],
+                <BdfdAstNode>[BdfdTextAst('Updated placeholder')],
+                <BdfdAstNode>[BdfdTextAst('2')],
+                <BdfdAstNode>[BdfdTextAst('3')],
+                <BdfdAstNode>[BdfdTextAst('yes')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final components = List<Map<String, dynamic>>.from(
+        (result.actions.single.payload['components'] as Map)['items'] as List,
+      );
+      final menu = components.firstWhere((c) => c['type'] == 'selectMenu');
+      expect(menu['placeholder'], 'Updated placeholder');
+      expect(menu['minValues'], 2);
+      expect(menu['maxValues'], 3);
+      expect(menu['disabled'], true);
+    });
+
+    test(
+      r'$editSelectMenuOption updates the option at given 1-based index',
+      () {
+        final result = BdfdAstTranspiler().transpile(
+          const BdfdScriptAst(
+            nodes: [
+              BdfdFunctionCallAst(
+                name: r'$newSelectMenu',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('menu_x')],
+                ],
+              ),
+              BdfdFunctionCallAst(
+                name: r'$addSelectMenuOption',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('Option A')],
+                  <BdfdAstNode>[BdfdTextAst('val_a')],
+                ],
+              ),
+              BdfdFunctionCallAst(
+                name: r'$addSelectMenuOption',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('Option B')],
+                  <BdfdAstNode>[BdfdTextAst('val_b')],
+                ],
+              ),
+              BdfdFunctionCallAst(
+                name: r'$editSelectMenuOption',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('menu_x')],
+                  <BdfdAstNode>[BdfdTextAst('2')],
+                  <BdfdAstNode>[BdfdTextAst('Option B Edited')],
+                  <BdfdAstNode>[BdfdTextAst('val_b_edited')],
+                  <BdfdAstNode>[BdfdTextAst('A helpful description')],
+                  <BdfdAstNode>[BdfdTextAst('yes')],
+                  <BdfdAstNode>[BdfdTextAst('⭐')],
+                ],
+              ),
+            ],
+          ),
+        );
+
+        expect(result.diagnostics, isEmpty);
+        final components = List<Map<String, dynamic>>.from(
+          (result.actions.single.payload['components'] as Map)['items'] as List,
+        );
+        final options = components
+            .where((c) => c['type'] == 'selectMenuOption')
+            .toList(growable: false);
+        expect(options[0]['label'], 'Option A');
+        expect(options[1]['label'], 'Option B Edited');
+        expect(options[1]['value'], 'val_b_edited');
+        expect(options[1]['description'], 'A helpful description');
+        expect(options[1]['default'], true);
+        expect(options[1]['emoji'], '⭐');
+      },
+    );
+
+    test(r'$editSelectMenuOption with empty description clears the field', () {
+      final result = BdfdAstTranspiler().transpile(
+        const BdfdScriptAst(
+          nodes: [
+            BdfdFunctionCallAst(
+              name: r'$newSelectMenu',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('menu_y')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$addSelectMenuOption',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('Opt')],
+                <BdfdAstNode>[BdfdTextAst('v')],
+                <BdfdAstNode>[BdfdTextAst('Original desc')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$editSelectMenuOption',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('menu_y')],
+                <BdfdAstNode>[BdfdTextAst('1')],
+                <BdfdAstNode>[],
+                <BdfdAstNode>[],
+                <BdfdAstNode>[BdfdTextAst('')],
+              ],
+            ),
+          ],
+        ),
+      );
+
+      expect(result.diagnostics, isEmpty);
+      final components = List<Map<String, dynamic>>.from(
+        (result.actions.single.payload['components'] as Map)['items'] as List,
+      );
+      final opt = components.firstWhere((c) => c['type'] == 'selectMenuOption');
+      expect(opt.containsKey('description'), isFalse);
     });
   });
 

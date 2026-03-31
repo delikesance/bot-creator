@@ -1,5 +1,48 @@
 import 'package:nyxx/nyxx.dart';
 
+// ── Permission cache ─────────────────────────────────────────────────────────
+
+/// Caches guild and bot-member data for the lifetime of a single command
+/// execution so that repeated permission checks don't make redundant HTTP
+/// calls.
+class BotPermissionCache {
+  Guild? _guild;
+  Snowflake? _cachedGuildId;
+  Permissions? _botPermissions;
+  Member? _botMember;
+
+  Future<Guild> getGuild(NyxxGateway client, Snowflake guildId) async {
+    if (_guild != null && _cachedGuildId == guildId) return _guild!;
+    _cachedGuildId = guildId;
+    _guild = await client.guilds.get(guildId);
+    _botPermissions = null;
+    _botMember = null;
+    return _guild!;
+  }
+
+  Future<Permissions> getBotPermissions(
+    NyxxGateway client,
+    Guild guild,
+    Snowflake guildId,
+  ) async {
+    if (_botPermissions != null && _cachedGuildId == guildId) {
+      return _botPermissions!;
+    }
+    final member = await _fetchBotMember(client, guild);
+    _botPermissions = _permissionsFromRoles(guild, member.roleIds, guildId);
+    return _botPermissions!;
+  }
+
+  Future<Member> _fetchBotMember(NyxxGateway client, Guild guild) async {
+    if (_botMember != null && _cachedGuildId == guild.id) return _botMember!;
+    _botMember = await guild.members.get(client.user.id);
+    return _botMember!;
+  }
+
+  Future<Member> getBotMember(NyxxGateway client, Guild guild) =>
+      _fetchBotMember(client, guild);
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /// Computes the combined permissions of the bot in [guild] by merging the
@@ -9,7 +52,7 @@ Future<Permissions> _computeBotPermissions(
   Guild guild,
   Snowflake guildId,
 ) async {
-  final botMember = await guild.members.fetch(client.user.id);
+  final botMember = await guild.members.get(client.user.id);
   return _permissionsFromRoles(guild, botMember.roleIds, guildId);
 }
 
@@ -37,9 +80,16 @@ Future<String?> checkBotGuildPermission(
   required Snowflake guildId,
   required List<Flag<Permissions>> requiredPermissions,
   required String actionLabel,
+  BotPermissionCache? cache,
 }) async {
-  final guild = await client.guilds.fetch(guildId);
-  final perms = await _computeBotPermissions(client, guild, guildId);
+  final guild =
+      cache != null
+          ? await cache.getGuild(client, guildId)
+          : await client.guilds.get(guildId);
+  final perms =
+      cache != null
+          ? await cache.getBotPermissions(client, guild, guildId)
+          : await _computeBotPermissions(client, guild, guildId);
 
   if (perms.isAdministrator) return null;
 
@@ -72,11 +122,18 @@ Future<String?> checkBotCanModerate(
   required Snowflake targetUserId,
   required Flag<Permissions> requiredPermission,
   required String actionLabel,
+  BotPermissionCache? cache,
 }) async {
-  final guild = await client.guilds.fetch(guildId);
+  final guild =
+      cache != null
+          ? await cache.getGuild(client, guildId)
+          : await client.guilds.get(guildId);
 
   // ── 1. Check bot permissions ──
-  final botMember = await guild.members.fetch(client.user.id);
+  final botMember =
+      cache != null
+          ? await cache.getBotMember(client, guild)
+          : await guild.members.get(client.user.id);
   final botRoleIds = botMember.roleIds;
   final botPermissions = _permissionsFromRoles(guild, botRoleIds, guildId);
 
@@ -91,7 +148,7 @@ Future<String?> checkBotCanModerate(
   }
 
   // ── 3. Role hierarchy: bot's highest role must be above target's ──
-  final targetMember = await guild.members.fetch(targetUserId);
+  final targetMember = await guild.members.get(targetUserId);
   final targetRoleIds = targetMember.roleIds;
 
   int highestPosition(List<Snowflake> roleIds) {

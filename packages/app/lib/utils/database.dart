@@ -19,6 +19,8 @@ class AppManager implements BotDataStore {
   late SqliteVariableStore _variableStore;
   bool _sqliteAvailable = false;
   final Map<String, Future<void>> _appWriteChains = <String, Future<void>>{};
+  final Map<String, List<Map<String, dynamic>>> _commandListCache =
+      <String, List<Map<String, dynamic>>>{};
 
   AppManager._internal() {
     unawaited(_init());
@@ -1568,6 +1570,9 @@ class AppManager implements BotDataStore {
   }
 
   Future<List<Map<String, dynamic>>> listAppCommands(String id) async {
+    final cached = _commandListCache[id];
+    if (cached != null) return cached;
+
     final path = await _path();
     final dir = Directory("$path/apps/$id");
     if (!await dir.exists()) {
@@ -1608,6 +1613,7 @@ class AppManager implements BotDataStore {
       final bName = (b['name'] ?? '').toString().toLowerCase();
       return aName.compareTo(bName);
     });
+    _commandListCache[id] = commands;
     return commands;
   }
 
@@ -1616,6 +1622,7 @@ class AppManager implements BotDataStore {
     String commandId,
     Map<String, dynamic> data,
   ) async {
+    _commandListCache.remove(id);
     final path = await _path();
     final file = File("$path/apps/$id/$commandId.json");
     if (!await file.exists()) await file.create(recursive: true);
@@ -1631,12 +1638,14 @@ class AppManager implements BotDataStore {
   }
 
   Future<void> deleteAppCommand(String id, String commandId) async {
+    _commandListCache.remove(id);
     final path = await _path();
     final file = File("$path/apps/$id/$commandId.json");
     if (await file.exists()) await file.delete();
   }
 
   Future<void> deleteAppCommands(String id) async {
+    _commandListCache.remove(id);
     final path = await _path();
     final dir = Directory("$path/apps/$id");
     if (!await dir.exists()) return;

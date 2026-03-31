@@ -89,6 +89,8 @@ enum BotCreatorActionType {
   removeThreadMember,
   editChannelPermissions,
   deleteChannelPermission,
+  // Debugging
+  debugProfile,
 }
 
 enum ActionOnErrorMode { stop, continueMode }

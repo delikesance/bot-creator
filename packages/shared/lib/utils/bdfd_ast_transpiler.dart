@@ -816,7 +816,12 @@ class _BdfdAstTranspilationScope {
     while (_evaluateCStyleCondition(condition, _loopVariables) &&
         iterationCount < _maxSupportedLoopIterations) {
       _loopIterationIndex = iterationCount;
-      actions.addAll(_transpileNodes(bodyNodes));
+      final iterActions = _transpileNodes(bodyNodes);
+      for (final a in iterActions) {
+        a.payload['_debugLoopDepth'] = _loopDepth;
+        a.payload['_debugLoopIteration'] = iterationCount;
+      }
+      actions.addAll(iterActions);
       _applyCStyleLoopUpdate(update, _loopVariables);
       iterationCount++;
     }
@@ -945,7 +950,12 @@ class _BdfdAstTranspilationScope {
     final actions = <Action>[];
     for (var index = 0; index < iterations; index++) {
       _loopIterationIndex = index;
-      actions.addAll(_transpileNodes(bodyNodes));
+      final iterActions = _transpileNodes(bodyNodes);
+      for (final a in iterActions) {
+        a.payload['_debugLoopDepth'] = _loopDepth;
+        a.payload['_debugLoopIteration'] = index;
+      }
+      actions.addAll(iterActions);
     }
     _loopDepth -= 1;
     _loopIterationIndex = previousIndex;
@@ -994,6 +1004,7 @@ class _BdfdAstTranspilationScope {
       case 'addcontainer':
       case 'addsection':
       case 'addthumbnail':
+      case 'addmediagallery':
       case 'addbutton':
       case 'addselectmenuoption':
       case 'newselectmenu':
@@ -1198,19 +1209,38 @@ class _BdfdAstTranspilationScope {
         embed['footer'] = footer;
         return true;
       case 'addcontainer':
-        response.ensureEmbed()['container'] = <String, dynamic>{
-          'color': _stringifyArgument(node, 0),
-        };
+        response.addComponent(<String, dynamic>{
+          'type': 'container',
+          'accentColor': _stringifyArgument(node, 0),
+        });
         return true;
       case 'addsection':
-        response.ensureEmbed()['section'] = <String, dynamic>{
+        response.addComponent(<String, dynamic>{
+          'type': 'section',
           'content': _stringifyArgument(node, 0),
-        };
+        });
         return true;
       case 'addthumbnail':
-        response.ensureEmbed()['thumbnail'] = <String, dynamic>{
+        response.addComponent(<String, dynamic>{
+          'type': 'thumbnail',
           'url': _stringifyArgument(node, 0),
+        });
+        return true;
+      case 'addmediagallery':
+        final galleryUrl = _stringifyArgument(node, 0);
+        final galleryDesc = _stringifyArgument(node, 1);
+        final galleryItem = <String, dynamic>{
+          'url': galleryUrl,
+          if (galleryDesc.isNotEmpty) 'description': galleryDesc,
         };
+        if (response.lastComponentType == 'mediaGallery') {
+          (response.lastComponent!['items'] as List).add(galleryItem);
+        } else {
+          response.addComponent(<String, dynamic>{
+            'type': 'mediaGallery',
+            'items': [galleryItem],
+          });
+        }
         return true;
       case 'addbutton':
         final newRow = _parseBooleanLike(_stringifyArgument(node, 0));
@@ -1263,10 +1293,65 @@ class _BdfdAstTranspilationScope {
         });
         return true;
       case 'editselectmenu':
+        final editMenuId = _stringifyArgument(node, 0);
+        final editMenuPlaceholder = _stringifyArgument(node, 1);
+        final editMenuMinStr = _stringifyArgument(node, 2);
+        final editMenuMaxStr = _stringifyArgument(node, 3);
+        final editMenuDisabledStr = _stringifyArgument(node, 4);
+        response.editSelectMenu(
+          customId: editMenuId,
+          placeholder: editMenuPlaceholder.isEmpty ? null : editMenuPlaceholder,
+          minValues:
+              editMenuMinStr.isEmpty ? null : int.tryParse(editMenuMinStr),
+          maxValues:
+              editMenuMaxStr.isEmpty ? null : int.tryParse(editMenuMaxStr),
+          disabled:
+              editMenuDisabledStr.isEmpty
+                  ? null
+                  : _parseBooleanLike(editMenuDisabledStr),
+        );
         return true;
       case 'editselectmenuoption':
+        final editOptMenuId = _stringifyArgument(node, 0);
+        final editOptIndex = int.tryParse(_stringifyArgument(node, 1)) ?? 1;
+        final editOptLabel = _stringifyArgument(node, 2);
+        final editOptValue = _stringifyArgument(node, 3);
+        final editOptDesc = _stringifyArgument(node, 4);
+        final editOptDefaultStr = _stringifyArgument(node, 5);
+        final editOptEmoji = _stringifyArgument(node, 6);
+        response.editSelectMenuOption(
+          menuId: editOptMenuId,
+          index: editOptIndex,
+          label: editOptLabel.isEmpty ? null : editOptLabel,
+          value: editOptValue.isEmpty ? null : editOptValue,
+          description: editOptDesc,
+          isDefault:
+              editOptDefaultStr.isEmpty
+                  ? null
+                  : _parseBooleanLike(editOptDefaultStr),
+          emoji: editOptEmoji,
+        );
         return true;
       case 'editbutton':
+        final editBtnRow = int.tryParse(_stringifyArgument(node, 0)) ?? 1;
+        final editBtnCol = int.tryParse(_stringifyArgument(node, 1)) ?? 1;
+        final editBtnLabel = _stringifyArgument(node, 2);
+        final editBtnStyle = _stringifyArgument(node, 3).trim().toLowerCase();
+        final editBtnCustomId = _stringifyArgument(node, 4);
+        final editBtnDisabledStr = _stringifyArgument(node, 5);
+        final editBtnEmoji = _stringifyArgument(node, 6);
+        response.editButton(
+          row: editBtnRow,
+          col: editBtnCol,
+          label: editBtnLabel.isEmpty ? null : editBtnLabel,
+          style: editBtnStyle.isEmpty ? null : editBtnStyle,
+          customIdOrUrl: editBtnCustomId.isEmpty ? null : editBtnCustomId,
+          disabled:
+              editBtnDisabledStr.isEmpty
+                  ? null
+                  : _parseBooleanLike(editBtnDisabledStr),
+          emoji: editBtnEmoji.isEmpty ? null : editBtnEmoji,
+        );
         return true;
       case 'removeallcomponents':
         response.clearComponents();
@@ -1672,6 +1757,12 @@ class _BdfdAstTranspilationScope {
       // Workflow call
       case 'callworkflow':
         return _buildCallWorkflowAction(node);
+      // Dynamic eval
+      case 'eval':
+        return _buildEvalAction(node);
+      // Debug profiling
+      case 'debug':
+        return _buildDebugAction(node);
       default:
         _diagnostics.add(
           BdfdTranspileDiagnostic(
@@ -3311,8 +3402,9 @@ class _BdfdAstTranspilationScope {
             '${now.minute.toString().padLeft(2, '0')}:'
             '${now.second.toString().padLeft(2, '0')}';
       case 'gettimestamp':
-        return (DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000)
-            .toString();
+        return '((getTimestamp))';
+      case 'gettimestampms':
+        return '((getTimestampMs))';
       // Misc inline
       case 'getserverinvite':
         return '((guild.invite))';
@@ -3410,9 +3502,6 @@ class _BdfdAstTranspilationScope {
           return '((message[$edChannelId;$edMessageId].embeds[${edIndex.isEmpty ? '0' : edIndex}]${edProperty.isNotEmpty ? '.$edProperty' : ''}))';
         }
         return _inlineRuntimeVariables['getembeddata'];
-      // eval - return the argument as-is (limited compile-time support)
-      case 'eval':
-        return _stringifyArgument(node, 0);
       default:
         return null;
     }
@@ -3522,6 +3611,7 @@ class _BdfdAstTranspilationScope {
       case 'year':
       case 'time':
       case 'gettimestamp':
+      case 'gettimestampms':
       // Parametric lookups
       case 'channelid':
       case 'guildid':
@@ -3558,7 +3648,6 @@ class _BdfdAstTranspilationScope {
       case 'isticket':
       case 'getmessage':
       case 'c':
-      case 'eval':
       case 'globaluserleaderboard':
       case 'serverleaderboard':
       case 'userleaderboard':
@@ -3712,6 +3801,10 @@ class _BdfdAstTranspilationScope {
       case 'argscheck':
       // Workflow call
       case 'callworkflow':
+      // Dynamic eval
+      case 'eval':
+      // Debug profiling
+      case 'debug':
         return true;
       default:
         return false;
@@ -6033,6 +6126,25 @@ class _BdfdAstTranspilationScope {
     );
   }
 
+  // ── Debug profiling builder ──────────────────────────────────
+
+  Action _buildDebugAction(BdfdFunctionCallAst node) {
+    return Action(
+      type: BotCreatorActionType.debugProfile,
+      payload: <String, dynamic>{},
+    );
+  }
+
+  // ── Dynamic eval builder ─────────────────────────────────────
+
+  Action _buildEvalAction(BdfdFunctionCallAst node) {
+    final scriptContent = _stringifyArgument(node, 0);
+    return Action(
+      type: BotCreatorActionType.runBdfdScript,
+      payload: <String, dynamic>{'scriptContent': scriptContent},
+    );
+  }
+
   String? _latestWorkflowResponsePlaceholder(BdfdFunctionCallAst node) {
     final requestKey = _lastCallWorkflowKey;
     if (requestKey == null || requestKey.isEmpty) {
@@ -6555,6 +6667,12 @@ class _PendingResponse {
 
   Map<String, dynamic> ensureEmbed() => _embed;
 
+  String? get lastComponentType =>
+      _components.isEmpty ? null : _components.last['type']?.toString();
+
+  Map<String, dynamic>? get lastComponent =>
+      _components.isEmpty ? null : _components.last;
+
   void addComponent(Map<String, dynamic> component) {
     _components.add(component);
   }
@@ -6615,6 +6733,106 @@ class _PendingResponse {
     );
   }
 
+  /// Edits the button at the given 1-based [row] and [col] position.
+  /// Only non-null arguments overwrite the existing value.
+  void editButton({
+    required int row,
+    required int col,
+    String? label,
+    String? style,
+    String? customIdOrUrl,
+    bool? disabled,
+    String? emoji,
+  }) {
+    int currentRow = 0;
+    int currentCol = 0;
+    for (final component in _components) {
+      if (component['type'] != 'button') continue;
+      if (currentCol == 0 || component['newRow'] == true) {
+        currentRow++;
+        currentCol = 1;
+      } else {
+        currentCol++;
+      }
+      if (currentRow == row && currentCol == col) {
+        if (label != null) component['label'] = label;
+        if (style != null) component['style'] = style;
+        if (customIdOrUrl != null) {
+          final resolvedStyle = style ?? component['style']?.toString() ?? '';
+          if (resolvedStyle == 'link') {
+            component['url'] = customIdOrUrl;
+            component['customId'] = '';
+          } else {
+            component['customId'] = customIdOrUrl;
+            component['url'] = '';
+          }
+        }
+        if (disabled != null) component['disabled'] = disabled;
+        if (emoji != null) component['emoji'] = emoji;
+        break;
+      }
+    }
+  }
+
+  /// Edits the select menu with the given [customId].
+  /// Only non-null arguments overwrite the existing value.
+  void editSelectMenu({
+    required String customId,
+    String? placeholder,
+    int? minValues,
+    int? maxValues,
+    bool? disabled,
+  }) {
+    for (final component in _components) {
+      if (component['type'] != 'selectMenu') continue;
+      if (component['customId'] != customId) continue;
+      if (placeholder != null) component['placeholder'] = placeholder;
+      if (minValues != null) component['minValues'] = minValues;
+      if (maxValues != null) component['maxValues'] = maxValues;
+      if (disabled != null) component['disabled'] = disabled;
+      break;
+    }
+  }
+
+  /// Edits the select menu option at 1-based [index] inside menu [menuId].
+  /// Empty string values are treated as "clear the field".
+  void editSelectMenuOption({
+    required String menuId,
+    required int index,
+    String? label,
+    String? value,
+    String? description,
+    bool? isDefault,
+    String? emoji,
+  }) {
+    int currentIndex = 0;
+    for (final component in _components) {
+      if (component['type'] != 'selectMenuOption') continue;
+      if (component['menuId'] != menuId) continue;
+      currentIndex++;
+      if (currentIndex == index) {
+        if (label != null) component['label'] = label;
+        if (value != null) component['value'] = value;
+        if (description != null) {
+          if (description.isNotEmpty) {
+            component['description'] = description;
+          } else {
+            component.remove('description');
+          }
+        }
+        if (isDefault != null) component['default'] = isDefault;
+        if (emoji != null) {
+          if (emoji.isNotEmpty) {
+            component['emoji'] = emoji;
+          } else {
+            component.remove('emoji');
+          }
+        }
+        break;
+      }
+    }
+  }
+
   List<Map<String, dynamic>> ensureEmbedFields() {
     final current = _embed['fields'];
     if (current is List<Map<String, dynamic>>) {
@@ -6668,6 +6886,30 @@ class _PendingResponse {
     _allowMentions = true;
     _allowUserMentions = true;
     _allowRoleMentions = false;
+
+    const richV2Types = {
+      'container',
+      'section',
+      'thumbnail',
+      'separator',
+      'textDisplay',
+      'mediaGallery',
+    };
+    final hasRichV2 = components.any(
+      (c) => richV2Types.contains(c['type']?.toString()),
+    );
+
+    if (hasRichV2) {
+      return Action(
+        type: BotCreatorActionType.respondWithComponentV2,
+        payload: <String, dynamic>{
+          if (content.trim().isNotEmpty) 'content': content,
+          'components': <String, dynamic>{'items': components},
+          'ephemeral': ephemeral,
+          if (channelId != null && channelId.isNotEmpty) 'channelId': channelId,
+        },
+      );
+    }
 
     return Action(
       type: BotCreatorActionType.respondWithMessage,
