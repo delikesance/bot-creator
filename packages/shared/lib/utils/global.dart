@@ -199,6 +199,26 @@ Map<String, String> extractMemberRuntimeDetails({
   }
 
   var mask = 0;
+
+  // If the member carries Discord-computed permissions (e.g. from an
+  // interaction payload), use them as the baseline. This covers the guild
+  // owner implicit-all-permissions and the administrator role override that
+  // Discord applies server-side.
+  try {
+    final dynamic memberPerms = member.permissions;
+    if (memberPerms is Permissions) {
+      mask |= memberPerms.value;
+    } else if (memberPerms != null) {
+      final parsed = int.tryParse(memberPerms.toString());
+      if (parsed != null) {
+        mask |= parsed;
+      }
+    }
+  } catch (_) {
+    // member.permissions is unavailable (e.g. fetched member, not from
+    // interaction payload). Continue with role-based computation.
+  }
+
   try {
     final dynamic roleListRaw = guild.roleList;
     if (roleListRaw is Iterable) {
@@ -220,8 +240,25 @@ Map<String, String> extractMemberRuntimeDetails({
       }
     }
   } catch (_) {
-    return const <String, String>{};
+    // If role-based computation fails but we already have member.permissions,
+    // continue with what we have instead of returning empty.
+    if (mask == 0) {
+      return const <String, String>{};
+    }
   }
+
+  // Guild owners implicitly have all permissions in Discord.
+  try {
+    final memberIdStr =
+        (_asSnowflake(member.id) ?? member.id).toString().trim();
+    final ownerIdStr =
+        (_asSnowflake(guild.ownerId) ?? guild.ownerId).toString().trim();
+    if (memberIdStr.isNotEmpty && memberIdStr == ownerIdStr) {
+      for (final entry in _permissionTokenFlags) {
+        mask |= entry.key.value;
+      }
+    }
+  } catch (_) {}
 
   final permissions = Permissions(mask);
   final tokens = _permissionTokensFromPermissions(permissions);

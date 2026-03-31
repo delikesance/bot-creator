@@ -3000,6 +3000,14 @@ class _BdfdAstTranspilationScope {
           }
         }
         return _inlineRuntimeVariables['userbanner'];
+      case 'userperms':
+        if (node.arguments.isNotEmpty) {
+          final userId = _stringifyArgument(node, 0).trim();
+          if (userId.isNotEmpty) {
+            return '((permissions.byId.$userId|member.permissions))';
+          }
+        }
+        return _inlineRuntimeVariables['userperms'];
       // Mentioned helper with index
       case 'mentioned':
         if (node.arguments.isNotEmpty) {

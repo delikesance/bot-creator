@@ -496,6 +496,21 @@ void main() {
       expect(conditions[1]['conditions'][0]['value'], 'administrator');
     });
 
+    test('supports userPerms with explicit user id placeholder', () {
+      final result = BdfdCompiler().compile(
+        r'$reply[Perms: $userPerms[$authorID]]',
+      );
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      final content =
+          result.actions.single.payload['content']?.toString() ?? '';
+      expect(
+        content,
+        contains('((permissions.byId.((author.id))|member.permissions))'),
+      );
+    });
+
     test('resolves loop computed variables \$i and \$loopCount', () {
       final result = BdfdCompiler().compile(
         r'$for[3]$reply[$i is $loopCount]$endfor',

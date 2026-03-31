@@ -67,20 +67,27 @@ class _FakeRolePermissions {
 class _FakeRole {
   const _FakeRole({required this.id, required this.permissions});
 
-  final String id;
-  final _FakeRolePermissions permissions;
+  final dynamic id;
+  final dynamic permissions;
 }
 
 class _FakeGuildWithRoles {
-  const _FakeGuildWithRoles({required this.roleList});
+  const _FakeGuildWithRoles({required this.roleList, this.ownerId});
 
   final List<_FakeRole> roleList;
+  final dynamic ownerId;
 }
 
 class _FakeMemberWithRoles {
-  const _FakeMemberWithRoles({required this.roleIds});
+  const _FakeMemberWithRoles({
+    required this.roleIds,
+    this.id,
+    this.permissions,
+  });
 
-  final List<String> roleIds;
+  final List<dynamic> roleIds;
+  final dynamic id;
+  final dynamic permissions;
 }
 
 void main() {
@@ -175,6 +182,153 @@ void main() {
       expect(permissions, contains('administrator'));
       expect(permissions, contains('banmembers'));
       expect(permissions, contains('sendmessages'));
+    });
+
+    test('grants all permissions when member is the guild owner', () {
+      final details = extractMemberRuntimeDetails(
+        member: const _FakeMemberWithRoles(roleIds: <String>['200'], id: '42'),
+        guild: _FakeGuildWithRoles(
+          ownerId: '42',
+          roleList: <_FakeRole>[
+            _FakeRole(
+              id: '200',
+              permissions: _FakeRolePermissions(Permissions.sendMessages.value),
+            ),
+          ],
+        ),
+        guildId: '100',
+      );
+
+      expect(details['member.isAdmin'], 'true');
+      final permissions = details['member.permissions'] ?? '';
+      expect(permissions, contains('administrator'));
+      expect(permissions, contains('banmembers'));
+      expect(permissions, contains('manageguild'));
+      expect(permissions, contains('manageroles'));
+      expect(permissions, contains('kickmembers'));
+    });
+
+    test('computes permissions correctly with Snowflake-typed role IDs', () {
+      final details = extractMemberRuntimeDetails(
+        member: _FakeMemberWithRoles(roleIds: <Snowflake>[Snowflake(200)]),
+        guild: _FakeGuildWithRoles(
+          roleList: <_FakeRole>[
+            _FakeRole(
+              id: Snowflake(100),
+              permissions: _FakeRolePermissions(Permissions.sendMessages.value),
+            ),
+            _FakeRole(
+              id: Snowflake(200),
+              permissions: _FakeRolePermissions(
+                Permissions.administrator.value | Permissions.banMembers.value,
+              ),
+            ),
+          ],
+        ),
+        guildId: '100',
+      );
+
+      expect(details['member.isAdmin'], 'true');
+      final permissions = details['member.permissions'] ?? '';
+      expect(permissions, contains('administrator'));
+      expect(permissions, contains('banmembers'));
+      expect(permissions, contains('sendmessages'));
+    });
+
+    test('computes permissions with Permissions-typed role permissions', () {
+      final details = extractMemberRuntimeDetails(
+        member: _FakeMemberWithRoles(roleIds: <Snowflake>[Snowflake(200)]),
+        guild: _FakeGuildWithRoles(
+          roleList: <_FakeRole>[
+            _FakeRole(
+              id: Snowflake(100),
+              permissions: Permissions(Permissions.sendMessages.value),
+            ),
+            _FakeRole(
+              id: Snowflake(200),
+              permissions: Permissions(
+                Permissions.administrator.value | Permissions.banMembers.value,
+              ),
+            ),
+          ],
+        ),
+        guildId: '100',
+      );
+
+      expect(details['member.isAdmin'], 'true');
+      final permissions = details['member.permissions'] ?? '';
+      expect(permissions, contains('administrator'));
+      expect(permissions, contains('banmembers'));
+      expect(permissions, contains('sendmessages'));
+    });
+
+    test('uses member.permissions from interaction payload', () {
+      // Simulate a member from an interaction payload where Discord computes
+      // the full permissions server-side (e.g. owner has all permissions).
+      final allPermsValue =
+          Permissions.administrator.value |
+          Permissions.banMembers.value |
+          Permissions.kickMembers.value |
+          Permissions.manageGuild.value |
+          Permissions.manageRoles.value |
+          Permissions.sendMessages.value;
+      final details = extractMemberRuntimeDetails(
+        member: _FakeMemberWithRoles(
+          roleIds: const <String>[],
+          permissions: Permissions(allPermsValue),
+        ),
+        guild: _FakeGuildWithRoles(
+          roleList: <_FakeRole>[
+            _FakeRole(
+              id: '100',
+              permissions: _FakeRolePermissions(Permissions.sendMessages.value),
+            ),
+          ],
+        ),
+        guildId: '100',
+      );
+
+      expect(details['member.isAdmin'], 'true');
+      final permissions = details['member.permissions'] ?? '';
+      expect(permissions, contains('administrator'));
+      expect(permissions, contains('banmembers'));
+      expect(permissions, contains('kickmembers'));
+      expect(permissions, contains('manageguild'));
+      expect(permissions, contains('manageroles'));
+    });
+
+    test('member.permissions supplements role-based computation', () {
+      // Even when role-based computation works, member.permissions adds
+      // permissions the role calculation may have missed.
+      final details = extractMemberRuntimeDetails(
+        member: _FakeMemberWithRoles(
+          roleIds: const <String>['200'],
+          permissions: Permissions(
+            Permissions.manageGuild.value | Permissions.manageRoles.value,
+          ),
+        ),
+        guild: _FakeGuildWithRoles(
+          roleList: <_FakeRole>[
+            _FakeRole(
+              id: '100',
+              permissions: _FakeRolePermissions(Permissions.sendMessages.value),
+            ),
+            _FakeRole(
+              id: '200',
+              permissions: _FakeRolePermissions(Permissions.banMembers.value),
+            ),
+          ],
+        ),
+        guildId: '100',
+      );
+
+      final permissions = details['member.permissions'] ?? '';
+      // From role-based computation:
+      expect(permissions, contains('sendmessages'));
+      expect(permissions, contains('banmembers'));
+      // From member.permissions (interaction payload):
+      expect(permissions, contains('manageguild'));
+      expect(permissions, contains('manageroles'));
     });
 
     test('maps member details to by-id permission keys', () {
