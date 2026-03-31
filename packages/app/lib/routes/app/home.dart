@@ -193,7 +193,7 @@ class _AppHomePageState extends State<AppHomePage>
           isRunning = false;
         }
       } else {
-        isRunning = isDesktopBotRunning;
+        isRunning = isDesktopBotRunningId(botId);
       }
     }
 
@@ -625,9 +625,12 @@ class _AppHomePageState extends State<AppHomePage>
                                   AppStrings.t('bot_home_log_desktop_stop'),
                                   botId: botId,
                                 );
-                                await stopDesktopBot();
+                                await stopDesktopBot(botId: botId);
                                 endBotLogSession(botId: botId);
-                                setBotRuntimeActive(false);
+                                setBotRuntimeActive(
+                                  isDesktopBotRunning ||
+                                      mobileRunningBotIds.isNotEmpty,
+                                );
                                 clearBotBaselineRss();
                                 if (mounted) {
                                   setState(() {

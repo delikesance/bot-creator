@@ -76,22 +76,34 @@ void _injectLocalGatewayBotVariables(
 /// Returns the [DateTime] at which the given bot session was started,
 /// checking desktop first, then the mobile sessions map.
 DateTime? _botStartedAt(String botId) {
-  if (_desktopRunningBotId == botId && _desktopStartedAt != null) {
-    return _desktopStartedAt;
+  final desktopStartedAt = _desktopStartedAtByBotId[botId];
+  if (desktopStartedAt != null) {
+    return desktopStartedAt;
   }
   // Mobile sessions are tracked in DiscordBotTaskHandler._mobileStartedAt
   // but that instance is not directly accessible from here.  We only have
-  // _desktopStartedAt for the desktop path.
+  // local desktop started-at tracking in this file for the desktop path.
   return null;
 }
 
-NyxxGateway? _desktopGateway;
-DateTime? _desktopStartedAt;
+final Map<String, NyxxGateway> _desktopGatewaysByBotId =
+    <String, NyxxGateway>{};
+final Map<String, DateTime> _desktopStartedAtByBotId = <String, DateTime>{};
 StreamSubscription<LogRecord>? _desktopNyxxLogsSubscription;
-Timer? _desktopMetricsTimer;
-Timer? _desktopStatusRotationTimer;
-String? _desktopRunningBotId;
-String? get desktopRunningBotId => _desktopRunningBotId;
+final Map<String, Timer> _desktopMetricsTimersByBotId = <String, Timer>{};
+final Map<String, Timer> _desktopStatusRotationTimersByBotId =
+    <String, Timer>{};
+String? get desktopRunningBotId {
+  if (_desktopGatewaysByBotId.isEmpty) {
+    return null;
+  }
+  return _desktopGatewaysByBotId.keys.first;
+}
+
+Set<String> get desktopRunningBotIds =>
+    Set<String>.unmodifiable(_desktopGatewaysByBotId.keys);
+bool isDesktopBotRunningId(String botId) =>
+    _desktopGatewaysByBotId.containsKey(botId.trim());
 String? _mobileRunningBotId;
 final Set<String> _mobileRunningBotIds = <String>{};
 String? get mobileRunningBotId {
@@ -171,7 +183,7 @@ final Map<String, BotRuntimeMetrics> _botMetricsByBot =
 bool _botRuntimeActive = false;
 final Random _desktopStatusRandom = Random();
 
-bool get isDesktopBotRunning => _desktopGateway != null;
+bool get isDesktopBotRunning => _desktopGatewaysByBotId.isNotEmpty;
 bool get isBotDebugLogsEnabled => _debugBotLogsEnabled;
 bool get isBotRuntimeActive => _botRuntimeActive;
 
@@ -179,15 +191,12 @@ void applyDesktopRuntimeSettings({
   required String botId,
   required Map<String, dynamic> appData,
 }) {
-  final gateway = _desktopGateway;
+  final gateway = _desktopGatewaysByBotId[botId];
   if (gateway == null) {
     return;
   }
-  if (_desktopRunningBotId != null && _desktopRunningBotId != botId) {
-    return;
-  }
 
-  _startDesktopStatusRotation(gateway, appData);
+  _startDesktopStatusRotation(botId, gateway, appData);
 }
 
 void setBotDebugLogsEnabled(bool enabled) {
@@ -270,23 +279,25 @@ Future<void> startDesktopBot(String token) async {
     throw Exception('Desktop bot mode is only available on desktop platforms.');
   }
 
-  if (_desktopGateway != null) {
-    appendBotLog('Desktop bot is already running');
+  final botUser = await getDiscordUser(token);
+  final botId = botUser.id.toString();
+  if (_desktopGatewaysByBotId.containsKey(botId)) {
+    appendBotLog('Desktop bot "$botId" is already running', botId: botId);
     return;
   }
-  appendBotLog('Starting desktop bot...');
+
+  appendBotLog('Starting desktop bot...', botId: botId);
   appendBotDebugLog('Desktop platform detected');
 
-  final botUser = await getDiscordUser(token);
-  final appData = await appManager.getApp(botUser.id.toString());
+  final appData = await appManager.getApp(botId);
   final intentsMap = Map<String, bool>.from(appData['intents'] as Map? ?? {});
   final intents = buildGatewayIntents(intentsMap);
   final enabledIntentNames = _enabledIntentNames(intentsMap);
-  _bindDesktopNyxxLogs(botId: botUser.id.toString());
+  _bindDesktopNyxxLogs();
   appendBotLog(
     'Active runtime intents (${enabledIntentNames.length}): '
     '${enabledIntentNames.isEmpty ? 'none' : enabledIntentNames.join(', ')}',
-    botId: botUser.id.toString(),
+    botId: botId,
   );
 
   final gateway = await Nyxx.connectGateway(
@@ -297,21 +308,24 @@ Future<void> startDesktopBot(String token) async {
       plugins: [Logging(logLevel: Level.ALL)],
     ),
   );
-  _desktopStartedAt = DateTime.now();
+  _desktopStartedAtByBotId[botId] = DateTime.now();
+  _desktopGatewaysByBotId[botId] = gateway;
+  setBotRuntimeActive(true);
 
   gateway.onReady.listen((event) async {
-    final botId = event.gateway.client.user.id.toString();
-    _desktopRunningBotId = botId;
     setBotRuntimeActive(true);
     appendBotLog('Desktop bot connected and ready', botId: botId);
     unawaited(appManager.updateGuildCount(botId, event.guilds.length));
     unawaited(_refreshBotMetrics(botId: botId));
-    _desktopMetricsTimer?.cancel();
-    _desktopMetricsTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      unawaited(_refreshBotMetrics(botId: botId));
-    });
+    _desktopMetricsTimersByBotId[botId]?.cancel();
+    _desktopMetricsTimersByBotId[botId] = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) {
+        unawaited(_refreshBotMetrics(botId: botId));
+      },
+    );
     final latestAppData = await appManager.getApp(botId);
-    _startDesktopStatusRotation(gateway, latestAppData);
+    _startDesktopStatusRotation(botId, gateway, latestAppData);
     appManager = AppManager();
     gateway.onInteractionCreate.listen((event) async {
       await handleLocalCommands(event, appManager);
@@ -326,37 +340,51 @@ Future<void> startDesktopBot(String token) async {
       },
     );
   });
-
-  _desktopGateway = gateway;
 }
 
-Future<void> stopDesktopBot() async {
-  appendBotLog('Desktop bot shutdown requested');
-  _desktopMetricsTimer?.cancel();
-  _desktopMetricsTimer = null;
-  _desktopStatusRotationTimer?.cancel();
-  _desktopStatusRotationTimer = null;
-  await _desktopGateway?.close();
-  _desktopGateway = null;
-  _desktopStartedAt = null;
-  _desktopRunningBotId = null;
-  await _desktopNyxxLogsSubscription?.cancel();
-  _desktopNyxxLogsSubscription = null;
-  _updateBotMetrics(
-    rssBytes: null,
-    cpuPercent: null,
-    storageBytes: null,
-    overwriteNulls: true,
+Future<void> stopDesktopBot({String? botId}) async {
+  final normalizedBotId = (botId ?? '').trim();
+  if (normalizedBotId.isEmpty) {
+    final runningIds = _desktopGatewaysByBotId.keys.toList(growable: false);
+    for (final id in runningIds) {
+      await stopDesktopBot(botId: id);
+    }
+    return;
+  }
+
+  appendBotLog('Desktop bot shutdown requested', botId: normalizedBotId);
+  _desktopMetricsTimersByBotId.remove(normalizedBotId)?.cancel();
+  _desktopStatusRotationTimersByBotId.remove(normalizedBotId)?.cancel();
+
+  final gateway = _desktopGatewaysByBotId.remove(normalizedBotId);
+  _desktopStartedAtByBotId.remove(normalizedBotId);
+  if (gateway != null) {
+    await gateway.close();
+  }
+
+  if (_desktopGatewaysByBotId.isEmpty) {
+    await _desktopNyxxLogsSubscription?.cancel();
+    _desktopNyxxLogsSubscription = null;
+    _updateBotMetrics(
+      rssBytes: null,
+      cpuPercent: null,
+      storageBytes: null,
+      overwriteNulls: true,
+    );
+  }
+
+  setBotRuntimeActive(
+    _desktopGatewaysByBotId.isNotEmpty || mobileRunningBotIds.isNotEmpty,
   );
-  setBotRuntimeActive(false);
 }
 
 void _startDesktopStatusRotation(
+  String botId,
   NyxxGateway gateway,
   Map<String, dynamic> appData,
 ) {
-  _desktopStatusRotationTimer?.cancel();
-  _desktopStatusRotationTimer = null;
+  _desktopStatusRotationTimersByBotId[botId]?.cancel();
+  _desktopStatusRotationTimersByBotId.remove(botId);
 
   final statuses = _normalizeStatuses(
     appData['activities'] ?? appData['statuses'],
@@ -367,11 +395,17 @@ void _startDesktopStatusRotation(
 
   final presenceStatus = (appData['presenceStatus'] as String?) ?? 'online';
   unawaited(
-    _applyDesktopInitialStatusThenRotate(gateway, statuses, presenceStatus),
+    _applyDesktopInitialStatusThenRotate(
+      botId,
+      gateway,
+      statuses,
+      presenceStatus,
+    ),
   );
 }
 
 Future<void> _applyDesktopInitialStatusThenRotate(
+  String botId,
   NyxxGateway gateway,
   List<Map<String, dynamic>> statuses,
   String presenceStatus,
@@ -381,11 +415,11 @@ Future<void> _applyDesktopInitialStatusThenRotate(
   }
 
   final firstStatus = statuses.first;
-  await _applyDesktopStatus(gateway, firstStatus, presenceStatus);
+  await _applyDesktopStatus(botId, gateway, firstStatus, presenceStatus);
 
   // Re-send once after READY to avoid occasional dropped first presence frame.
   Timer(const Duration(seconds: 3), () {
-    unawaited(_applyDesktopStatus(gateway, firstStatus, presenceStatus));
+    unawaited(_applyDesktopStatus(botId, gateway, firstStatus, presenceStatus));
   });
 
   final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
@@ -393,10 +427,15 @@ Future<void> _applyDesktopInitialStatusThenRotate(
   final delaySeconds =
       max <= min ? min : min + _desktopStatusRandom.nextInt(max - min + 1);
 
-  _desktopStatusRotationTimer?.cancel();
-  _desktopStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
-    unawaited(_applyDesktopRandomStatus(gateway, statuses, presenceStatus));
-  });
+  _desktopStatusRotationTimersByBotId[botId]?.cancel();
+  _desktopStatusRotationTimersByBotId[botId] = Timer(
+    Duration(seconds: delaySeconds),
+    () {
+      unawaited(
+        _applyDesktopRandomStatus(botId, gateway, statuses, presenceStatus),
+      );
+    },
+  );
 }
 
 CurrentUserStatus _mapPresenceStatus(String statusString) {
@@ -411,6 +450,7 @@ CurrentUserStatus _mapPresenceStatus(String statusString) {
 }
 
 Future<void> _applyDesktopStatus(
+  String botId,
   NyxxGateway gateway,
   Map<String, dynamic> status,
   String presenceStatus,
@@ -439,16 +479,14 @@ Future<void> _applyDesktopStatus(
         ],
       ),
     );
-    appendBotLog(
-      'Desktop presence applied: $type $text',
-      botId: _desktopRunningBotId,
-    );
+    appendBotLog('Desktop presence applied: $type $text', botId: botId);
   } catch (error) {
     appendBotDebugLog('Status rotation update failed: $error');
   }
 }
 
 Future<void> _applyDesktopRandomStatus(
+  String botId,
   NyxxGateway gateway,
   List<Map<String, dynamic>> statuses,
   String presenceStatus,
@@ -461,14 +499,19 @@ Future<void> _applyDesktopRandomStatus(
   final min = (picked['minIntervalSeconds'] as int?) ?? 60;
   final max = (picked['maxIntervalSeconds'] as int?) ?? min;
 
-  await _applyDesktopStatus(gateway, picked, presenceStatus);
+  await _applyDesktopStatus(botId, gateway, picked, presenceStatus);
 
   final delaySeconds =
       max <= min ? min : min + _desktopStatusRandom.nextInt(max - min + 1);
-  _desktopStatusRotationTimer?.cancel();
-  _desktopStatusRotationTimer = Timer(Duration(seconds: delaySeconds), () {
-    unawaited(_applyDesktopRandomStatus(gateway, statuses, presenceStatus));
-  });
+  _desktopStatusRotationTimersByBotId[botId]?.cancel();
+  _desktopStatusRotationTimersByBotId[botId] = Timer(
+    Duration(seconds: delaySeconds),
+    () {
+      unawaited(
+        _applyDesktopRandomStatus(botId, gateway, statuses, presenceStatus),
+      );
+    },
+  );
 }
 
 List<Map<String, dynamic>> _normalizeStatuses(dynamic raw) {
