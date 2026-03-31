@@ -1,4 +1,5 @@
 ﻿import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import '../types/component.dart';
 import '../utils/component_workflow_bindings.dart';
 import '../utils/embed_fields.dart';
@@ -28,7 +29,7 @@ Future<Map<String, String>> editMessageAction(
       return {'error': 'Missing channelId/messageId', 'messageId': ''};
     }
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
     if (channel is! TextChannel) {
       return {'error': 'Channel is not a text channel', 'messageId': ''};
     }

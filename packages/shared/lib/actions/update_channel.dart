@@ -1,4 +1,5 @@
 ﻿import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -93,7 +94,7 @@ Future<Map<String, String>> updateChannelAction(
       return {'error': 'Missing or invalid channelId', 'channelId': ''};
     }
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
 
     final name = resolve((payload['name'] ?? '').toString()).trim();
     final topic = resolve((payload['topic'] ?? '').toString());

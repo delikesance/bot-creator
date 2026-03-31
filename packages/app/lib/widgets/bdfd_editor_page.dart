@@ -1,3 +1,4 @@
+import 'package:bot_creator/routes/bdfd_docs.dart';
 import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator_shared/utils/bdfd_autocomplete.dart';
 import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
@@ -124,6 +125,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
       _autocompleteEntries.isNotEmpty && _editorFocusNode.hasFocus;
 
   bool get _isSignatureHintVisible =>
+      _isDesktopLike &&
       _signatureContext != null &&
       _editorFocusNode.hasFocus &&
       !_isAutocompleteVisible;
@@ -388,6 +390,16 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
+            tooltip: AppStrings.t('bdfd_editor_docs'),
+            icon: const Icon(Icons.menu_book, color: Colors.white70),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(builder: (_) => const BdfdDocsPage()),
+              );
+            },
+          ),
+          IconButton(
             tooltip: AppStrings.t('bdfd_editor_wrap_toggle'),
             icon: Icon(
               _wordWrap ? Icons.wrap_text : Icons.format_align_left,
@@ -503,9 +515,14 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
     final desiredTop =
         editorTopPadding + (caret.line * lineHeight) - scrollY - 32;
 
-    final maxLeft = (constraints.maxWidth - 320).clamp(0.0, double.infinity);
-    final left = desiredLeft.clamp(_lineNumberGutterWidth + 4, maxLeft);
-    final top = desiredTop.clamp(0.0, constraints.maxHeight - 40);
+    final minLeft = _lineNumberGutterWidth + 4;
+    final maxLeft = (constraints.maxWidth - 320).clamp(
+      minLeft,
+      double.infinity,
+    );
+    final left = desiredLeft.clamp(minLeft, maxLeft);
+    final maxTop = (constraints.maxHeight - 40).clamp(0.0, double.infinity);
+    final top = desiredTop.clamp(0.0, maxTop);
 
     // Build the parameter spans with the active one highlighted.
     final spans = <InlineSpan>[];
@@ -612,8 +629,12 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
     final desiredTop =
         editorTopPadding + ((caret.line + 1) * lineHeight) - scrollY + 4;
 
-    final maxLeft = (constraints.maxWidth - 220).clamp(0.0, double.infinity);
-    final left = desiredLeft.clamp(_lineNumberGutterWidth + 4, maxLeft);
+    final minLeft = _lineNumberGutterWidth + 4;
+    final maxLeft = (constraints.maxWidth - 220).clamp(
+      minLeft,
+      double.infinity,
+    );
+    final left = desiredLeft.clamp(minLeft, maxLeft);
     final minTop = editorTopPadding + lineHeight;
     final maxTop = (constraints.maxHeight - panelHeight).clamp(
       minTop,

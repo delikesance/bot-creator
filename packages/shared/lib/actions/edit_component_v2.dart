@@ -1,4 +1,5 @@
 ﻿import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'package:bot_creator_shared/types/component.dart';
 import 'package:bot_creator_shared/utils/component_workflow_bindings.dart';
 
@@ -41,7 +42,7 @@ Future<Map<String, dynamic>> editComponentV2Action(
       return {'error': 'Missing channelId/messageId', 'messageId': ''};
     }
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
     if (channel is! TextChannel) {
       return {'error': 'Channel is not a text channel', 'messageId': ''};
     }

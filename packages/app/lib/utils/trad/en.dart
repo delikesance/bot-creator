@@ -699,6 +699,77 @@ const Map<String, String> appStringsEn = {
   'bdfd_editor_wrap_toggle': 'Toggle line wrapping',
   'bdfd_editor_diagnostics_toggle': 'Toggle diagnostics panel',
   'bdfd_editor_empty': 'Empty script — start typing to see diagnostics.',
+  'bdfd_editor_docs': 'BDFD Functions Reference',
+  'bdfd_docs_title': 'BDFD Docs',
+  'bdfd_docs_search_hint': 'Search functions…',
+  'bdfd_docs_empty': 'No matching functions.',
+  'bdfd_docs_syntax': 'SYNTAX',
+  'bdfd_docs_parameters': 'PARAMETERS',
+  'bdfd_docs_no_params': 'No parameters — use as \$functionName',
+  'bdfd_docs_category_messages': 'Messages & Content',
+  'bdfd_docs_category_embeds': 'Embeds',
+  'bdfd_docs_category_components': 'Components',
+  'bdfd_docs_category_modals': 'Modals',
+  'bdfd_docs_category_control': 'Control Flow',
+  'bdfd_docs_category_guards': 'Guards & Permissions',
+  'bdfd_docs_category_moderation': 'Moderation',
+  'bdfd_docs_category_variables': 'Variables',
+  'bdfd_docs_category_json': 'JSON',
+  'bdfd_docs_category_http': 'HTTP Requests',
+  'bdfd_docs_category_math': 'Math',
+  'bdfd_docs_category_text': 'Text & Strings',
+  'bdfd_docs_category_channels': 'Channels & Threads',
+  'bdfd_docs_category_roles': 'Roles',
+  'bdfd_docs_category_reactions': 'Reactions',
+  'bdfd_docs_category_cooldowns': 'Cooldowns',
+  'bdfd_docs_category_webhooks': 'Webhooks',
+  'bdfd_docs_category_leaderboards': 'Leaderboards',
+  'bdfd_docs_category_tickets': 'Tickets',
+  'bdfd_docs_category_misc': 'Other',
+  'bdfd_docs_desc_for':
+      'Bot Creator only — Repeats a block of code N times.\n\nSimple: \$for[5]...\$endfor → the body is repeated 5 times (max 100). You can use \$i for the current index (starting at 0) and \$loopCount for the total.\n\nC-style: \$for[i=0;i<10;i++]...\$endfor → classic for loop with init, condition and update. Supports ++, --, +=, -=, *=.\n\nIf the iteration count is dynamic (e.g. \$for[\$args[1]]), the loop runs at runtime instead of compile-time.',
+  'bdfd_docs_desc_loop':
+      'Bot Creator only — Alias for \$for. See \$for for details. Use \$endloop to close the block.',
+  'bdfd_docs_desc_callworkflow':
+      'Bot Creator only — Calls another workflow by name and passes arguments.\n\nSyntax: \$callWorkflow[myWorkflow;key1=value1;key2=value2]\n\nThe called workflow can read arguments and return a value via \$workflowResponse.',
+  'bdfd_docs_desc_workflowresponse':
+      'Bot Creator only — Returns the response from the last \$callWorkflow.\n\nUse \$workflowResponse[] for the full response, or \$workflowResponse[property] to access a specific field.',
+  'bdfd_docs_desc_eval':
+      'Executes a BDFD script string at runtime. The code passed as argument is re-compiled and executed dynamically. Useful for running user-provided or variable-based scripts.',
+  'bdfd_docs_desc_if':
+      'Conditional block. Supports nesting and rich operators: ==, !=, >=, <=, >, <, contains, startsWith, endsWith, notContains.\n\nUsage:\n\$if[\$authorID==123456]\n  Hello admin!\n\$elseif[\$hasRole[789]]\n  Hello member!\n\$else\n  Hello guest!\n\$endif',
+  'bdfd_docs_desc_elseif':
+      'Adds an alternative condition inside an \$if block. Must appear between \$if and \$else/\$endif.',
+  'bdfd_docs_desc_try':
+      'Wraps a block for error handling.\n\nUsage:\n\$try\n  \$httpGet[https://api.example.com/data]\n\$catch\n  Request failed!\n\$endtry\n\nIf any function in the \$try block fails, execution jumps to \$catch.',
+  'bdfd_docs_desc_stop':
+      'Immediately stops execution of the current script. No further actions after \$stop will run.',
+  'bdfd_docs_desc_suppresserrors':
+      'Prevents error messages from being sent to the user. If any action fails, the error is silently suppressed.',
+  'bdfd_docs_desc_embedsuppresserrors':
+      'Same as \$suppressErrors — suppresses all error messages silently.',
+  'bdfd_docs_desc_and':
+      'Logical AND — combines multiple conditions. All must be true.\n\nUsage: \$if[\$and[\$authorID==123;\$hasRole[456]]]',
+  'bdfd_docs_desc_or':
+      'Logical OR — combines multiple conditions. At least one must be true.\n\nUsage: \$if[\$or[\$authorID==123;\$authorID==456]]]',
+  'bdfd_docs_desc_awaitfunc':
+      'Registers a callback that waits for a user response.\n\nUsage: \$awaitFunc[name;userID (opt);channelID (opt)]\n\nThe awaited function is stored and triggered when the target user sends a message in the target channel.',
+  'bdfd_docs_desc_defer':
+      'Defers the interaction response, giving you more time to process. The user sees a "Bot is thinking…" message. Use before long operations like HTTP requests.',
+  'bdfd_docs_desc_ephemeral':
+      'Makes the response visible only to the user who triggered the command. Must be placed before any response content.',
+  'bdfd_docs_desc_jsonparse':
+      'Parses a JSON string into memory for manipulation. All JSON operations (\$jsonSet, \$json, etc.) operate on this parsed context.\n\nStatic JSON is resolved at compile-time for better performance.',
+  'bdfd_docs_desc_jsonset':
+      'Sets a value in the current JSON context. Supports dot-notation paths.\n\nUsage: \$jsonSet[user.name;John]\n\nThe change is applied in memory — use \$jsonStringify to get the result.',
+  'bdfd_docs_desc_jsonstringify':
+      'Converts the current JSON context back to a string. Use after \$jsonParse and \$jsonSet operations to output the result.',
+  'bdfd_docs_desc_httpget':
+      'Sends an HTTP GET request to the given URL. Use \$httpAddHeader before to set headers. Use \$httpResult to read the response.\n\nAll HTTP methods (GET, POST, PUT, PATCH, DELETE) follow the same pattern.',
+  'bdfd_docs_desc_httpaddheader':
+      'Adds a header to the next HTTP request. Headers are accumulated until the next \$httpGet/\$httpPost/etc.\n\nUsage: \$httpAddHeader[Authorization;Bearer token123]',
+  'bdfd_docs_desc_httpresult':
+      'Returns the body of the last HTTP response. Optionally pass a JSON path to extract a specific field.\n\nUsage: \$httpResult[] for the full body, or \$httpResult[data.name] for a nested field.',
   'done': 'Done',
   'cmd_simple_actions_title': 'Simplified actions',
   'cmd_simple_actions_desc':

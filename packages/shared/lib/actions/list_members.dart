@@ -1,6 +1,7 @@
 ﻿import 'dart:convert';
 
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -42,7 +43,10 @@ Future<Map<String, String>> listMembersAction(
       };
     }
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) {
+      return {'error': 'Guild not found', 'members': '[]'};
+    }
 
     final limitRaw = int.tryParse((payload['limit'] ?? '').toString());
     final limit = limitRaw?.clamp(1, 1000);

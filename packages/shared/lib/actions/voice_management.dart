@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'permission_checks.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
@@ -55,7 +56,8 @@ Future<Map<String, String>> moveToVoiceChannelAction(
     }
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     await guild.members.update(
       userId,
       MemberUpdateBuilder(voiceChannelId: targetChannelId),
@@ -106,7 +108,8 @@ Future<Map<String, String>> disconnectFromVoiceAction(
     }
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     await guild.members.update(
       userId,
       MemberUpdateBuilder(voiceChannelId: Snowflake.zero),
@@ -155,7 +158,8 @@ Future<Map<String, String>> serverMuteMemberAction(
     final mute = _parseBool(resolve((payload['mute'] ?? 'true').toString()));
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     await guild.members.update(
       userId,
       MemberUpdateBuilder(isMute: mute),
@@ -204,7 +208,8 @@ Future<Map<String, String>> serverDeafenMemberAction(
     final deaf = _parseBool(resolve((payload['deaf'] ?? 'true').toString()));
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     await guild.members.update(
       userId,
       MemberUpdateBuilder(isDeaf: deaf),
