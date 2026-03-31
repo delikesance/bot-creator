@@ -1,4 +1,4 @@
-﻿import 'package:bot_creator_shared/actions/pin_message.dart';
+import 'package:bot_creator_shared/actions/pin_message.dart';
 import 'package:bot_creator_shared/actions/update_automod.dart';
 import 'package:bot_creator_shared/actions/update_guild.dart';
 import 'package:bot_creator_shared/actions/list_members.dart';
@@ -54,14 +54,14 @@ Future<Map<String, String>> handleActions(
   String resolveValue(String value) => resolveTemplate(value);
 
   // Permission cache – shared across all actions in this execution
-  final _permCache = BotPermissionCache();
+  final permCache = BotPermissionCache();
 
   // Debug profiling state
-  Stopwatch? _debugStopwatch;
-  List<_DebugTraceEntry>? _debugTrace;
-  int? _debugCompilationMs;
-  int? _debugSourceLength;
-  int? _debugActionCount;
+  Stopwatch? debugStopwatch;
+  List<_DebugTraceEntry>? debugTrace;
+  int? debugCompilationMs;
+  int? debugSourceLength;
+  int? debugActionCount;
 
   for (var i = 0; i < actions.length; i++) {
     final action = actions[i];
@@ -72,23 +72,23 @@ Future<Map<String, String>> handleActions(
 
     // Start debug profiling when debugProfile action is encountered
     if (action.type == BotCreatorActionType.debugProfile) {
-      _debugStopwatch = Stopwatch()..start();
-      _debugTrace = <_DebugTraceEntry>[];
-      _debugCompilationMs = action.payload['compilationMs'] as int?;
-      _debugSourceLength = action.payload['sourceLength'] as int?;
-      _debugActionCount = action.payload['actionCount'] as int?;
+      debugStopwatch = Stopwatch()..start();
+      debugTrace = <_DebugTraceEntry>[];
+      debugCompilationMs = action.payload['compilationMs'] as int?;
+      debugSourceLength = action.payload['sourceLength'] as int?;
+      debugActionCount = action.payload['actionCount'] as int?;
       continue;
     }
 
     // Record timing before executing the action
-    final int? _traceStartMs = _debugStopwatch?.elapsedMilliseconds;
+    final int? traceStartMs = debugStopwatch?.elapsedMilliseconds;
 
-    void _recordTrace({String? resultOverride}) {
-      _debugTrace?.add(
+    void recordTrace({String? resultOverride}) {
+      debugTrace?.add(
         _DebugTraceEntry(
           actionType: action.type.name,
-          startMs: _traceStartMs ?? 0,
-          endMs: _debugStopwatch?.elapsedMilliseconds ?? 0,
+          startMs: traceStartMs ?? 0,
+          endMs: debugStopwatch?.elapsedMilliseconds ?? 0,
           result: resultOverride ?? results[resultKey],
           loopDepth: action.payload['_debugLoopDepth'] as int?,
           loopIteration: action.payload['_debugLoopIteration'] as int?,
@@ -108,10 +108,10 @@ Future<Map<String, String>> handleActions(
       guildId: guildId,
       fallbackChannelId: resolvedFallbackChannelId,
       resolveValue: resolveValue,
-      permissionCache: _permCache,
+      permissionCache: permCache,
     );
     if (handledByMessagingExecutor) {
-      _recordTrace();
+      recordTrace();
       continue;
     }
 
@@ -123,10 +123,10 @@ Future<Map<String, String>> handleActions(
       results: results,
       fallbackChannelId: resolvedFallbackChannelId,
       guildId: guildId,
-      permissionCache: _permCache,
+      permissionCache: permCache,
     );
     if (handledByReactionsExecutor) {
-      _recordTrace();
+      recordTrace();
       continue;
     }
 
@@ -139,7 +139,7 @@ Future<Map<String, String>> handleActions(
       results: results,
     );
     if (handledByModerationRolesExecutor) {
-      _recordTrace();
+      recordTrace();
       continue;
     }
 
@@ -151,10 +151,10 @@ Future<Map<String, String>> handleActions(
       resultKey: resultKey,
       results: results,
       resolveValue: resolveValue,
-      permissionCache: _permCache,
+      permissionCache: permCache,
     );
     if (handledByChannelsExecutor) {
-      _recordTrace();
+      recordTrace();
       continue;
     }
 
@@ -167,10 +167,10 @@ Future<Map<String, String>> handleActions(
       fallbackChannelId: fallbackChannelId,
       fallbackGuildId: guildId,
       resolveValue: resolveValue,
-      permissionCache: _permCache,
+      permissionCache: permCache,
     );
     if (handledByWebhooksExecutor) {
-      _recordTrace();
+      recordTrace();
       continue;
     }
 
@@ -189,7 +189,7 @@ Future<Map<String, String>> handleActions(
           resolveValue: resolveValue,
         );
     if (handledByComponentsInteractionsExecutor) {
-      _recordTrace();
+      recordTrace();
       continue;
     }
 
@@ -207,7 +207,7 @@ Future<Map<String, String>> handleActions(
       interaction: interaction,
     );
     if (handledByVariablesExecutor) {
-      _recordTrace();
+      recordTrace();
       if (results.containsKey('__stopped__')) {
         return results;
       }
@@ -241,7 +241,7 @@ Future<Map<String, String>> handleActions(
           ),
     );
     if (handledByControlFlowExecutor) {
-      _recordTrace();
+      recordTrace();
       if (results.containsKey('__stopped__')) {
         return results;
       }
@@ -260,7 +260,7 @@ Future<Map<String, String>> handleActions(
           (key, value) => store.setGlobalVariable(botId, key, value),
     );
     if (handledByHttpExecutor) {
-      _recordTrace();
+      recordTrace();
       continue;
     }
 
@@ -273,7 +273,7 @@ Future<Map<String, String>> handleActions(
       resolveValue: resolveValue,
     );
     if (handledByCalculateExecutor) {
-      _recordTrace();
+      recordTrace();
       continue;
     }
 
@@ -340,7 +340,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.manageMessages],
               actionLabel: 'pin messages',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -406,7 +406,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.manageMessages],
               actionLabel: 'unpin messages',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -429,7 +429,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.sendMessages],
               actionLabel: 'create polls',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -454,7 +454,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.manageMessages],
               actionLabel: 'end polls',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -477,7 +477,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.createInstantInvite],
               actionLabel: 'create invites',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -503,7 +503,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.manageChannels],
               actionLabel: 'delete invites',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -725,7 +725,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.createPublicThreads],
               actionLabel: 'create threads',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -753,7 +753,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.manageThreads],
               actionLabel: 'add thread members',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -777,7 +777,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.manageThreads],
               actionLabel: 'remove thread members',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -802,7 +802,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.manageRoles],
               actionLabel: 'edit channel permissions',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -825,7 +825,7 @@ Future<Map<String, String>> handleActions(
               guildId: guildId,
               requiredPermissions: [Permissions.manageRoles],
               actionLabel: 'delete channel permissions',
-              cache: _permCache,
+              cache: permCache,
             );
             if (permError != null) throw Exception(permError);
           }
@@ -843,32 +843,30 @@ Future<Map<String, String>> handleActions(
       }
     } catch (e) {
       results[resultKey] = 'Error: $e';
-      _recordTrace(resultOverride: 'Error: $e');
+      recordTrace(resultOverride: 'Error: $e');
       if (action.onErrorMode == ActionOnErrorMode.stop) {
         break;
       }
     }
 
     // Record trace for switch-handled actions (no error)
-    if (_debugTrace != null &&
+    if (debugTrace != null &&
         !(results[resultKey]?.startsWith('Error:') ?? false)) {
-      _recordTrace();
+      recordTrace();
     }
   }
 
   // Send debug profiling embed if $debug was used
-  if (_debugTrace != null && resolvedFallbackChannelId != null) {
-    _debugStopwatch?.stop();
-    final totalMs = _debugStopwatch?.elapsedMilliseconds ?? 0;
+  if (debugTrace != null && resolvedFallbackChannelId != null) {
+    debugStopwatch?.stop();
+    final totalMs = debugStopwatch?.elapsedMilliseconds ?? 0;
     final traceLines = <String>[];
     int? currentLoopIteration;
-    for (var t = 0; t < _debugTrace!.length; t++) {
-      final entry = _debugTrace![t];
+    for (var t = 0; t < debugTrace.length; t++) {
+      final entry = debugTrace[t];
       final durationMs = entry.endMs - entry.startMs;
       final status =
-          entry.result != null && entry.result!.startsWith('Error:')
-              ? '\u274c'
-              : '\u2705';
+          entry.result?.startsWith('Error:') == true ? '\u274c' : '\u2705';
       // Show loop iteration header when entering a new iteration
       if (entry.loopDepth != null &&
           entry.loopIteration != currentLoopIteration) {
@@ -884,11 +882,11 @@ Future<Map<String, String>> handleActions(
     }
     // Build compilation info field
     final compilationField =
-        _debugCompilationMs != null
+        debugCompilationMs != null
             ? {
               'name': '\u2699\ufe0f Compilation',
               'value':
-                  '${_debugCompilationMs}ms \u2022 ${_debugSourceLength ?? '?'} chars \u2022 ${_debugActionCount ?? '?'} actions',
+                  '${debugCompilationMs}ms \u2022 ${debugSourceLength ?? '?'} chars \u2022 ${debugActionCount ?? '?'} actions',
               'inline': false,
             }
             : null;
@@ -910,7 +908,7 @@ Future<Map<String, String>> handleActions(
               if (compilationField != null) 'fields': [compilationField],
               'footer': {
                 'text':
-                    'Total: ${totalMs}ms \u2022 ${_debugTrace!.length} action(s)',
+                    'Total: ${totalMs}ms \u2022 ${debugTrace.length} action(s)',
               },
             },
           ],
