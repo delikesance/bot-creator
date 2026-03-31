@@ -1,6 +1,7 @@
 ﻿import 'dart:convert';
 
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -26,7 +27,8 @@ Future<Map<String, String>> getMemberAction(
       return {'error': 'Missing or invalid userId/memberId', 'member': ''};
     }
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found', 'member': ''};
     final member = await guild.members.fetch(userId);
 
     final encoded = jsonEncode({

@@ -714,8 +714,81 @@
   'bdfd_editor_title': 'Éditeur BDFD',
   'bdfd_editor_tap_hint': 'Appuyez pour ouvrir l’éditeur',
   'bdfd_editor_wrap_toggle': 'Activer/désactiver le retour à la ligne',
-  'bdfd_editor_diagnostics_toggle': 'Afficher/masquer le panneau de diagnostics',
-  'bdfd_editor_empty': 'Script vide — commencez à écrire pour voir les diagnostics.',
+  'bdfd_editor_diagnostics_toggle':
+      'Afficher/masquer le panneau de diagnostics',
+  'bdfd_editor_empty':
+      'Script vide — commencez à écrire pour voir les diagnostics.',
+  'bdfd_editor_docs': 'Référence des fonctions BDFD',
+  'bdfd_docs_title': 'Docs BDFD',
+  'bdfd_docs_search_hint': 'Rechercher une fonction…',
+  'bdfd_docs_empty': 'Aucune fonction trouvée.',
+  'bdfd_docs_syntax': 'SYNTAXE',
+  'bdfd_docs_parameters': 'PARAMÈTRES',
+  'bdfd_docs_no_params': 'Aucun paramètre — utiliser comme \$nomFonction',
+  'bdfd_docs_category_messages': 'Messages & Contenu',
+  'bdfd_docs_category_embeds': 'Embeds',
+  'bdfd_docs_category_components': 'Composants',
+  'bdfd_docs_category_modals': 'Modals',
+  'bdfd_docs_category_control': 'Flux de contrôle',
+  'bdfd_docs_category_guards': 'Gardes & Permissions',
+  'bdfd_docs_category_moderation': 'Modération',
+  'bdfd_docs_category_variables': 'Variables',
+  'bdfd_docs_category_json': 'JSON',
+  'bdfd_docs_category_http': 'Requêtes HTTP',
+  'bdfd_docs_category_math': 'Mathématiques',
+  'bdfd_docs_category_text': 'Texte & Chaînes',
+  'bdfd_docs_category_channels': 'Salons & Threads',
+  'bdfd_docs_category_roles': 'Rôles',
+  'bdfd_docs_category_reactions': 'Réactions',
+  'bdfd_docs_category_cooldowns': 'Cooldowns',
+  'bdfd_docs_category_webhooks': 'Webhooks',
+  'bdfd_docs_category_leaderboards': 'Classements',
+  'bdfd_docs_category_tickets': 'Tickets',
+  'bdfd_docs_category_misc': 'Autres',
+  'bdfd_docs_desc_for':
+      'Bot Creator uniquement — Répète un bloc de code N fois.\n\nSimple : \$for[5]...\$endfor → le corps est répété 5 fois (max 100). Utilisez \$i pour l\'index courant (à partir de 0) et \$loopCount pour le total.\n\nStyle C : \$for[i=0;i<10;i++]...\$endfor → boucle for classique avec init, condition et mise à jour. Supporte ++, --, +=, -=, *=.\n\nSi le nombre d\'itérations est dynamique (ex : \$for[\$args[1]]), la boucle s\'exécute au runtime.',
+  'bdfd_docs_desc_loop':
+      'Bot Creator uniquement — Alias de \$for. Voir \$for pour les détails. Utilisez \$endloop pour fermer le bloc.',
+  'bdfd_docs_desc_callworkflow':
+      'Bot Creator uniquement — Appelle un autre workflow par nom et transmet des arguments.\n\nSyntaxe : \$callWorkflow[monWorkflow;clé1=valeur1;clé2=valeur2]\n\nLe workflow appelé peut lire les arguments et retourner une valeur via \$workflowResponse.',
+  'bdfd_docs_desc_workflowresponse':
+      'Bot Creator uniquement — Retourne la réponse du dernier \$callWorkflow.\n\nUtilisez \$workflowResponse[] pour la réponse complète, ou \$workflowResponse[propriété] pour un champ spécifique.',
+  'bdfd_docs_desc_eval':
+      'Exécute une chaîne de script BDFD au runtime. Le code passé en argument est recompilé et exécuté dynamiquement. Utile pour exécuter des scripts basés sur des variables.',
+  'bdfd_docs_desc_if':
+      'Bloc conditionnel. Supporte l\'imbrication et des opérateurs riches : ==, !=, >=, <=, >, <, contains, startsWith, endsWith, notContains.\n\nUtilisation :\n\$if[\$authorID==123456]\n  Bonjour admin !\n\$elseif[\$hasRole[789]]\n  Bonjour membre !\n\$else\n  Bonjour invité !\n\$endif',
+  'bdfd_docs_desc_elseif':
+      'Ajoute une condition alternative dans un bloc \$if. Doit apparaître entre \$if et \$else/\$endif.',
+  'bdfd_docs_desc_try':
+      'Encadre un bloc pour la gestion d\'erreurs.\n\nUtilisation :\n\$try\n  \$httpGet[https://api.example.com/data]\n\$catch\n  La requête a échoué !\n\$endtry\n\nSi une fonction du bloc \$try échoue, l\'exécution passe au \$catch.',
+  'bdfd_docs_desc_stop':
+      'Arrête immédiatement l\'exécution du script. Aucune action après \$stop ne sera exécutée.',
+  'bdfd_docs_desc_suppresserrors':
+      'Empêche l\'envoi des messages d\'erreur à l\'utilisateur. Si une action échoue, l\'erreur est supprimée silencieusement.',
+  'bdfd_docs_desc_embedsuppresserrors':
+      'Identique à \$suppressErrors — supprime tous les messages d\'erreur silencieusement.',
+  'bdfd_docs_desc_and':
+      'ET logique — combine plusieurs conditions. Toutes doivent être vraies.\n\nUtilisation : \$if[\$and[\$authorID==123;\$hasRole[456]]]',
+  'bdfd_docs_desc_or':
+      'OU logique — combine plusieurs conditions. Au moins une doit être vraie.\n\nUtilisation : \$if[\$or[\$authorID==123;\$authorID==456]]]',
+  'bdfd_docs_desc_awaitfunc':
+      'Enregistre un callback qui attend une réponse utilisateur.\n\nUtilisation : \$awaitFunc[nom;userID (opt);channelID (opt)]\n\nLa fonction attendue est stockée et déclenchée quand l\'utilisateur cible envoie un message dans le salon cible.',
+  'bdfd_docs_desc_defer':
+      'Diffère la réponse à l\'interaction, vous donnant plus de temps. L\'utilisateur voit « Le bot réfléchit… ». À utiliser avant les opérations longues comme les requêtes HTTP.',
+  'bdfd_docs_desc_ephemeral':
+      'Rend la réponse visible uniquement pour l\'utilisateur qui a déclenché la commande. Doit être placé avant tout contenu de réponse.',
+  'bdfd_docs_desc_jsonparse':
+      'Parse une chaîne JSON en mémoire pour manipulation. Toutes les opérations JSON (\$jsonSet, \$json, etc.) agissent sur ce contexte.\n\nLe JSON statique est résolu au compile-time pour de meilleures performances.',
+  'bdfd_docs_desc_jsonset':
+      'Définit une valeur dans le contexte JSON courant. Supporte les chemins en notation pointée.\n\nUtilisation : \$jsonSet[user.name;John]\n\nLa modification est en mémoire — utilisez \$jsonStringify pour obtenir le résultat.',
+  'bdfd_docs_desc_jsonstringify':
+      'Convertit le contexte JSON courant en chaîne de caractères. À utiliser après \$jsonParse et \$jsonSet pour obtenir le résultat.',
+  'bdfd_docs_desc_httpget':
+      'Envoie une requête HTTP GET à l\'URL donnée. Utilisez \$httpAddHeader avant pour définir les en-têtes. Utilisez \$httpResult pour lire la réponse.\n\nToutes les méthodes HTTP (GET, POST, PUT, PATCH, DELETE) suivent le même schéma.',
+  'bdfd_docs_desc_httpaddheader':
+      'Ajoute un en-tête à la prochaine requête HTTP. Les en-têtes s\'accumulent jusqu\'au prochain \$httpGet/\$httpPost/etc.\n\nUtilisation : \$httpAddHeader[Authorization;Bearer token123]',
+  'bdfd_docs_desc_httpresult':
+      'Retourne le corps de la dernière réponse HTTP. Passez optionnellement un chemin JSON pour extraire un champ.\n\nUtilisation : \$httpResult[] pour le corps complet, ou \$httpResult[data.name] pour un champ imbriqué.',
   'done': 'Terminé',
   'cmd_simple_actions_title': 'Actions simplifiées',
   'cmd_simple_actions_desc':

@@ -1,5 +1,6 @@
 import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator_shared/actions/permission_checks.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -103,7 +104,8 @@ Future<Map<String, String>> muteUserAction(
     }
 
     final reason = payload['reason']?.toString().trim();
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found', 'userId': ''};
     final member = await guild.members[userId].update(
       MemberUpdateBuilder(communicationDisabledUntil: until),
       auditLogReason:

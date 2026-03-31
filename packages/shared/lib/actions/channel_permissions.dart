@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 Snowflake? _toSnowflake(dynamic value) {
   final parsed = int.tryParse(value?.toString() ?? '');
@@ -52,7 +53,7 @@ Future<Map<String, String>> editChannelPermissionsAction(
     final allow = Permissions(allowRaw);
     final deny = Permissions(denyRaw);
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
     if (channel is! GuildChannel) {
       return {'error': 'Channel is not a guild channel'};
     }
@@ -108,7 +109,7 @@ Future<Map<String, String>> deleteChannelPermissionAction(
       return {'error': 'targetId is required for deleteChannelPermission'};
     }
 
-    final channel = await client.channels.get(channelId);
+    final channel = await fetchChannelCached(client, channelId);
     if (channel is! GuildChannel) {
       return {'error': 'Channel is not a guild channel'};
     }

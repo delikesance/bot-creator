@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'package:http/http.dart' as http;
 import 'permission_checks.dart';
 
@@ -127,7 +128,8 @@ Future<Map<String, String>> createEmojiAction(
     final roles = _toSnowflakeList(payload['roles']);
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     final emoji = await guild.emojis.create(
       EmojiBuilder(name: name, image: image, roles: roles),
       auditLogReason: reason.isNotEmpty ? reason : null,
@@ -184,7 +186,8 @@ Future<Map<String, String>> updateEmojiAction(
     final roles = _toSnowflakeList(payload['roles']);
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     final builder = EmojiUpdateBuilder(
       name: name.isNotEmpty ? name : null,
       roles: roles.isEmpty ? null : roles,
@@ -242,7 +245,8 @@ Future<Map<String, String>> deleteEmojiAction(
 
     final reason = resolve((payload['reason'] ?? '').toString()).trim();
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     await guild.emojis.delete(
       emojiId,
       auditLogReason: reason.isNotEmpty ? reason : null,

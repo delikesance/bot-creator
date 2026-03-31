@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 import 'permission_checks.dart';
 
 /// Fetches current guild onboarding configuration.
@@ -24,7 +25,8 @@ Future<Map<String, String>> getGuildOnboardingAction(
       return {'error': permError};
     }
 
-    final guild = await client.guilds.get(guildId);
+    final guild = await fetchGuildCached(client, guildId);
+    if (guild == null) return {'error': 'Guild not found'};
     final onboarding = await guild.fetchOnboarding();
 
     final json = jsonEncode({

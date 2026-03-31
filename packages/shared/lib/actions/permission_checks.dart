@@ -1,4 +1,5 @@
 import 'package:nyxx/nyxx.dart';
+import 'package:bot_creator_shared/utils/global.dart';
 
 // ── Permission cache ─────────────────────────────────────────────────────────
 
@@ -14,7 +15,7 @@ class BotPermissionCache {
   Future<Guild> getGuild(NyxxGateway client, Snowflake guildId) async {
     if (_guild != null && _cachedGuildId == guildId) return _guild!;
     _cachedGuildId = guildId;
-    _guild = await client.guilds.get(guildId);
+    _guild = await fetchGuildCached(client, guildId);
     _botPermissions = null;
     _botMember = null;
     return _guild!;
@@ -85,7 +86,8 @@ Future<String?> checkBotGuildPermission(
   final guild =
       cache != null
           ? await cache.getGuild(client, guildId)
-          : await client.guilds.get(guildId);
+          : await fetchGuildCached(client, guildId);
+  if (guild == null) return 'Guild not found';
   final perms =
       cache != null
           ? await cache.getBotPermissions(client, guild, guildId)
@@ -127,7 +129,8 @@ Future<String?> checkBotCanModerate(
   final guild =
       cache != null
           ? await cache.getGuild(client, guildId)
-          : await client.guilds.get(guildId);
+          : await fetchGuildCached(client, guildId);
+  if (guild == null) return 'Guild not found';
 
   // ── 1. Check bot permissions ──
   final botMember =

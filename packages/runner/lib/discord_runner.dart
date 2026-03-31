@@ -1092,12 +1092,17 @@ class DiscordRunner {
             return <String, String>{'value': idText, 'id': idText};
           }
           try {
-            final channel = await _gateway!.channels.fetch(Snowflake(parsedId));
-            return <String, String>{
-              'value': getChannelName(channel),
-              'id': channel.id.toString(),
-              'type': channel.type.toString(),
-            };
+            final channel = await fetchChannelCached(
+              _gateway!,
+              Snowflake(parsedId),
+            );
+            if (channel != null) {
+              return <String, String>{
+                'value': getChannelName(channel),
+                'id': channel.id.toString(),
+                'type': channel.type.toString(),
+              };
+            }
           } catch (_) {}
           return <String, String>{'value': idText, 'id': idText};
         }
@@ -1109,8 +1114,9 @@ class DiscordRunner {
             return null;
           }
           try {
-            final guild = await _gateway!.guilds.fetch(context.guildId!);
-            final channels = await guild.fetchChannels();
+            final guild = await fetchGuildCached(_gateway!, context.guildId!);
+            final channels =
+                guild == null ? <GuildChannel>[] : await guild.fetchChannels();
             for (final channel in channels) {
               final name = channel.name.toLowerCase();
               if (name == channelName) {
@@ -1174,9 +1180,17 @@ class DiscordRunner {
           return <String, String>{'value': idText, 'id': idText};
         }
         try {
-          final guild = await _gateway!.guilds.fetch(context.guildId!);
-          final role = await guild.roles.fetch(Snowflake(parsedId));
-          return <String, String>{'value': role.name, 'id': role.id.toString()};
+          final guild = await fetchGuildCached(_gateway!, context.guildId!);
+          final role =
+              guild == null
+                  ? null
+                  : await guild.roles.fetch(Snowflake(parsedId));
+          if (role != null) {
+            return <String, String>{
+              'value': role.name,
+              'id': role.id.toString(),
+            };
+          }
         } catch (_) {}
         return <String, String>{'value': idText, 'id': idText};
       case 'mentionable':
@@ -1218,13 +1232,18 @@ class DiscordRunner {
           final parsedId = int.tryParse(id);
           if (parsedId != null && context.guildId != null && _gateway != null) {
             try {
-              final guild = await _gateway!.guilds.fetch(context.guildId!);
-              final role = await guild.roles.fetch(Snowflake(parsedId));
-              return <String, String>{
-                'value': role.name,
-                'id': role.id.toString(),
-                'kind': 'role',
-              };
+              final guild = await fetchGuildCached(_gateway!, context.guildId!);
+              final role =
+                  guild == null
+                      ? null
+                      : await guild.roles.fetch(Snowflake(parsedId));
+              if (role != null) {
+                return <String, String>{
+                  'value': role.name,
+                  'id': role.id.toString(),
+                  'kind': 'role',
+                };
+              }
             } catch (_) {}
           }
           return <String, String>{'value': id, 'id': id, 'kind': 'role'};
@@ -1259,13 +1278,18 @@ class DiscordRunner {
           }
           if (parsedId != null && context.guildId != null && _gateway != null) {
             try {
-              final guild = await _gateway!.guilds.fetch(context.guildId!);
-              final role = await guild.roles.fetch(Snowflake(parsedId));
-              return <String, String>{
-                'value': role.name,
-                'id': role.id.toString(),
-                'kind': 'role',
-              };
+              final guild = await fetchGuildCached(_gateway!, context.guildId!);
+              final role =
+                  guild == null
+                      ? null
+                      : await guild.roles.fetch(Snowflake(parsedId));
+              if (role != null) {
+                return <String, String>{
+                  'value': role.name,
+                  'id': role.id.toString(),
+                  'kind': 'role',
+                };
+              }
             } catch (_) {}
           }
           return <String, String>{'value': token, 'id': token};
@@ -1360,7 +1384,8 @@ class DiscordRunner {
       return;
     }
 
-    final channel = await _gateway!.channels.fetch(context.channelId!);
+    final channel = await fetchChannelCached(_gateway!, context.channelId!);
+    if (channel == null) return;
     final builder = MessageBuilder(
       content: content.isEmpty ? null : content,
       embeds: embeds.isEmpty ? null : embeds,
@@ -2018,17 +2043,21 @@ class DiscordRunner {
     Guild? eventGuild;
     if (eventGuildId != null && _gateway != null) {
       try {
-        final fetched = await _gateway!.guilds.fetch(eventGuildId);
+        final fetched = await fetchGuildCached(_gateway!, eventGuildId);
         eventGuild = fetched;
-        runtimeVariables.addAll(extractGuildRuntimeDetails(fetched));
+        if (fetched != null) {
+          runtimeVariables.addAll(extractGuildRuntimeDetails(fetched));
+        }
       } catch (_) {}
     }
 
     final eventChannelId = context.channelId;
     if (eventChannelId != null && _gateway != null) {
       try {
-        final channel = await _gateway!.channels.fetch(eventChannelId);
-        runtimeVariables.addAll(extractChannelRuntimeDetails(channel));
+        final channel = await fetchChannelCached(_gateway!, eventChannelId);
+        if (channel != null) {
+          runtimeVariables.addAll(extractChannelRuntimeDetails(channel));
+        }
       } catch (_) {}
     }
 
