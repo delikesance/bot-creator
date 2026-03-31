@@ -43,8 +43,10 @@ Ce document decrit ce qui est pris en charge par le transpiler BDFD de Bot Creat
 
 - for[n] ... endfor
 - loop[n] ... endloop
+- for[init; condition; update] ... endfor (C-style)
 
-Note: deroulage compile-time avec limite de securite.
+Note: les boucles avec des valeurs statiques sont deroulees au compile-time (limite de securite: 100 iterations).
+Les boucles avec des valeurs dynamiques (ex: `$for[$args[2]]`, `$for[i=0;i<$args[2];i++]`) sont emises en tant qu'action `forLoop` et executees au runtime avec la meme limite de 100 iterations.
 
 ### Messagerie
 

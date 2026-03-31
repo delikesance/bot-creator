@@ -69,6 +69,7 @@ class _BdfdAstTranspilationScope {
   int _loopIterationIndex = 0;
   int _loopDepth = 0;
   Map<String, int> _loopVariables = <String, int>{};
+  Set<String>? _runtimeLoopVarNames;
   final Map<String, String> _tempVariables = <String, String>{};
   final List<Map<String, dynamic>> _pendingModalInputs =
       <Map<String, dynamic>>[];
@@ -123,6 +124,16 @@ class _BdfdAstTranspilationScope {
         final consumed = _consumeLoopBlock(nodes: nodes, startIndex: index);
         if (consumed == null) {
           index += 1;
+          continue;
+        }
+
+        if (consumed.isRuntimeLoop) {
+          final flushed = pendingResponse.buildAction(channelId: _useChannelId);
+          if (flushed != null) {
+            actions.add(flushed);
+          }
+          actions.add(_buildRuntimeForLoopAction(consumed));
+          index = consumed.nextIndex;
           continue;
         }
 
@@ -618,6 +629,31 @@ class _BdfdAstTranspilationScope {
       final condStr = _stringifyArgument(loopNode, 1).trim();
       final updateStr = _stringifyArgument(loopNode, 2);
 
+      // Detect runtime placeholders in any of the three parts.
+      final hasRuntimeInit = initStr.contains('((');
+      final hasRuntimeCond = condStr.contains('((');
+      final hasRuntimeUpdate = updateStr.contains('((');
+      if (hasRuntimeInit || hasRuntimeCond || hasRuntimeUpdate) {
+        // Extract declared variable names from init for body placeholder mapping.
+        final varNames = <String>{};
+        for (final part in initStr.split(',')) {
+          final eqIndex = part.indexOf('=');
+          if (eqIndex >= 0) {
+            varNames.add(part.substring(0, eqIndex).trim().toLowerCase());
+          }
+        }
+        return _ConsumedLoopBlock(
+          nextIndex: nextIndex,
+          bodyNodes: bodyNodes,
+          iterations: 0,
+          isRuntimeLoop: true,
+          runtimeInit: initStr,
+          runtimeCondition: condStr,
+          runtimeUpdate: updateStr,
+          runtimeVarNames: varNames,
+        );
+      }
+
       final initVars = _parseCStyleLoopInit(initStr, loopNode);
       if (initVars == null) {
         return _ConsumedLoopBlock(
@@ -646,6 +682,17 @@ class _BdfdAstTranspilationScope {
     }
 
     // Simple for: $for[n]
+    final rawIterations = _stringifyArgument(loopNode, 0).trim();
+    if (rawIterations.contains('((')) {
+      return _ConsumedLoopBlock(
+        nextIndex: nextIndex,
+        bodyNodes: bodyNodes,
+        iterations: 0,
+        isRuntimeLoop: true,
+        runtimeIterations: rawIterations,
+      );
+    }
+
     final iterations = _parseLoopIterations(loopNode);
     if (iterations == null) {
       return _ConsumedLoopBlock(
@@ -960,6 +1007,58 @@ class _BdfdAstTranspilationScope {
     _loopDepth -= 1;
     _loopIterationIndex = previousIndex;
     return actions;
+  }
+
+  /// Builds a runtime [BotCreatorActionType.forLoop] action whose body is
+  /// transpiled with loop-variable references emitted as `((_loop.var.{name}))`
+  /// or `((_loop.index))` / `((_loop.count))` placeholders that the handler
+  /// will resolve on each iteration.
+  Action _buildRuntimeForLoopAction(_ConsumedLoopBlock consumed) {
+    // Save transpiler state.
+    final previousIndex = _loopIterationIndex;
+    final previousVars = Map<String, int>.from(_loopVariables);
+    final previousDepth = _loopDepth;
+
+    // Enter a special "runtime loop" scope: set _loopDepth so that $i / $loopCount /
+    // C-style variable names are recognised, but map them to placeholder strings instead
+    // of concrete integers. We achieve this by *not* touching _loopIterationIndex (unused
+    // at runtime) and by populating _loopVariables with a sentinel that we intercept in
+    // _stringifyInlineFunction via a new flag.
+    _loopDepth += 1;
+    _runtimeLoopVarNames = consumed.runtimeVarNames ?? const <String>{};
+    _loopVariables = <String, int>{};
+    // Seed _loopVariables so the normal `_loopVariables[name]` lookup falls through
+    // but `_isInlineOnlyFunction` still recognises the names.
+    for (final name in _runtimeLoopVarNames!) {
+      _loopVariables[name] = 0; // sentinel – overridden by placeholder path
+    }
+
+    final bodyActions = _transpileNodes(consumed.bodyNodes);
+
+    // Restore transpiler state.
+    _runtimeLoopVarNames = null;
+    _loopDepth = previousDepth;
+    _loopIterationIndex = previousIndex;
+    _loopVariables = previousVars;
+
+    final payload = <String, dynamic>{
+      'bodyActions': bodyActions.map((action) => action.toJson()).toList(),
+      'maxIterations': _maxSupportedLoopIterations,
+    };
+
+    if (consumed.isRuntimeCStyleLoop) {
+      payload['mode'] = 'cstyle';
+      payload['init'] = consumed.runtimeInit!;
+      payload['condition'] = consumed.runtimeCondition!;
+      payload['update'] = consumed.runtimeUpdate!;
+      payload['varNames'] =
+          consumed.runtimeVarNames?.toList(growable: false) ?? const <String>[];
+    } else {
+      payload['mode'] = 'simple';
+      payload['iterations'] = consumed.runtimeIterations!;
+    }
+
+    return Action(type: BotCreatorActionType.forLoop, payload: payload);
   }
 
   /// Returns `true` when every node in [bodyNodes] is either plain text,
@@ -2909,6 +3008,21 @@ class _BdfdAstTranspilationScope {
   }
 
   String? _stringifyInlineFunction(BdfdFunctionCallAst node) {
+    // Runtime loop variable placeholders (e.g. $i → ((_loop.var.i))).
+    if (_runtimeLoopVarNames != null &&
+        _loopDepth > 0 &&
+        node.arguments.isEmpty) {
+      final name = node.normalizedName;
+      if (_runtimeLoopVarNames!.contains(name)) {
+        return '((_loop.var.$name))';
+      }
+      if (name == 'i' || name == 'loopindex' || name == 'loopiteration') {
+        return '((_loop.index))';
+      }
+      if (name == 'loopcount') {
+        return '((_loop.count))';
+      }
+    }
     // C-style loop variables take precedence (e.g. $i, $j in a for loop).
     if (_loopDepth > 0 && node.arguments.isEmpty) {
       final loopVar = _loopVariables[node.normalizedName];
@@ -3513,6 +3627,10 @@ class _BdfdAstTranspilationScope {
 
   bool _isInlineOnlyFunction(String normalizedName) {
     if (_loopDepth > 0 && _loopVariables.containsKey(normalizedName)) {
+      return true;
+    }
+    if (_runtimeLoopVarNames != null &&
+        _runtimeLoopVarNames!.contains(normalizedName)) {
       return true;
     }
     switch (normalizedName) {
@@ -7066,6 +7184,12 @@ class _ConsumedLoopBlock {
     this.cStyleInit,
     this.cStyleCondition,
     this.cStyleUpdate,
+    this.isRuntimeLoop = false,
+    this.runtimeIterations,
+    this.runtimeInit,
+    this.runtimeCondition,
+    this.runtimeUpdate,
+    this.runtimeVarNames,
   });
 
   /// Pre-computed actions (used by try/catch blocks that reuse this class).
@@ -7080,6 +7204,15 @@ class _ConsumedLoopBlock {
   final String? cStyleUpdate;
 
   bool get isCStyleLoop => cStyleInit != null;
+
+  /// Runtime loop fields (when loop bounds depend on runtime placeholders).
+  final bool isRuntimeLoop;
+  final String? runtimeIterations;
+  final String? runtimeInit;
+  final String? runtimeCondition;
+  final String? runtimeUpdate;
+  final Set<String>? runtimeVarNames;
+  bool get isRuntimeCStyleLoop => runtimeInit != null;
 }
 
 bool _parseBooleanLike(String raw) {

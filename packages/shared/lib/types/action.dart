@@ -44,6 +44,7 @@ enum BotCreatorActionType {
   // Logic & Flow actions
   stopUnless,
   ifBlock,
+  forLoop,
   // Interaction / Component actions
   respondWithMessage,
   respondWithComponentV2,

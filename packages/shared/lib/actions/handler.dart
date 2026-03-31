@@ -327,6 +327,7 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.runBdfdScript:
         case BotCreatorActionType.stopUnless:
         case BotCreatorActionType.ifBlock:
+        case BotCreatorActionType.forLoop:
         case BotCreatorActionType.calculate:
         case BotCreatorActionType.debugProfile:
           throw StateError(
