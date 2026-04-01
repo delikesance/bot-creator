@@ -112,6 +112,14 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
       'Guild Scheduled Events': false,
       'Auto Moderation Configuration': false,
       'Auto Moderation Execution': false,
+      'Guild Moderation': false,
+      'Guild Expressions': false,
+      'Guild Integrations': false,
+      'Guild Webhooks': false,
+      'Guild Invites': false,
+      'Guild Voice States': false,
+      'Guild Message Polls': false,
+      'Direct Message Polls': false,
     };
   }
 

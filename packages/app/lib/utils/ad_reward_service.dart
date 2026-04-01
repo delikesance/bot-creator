@@ -22,6 +22,10 @@ class AdRewardService {
   static bool _isShowing = false;
   static RewardedAd? _rewardedAd;
 
+  /// Cooldown duration after showing a rewarded ad before offering another.
+  static const Duration _cooldown = Duration(minutes: 10);
+  static DateTime? _lastShownAt;
+
   static bool get _isSupportedPlatform {
     if (kIsWeb) {
       return false;
@@ -68,8 +72,15 @@ class AdRewardService {
     }
   }
 
-  static Future<bool> shouldOfferRewardedAd() async =>
-      _initialized && _isSupportedPlatform && !SubscriptionService.isSubscribed;
+  static Future<bool> shouldOfferRewardedAd() async {
+    if (!_initialized || !_isSupportedPlatform) return false;
+    if (SubscriptionService.isSubscribed) return false;
+    if (_lastShownAt != null &&
+        DateTime.now().difference(_lastShownAt!) < _cooldown) {
+      return false;
+    }
+    return true;
+  }
 
   static void showRewardedAdNonBlocking() {
     if (!_initialized || !_isSupportedPlatform) {
@@ -88,6 +99,7 @@ class AdRewardService {
 
     _rewardedAd = null;
     _isShowing = true;
+    _lastShownAt = DateTime.now();
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (_) {

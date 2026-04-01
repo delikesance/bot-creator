@@ -11,6 +11,7 @@ import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator_shared/utils/command_autocomplete.dart';
 import 'package:bot_creator_shared/utils/bdfd_compiler.dart';
 import 'package:bot_creator_shared/utils/global.dart';
+import 'package:bot_creator_shared/utils/intent_resolver.dart';
 import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart';
 import 'package:bot_creator_shared/utils/workflow_call.dart';
@@ -172,7 +173,47 @@ class DiscordRunner {
   Future<void> start() async {
     _log.info('Starting runner with ${config.commands.length} command(s)...');
 
-    final intents = _buildIntents(config.intents);
+    final hasLegacy = config.commands.any(_isLegacyCommandEnabled);
+
+    // 1. Fetch which privileged intents Discord has approved for this app.
+    final approvedPrivileged = await _fetchApprovedPrivilegedIntents(
+      config.token,
+    );
+    if (approvedPrivileged.isNotEmpty) {
+      _log.info(
+        'Approved privileged intents: ${approvedPrivileged.join(', ')}',
+      );
+    }
+
+    // 2. Resolve the intents required by configured event workflows
+    //    and legacy commands, gated by privileged-intent approval.
+    final warnings = <String>[];
+    final requiredKeys = resolveRequiredIntentKeys(
+      eventWorkflows: _eventWorkflows,
+      hasLegacyCommands: hasLegacy,
+      approvedPrivilegedIntents: approvedPrivileged,
+      warnings: warnings,
+    );
+
+    for (final w in warnings) {
+      _log.warning(w);
+    }
+
+    // 3. Merge with any extra intents the user explicitly enabled.
+    final mergedKeys = <String>{...requiredKeys};
+    for (final entry in config.intents.entries) {
+      if (entry.value == true) {
+        // Only add non-privileged or approved privileged intents.
+        if (!privilegedIntentKeys.contains(entry.key) ||
+            approvedPrivileged.contains(entry.key)) {
+          mergedKeys.add(entry.key);
+        }
+      }
+    }
+
+    _log.info('Resolved gateway intents: ${mergedKeys.join(', ')}');
+
+    final intents = _buildIntentsFromKeys(mergedKeys);
     _gateway = await Nyxx.connectGateway(
       config.token,
       intents,
@@ -2674,53 +2715,78 @@ class DiscordRunner {
     }
   }
 
-  Flags<GatewayIntents> _buildIntents(Map<String, bool> intentsMap) {
-    if (intentsMap.isEmpty) return GatewayIntents.allUnprivileged;
+  static const _intentKeyToGateway = <String, Flags<GatewayIntents>>{
+    'Guilds': GatewayIntents.guilds,
+    'Guild Members': GatewayIntents.guildMembers,
+    'Guild Moderation': GatewayIntents.guildModeration,
+    'Guild Expressions': GatewayIntents.guildExpressions,
+    'Guild Integrations': GatewayIntents.guildIntegrations,
+    'Guild Webhooks': GatewayIntents.guildWebhooks,
+    'Guild Invites': GatewayIntents.guildInvites,
+    'Guild Voice States': GatewayIntents.guildVoiceStates,
+    'Guild Presence': GatewayIntents.guildPresences,
+    'Guild Messages': GatewayIntents.guildMessages,
+    'Guild Message Reactions': GatewayIntents.guildMessageReactions,
+    'Guild Message Typing': GatewayIntents.guildMessageTyping,
+    'Direct Messages': GatewayIntents.directMessages,
+    'Direct Message Reactions': GatewayIntents.directMessageReactions,
+    'Direct Message Typing': GatewayIntents.directMessageTyping,
+    'Message Content': GatewayIntents.messageContent,
+    'Guild Scheduled Events': GatewayIntents.guildScheduledEvents,
+    'Auto Moderation Configuration': GatewayIntents.autoModerationConfiguration,
+    'Auto Moderation Execution': GatewayIntents.autoModerationExecution,
+    'Guild Message Polls': GatewayIntents.guildMessagePolls,
+    'Direct Message Polls': GatewayIntents.directMessagePolls,
+  };
+
+  Flags<GatewayIntents> _buildIntentsFromKeys(Set<String> keys) {
+    if (keys.isEmpty) return GatewayIntents.allUnprivileged;
 
     Flags<GatewayIntents> intents = GatewayIntents.none;
-    if (intentsMap['Guild Presence'] == true) {
-      intents = intents | GatewayIntents.guildPresences;
-    }
-    if (intentsMap['Guild Members'] == true) {
-      intents = intents | GatewayIntents.guildMembers;
-    }
-    if (intentsMap['Message Content'] == true) {
-      intents = intents | GatewayIntents.messageContent;
-    }
-    if (intentsMap['Direct Messages'] == true) {
-      intents = intents | GatewayIntents.directMessages;
-    }
-    if (intentsMap['Guilds'] == true) {
-      intents = intents | GatewayIntents.guilds;
-    }
-    if (intentsMap['Guild Messages'] == true) {
-      intents = intents | GatewayIntents.guildMessages;
-    }
-    if (intentsMap['Guild Message Reactions'] == true) {
-      intents = intents | GatewayIntents.guildMessageReactions;
-    }
-    if (intentsMap['Direct Message Reactions'] == true) {
-      intents = intents | GatewayIntents.directMessageReactions;
-    }
-    if (intentsMap['Guild Message Typing'] == true) {
-      intents = intents | GatewayIntents.guildMessageTyping;
-    }
-    if (intentsMap['Direct Message Typing'] == true) {
-      intents = intents | GatewayIntents.directMessageTyping;
-    }
-    if (intentsMap['Guild Scheduled Events'] == true) {
-      intents = intents | GatewayIntents.guildScheduledEvents;
-    }
-    if (intentsMap['Auto Moderation Configuration'] == true) {
-      intents = intents | GatewayIntents.autoModerationConfiguration;
-    }
-    if (intentsMap['Auto Moderation Execution'] == true) {
-      intents = intents | GatewayIntents.autoModerationExecution;
+    for (final key in keys) {
+      final flag = _intentKeyToGateway[key];
+      if (flag != null) {
+        intents = intents | flag;
+      }
     }
 
     return intents == GatewayIntents.none
         ? GatewayIntents.allUnprivileged
         : intents;
+  }
+
+  /// Queries the Discord API to determine which privileged gateway intents
+  /// have been approved for this application.
+  Future<Set<String>> _fetchApprovedPrivilegedIntents(String token) async {
+    final approved = <String>{};
+    try {
+      final rest = await Nyxx.connectRest(token);
+      try {
+        final app = await rest.applications.fetchCurrentApplication();
+        if (app.flags.has(ApplicationFlags.gatewayGuildMembers) ||
+            app.flags.has(ApplicationFlags.gatewayGuildMembersLimited)) {
+          approved.add('Guild Members');
+        }
+        if (app.flags.has(ApplicationFlags.gatewayPresence) ||
+            app.flags.has(ApplicationFlags.gatewayPresenceLimited)) {
+          approved.add('Guild Presence');
+        }
+        if (app.flags.has(ApplicationFlags.gatewayMessageContent) ||
+            app.flags.has(ApplicationFlags.gatewayMessageContentLimited)) {
+          approved.add('Message Content');
+        }
+      } finally {
+        await rest.close();
+      }
+    } catch (e, st) {
+      _log.warning(
+        'Failed to fetch approved privileged intents from Discord API; '
+        'falling back to user-configured intents only.',
+        e,
+        st,
+      );
+    }
+    return approved;
   }
 
   Future<void> _reconcileCurrentBotProfile(NyxxGateway client) async {
