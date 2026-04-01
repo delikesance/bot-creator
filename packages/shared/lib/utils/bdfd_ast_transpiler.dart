@@ -1105,6 +1105,7 @@ class _BdfdAstTranspilationScope {
       case 'addthumbnail':
       case 'addmediagallery':
       case 'addbutton':
+      case 'addbuttoncv2':
       case 'addselectmenuoption':
       case 'newselectmenu':
       case 'editselectmenu':
@@ -1115,6 +1116,14 @@ class _BdfdAstTranspilationScope {
       case 'removecomponent':
       case 'addseparator':
       case 'addtextdisplay':
+      case 'addactionrow':
+      case 'addmediagalleryitem':
+      case 'addmentionableselect':
+      case 'adduserselect':
+      case 'addroleselect':
+      case 'addchannelselect':
+      case 'addstringselect':
+      case 'addstringselectoption':
       case 'ephemeral':
       case 'allowmention':
       case 'allowusermentions':
@@ -1308,38 +1317,190 @@ class _BdfdAstTranspilationScope {
         embed['footer'] = footer;
         return true;
       case 'addcontainer':
+        final containerId = _stringifyArgument(node, 0);
+        final containerColor = _stringifyArgument(node, 1);
+        final containerSpoiler = _parseBooleanLike(_stringifyArgument(node, 2));
         response.addComponent(<String, dynamic>{
           'type': 'container',
-          'accentColor': _stringifyArgument(node, 0),
+          if (containerId.isNotEmpty) 'id': containerId,
+          if (containerColor.isNotEmpty) 'accentColor': containerColor,
+          if (containerSpoiler) 'spoiler': true,
         });
         return true;
       case 'addsection':
+        final sectionId = _stringifyArgument(node, 0);
         response.addComponent(<String, dynamic>{
           'type': 'section',
-          'content': _stringifyArgument(node, 0),
+          if (sectionId.isNotEmpty) 'id': sectionId,
         });
         return true;
       case 'addthumbnail':
+        final thumbUrl = _stringifyArgument(node, 0);
+        final thumbDesc = _stringifyArgument(node, 1);
+        final thumbSpoiler = _parseBooleanLike(_stringifyArgument(node, 2));
         response.addComponent(<String, dynamic>{
           'type': 'thumbnail',
-          'url': _stringifyArgument(node, 0),
+          'url': thumbUrl,
+          if (thumbDesc.isNotEmpty) 'description': thumbDesc,
+          if (thumbSpoiler) 'spoiler': true,
         });
         return true;
       case 'addmediagallery':
-        final galleryUrl = _stringifyArgument(node, 0);
-        final galleryDesc = _stringifyArgument(node, 1);
-        final galleryItem = <String, dynamic>{
-          'url': galleryUrl,
-          if (galleryDesc.isNotEmpty) 'description': galleryDesc,
+        final galleryId = _stringifyArgument(node, 0);
+        response.addComponent(<String, dynamic>{
+          'type': 'mediaGallery',
+          if (galleryId.isNotEmpty) 'id': galleryId,
+          'items': <Map<String, dynamic>>[],
+        });
+        return true;
+      case 'addmediagalleryitem':
+        final itemUrl = _stringifyArgument(node, 0);
+        final itemDesc = _stringifyArgument(node, 1);
+        final itemSpoiler = _parseBooleanLike(_stringifyArgument(node, 2));
+        final galleryRef = _stringifyArgument(node, 3);
+        final item = <String, dynamic>{
+          'url': itemUrl,
+          if (itemDesc.isNotEmpty) 'description': itemDesc,
+          if (itemSpoiler) 'spoiler': true,
         };
         if (response.lastComponentType == 'mediaGallery') {
-          (response.lastComponent!['items'] as List).add(galleryItem);
+          (response.lastComponent!['items'] as List).add(item);
         } else {
           response.addComponent(<String, dynamic>{
             'type': 'mediaGallery',
-            'items': [galleryItem],
+            if (galleryRef.isNotEmpty) 'id': galleryRef,
+            'items': [item],
           });
         }
+        return true;
+      case 'addactionrow':
+        final actionRowId = _stringifyArgument(node, 0);
+        response.addComponent(<String, dynamic>{
+          'type': 'actionRow',
+          if (actionRowId.isNotEmpty) 'id': actionRowId,
+        });
+        return true;
+      case 'addbuttoncv2':
+        final interactionIdOrUrl = _stringifyArgument(node, 0);
+        final label = _stringifyArgument(node, 1);
+        final style = _stringifyArgument(node, 2).trim().toLowerCase();
+        final disabled = _parseBooleanLike(_stringifyArgument(node, 3));
+        final emoji = _stringifyArgument(node, 4);
+        response.addButton(
+          newRow: false,
+          interactionIdOrUrl: interactionIdOrUrl,
+          label: label,
+          style: style.isEmpty ? 'primary' : style,
+          disabled: disabled,
+          emoji: emoji,
+        );
+        return true;
+      case 'addmentionableselect':
+        final customId = _stringifyArgument(node, 0);
+        final placeholder = _stringifyArgument(node, 1);
+        final minValues = _stringifyArgument(node, 2);
+        final maxValues = _stringifyArgument(node, 3);
+        final disabled = _parseBooleanLike(_stringifyArgument(node, 4));
+        response._currentSelectMenuId = customId;
+        response.addComponent(<String, dynamic>{
+          'type': 'selectMenu',
+          'menuType': 'mentionable',
+          'customId': customId,
+          if (placeholder.isNotEmpty) 'placeholder': placeholder,
+          if (minValues.isNotEmpty) 'minValues': int.tryParse(minValues) ?? 1,
+          if (maxValues.isNotEmpty) 'maxValues': int.tryParse(maxValues) ?? 1,
+          'disabled': disabled,
+        });
+        return true;
+      case 'adduserselect':
+        final customId = _stringifyArgument(node, 0);
+        final placeholder = _stringifyArgument(node, 1);
+        final minValues = _stringifyArgument(node, 2);
+        final maxValues = _stringifyArgument(node, 3);
+        final disabled = _parseBooleanLike(_stringifyArgument(node, 4));
+        response._currentSelectMenuId = customId;
+        response.addComponent(<String, dynamic>{
+          'type': 'selectMenu',
+          'menuType': 'user',
+          'customId': customId,
+          if (placeholder.isNotEmpty) 'placeholder': placeholder,
+          if (minValues.isNotEmpty) 'minValues': int.tryParse(minValues) ?? 1,
+          if (maxValues.isNotEmpty) 'maxValues': int.tryParse(maxValues) ?? 1,
+          'disabled': disabled,
+        });
+        return true;
+      case 'addroleselect':
+        final customId = _stringifyArgument(node, 0);
+        final placeholder = _stringifyArgument(node, 1);
+        final minValues = _stringifyArgument(node, 2);
+        final maxValues = _stringifyArgument(node, 3);
+        final disabled = _parseBooleanLike(_stringifyArgument(node, 4));
+        response._currentSelectMenuId = customId;
+        response.addComponent(<String, dynamic>{
+          'type': 'selectMenu',
+          'menuType': 'role',
+          'customId': customId,
+          if (placeholder.isNotEmpty) 'placeholder': placeholder,
+          if (minValues.isNotEmpty) 'minValues': int.tryParse(minValues) ?? 1,
+          if (maxValues.isNotEmpty) 'maxValues': int.tryParse(maxValues) ?? 1,
+          'disabled': disabled,
+        });
+        return true;
+      case 'addchannelselect':
+        final customId = _stringifyArgument(node, 0);
+        final placeholder = _stringifyArgument(node, 1);
+        final minValues = _stringifyArgument(node, 2);
+        final maxValues = _stringifyArgument(node, 3);
+        final disabled = _parseBooleanLike(_stringifyArgument(node, 4));
+        final channelTypes = _stringifyArgument(node, 6);
+        response._currentSelectMenuId = customId;
+        response.addComponent(<String, dynamic>{
+          'type': 'selectMenu',
+          'menuType': 'channel',
+          'customId': customId,
+          if (placeholder.isNotEmpty) 'placeholder': placeholder,
+          if (minValues.isNotEmpty) 'minValues': int.tryParse(minValues) ?? 1,
+          if (maxValues.isNotEmpty) 'maxValues': int.tryParse(maxValues) ?? 1,
+          'disabled': disabled,
+          if (channelTypes.isNotEmpty) 'channelTypes': channelTypes,
+        });
+        return true;
+      case 'addstringselect':
+        final customId = _stringifyArgument(node, 0);
+        final placeholder = _stringifyArgument(node, 1);
+        final minValues = _stringifyArgument(node, 2);
+        final maxValues = _stringifyArgument(node, 3);
+        final disabled = _parseBooleanLike(_stringifyArgument(node, 4));
+        response._currentSelectMenuId = customId;
+        response.addComponent(<String, dynamic>{
+          'type': 'selectMenu',
+          'menuType': 'string',
+          'customId': customId,
+          if (placeholder.isNotEmpty) 'placeholder': placeholder,
+          if (minValues.isNotEmpty) 'minValues': int.tryParse(minValues) ?? 1,
+          if (maxValues.isNotEmpty) 'maxValues': int.tryParse(maxValues) ?? 1,
+          'disabled': disabled,
+        });
+        return true;
+      case 'addstringselectoption':
+        final soLabel = _stringifyArgument(node, 0);
+        final soValue = _stringifyArgument(node, 1);
+        final soDescription = _stringifyArgument(node, 2);
+        final soEmoji = _stringifyArgument(node, 3);
+        final soDefault = _parseBooleanLike(_stringifyArgument(node, 4));
+        final soMenuId = _stringifyArgument(node, 5);
+        final resolvedMenuId =
+            soMenuId.isNotEmpty
+                ? soMenuId
+                : (response._currentSelectMenuId ?? '');
+        response.addSelectMenuOption(
+          menuId: resolvedMenuId,
+          label: soLabel,
+          value: soValue,
+          description: soDescription,
+          isDefault: soDefault,
+          emoji: soEmoji,
+        );
         return true;
       case 'addbutton':
         final newRow = _parseBooleanLike(_stringifyArgument(node, 0));
@@ -1360,14 +1521,16 @@ class _BdfdAstTranspilationScope {
         );
         return true;
       case 'addselectmenuoption':
-        final menuId = response._currentSelectMenuId ?? '';
-        final label = _stringifyArgument(node, 0);
-        final value = _stringifyArgument(node, 1);
-        final description = _stringifyArgument(node, 2);
-        final isDefault = _parseBooleanLike(_stringifyArgument(node, 3));
-        final emoji = _stringifyArgument(node, 4);
+        final menuId = _stringifyArgument(node, 0);
+        final resolvedMenuId =
+            menuId.isNotEmpty ? menuId : (response._currentSelectMenuId ?? '');
+        final label = _stringifyArgument(node, 1);
+        final value = _stringifyArgument(node, 2);
+        final description = _stringifyArgument(node, 3);
+        final isDefault = _parseBooleanLike(_stringifyArgument(node, 4));
+        final emoji = _stringifyArgument(node, 5);
         response.addSelectMenuOption(
-          menuId: menuId,
+          menuId: resolvedMenuId,
           label: label,
           value: value,
           description: description,
@@ -1377,10 +1540,9 @@ class _BdfdAstTranspilationScope {
         return true;
       case 'newselectmenu':
         final customId = _stringifyArgument(node, 0);
-        final placeholder = _stringifyArgument(node, 1);
-        final minValues = _stringifyArgument(node, 2);
-        final maxValues = _stringifyArgument(node, 3);
-        final disabled = _parseBooleanLike(_stringifyArgument(node, 4));
+        final minValues = _stringifyArgument(node, 1);
+        final maxValues = _stringifyArgument(node, 2);
+        final placeholder = _stringifyArgument(node, 3);
         response._currentSelectMenuId = customId;
         response.addComponent(<String, dynamic>{
           'type': 'selectMenu',
@@ -1388,15 +1550,13 @@ class _BdfdAstTranspilationScope {
           if (placeholder.isNotEmpty) 'placeholder': placeholder,
           if (minValues.isNotEmpty) 'minValues': int.tryParse(minValues) ?? 1,
           if (maxValues.isNotEmpty) 'maxValues': int.tryParse(maxValues) ?? 1,
-          'disabled': disabled,
         });
         return true;
       case 'editselectmenu':
         final editMenuId = _stringifyArgument(node, 0);
-        final editMenuPlaceholder = _stringifyArgument(node, 1);
-        final editMenuMinStr = _stringifyArgument(node, 2);
-        final editMenuMaxStr = _stringifyArgument(node, 3);
-        final editMenuDisabledStr = _stringifyArgument(node, 4);
+        final editMenuMinStr = _stringifyArgument(node, 1);
+        final editMenuMaxStr = _stringifyArgument(node, 2);
+        final editMenuPlaceholder = _stringifyArgument(node, 3);
         response.editSelectMenu(
           customId: editMenuId,
           placeholder: editMenuPlaceholder.isEmpty ? null : editMenuPlaceholder,
@@ -1404,23 +1564,18 @@ class _BdfdAstTranspilationScope {
               editMenuMinStr.isEmpty ? null : int.tryParse(editMenuMinStr),
           maxValues:
               editMenuMaxStr.isEmpty ? null : int.tryParse(editMenuMaxStr),
-          disabled:
-              editMenuDisabledStr.isEmpty
-                  ? null
-                  : _parseBooleanLike(editMenuDisabledStr),
         );
         return true;
       case 'editselectmenuoption':
         final editOptMenuId = _stringifyArgument(node, 0);
-        final editOptIndex = int.tryParse(_stringifyArgument(node, 1)) ?? 1;
-        final editOptLabel = _stringifyArgument(node, 2);
-        final editOptValue = _stringifyArgument(node, 3);
-        final editOptDesc = _stringifyArgument(node, 4);
-        final editOptDefaultStr = _stringifyArgument(node, 5);
-        final editOptEmoji = _stringifyArgument(node, 6);
+        final editOptLabel = _stringifyArgument(node, 1);
+        final editOptValue = _stringifyArgument(node, 2);
+        final editOptDesc = _stringifyArgument(node, 3);
+        final editOptDefaultStr = _stringifyArgument(node, 4);
+        final editOptEmoji = _stringifyArgument(node, 5);
         response.editSelectMenuOption(
           menuId: editOptMenuId,
-          index: editOptIndex,
+          index: 1,
           label: editOptLabel.isEmpty ? null : editOptLabel,
           value: editOptValue.isEmpty ? null : editOptValue,
           description: editOptDesc,
@@ -1432,19 +1587,15 @@ class _BdfdAstTranspilationScope {
         );
         return true;
       case 'editbutton':
-        final editBtnRow = int.tryParse(_stringifyArgument(node, 0)) ?? 1;
-        final editBtnCol = int.tryParse(_stringifyArgument(node, 1)) ?? 1;
-        final editBtnLabel = _stringifyArgument(node, 2);
-        final editBtnStyle = _stringifyArgument(node, 3).trim().toLowerCase();
-        final editBtnCustomId = _stringifyArgument(node, 4);
-        final editBtnDisabledStr = _stringifyArgument(node, 5);
-        final editBtnEmoji = _stringifyArgument(node, 6);
-        response.editButton(
-          row: editBtnRow,
-          col: editBtnCol,
+        final editBtnIdOrUrl = _stringifyArgument(node, 0);
+        final editBtnLabel = _stringifyArgument(node, 1);
+        final editBtnStyle = _stringifyArgument(node, 2).trim().toLowerCase();
+        final editBtnDisabledStr = _stringifyArgument(node, 3);
+        final editBtnEmoji = _stringifyArgument(node, 4);
+        response.editButtonByIdOrUrl(
+          buttonIdOrUrl: editBtnIdOrUrl,
           label: editBtnLabel.isEmpty ? null : editBtnLabel,
           style: editBtnStyle.isEmpty ? null : editBtnStyle,
-          customIdOrUrl: editBtnCustomId.isEmpty ? null : editBtnCustomId,
           disabled:
               editBtnDisabledStr.isEmpty
                   ? null
@@ -1463,14 +1614,12 @@ class _BdfdAstTranspilationScope {
         response.removeComponent(customId);
         return true;
       case 'addseparator':
+        final sepDivider = _stringifyArgument(node, 0);
+        final sepSpacing = _stringifyArgument(node, 1);
         response.addComponent(<String, dynamic>{
           'type': 'separator',
-          'spacing': _stringifyArgument(node, 0),
-          'divider': _parseBooleanLike(
-            _stringifyArgument(node, 1).isEmpty
-                ? 'yes'
-                : _stringifyArgument(node, 1),
-          ),
+          'divider': _parseBooleanLike(sepDivider.isEmpty ? 'yes' : sepDivider),
+          if (sepSpacing.isNotEmpty) 'spacing': sepSpacing,
         });
         return true;
       case 'addtextdisplay':
@@ -1622,6 +1771,20 @@ class _BdfdAstTranspilationScope {
       case 'jsonarrayreverse':
         _jsonArrayReverse(node);
         return null;
+      // Logging
+      case 'log':
+        final logMessage = _stringifyArgument(node, 0);
+        final logLevel = _stringifyArgument(node, 1).toLowerCase();
+        return Action(
+          type: BotCreatorActionType.log,
+          payload: <String, dynamic>{
+            'message': logMessage,
+            if (logLevel.isNotEmpty) 'level': logLevel,
+          },
+        );
+      case 'suppresserrorlogging':
+        // No-op flag – absorbed at transpile time.
+        return null;
       // Moderation actions
       case 'ban':
         return _buildBanAction(node);
@@ -1745,22 +1908,22 @@ class _BdfdAstTranspilationScope {
         return _buildNewModalAction(node);
       case 'addtextinput':
         _pendingModalInputs.add(<String, dynamic>{
-          'label': _stringifyArgument(node, 0),
+          'customId': _stringifyArgument(node, 0),
           'style': _stringifyArgument(node, 1),
-          'customId': _stringifyArgument(node, 2),
-          'required': _parseBooleanLike(
-            _stringifyArgument(node, 3).isEmpty
-                ? 'yes'
-                : _stringifyArgument(node, 3),
-          ),
+          'label': _stringifyArgument(node, 2),
+          if (_stringifyArgument(node, 3).isNotEmpty)
+            'minLength': int.tryParse(_stringifyArgument(node, 3)) ?? 0,
           if (_stringifyArgument(node, 4).isNotEmpty)
-            'value': _stringifyArgument(node, 4),
-          if (_stringifyArgument(node, 5).isNotEmpty)
-            'placeholder': _stringifyArgument(node, 5),
+            'maxLength': int.tryParse(_stringifyArgument(node, 4)) ?? 4000,
+          'required': _parseBooleanLike(
+            _stringifyArgument(node, 5).isEmpty
+                ? 'yes'
+                : _stringifyArgument(node, 5),
+          ),
           if (_stringifyArgument(node, 6).isNotEmpty)
-            'minLength': int.tryParse(_stringifyArgument(node, 6)) ?? 0,
+            'value': _stringifyArgument(node, 6),
           if (_stringifyArgument(node, 7).isNotEmpty)
-            'maxLength': int.tryParse(_stringifyArgument(node, 7)) ?? 4000,
+            'placeholder': _stringifyArgument(node, 7),
         });
         return null;
       // Defer action
@@ -3067,6 +3230,39 @@ class _BdfdAstTranspilationScope {
         return _loopDepth > 0 ? (_loopIterationIndex + 1).toString() : '0';
       case 'mentionedchannels':
         return _inlineMentionedChannels(node);
+      // ── Select menu interaction results ──
+      case 'getmentionableselectuserid':
+        final pos = _stringifyArgument(node, 0).trim();
+        return '((interaction.mentionableSelect.userId${pos.isNotEmpty ? '[$pos]' : ''}))';
+      case 'getmentionableselectuserids':
+        final sep = _stringifyArgument(node, 0).trim();
+        return '((interaction.mentionableSelect.userIds${sep.isNotEmpty ? '[$sep]' : ''}))';
+      case 'getuserselectuserid':
+        final pos = _stringifyArgument(node, 0).trim();
+        return '((interaction.userSelect.userId${pos.isNotEmpty ? '[$pos]' : ''}))';
+      case 'getuserselectuserids':
+        final sep = _stringifyArgument(node, 0).trim();
+        return '((interaction.userSelect.userIds${sep.isNotEmpty ? '[$sep]' : ''}))';
+      case 'getroleselectroleid':
+        final pos = _stringifyArgument(node, 0).trim();
+        return '((interaction.roleSelect.roleId${pos.isNotEmpty ? '[$pos]' : ''}))';
+      case 'getroleselectroleids':
+        final sep = _stringifyArgument(node, 0).trim();
+        return '((interaction.roleSelect.roleIds${sep.isNotEmpty ? '[$sep]' : ''}))';
+      case 'getchannelselectchannelid':
+        final pos = _stringifyArgument(node, 0).trim();
+        return '((interaction.channelSelect.channelId${pos.isNotEmpty ? '[$pos]' : ''}))';
+      case 'getchannelselectchannelids':
+        final sep = _stringifyArgument(node, 0).trim();
+        final limit = _stringifyArgument(node, 1).trim();
+        return '((interaction.channelSelect.channelIds${sep.isNotEmpty ? '[$sep${limit.isNotEmpty ? ';$limit' : ''}]' : ''}))';
+      case 'getstringselectvalue':
+        final pos = _stringifyArgument(node, 0).trim();
+        return '((interaction.stringSelect.value${pos.isNotEmpty ? '[$pos]' : ''}))';
+      case 'getstringselectvalues':
+        final sep = _stringifyArgument(node, 0).trim();
+        final limit = _stringifyArgument(node, 1).trim();
+        return '((interaction.stringSelect.values${sep.isNotEmpty ? '[$sep${limit.isNotEmpty ? ';$limit' : ''}]' : ''}))';
       case 'username':
         if (node.arguments.isNotEmpty) {
           final userId = _stringifyArgument(node, 0).trim();
@@ -6892,6 +7088,34 @@ class _PendingResponse {
     }
   }
 
+  /// Edits a button identified by its custom ID or URL.
+  void editButtonByIdOrUrl({
+    required String buttonIdOrUrl,
+    String? label,
+    String? style,
+    bool? disabled,
+    String? emoji,
+  }) {
+    for (final component in _components) {
+      if (component['type'] != 'button') continue;
+      if (component['customId'] != buttonIdOrUrl &&
+          component['url'] != buttonIdOrUrl) {
+        continue;
+      }
+      if (label != null) component['label'] = label;
+      if (style != null) component['style'] = style;
+      if (disabled != null) component['disabled'] = disabled;
+      if (emoji != null) {
+        if (emoji.isNotEmpty) {
+          component['emoji'] = emoji;
+        } else {
+          component.remove('emoji');
+        }
+      }
+      break;
+    }
+  }
+
   /// Edits the select menu with the given [customId].
   /// Only non-null arguments overwrite the existing value.
   void editSelectMenu({
@@ -7388,6 +7612,15 @@ const Map<String, String> _inlineRuntimeVariables = <String, String>{
   'isslash': '((interaction.isSlash))',
   'enabled': '((command.enabled))',
   'variablescount': '((variables.count))',
+  // ── Select menu interaction results ──
+  'getmentionableselectusercount':
+      '((interaction.mentionableSelect.userCount))',
+  'getuserselectusercount': '((interaction.userSelect.userCount))',
+  'getroleselectrolecount': '((interaction.roleSelect.roleCount))',
+  'getchannelselectchannelcount': '((interaction.channelSelect.channelCount))',
+  'getstringselectcount': '((interaction.stringSelect.count))',
+  // ── Logging ──
+  'logquota': '((log.quota))',
   // ── No-op compatibility (return empty string) ──
   'alternativeparsing': '',
   'disableinnerspaceremoval': '',

@@ -100,6 +100,12 @@ const List<_DocCategory> _docCategories = [
       'addseparator',
       'addtextdisplay',
       'addthumbnail',
+      'addactionrow',
+      'addbuttoncv2',
+      'addmediagalleryitem',
+      'addmentionableselect',
+      'adduserselect',
+      'addroleselect',
     ],
   ),
   _DocCategory(

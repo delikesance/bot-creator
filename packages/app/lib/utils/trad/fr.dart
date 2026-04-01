@@ -287,6 +287,7 @@
   'settings_compatibility_functions_category_embeds': 'Embeds',
   'settings_compatibility_functions_category_components':
       'Composants / Interactions',
+  'settings_compatibility_functions_category_logging': 'Journalisation',
   'settings_compatibility_functions_category_json': 'Helpers JSON',
   'settings_compatibility_functions_category_http': 'Helpers HTTP',
   'settings_compatibility_functions_category_variables': 'Variables scopees',

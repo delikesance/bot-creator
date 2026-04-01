@@ -136,7 +136,35 @@ class _BdfdCompatibleFunctionsPageState
         r'$removeComponent',
         r'$defer',
         r'$input',
+        r'$addActionRow',
+        r'$addButtonCV2',
+        r'$addMediaGalleryItem',
+        r'$addMentionableSelect',
+        r'$getMentionableSelectUserID',
+        r'$getMentionableSelectUserIDs',
+        r'$getMentionableSelectUserCount',
+        r'$addUserSelect',
+        r'$getUserSelectUserID',
+        r'$getUserSelectUserIDs',
+        r'$getUserSelectUserCount',
+        r'$addRoleSelect',
+        r'$getRoleSelectRoleID',
+        r'$getRoleSelectRoleIDs',
+        r'$getRoleSelectRoleCount',
+        r'$addChannelSelect',
+        r'$getChannelSelectChannelID',
+        r'$getChannelSelectChannelIDs',
+        r'$getChannelSelectChannelCount',
+        r'$addStringSelect',
+        r'$addStringSelectOption',
+        r'$getStringSelectValue',
+        r'$getStringSelectValues',
+        r'$getStringSelectCount',
       ],
+    ),
+    _FunctionCategory(
+      titleKey: 'settings_compatibility_functions_category_logging',
+      functions: [r'$log', r'$logQuota', r'$suppressErrorLogging'],
     ),
     _FunctionCategory(
       titleKey: 'settings_compatibility_functions_category_json',
@@ -897,6 +925,30 @@ $removeButtons[]
 $removeComponent
 $defer
 $input
+$addActionRow
+$addButtonCV2
+$addMediaGalleryItem
+$addMentionableSelect
+$getMentionableSelectUserID
+$getMentionableSelectUserIDs
+$getMentionableSelectUserCount
+$addUserSelect
+$getUserSelectUserID
+$getUserSelectUserIDs
+$getUserSelectUserCount
+$addRoleSelect
+$getRoleSelectRoleID
+$getRoleSelectRoleIDs
+$getRoleSelectRoleCount
+$addChannelSelect
+$getChannelSelectChannelID
+$getChannelSelectChannelIDs
+$getChannelSelectChannelCount
+$addStringSelect
+$addStringSelectOption
+$getStringSelectValue
+$getStringSelectValues
+$getStringSelectCount
 $addContainer
 $addField
 $addSection
@@ -1285,6 +1337,9 @@ $suppressErrors[]
 $try
 $stop
 $embedSuppressErrors
+$log
+$logQuota
+$suppressErrorLogging
 $checkUserPerms
 $ignoreChannels
 $onlyAdmin

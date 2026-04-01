@@ -330,6 +330,7 @@ Future<Map<String, String>> handleActions(
         case BotCreatorActionType.forLoop:
         case BotCreatorActionType.calculate:
         case BotCreatorActionType.debugProfile:
+        case BotCreatorActionType.log:
           throw StateError(
             'Action ${action.type.name} should have been handled by an executor before switch dispatch.',
           );

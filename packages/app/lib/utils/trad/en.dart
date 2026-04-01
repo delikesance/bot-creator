@@ -277,6 +277,7 @@ const Map<String, String> appStringsEn = {
   'settings_compatibility_functions_category_embeds': 'Embeds',
   'settings_compatibility_functions_category_components':
       'Components / Interactions',
+  'settings_compatibility_functions_category_logging': 'Logging',
   'settings_compatibility_functions_category_json': 'JSON helpers',
   'settings_compatibility_functions_category_http': 'HTTP helpers',
   'settings_compatibility_functions_category_variables': 'Scoped variables',
