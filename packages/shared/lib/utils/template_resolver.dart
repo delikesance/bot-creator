@@ -646,10 +646,7 @@ dynamic _applyBdfdBracketFunction(
       if (result == null) {
         return null;
       }
-      if (result == result.roundToDouble() && result.abs() < 1e15) {
-        return result.toInt();
-      }
-      return result;
+      return _normalizeNumericResult(result);
     case 'ceil':
       final ceilValue =
           resolvedArgs.isEmpty ? null : _coerceNum(resolvedArgs[0]);
@@ -668,11 +665,7 @@ dynamic _applyBdfdBracketFunction(
       if (sqrtValue == null) {
         return null;
       }
-      final result = sqrt(sqrtValue.toDouble());
-      if (result == result.roundToDouble() && result.abs() < 1e15) {
-        return result.toInt();
-      }
-      return result;
+      return _normalizeNumericResult(sqrt(sqrtValue.toDouble()));
     case 'max':
       if (resolvedArgs.length < 2) {
         return null;
@@ -682,7 +675,7 @@ dynamic _applyBdfdBracketFunction(
       if (left == null || right == null) {
         return null;
       }
-      return max(left, right);
+      return _normalizeNumericResult(max(left, right));
     case 'min':
       if (resolvedArgs.length < 2) {
         return null;
@@ -692,7 +685,7 @@ dynamic _applyBdfdBracketFunction(
       if (left == null || right == null) {
         return null;
       }
-      return min(left, right);
+      return _normalizeNumericResult(min(left, right));
     case 'modulo':
     case 'multi':
     case 'divide':
@@ -707,15 +700,33 @@ dynamic _applyBdfdBracketFunction(
       }
       switch (name) {
         case 'modulo':
-          return right != 0 ? left % right : 0;
+          return _normalizeNumericResult(right != 0 ? left % right : 0);
         case 'multi':
-          return left * right;
+          return _normalizeNumericResult(left * right);
         case 'divide':
-          return right != 0 ? left / right : 0;
+          return _normalizeNumericResult(right != 0 ? left / right : 0);
         case 'sub':
-          return left - right;
+          return _normalizeNumericResult(left - right);
       }
       return null;
+    case 'totitlecase':
+    case 'tolowercase':
+    case 'touppercase':
+    case 'charcount':
+    case 'linescount':
+    case 'croptext':
+      return _applyFunction(name, resolvedArgs, updates);
+    case 'bytecount':
+      if (resolvedArgs.isEmpty) {
+        return null;
+      }
+      return utf8.encode(_stringifyResolvedValue(resolvedArgs.first)).length;
+    case 'trimcontent':
+    case 'trimspace':
+      if (resolvedArgs.isEmpty) {
+        return null;
+      }
+      return _stringifyResolvedValue(resolvedArgs.first).trim();
     case 'sum':
       if (resolvedArgs.isEmpty) {
         return null;
@@ -730,7 +741,7 @@ dynamic _applyBdfdBracketFunction(
               total += numeric;
             }
           }
-          return total;
+          return _normalizeNumericResult(total);
         }
       }
       num total = 0;
@@ -743,10 +754,20 @@ dynamic _applyBdfdBracketFunction(
         foundNumeric = true;
         total += numeric;
       }
-      return foundNumeric ? total : null;
+      return foundNumeric ? _normalizeNumericResult(total) : null;
     default:
       return null;
   }
+}
+
+dynamic _normalizeNumericResult(num value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is double && value == value.roundToDouble() && value.abs() < 1e15) {
+    return value.toInt();
+  }
+  return value;
 }
 
 int? _coerceInt(dynamic value) {

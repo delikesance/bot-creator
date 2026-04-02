@@ -16,6 +16,7 @@ import 'routes/create.dart';
 import 'routes/onboarding.dart';
 import 'utils/app_diagnostics.dart';
 import 'utils/bot_payload_builder.dart';
+import 'utils/bot.dart';
 import 'utils/database.dart';
 import 'utils/analytics.dart';
 import 'utils/ad_consent_service.dart';
@@ -164,6 +165,7 @@ Future<void> _bootstrapAndRunApp() async {
   await AdRewardService.initialize();
   await AdNativeService.initialize();
   await SubscriptionService.initialize();
+  await loadDebugReplayCapturingState();
 
   try {
     appManager = AppManager();

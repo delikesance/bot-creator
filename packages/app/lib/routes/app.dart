@@ -32,6 +32,24 @@ class _AppEditPageState extends State<AppEditPage>
   bool _isLoading = true;
   String? _degradedReason;
 
+  static const List<QuickAccessSection> _mobileQuickAccessSections = [
+    QuickAccessSection(
+      index: 6,
+      icon: Icons.emoji_emotions_outlined,
+      labelKey: 'emojis_tab',
+    ),
+    QuickAccessSection(
+      index: 7,
+      icon: Icons.bar_chart,
+      labelKey: 'dashboard_title',
+    ),
+    QuickAccessSection(
+      index: 8,
+      icon: Icons.settings,
+      labelKey: 'settings_tab',
+    ),
+  ];
+
   bool get _isDesktopPlatform {
     if (kIsWeb) {
       return false;
@@ -219,23 +237,7 @@ class _AppEditPageState extends State<AppEditPage>
               _selectedIndex = index;
             });
           },
-          secondarySections: const [
-            QuickAccessSection(
-              index: 5,
-              icon: Icons.emoji_emotions_outlined,
-              labelKey: 'emojis_tab',
-            ),
-            QuickAccessSection(
-              index: 6,
-              icon: Icons.bar_chart,
-              labelKey: 'dashboard_title',
-            ),
-            QuickAccessSection(
-              index: 7,
-              icon: Icons.settings,
-              labelKey: 'settings_tab',
-            ),
-          ],
+          secondarySections: _mobileQuickAccessSections,
         ),
       ),
       _AppPageEntry(
@@ -474,26 +476,38 @@ class _AppEditPageState extends State<AppEditPage>
         ),
     ];
 
+    final mq = MediaQuery.of(context);
     return Scaffold(
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: colorScheme.surface,
-        selectedItemColor: colorScheme.primary,
-        unselectedItemColor: colorScheme.onSurfaceVariant,
-        selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
-        showUnselectedLabels: !isMobile,
-        currentIndex: bottomIndex,
-        onTap: (index) {
-          if (hasSecondary && index == coreEntries.length) {
-            // "More" tab tapped — show bottom sheet
-            _showMoreSheet(context, entries, secondaryEntries);
-          } else {
-            setState(() {
-              _selectedIndex = coreEntries[index];
-            });
-          }
-        },
-        items: bottomItems,
+      bottomNavigationBar: MediaQuery(
+        data: mq.copyWith(textScaler: const TextScaler.linear(1.0)),
+        child: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: colorScheme.surface,
+          selectedItemColor: colorScheme.primary,
+          unselectedItemColor: colorScheme.onSurfaceVariant,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
+          showUnselectedLabels: !isMobile,
+          currentIndex: bottomIndex,
+          onTap: (index) {
+            if (hasSecondary && index == coreEntries.length) {
+              // "More" tab tapped — show bottom sheet
+              final quickAccessIndices = _mobileQuickAccessSections
+                  .map((section) => section.index)
+                  .toList(growable: false);
+              _showMoreSheet(
+                context,
+                entries,
+                secondaryEntries,
+                quickAccessIndices,
+              );
+            } else {
+              setState(() {
+                _selectedIndex = coreEntries[index];
+              });
+            }
+          },
+          items: bottomItems,
+        ),
       ),
       body: pages[activeIndex],
     );
@@ -503,8 +517,15 @@ class _AppEditPageState extends State<AppEditPage>
     BuildContext context,
     List<_AppPageEntry> entries,
     List<int> secondaryIndices,
+    List<int> quickAccessIndices,
   ) {
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Filter out Quick Access indices from secondary entries
+    final filteredIndices = secondaryIndices
+        .where((idx) => !quickAccessIndices.contains(idx))
+        .toList(growable: false);
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -533,7 +554,7 @@ class _AppEditPageState extends State<AppEditPage>
                   child: Padding(
                     padding: const EdgeInsets.only(left: 4, bottom: 12),
                     child: Text(
-                      AppStrings.t('quick_access_title'),
+                      AppStrings.t('more_options_title'),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w600,
@@ -541,28 +562,41 @@ class _AppEditPageState extends State<AppEditPage>
                     ),
                   ),
                 ),
-                // Grid of action chips
-                Row(
-                  children: [
-                    for (var idx = 0; idx < secondaryIndices.length; idx++) ...[
-                      if (idx > 0) const SizedBox(width: 16),
-                      Expanded(
-                        child: _MoreSheetItem(
-                          icon: entries[secondaryIndices[idx]].icon,
-                          label: entries[secondaryIndices[idx]].label,
-                          selected: _selectedIndex == secondaryIndices[idx],
+                // App-like list of secondary sections.
+                if (filteredIndices.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Text(
+                      AppStrings.t('no_more_options'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 320),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: filteredIndices.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 8),
+                      itemBuilder: (context, idx) {
+                        final entryIndex = filteredIndices[idx];
+                        return _MoreSheetItem(
+                          icon: entries[entryIndex].icon,
+                          label: entries[entryIndex].label,
+                          selected: _selectedIndex == entryIndex,
                           colorScheme: colorScheme,
                           onTap: () {
                             Navigator.pop(sheetContext);
                             setState(() {
-                              _selectedIndex = secondaryIndices[idx];
+                              _selectedIndex = entryIndex;
                             });
                           },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                        );
+                      },
+                    ),
+                  ),
               ],
             ),
           ),
@@ -628,29 +662,40 @@ class _MoreSheetItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
             children: [
               Icon(
                 icon,
-                size: 24,
+                size: 22,
                 color:
                     selected
                         ? colorScheme.onPrimaryContainer
                         : colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                  color:
-                      selected
-                          ? colorScheme.onPrimaryContainer
-                          : colorScheme.onSurface,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    color:
+                        selected
+                            ? colorScheme.onPrimaryContainer
+                            : colorScheme.onSurface,
+                  ),
                 ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color:
+                    selected
+                        ? colorScheme.onPrimaryContainer
+                        : colorScheme.onSurfaceVariant,
               ),
             ],
           ),

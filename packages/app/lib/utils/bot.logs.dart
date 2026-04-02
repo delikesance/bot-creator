@@ -679,6 +679,35 @@ void consumeForegroundTaskDataForBotLogs(Object data) {
 }
 
 Future<void> _emitTaskLifecycleToMain(String state, {String? botId}) async {
+  final trimmedBotId = botId?.trim() ?? '';
+  if (trimmedBotId.isNotEmpty) {
+    try {
+      final existing = await FlutterForegroundTask.getData<dynamic>(
+        key: _mobileReadyBotIdsDataKey,
+      );
+      final next = <String>{};
+      if (existing is Iterable) {
+        for (final value in existing) {
+          final normalized = value.toString().trim();
+          if (normalized.isNotEmpty) {
+            next.add(normalized);
+          }
+        }
+      }
+
+      if (state == 'started') {
+        next.add(trimmedBotId);
+      } else if (state == 'stopped') {
+        next.remove(trimmedBotId);
+      }
+
+      await FlutterForegroundTask.saveData(
+        key: _mobileReadyBotIdsDataKey,
+        value: next.toList(growable: false),
+      );
+    } catch (_) {}
+  }
+
   try {
     FlutterForegroundTask.sendDataToMain(<String, dynamic>{
       'type': 'bot_lifecycle',

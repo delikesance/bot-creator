@@ -139,6 +139,17 @@ class _FakeBotDataStore implements BotDataStore {
       .toList(growable: false);
 
   @override
+  Future<void> setScopedVariableDefinition(
+    String botId,
+    String key,
+    String scope,
+    dynamic defaultValue, {
+    String valueType = 'string',
+  }) {
+    throw UnsupportedError('Not used in this test');
+  }
+
+  @override
   Future<Map<String, dynamic>> getGlobalVariables(String botId) async =>
       Map<String, dynamic>.from(globalVariables);
 

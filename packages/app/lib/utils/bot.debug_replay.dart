@@ -113,6 +113,7 @@ List<DebugReplayRecord> get debugReplays =>
 void setDebugReplayCapturing(bool enabled) {
   _debugReplayCapturing = enabled;
   unawaited(_persistDebugReplayCapturing(enabled));
+  unawaited(syncMobileDebugFlagsWithService());
 }
 
 Future<void> _persistDebugReplayCapturing(bool enabled) async {
@@ -122,6 +123,17 @@ Future<void> _persistDebugReplayCapturing(bool enabled) async {
       value: enabled,
     );
   } catch (_) {}
+}
+
+Future<void> loadDebugReplayCapturingState() async {
+  try {
+    final saved = await FlutterForegroundTask.getData<dynamic>(
+      key: _debugReplayEnabledDataKey,
+    );
+    _debugReplayCapturing = saved == true;
+  } catch (_) {
+    _debugReplayCapturing = false;
+  }
 }
 
 void appendDebugReplay(DebugReplayRecord record) {

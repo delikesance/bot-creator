@@ -56,24 +56,31 @@ class _AppHomePageState extends State<AppHomePage>
   NyxxRest? client; // Changez en nullable
   String avatar = "";
   bool _botLaunched = false;
+  bool _botStarting = false;
   bool _isSyncingApp = false;
   void Function(Object)? _taskDataCallback;
 
   bool get _supportsForegroundTask => Platform.isAndroid || Platform.isIOS;
 
-  Future<void> _requestPermissions() async {
+  Future<bool> _requestPermissions() async {
     if (!_supportsForegroundTask) {
-      return;
+      return true;
     }
 
     // Android 13+, you need to allow notification permission to display foreground service notification.
     //
     // iOS: If you need notification, ask for permission.
     try {
-      final NotificationPermission notificationPermission =
+      var notificationPermission =
           await FlutterForegroundTask.checkNotificationPermission();
       if (notificationPermission != NotificationPermission.granted) {
         await FlutterForegroundTask.requestNotificationPermission();
+        notificationPermission =
+            await FlutterForegroundTask.checkNotificationPermission();
+      }
+
+      if (notificationPermission != NotificationPermission.granted) {
+        return false;
       }
 
       if (Platform.isAndroid) {
@@ -83,7 +90,10 @@ class _AppHomePageState extends State<AppHomePage>
       }
     } on MissingPluginException {
       // No-op on unsupported platforms.
+      return true;
     }
+
+    return true;
   }
 
   Future<void> _initService() async {
@@ -120,7 +130,25 @@ class _AppHomePageState extends State<AppHomePage>
       _taskDataCallback = (Object data) {
         consumeForegroundTaskDataForBotLogs(data);
         if (mounted) {
-          setState(() {});
+          final currentBotId = widget.client.user.id.toString();
+          var launched = _botLaunched;
+          var starting = _botStarting;
+
+          if (data is Map) {
+            final map = Map<String, dynamic>.from(
+              data.cast<dynamic, dynamic>(),
+            );
+            if (map['type'] == 'bot_lifecycle' &&
+                map['botId']?.toString() == currentBotId) {
+              launched = isMobileBotRunning(currentBotId);
+              starting = false;
+            }
+          }
+
+          setState(() {
+            _botLaunched = launched;
+            _botStarting = starting;
+          });
         }
       };
       try {
@@ -175,22 +203,19 @@ class _AppHomePageState extends State<AppHomePage>
     } else {
       if (_supportsForegroundTask) {
         try {
-          final serviceRunning = await FlutterForegroundTask.isRunningService;
-          if (serviceRunning) {
-            final runningId =
-                mobileRunningBotId ??
-                await FlutterForegroundTask.getData<String>(
-                  key: 'running_bot_id',
-                );
-            if (runningId != null && runningId.isNotEmpty) {
-              isRunning = runningId == botId;
-            } else {
-              isRunning = serviceRunning;
-            }
+          final readyIds = await getReadyMobileBotIds();
+          if (readyIds.contains(botId) || isMobileBotRunning(botId)) {
+            isRunning = true;
           } else {
-            isRunning = false;
+            final configuredIds = await getConfiguredMobileBotIds();
+            final serviceRunning = await FlutterForegroundTask.isRunningService;
+            // Fallback: if the bot is configured and the foreground service is
+            // alive, keep Home state consistent when navigating between pages.
+            isRunning = serviceRunning && configuredIds.contains(botId);
           }
         } on MissingPluginException {
+          isRunning = false;
+        } catch (_) {
           isRunning = false;
         }
       } else {
@@ -209,6 +234,7 @@ class _AppHomePageState extends State<AppHomePage>
     );
     setState(() {
       _botLaunched = isRunning;
+      _botStarting = false;
       _appName = app["name"];
       avatar = app["avatar"] ?? "";
     });
@@ -462,216 +488,327 @@ class _AppHomePageState extends State<AppHomePage>
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      if (Platform.isIOS) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Icon(
+                                  Icons.info_outline,
+                                  color: Colors.orange,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      AppStrings.t('bot_home_ios_notice_title'),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      AppStrings.t(
+                                        'bot_home_ios_notice_content',
+                                      ),
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor:
-                              _botLaunched ? Colors.red : Colors.green,
+                              _botLaunched
+                                  ? Colors.red
+                                  : _botStarting
+                                  ? Colors.orange
+                                  : Colors.green,
                           minimumSize: const Size.fromHeight(44),
                         ),
-                        onPressed: () async {
-                          try {
-                            final app = await appManager.getApp(
-                              widget.client.user.id.toString(),
-                            );
-                            final token = app["token"]?.toString();
-                            if (token == null || token.trim().isEmpty) {
-                              throw Exception("Token not found");
-                            }
+                        onPressed:
+                            _botStarting
+                                ? null
+                                : () async {
+                                  try {
+                                    final app = await appManager.getApp(
+                                      widget.client.user.id.toString(),
+                                    );
+                                    final token = app["token"]?.toString();
+                                    if (token == null || token.trim().isEmpty) {
+                                      throw Exception("Token not found");
+                                    }
 
-                            final botId = widget.client.user.id.toString();
+                                    final botId =
+                                        widget.client.user.id.toString();
 
-                            if (!_botLaunched) {
-                              try {
-                                await getDiscordUser(token);
-                              } catch (_) {
-                                if (!mounted) return;
-                                final proceed =
-                                    await showDialog<bool>(
-                                      context: context,
-                                      builder:
-                                          (ctx) => AlertDialog(
-                                            title: Text(
-                                              AppStrings.t(
-                                                'bot_home_token_invalid_title',
-                                              ),
-                                            ),
-                                            content: Text(
-                                              AppStrings.t(
-                                                'bot_home_token_invalid_content',
-                                              ),
-                                            ),
-                                            actions: [
-                                              TextButton(
-                                                onPressed:
-                                                    () => Navigator.of(
-                                                      ctx,
-                                                    ).pop(false),
-                                                child: Text(
-                                                  AppStrings.t('cancel'),
-                                                ),
-                                              ),
-                                              FilledButton(
-                                                onPressed:
-                                                    () => Navigator.of(
-                                                      ctx,
-                                                    ).pop(true),
-                                                child: Text(
-                                                  AppStrings.t(
-                                                    'bot_home_start',
+                                    if (!_botLaunched) {
+                                      try {
+                                        await getDiscordUser(token);
+                                      } catch (_) {
+                                        if (!mounted) return;
+                                        final proceed =
+                                            await showDialog<bool>(
+                                              context: context,
+                                              builder:
+                                                  (ctx) => AlertDialog(
+                                                    title: Text(
+                                                      AppStrings.t(
+                                                        'bot_home_token_invalid_title',
+                                                      ),
+                                                    ),
+                                                    content: Text(
+                                                      AppStrings.t(
+                                                        'bot_home_token_invalid_content',
+                                                      ),
+                                                    ),
+                                                    actions: [
+                                                      TextButton(
+                                                        onPressed:
+                                                            () => Navigator.of(
+                                                              ctx,
+                                                            ).pop(false),
+                                                        child: Text(
+                                                          AppStrings.t(
+                                                            'cancel',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      FilledButton(
+                                                        onPressed:
+                                                            () => Navigator.of(
+                                                              ctx,
+                                                            ).pop(true),
+                                                        child: Text(
+                                                          AppStrings.t(
+                                                            'bot_home_start',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ),
-                                              ),
-                                            ],
+                                            ) ??
+                                            false;
+                                        if (!proceed || !mounted) return;
+                                      }
+                                      await _maybeOfferRewardedAd();
+                                    }
+
+                                    // ── Runner API (API only) ────────────────────────────
+                                    final remoteClient =
+                                        await RunnerSettings.createClient(
+                                          getTimeout: const Duration(
+                                            seconds: 30,
                                           ),
-                                    ) ??
-                                    false;
-                                if (!proceed || !mounted) return;
-                              }
-                              await _maybeOfferRewardedAd();
-                            }
+                                          postTimeout: const Duration(
+                                            seconds: 90,
+                                          ),
+                                        );
+                                    if (remoteClient != null) {
+                                      if (_botLaunched) {
+                                        appendBotLog(
+                                          'Bot stop requested',
+                                          botId: botId,
+                                        );
+                                        await remoteClient.stopBot(botId);
+                                        endBotLogSession(botId: botId);
+                                        setBotRuntimeActive(false);
+                                        if (mounted) {
+                                          setState(() => _botLaunched = false);
+                                        }
+                                      } else {
+                                        startBotLogSession(botId: botId);
+                                        clearBotBaselineRss();
+                                        appendBotLog(
+                                          'Bot start requested',
+                                          botId: botId,
+                                        );
+                                        final payload = await buildBotPayload(
+                                          botId,
+                                        );
+                                        await remoteClient.syncBot(
+                                          botId,
+                                          _appName,
+                                          payload,
+                                        );
+                                        await remoteClient.startBot(
+                                          botId,
+                                          botName: _appName,
+                                        );
+                                        setBotRuntimeActive(true);
+                                        if (mounted) {
+                                          setState(() => _botLaunched = true);
+                                        }
+                                      }
+                                      return;
+                                    }
 
-                            // ── Runner API (API only) ────────────────────────────
-                            final remoteClient =
-                                await RunnerSettings.createClient(
-                                  getTimeout: const Duration(seconds: 30),
-                                  postTimeout: const Duration(seconds: 90),
-                                );
-                            if (remoteClient != null) {
-                              if (_botLaunched) {
-                                appendBotLog(
-                                  'Bot stop requested',
-                                  botId: botId,
-                                );
-                                await remoteClient.stopBot(botId);
-                                endBotLogSession(botId: botId);
-                                setBotRuntimeActive(false);
-                                if (mounted) {
-                                  setState(() => _botLaunched = false);
-                                }
-                              } else {
-                                startBotLogSession(botId: botId);
-                                clearBotBaselineRss();
-                                appendBotLog(
-                                  'Bot start requested',
-                                  botId: botId,
-                                );
-                                final payload = await buildBotPayload(botId);
-                                await remoteClient.syncBot(
-                                  botId,
-                                  _appName,
-                                  payload,
-                                );
-                                await remoteClient.startBot(
-                                  botId,
-                                  botName: _appName,
-                                );
-                                setBotRuntimeActive(true);
-                                if (mounted) {
-                                  setState(() => _botLaunched = true);
-                                }
-                              }
-                              return;
-                            }
+                                    // ── Local engine ─────────────────────────────────
+                                    if (!_botLaunched) {
+                                      clearBotBaselineRss();
+                                      startBotLogSession(botId: botId);
+                                      appendBotLog(
+                                        'Bot start requested',
+                                        botId: botId,
+                                      );
+                                    }
 
-                            // ── Local engine ─────────────────────────────────
-                            if (!_botLaunched) {
-                              clearBotBaselineRss();
-                              startBotLogSession(botId: botId);
-                              appendBotLog('Bot start requested', botId: botId);
-                            }
+                                    if (_supportsForegroundTask) {
+                                      if (_botLaunched) {
+                                        appendBotLog(
+                                          'Bot stop requested',
+                                          botId: botId,
+                                        );
+                                        await stopMobileBotSession(
+                                          botId: botId,
+                                        );
+                                        endBotLogSession(botId: botId);
+                                        setBotRuntimeActive(
+                                          isDesktopBotRunning ||
+                                              mobileRunningBotIds.isNotEmpty,
+                                        );
+                                        if (mounted) {
+                                          setState(() {
+                                            _botLaunched = false;
+                                            _botStarting = false;
+                                          });
+                                        }
+                                        return;
+                                      }
 
-                            if (_supportsForegroundTask) {
-                              if (_botLaunched) {
-                                appendBotLog(
-                                  'Bot stop requested',
-                                  botId: botId,
-                                );
-                                await stopMobileBotSession(botId: botId);
-                                endBotLogSession(botId: botId);
-                                setBotRuntimeActive(
-                                  isDesktopBotRunning ||
-                                      mobileRunningBotIds.isNotEmpty,
-                                );
-                                if (mounted) {
-                                  setState(() {
-                                    _botLaunched = false;
-                                  });
-                                }
-                                return;
-                              }
+                                      final permissionGranted =
+                                          await _requestPermissions();
+                                      if (!permissionGranted) {
+                                        throw Exception(
+                                          AppStrings.t(
+                                            'bot_home_notif_required',
+                                          ),
+                                        );
+                                      }
+                                      await _initService();
 
-                              await _requestPermissions();
-                              await _initService();
+                                      await startMobileBotSession(
+                                        botId: botId,
+                                        token: token,
+                                      );
+                                      developer.log(
+                                        'Token saved, starting foreground service',
+                                        name: 'AppHomePage',
+                                      );
 
-                              await startMobileBotSession(
-                                botId: botId,
-                                token: token,
-                              );
-                              developer.log(
-                                'Token saved, starting foreground service',
-                                name: 'AppHomePage',
-                              );
+                                      final running =
+                                          await FlutterForegroundTask
+                                              .isRunningService;
+                                      if (!running) {
+                                        throw Exception(
+                                          AppStrings.t(
+                                            'bot_home_service_not_started',
+                                          ),
+                                        );
+                                      }
 
-                              final running =
-                                  await FlutterForegroundTask.isRunningService;
-                              if (!running) {
-                                throw Exception(
-                                  AppStrings.t('bot_home_service_not_started'),
-                                );
-                              }
-                            } else {
-                              if (_botLaunched) {
-                                appendBotLog(
-                                  AppStrings.t('bot_home_log_desktop_stop'),
-                                  botId: botId,
-                                );
-                                await stopDesktopBot(botId: botId);
-                                endBotLogSession(botId: botId);
-                                setBotRuntimeActive(
-                                  isDesktopBotRunning ||
-                                      mobileRunningBotIds.isNotEmpty,
-                                );
-                                clearBotBaselineRss();
-                                if (mounted) {
-                                  setState(() {
-                                    _botLaunched = false;
-                                  });
-                                }
-                                return;
-                              }
+                                      if (mounted) {
+                                        setState(() {
+                                          _botLaunched = false;
+                                          _botStarting = true;
+                                        });
+                                      }
+                                    } else {
+                                      if (_botLaunched) {
+                                        appendBotLog(
+                                          AppStrings.t(
+                                            'bot_home_log_desktop_stop',
+                                          ),
+                                          botId: botId,
+                                        );
+                                        await stopDesktopBot(botId: botId);
+                                        endBotLogSession(botId: botId);
+                                        setBotRuntimeActive(
+                                          isDesktopBotRunning ||
+                                              mobileRunningBotIds.isNotEmpty,
+                                        );
+                                        clearBotBaselineRss();
+                                        if (mounted) {
+                                          setState(() {
+                                            _botLaunched = false;
+                                            _botStarting = false;
+                                          });
+                                        }
+                                        return;
+                                      }
 
-                              await startDesktopBot(token);
-                            }
+                                      await startDesktopBot(token);
+                                    }
 
-                            if (mounted) {
-                              setState(() {
-                                _botLaunched = true;
-                              });
-                            }
-                          } catch (e) {
-                            if (!mounted) {
-                              return;
-                            }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  AppStrings.tr(
-                                    'bot_home_start_error',
-                                    params: {'error': e.toString()},
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                        },
+                                    if (mounted) {
+                                      setState(() {
+                                        _botLaunched = !_supportsForegroundTask;
+                                        _botStarting = false;
+                                      });
+                                    }
+                                  } catch (e) {
+                                    if (!mounted) {
+                                      return;
+                                    }
+                                    setState(() {
+                                      _botStarting = false;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          AppStrings.tr(
+                                            'bot_home_start_error',
+                                            params: {'error': e.toString()},
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(_botLaunched ? Icons.stop : Icons.play_arrow),
+                            if (_botStarting)
+                              const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            else
+                              Icon(
+                                _botLaunched ? Icons.stop : Icons.play_arrow,
+                              ),
                             const SizedBox(width: 8),
                             Text(
-                              _botLaunched
+                              _botStarting
+                                  ? AppStrings.t('bot_home_starting')
+                                  : _botLaunched
                                   ? AppStrings.t('bot_home_stop')
                                   : AppStrings.t('bot_home_start'),
                             ),
@@ -688,28 +825,51 @@ class _AppHomePageState extends State<AppHomePage>
                       if (widget.secondarySections.isNotEmpty &&
                           widget.onNavigateToSection != null)
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 16),
-                          child: Row(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              for (
-                                var i = 0;
-                                i < widget.secondarySections.length;
-                                i++
-                              ) ...[
-                                if (i > 0) const SizedBox(width: 10),
-                                Expanded(
-                                  child: _QuickAccessChip(
-                                    icon: widget.secondarySections[i].icon,
-                                    label: AppStrings.t(
-                                      widget.secondarySections[i].labelKey,
-                                    ),
-                                    onTap:
-                                        () => widget.onNavigateToSection!(
-                                          widget.secondarySections[i].index,
-                                        ),
-                                  ),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  left: 4,
+                                  bottom: 12,
                                 ),
-                              ],
+                                child: Text(
+                                  AppStrings.t('quick_access_title'),
+                                  style: Theme.of(context).textTheme.titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              GridView.count(
+                                crossAxisCount: 3,
+                                mainAxisSpacing: 8,
+                                crossAxisSpacing: 8,
+                                childAspectRatio: 0.82,
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                children: [
+                                  for (
+                                    var i = 0;
+                                    i <
+                                        widget.secondarySections.length.clamp(
+                                          0,
+                                          3,
+                                        );
+                                    i++
+                                  )
+                                    _QuickAccessChip(
+                                      icon: widget.secondarySections[i].icon,
+                                      label: AppStrings.t(
+                                        widget.secondarySections[i].labelKey,
+                                      ),
+                                      onTap:
+                                          () => widget.onNavigateToSection!(
+                                            widget.secondarySections[i].index,
+                                          ),
+                                    ),
+                                ],
+                              ),
                             ],
                           ),
                         ),
@@ -928,21 +1088,25 @@ class _QuickAccessChip extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Material(
       color: colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 22, color: colorScheme.primary),
-              const SizedBox(height: 4),
+              Icon(icon, size: 24, color: colorScheme.primary),
+              const SizedBox(height: 6),
               Text(
                 label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: colorScheme.onSurface,
                 ),
