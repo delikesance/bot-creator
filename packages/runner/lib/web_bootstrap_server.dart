@@ -444,7 +444,7 @@ class RunnerWebBootstrapServer {
   }) async {
     final payload = await _readJsonBody(request);
     final botId = (botIdFromPath ?? payload['botId'] ?? '').toString().trim();
-    final botName = (payload['botName'] ?? '').toString().trim();
+    (payload['botName'] ?? '').toString().trim();
 
     if (botId.isEmpty) {
       await _respondJson(request, <String, dynamic>{
@@ -512,7 +512,7 @@ class RunnerWebBootstrapServer {
     }
 
     final endpoint = entry.config.inboundWebhookEndpoints
-        .where((raw) => raw is Map)
+        .whereType<Map>()
         .map((raw) => Map<String, dynamic>.from(raw))
         .firstWhere((candidate) {
           final configuredPath =

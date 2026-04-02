@@ -428,6 +428,7 @@ const Map<String, String> appStringsEn = {
   'bot_home_stop': 'Stop Bot',
   'bot_home_view_logs': 'View bot logs',
   'bot_home_view_stats': 'View bot stats',
+  'bot_home_view_replay': 'View debugger replays',
   'bot_home_sync': 'Sync App',
   'bot_home_sync_success': 'App synced successfully',
   'bot_home_invite': 'Invite Bot',
@@ -539,6 +540,34 @@ const Map<String, String> appStringsEn = {
   'bot_logs_ram_estimated': 'Estimated bot RAM: {memory}',
   'bot_logs_go_to_latest': 'Go to latest log',
   'bot_logs_go_to_bottom': 'Go to bottom',
+
+  // Debug Replay page
+  'debug_replay_title': 'Debugger Replay',
+  'debug_replay_start_capture': 'Enable capture',
+  'debug_replay_stop_capture': 'Disable capture',
+  'debug_replay_clear': 'Clear replays',
+  'debug_replay_clear_title': 'Clear replays',
+  'debug_replay_clear_confirm':
+      'All recorded replays will be deleted. Continue?',
+  'debug_replay_empty_capturing':
+      'Capturing… Run a command to record a replay.',
+  'debug_replay_empty_idle':
+      'Capture is off. Enable it and run a command to record a replay.',
+  'debug_replay_premium_title': 'Visual Debugger Replay',
+  'debug_replay_premium_desc':
+      'Record and replay your command executions step by step. See exactly what each action did, how long it took, and where errors occurred.',
+  'debug_replay_overview': 'Overview',
+  'debug_replay_play': 'Play',
+  'debug_replay_pause': 'Pause',
+  'debug_replay_step_first': 'First step',
+  'debug_replay_step_last': 'Last step',
+  'debug_replay_step_back': 'Previous step',
+  'debug_replay_step_forward': 'Next step',
+  'debug_replay_duration_label': 'DURATION',
+  'debug_replay_result_label': 'RESULT',
+  'debug_replay_result_empty': '(no result)',
+  'debug_replay_start_offset': '+{ms} ms from start',
+  'debug_replay_loop_info': 'Loop depth {depth}, iteration {iteration}',
 
   // Bot stats page
   'bot_stats_title': 'Bot Stats',

@@ -422,7 +422,7 @@ class _InboundWebhooksPageState extends State<InboundWebhooksPage> {
                             : ListView.separated(
                               itemCount: _webhooks.length,
                               separatorBuilder:
-                                  (_, __) => const Divider(height: 1),
+                                  (_, _) => const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final webhook = _webhooks[index];
                                 final path = (webhook['path'] ?? '').toString();

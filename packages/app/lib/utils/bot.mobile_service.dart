@@ -421,6 +421,15 @@ class DiscordBotTaskHandler extends TaskHandler {
         }
       }
     } catch (_) {}
+
+    try {
+      final replayPersisted = await FlutterForegroundTask.getData<bool>(
+        key: _debugReplayEnabledDataKey,
+      );
+      if (replayPersisted != null) {
+        _debugReplayCapturing = replayPersisted;
+      }
+    } catch (_) {}
   }
 
   void _bindMobileNyxxLogs() {

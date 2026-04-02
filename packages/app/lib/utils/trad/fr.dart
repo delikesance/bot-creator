@@ -442,6 +442,7 @@
   'bot_home_stop': 'Arrêter le bot',
   'bot_home_view_logs': 'Voir les logs du bot',
   'bot_home_view_stats': 'Voir les stats du bot',
+  'bot_home_view_replay': 'Voir les replays du débogueur',
   'bot_home_sync': 'Synchroniser l’app',
   'bot_home_sync_success': 'Application synchronisée avec succès',
   'bot_home_invite': 'Inviter le bot',
@@ -556,6 +557,34 @@
   'bot_logs_ram_estimated': 'RAM bot estimée : {memory}',
   'bot_logs_go_to_latest': 'Aller au dernier log',
   'bot_logs_go_to_bottom': 'Aller en bas',
+
+  // Page Replay Débogueur
+  'debug_replay_title': 'Replay Débogueur',
+  'debug_replay_start_capture': 'Activer la capture',
+  'debug_replay_stop_capture': 'Désactiver la capture',
+  'debug_replay_clear': 'Effacer les replays',
+  'debug_replay_clear_title': 'Effacer les replays',
+  'debug_replay_clear_confirm':
+      'Tous les replays enregistrés seront supprimés. Continuer ?',
+  'debug_replay_empty_capturing':
+      'Capture en cours… Lancez une commande pour enregistrer un replay.',
+  'debug_replay_empty_idle':
+      'Capture désactivée. Activez-la et lancez une commande pour enregistrer un replay.',
+  'debug_replay_premium_title': 'Replay Débogueur Visuel',
+  'debug_replay_premium_desc':
+      'Enregistrez et rejouez vos exécutions de commandes étape par étape. Voyez exactement ce que chaque action a fait, combien de temps elle a pris et où les erreurs se sont produites.',
+  'debug_replay_overview': "Vue d'ensemble",
+  'debug_replay_play': 'Lire',
+  'debug_replay_pause': 'Pause',
+  'debug_replay_step_first': 'Première étape',
+  'debug_replay_step_last': 'Dernière étape',
+  'debug_replay_step_back': 'Étape précédente',
+  'debug_replay_step_forward': 'Étape suivante',
+  'debug_replay_duration_label': 'DURÉE',
+  'debug_replay_result_label': 'RÉSULTAT',
+  'debug_replay_result_empty': '(aucun résultat)',
+  'debug_replay_start_offset': '+{ms} ms depuis le début',
+  'debug_replay_loop_info': 'Boucle profondeur {depth}, itération {iteration}',
 
   // Page stats du bot
   'bot_stats_title': 'Statistiques du bot',

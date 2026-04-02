@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:nyxx/nyxx.dart';
 
 part 'events/channel_pins_update_event.dart';

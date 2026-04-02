@@ -356,7 +356,7 @@ class _SchedulerPageState extends State<SchedulerPage> {
                             : ListView.separated(
                               itemCount: _triggers.length,
                               separatorBuilder:
-                                  (_, __) => const Divider(height: 1),
+                                  (_, _) => const Divider(height: 1),
                               itemBuilder: (context, index) {
                                 final trigger = _triggers[index];
                                 final label =

@@ -861,7 +861,7 @@ class _SettingPageState extends State<SettingPage> {
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: sorted.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (_, index) {
                     final snapshot = sorted[index];
                     return ListTile(

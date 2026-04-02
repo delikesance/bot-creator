@@ -43,6 +43,12 @@ Future<Map<String, String>> handleActions(
   Snowflake? fallbackGuildId,
   Set<String>? workflowStack,
   void Function(String message)? onLog,
+
+  /// When provided, every executed action is captured and [onReplayCaptured]
+  /// is called at the end of execution with the full frame list and total ms.
+  /// This is independent of the $debug embed — both can be active at once.
+  void Function(List<Map<String, dynamic>> frames, int totalMs)?
+  onReplayCaptured,
 }) async {
   final results = <String, String>{};
   final resolvedFallbackChannelId =
@@ -63,6 +69,14 @@ Future<Map<String, String>> handleActions(
   int? debugSourceLength;
   int? debugActionCount;
 
+  // Replay capture state (independent of $debug embed)
+  Stopwatch? replayStopwatch;
+  List<_DebugTraceEntry>? replayTrace;
+  if (onReplayCaptured != null) {
+    replayStopwatch = Stopwatch()..start();
+    replayTrace = <_DebugTraceEntry>[];
+  }
+
   for (var i = 0; i < actions.length; i++) {
     final action = actions[i];
     final resultKey = action.key ?? 'action_$i';
@@ -82,16 +96,30 @@ Future<Map<String, String>> handleActions(
 
     // Record timing before executing the action
     final int? traceStartMs = debugStopwatch?.elapsedMilliseconds;
+    final int replayStartMs = replayStopwatch?.elapsedMilliseconds ?? 0;
 
     void recordTrace({String? resultOverride}) {
+      final traceResult = resultOverride ?? results[resultKey];
+      final loopDepth = action.payload['_debugLoopDepth'] as int?;
+      final loopIteration = action.payload['_debugLoopIteration'] as int?;
       debugTrace?.add(
         _DebugTraceEntry(
           actionType: action.type.name,
           startMs: traceStartMs ?? 0,
           endMs: debugStopwatch?.elapsedMilliseconds ?? 0,
-          result: resultOverride ?? results[resultKey],
-          loopDepth: action.payload['_debugLoopDepth'] as int?,
-          loopIteration: action.payload['_debugLoopIteration'] as int?,
+          result: traceResult,
+          loopDepth: loopDepth,
+          loopIteration: loopIteration,
+        ),
+      );
+      replayTrace?.add(
+        _DebugTraceEntry(
+          actionType: action.type.name,
+          startMs: replayStartMs,
+          endMs: replayStopwatch?.elapsedMilliseconds ?? 0,
+          result: traceResult,
+          loopDepth: loopDepth,
+          loopIteration: loopIteration,
         ),
       );
     }
@@ -918,6 +946,28 @@ Future<Map<String, String>> handleActions(
     } catch (_) {
       // Best-effort: don't fail the command if the debug embed fails
     }
+  }
+
+  // Replay capture callback — fires after the embed (if any) is sent.
+  if (onReplayCaptured != null && replayTrace != null) {
+    replayStopwatch?.stop();
+    final totalMs = replayStopwatch?.elapsedMilliseconds ?? 0;
+    onReplayCaptured(
+      replayTrace
+          .map(
+            (entry) => <String, dynamic>{
+              'actionType': entry.actionType,
+              'startMs': entry.startMs,
+              'durationMs': entry.endMs - entry.startMs,
+              if (entry.result != null) 'result': entry.result,
+              if (entry.loopDepth != null) 'loopDepth': entry.loopDepth,
+              if (entry.loopIteration != null)
+                'loopIteration': entry.loopIteration,
+            },
+          )
+          .toList(growable: false),
+      totalMs,
+    );
   }
 
   return results;

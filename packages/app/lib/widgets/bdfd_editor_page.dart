@@ -73,10 +73,6 @@ class _BdfdIndentGuidesPainter extends CustomPainter {
     required this.scrollX,
     required this.scrollY,
     required this.showHorizontalOffset,
-    this.lineHeight = 20,
-    this.charWidth = 7.8,
-    this.topPadding = 12,
-    this.leftPadding = 8,
   });
 
   final String source;
@@ -85,10 +81,10 @@ class _BdfdIndentGuidesPainter extends CustomPainter {
   final double scrollX;
   final double scrollY;
   final bool showHorizontalOffset;
-  final double lineHeight;
-  final double charWidth;
-  final double topPadding;
-  final double leftPadding;
+  static const double lineHeight = 20;
+  static const double charWidth = 7.8;
+  static const double topPadding = 12;
+  static const double leftPadding = 8;
 
   @override
   void paint(Canvas canvas, Size size) {

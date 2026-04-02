@@ -200,6 +200,26 @@ Future<void> handleLocalCommands(
               appendBotLog(msg, botId: clientId);
               unawaited(_emitTaskLogToMain(msg, botId: clientId));
             },
+            onReplayCaptured:
+                _debugReplayCapturing
+                    ? (frames, totalMs) {
+                      final record = DebugReplayRecord(
+                        commandLabel: command.name,
+                        triggeredAt: DateTime.now(),
+                        botId: clientId,
+                        frames: frames
+                            .map(
+                              (f) => DebugActionFrame.fromJson(
+                                Map<String, dynamic>.from(f),
+                              ),
+                            )
+                            .toList(growable: false),
+                        totalMs: totalMs,
+                      );
+                      appendDebugReplay(record);
+                      unawaited(_emitReplayToMain(record));
+                    }
+                    : null,
           );
           for (final entry in actionResults.entries) {
             runtimeVariables['action.${entry.key}'] = entry.value;
@@ -406,6 +426,26 @@ Future<void> handleLocalCommands(
                 appendBotLog(msg, botId: clientId);
                 unawaited(_emitTaskLogToMain(msg, botId: clientId));
               },
+              onReplayCaptured:
+                  _debugReplayCapturing
+                      ? (frames, totalMs) {
+                        final record = DebugReplayRecord(
+                          commandLabel: command.name,
+                          triggeredAt: DateTime.now(),
+                          botId: clientId,
+                          frames: frames
+                              .map(
+                                (f) => DebugActionFrame.fromJson(
+                                  Map<String, dynamic>.from(f),
+                                ),
+                              )
+                              .toList(growable: false),
+                          totalMs: totalMs,
+                        );
+                        appendDebugReplay(record);
+                        unawaited(_emitReplayToMain(record));
+                      }
+                      : null,
             );
             appendBotDebugLog(
               'Actions executed, results: ${actionResults.length}',

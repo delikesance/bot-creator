@@ -25,7 +25,7 @@ class PremiumCapabilities {
     PremiumCapability.analyticsExpanded: true,
     PremiumCapability.schedulerTriggers: true,
     PremiumCapability.inboundWebhooks: true,
-    PremiumCapability.visualDebuggerReplay: false,
+    PremiumCapability.visualDebuggerReplay: true,
     PremiumCapability.autoSharding: true,
     PremiumCapability.autoRestart: true,
   };

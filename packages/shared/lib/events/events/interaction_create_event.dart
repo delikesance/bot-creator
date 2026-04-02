@@ -8,6 +8,149 @@ dynamic _safeRead(dynamic object, dynamic Function() reader) {
   }
 }
 
+List<String> _stringifyInteractionValues(dynamic rawValues) {
+  if (rawValues is! Iterable) {
+    return const <String>[];
+  }
+
+  return rawValues
+      .map((value) => value.toString())
+      .where((value) => value.isNotEmpty)
+      .toList(growable: false);
+}
+
+List<String> _extractResolvedEntityIds(dynamic resolvedEntityMap) {
+  if (resolvedEntityMap is Map) {
+    return resolvedEntityMap.keys
+        .map((key) => key.toString())
+        .where((key) => key.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  if (resolvedEntityMap is Iterable) {
+    return resolvedEntityMap
+        .map((item) => _idString(_safeRead(item, () => item.id) ?? item))
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  return const <String>[];
+}
+
+String? _normalizeSelectComponentType(dynamic rawType) {
+  final normalized = rawType.toString().toLowerCase().replaceAll(
+    RegExp(r'[^a-z]'),
+    '',
+  );
+
+  if (normalized.contains('stringselect')) {
+    return 'string';
+  }
+  if (normalized.contains('channelselect')) {
+    return 'channel';
+  }
+  if (normalized.contains('userselect')) {
+    return 'user';
+  }
+  if (normalized.contains('roleselect')) {
+    return 'role';
+  }
+  if (normalized.contains('mentionableselect')) {
+    return 'mentionable';
+  }
+
+  return null;
+}
+
+void _addSelectCollectionVariables({
+  required Map<String, String> variables,
+  required String singularKey,
+  required String pluralKey,
+  required String countKey,
+  required List<String> values,
+}) {
+  variables[singularKey] = values.isNotEmpty ? values.first : '';
+  variables[pluralKey] = values.join(',');
+  variables[countKey] = values.length.toString();
+  variables['__collection.$singularKey'] = jsonEncode(values);
+  variables['__collection.$pluralKey'] = jsonEncode(values);
+
+  for (var index = 0; index < values.length; index++) {
+    variables['$singularKey[${index + 1}]'] = values[index];
+  }
+}
+
+Map<String, String> _buildSelectInteractionVariables(
+  dynamic data,
+  List<String> values,
+) {
+  final selectType = _normalizeSelectComponentType(
+    _safeRead(data, () => data?.type),
+  );
+  if (selectType == null) {
+    return const <String, String>{};
+  }
+
+  final resolved = _safeRead(data, () => data?.resolved);
+  switch (selectType) {
+    case 'string':
+      final variables = <String, String>{};
+      _addSelectCollectionVariables(
+        variables: variables,
+        singularKey: 'interaction.stringSelect.value',
+        pluralKey: 'interaction.stringSelect.values',
+        countKey: 'interaction.stringSelect.count',
+        values: values,
+      );
+      return variables;
+    case 'channel':
+      final variables = <String, String>{};
+      _addSelectCollectionVariables(
+        variables: variables,
+        singularKey: 'interaction.channelSelect.channelId',
+        pluralKey: 'interaction.channelSelect.channelIds',
+        countKey: 'interaction.channelSelect.channelCount',
+        values: values,
+      );
+      return variables;
+    case 'user':
+      final variables = <String, String>{};
+      _addSelectCollectionVariables(
+        variables: variables,
+        singularKey: 'interaction.userSelect.userId',
+        pluralKey: 'interaction.userSelect.userIds',
+        countKey: 'interaction.userSelect.userCount',
+        values: values,
+      );
+      return variables;
+    case 'role':
+      final variables = <String, String>{};
+      _addSelectCollectionVariables(
+        variables: variables,
+        singularKey: 'interaction.roleSelect.roleId',
+        pluralKey: 'interaction.roleSelect.roleIds',
+        countKey: 'interaction.roleSelect.roleCount',
+        values: values,
+      );
+      return variables;
+    case 'mentionable':
+      final mentionableUserIds = _extractResolvedEntityIds(
+        _safeRead(resolved, () => resolved?.users),
+      );
+      final variables = <String, String>{};
+      _addSelectCollectionVariables(
+        variables: variables,
+        singularKey: 'interaction.mentionableSelect.userId',
+        pluralKey: 'interaction.mentionableSelect.userIds',
+        countKey: 'interaction.mentionableSelect.userCount',
+        values: mentionableUserIds.isNotEmpty ? mentionableUserIds : values,
+      );
+      return variables;
+  }
+
+  return const <String, String>{};
+}
+
 Map<String, String> buildInteractionRuntimeVariables(dynamic interaction) {
   final dynamic data = _safeRead(interaction, () => interaction?.data);
   final dynamic commandType = _safeRead(data, () => data?.type);
@@ -15,11 +158,9 @@ Map<String, String> buildInteractionRuntimeVariables(dynamic interaction) {
   final commandName = (_safeRead(data, () => data?.name) ?? '').toString();
 
   final customId = (_safeRead(data, () => data?.customId) ?? '').toString();
-  final valuesRaw = _safeRead(data, () => data?.values);
-  final values =
-      valuesRaw is Iterable
-          ? valuesRaw.map((value) => value.toString()).toList(growable: false)
-          : const <String>[];
+  final values = _stringifyInteractionValues(
+    _safeRead(data, () => data?.values),
+  );
 
   final modalComponents = _safeRead(data, () => data?.components);
   final modalInputPairs = <String, String>{};
@@ -83,6 +224,7 @@ Map<String, String> buildInteractionRuntimeVariables(dynamic interaction) {
     'interaction.command.id': commandId?.toString() ?? '',
     'interaction.command.type': commandType?.toString() ?? '',
     'modal.customId': customId,
+    ..._buildSelectInteractionVariables(data, values),
     ...modalInputPairs,
   };
 }
