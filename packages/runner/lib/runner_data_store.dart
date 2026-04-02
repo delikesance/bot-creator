@@ -132,6 +132,43 @@ class RunnerDataStore implements BotDataStore {
   }
 
   @override
+  Future<void> setScopedVariableDefinition(
+    String botId,
+    String key,
+    String scope,
+    dynamic defaultValue, {
+    String valueType = 'string',
+  }) async {
+    final normalizedKey = key.trim();
+    if (normalizedKey.isEmpty) {
+      return;
+    }
+    final normalizedScope = scope.trim();
+    if (normalizedScope.isEmpty) {
+      return;
+    }
+
+    final entry = <String, dynamic>{
+      'key': normalizedKey,
+      'scope': normalizedScope,
+      'defaultValue': defaultValue,
+      'valueType': valueType,
+    };
+
+    final idx = _scopedVariableDefinitions.indexWhere(
+      (existing) =>
+          (existing['key'] ?? '').toString().trim() == normalizedKey &&
+          (existing['scope'] ?? '').toString().trim() == normalizedScope,
+    );
+
+    if (idx >= 0) {
+      _scopedVariableDefinitions[idx] = entry;
+    } else {
+      _scopedVariableDefinitions.add(entry);
+    }
+  }
+
+  @override
   Future<Map<String, dynamic>> getGlobalVariables(String botId) async =>
       await (await _storeForBot(botId)).getGlobalVariables(botId);
 

@@ -2053,6 +2053,30 @@ Future<bool> _tryExecuteLocalLegacyCommand(
       ),
     );
 
+    void appendLegacyReplayFallback(String reason) {
+      if (!_debugReplayCapturing) {
+        return;
+      }
+      final record = DebugReplayRecord(
+        commandLabel: commandName,
+        triggeredAt: DateTime.now(),
+        botId: botId,
+        frames: [
+          DebugActionFrame(
+            actionType: 'legacyCommandExecution',
+            startMs: 0,
+            durationMs: 1,
+            result: reason,
+          ),
+        ],
+        totalMs: 1,
+      );
+      appendDebugReplay(record);
+      unawaited(_emitReplayToMain(record));
+    }
+
+    var replayCapturedByActions = false;
+
     if (actions.isNotEmpty) {
       final actionResults = await handleActions(
         gateway,
@@ -2067,6 +2091,27 @@ Future<bool> _tryExecuteLocalLegacyCommand(
         fallbackChannelId: context.channelId,
         fallbackGuildId: context.guildId,
         onLog: onLog,
+        onReplayCaptured:
+            _debugReplayCapturing
+                ? (frames, totalMs) {
+                  replayCapturedByActions = true;
+                  final record = DebugReplayRecord(
+                    commandLabel: commandName,
+                    triggeredAt: DateTime.now(),
+                    botId: botId,
+                    frames: frames
+                        .map(
+                          (f) => DebugActionFrame.fromJson(
+                            Map<String, dynamic>.from(f),
+                          ),
+                        )
+                        .toList(growable: false),
+                    totalMs: totalMs,
+                  );
+                  appendDebugReplay(record);
+                  unawaited(_emitReplayToMain(record));
+                }
+                : null,
       );
       for (final entry in actionResults.entries) {
         runtimeVariables['action.${entry.key}'] = entry.value;
@@ -2081,6 +2126,14 @@ Future<bool> _tryExecuteLocalLegacyCommand(
         runtimeVariables: runtimeVariables,
         responseTarget: responseTarget,
       );
+    }
+
+    if (_debugReplayCapturing && !replayCapturedByActions) {
+      final reason =
+          actions.isEmpty
+              ? 'No actions configured for this legacy command.'
+              : 'No replay frames were produced for this legacy command.';
+      appendLegacyReplayFallback(reason);
     }
 
     onLog?.call('Legacy command executed: $commandName');

@@ -9,6 +9,15 @@ abstract class BotDataStore {
   /// - `defaultValue`: fallback value when missing/empty
   Future<List<Map<String, dynamic>>> getScopedVariableDefinitions(String botId);
 
+  /// Adds or updates a scoped variable definition for [botId].
+  Future<void> setScopedVariableDefinition(
+    String botId,
+    String key,
+    String scope,
+    dynamic defaultValue, {
+    String valueType = 'string',
+  });
+
   /// Returns all global variables for [botId] with typed values (string|number).
   Future<Map<String, dynamic>> getGlobalVariables(String botId);
 

@@ -1,10 +1,12 @@
 part of 'bot.dart';
 
 const String _mobileSessionsDataKey = 'mobile_bot_sessions';
+const String _mobileReadyBotIdsDataKey = 'mobile_ready_bot_ids';
 const String _mobileCommandTypeKey = 'type';
 const String _mobileCommandAddSession = 'mobile_session_add';
 const String _mobileCommandRemoveSession = 'mobile_session_remove';
 const String _mobileCommandSyncSessions = 'mobile_sessions_sync';
+const String _mobileCommandSyncFlags = 'mobile_flags_sync';
 final MobileSessionsOrchestrator _mobileSessionsOrchestrator =
     MobileSessionsOrchestrator();
 
@@ -99,6 +101,22 @@ Future<Set<String>> getConfiguredMobileBotIds() async {
   return sessions.keys.toSet();
 }
 
+Future<Set<String>> getReadyMobileBotIds() async {
+  try {
+    final raw = await FlutterForegroundTask.getData<dynamic>(
+      key: _mobileReadyBotIdsDataKey,
+    );
+    if (raw is Iterable) {
+      return raw
+          .map((value) => value.toString().trim())
+          .where((value) => value.isNotEmpty)
+          .toSet();
+    }
+  } catch (_) {}
+
+  return <String>{};
+}
+
 Future<void> startMobileBotSession({
   required String botId,
   required String token,
@@ -134,9 +152,6 @@ Future<void> startMobileBotSession({
     } else {
       await startService();
     }
-
-    addMobileRunningBotId(trimmedBotId);
-    setBotRuntimeActive(true);
   });
 }
 
@@ -186,6 +201,20 @@ Future<void> syncMobileBotSessionsWithService() async {
       });
     } catch (_) {}
   });
+}
+
+Future<void> syncMobileDebugFlagsWithService() async {
+  try {
+    final running = await FlutterForegroundTask.isRunningService;
+    if (!running) {
+      return;
+    }
+    FlutterForegroundTask.sendDataToTask(<String, dynamic>{
+      _mobileCommandTypeKey: _mobileCommandSyncFlags,
+    });
+  } on MissingPluginException {
+    // Ignore when foreground task plugin is unavailable on this platform.
+  } catch (_) {}
 }
 
 Future<void> initForegroundService({int eventIntervalMs = 5000}) async {
@@ -603,6 +632,10 @@ class DiscordBotTaskHandler extends TaskHandler {
     if (type == _mobileCommandSyncSessions) {
       final sessions = _normalizeMobileSessionsMap(payload['sessions']);
       await _syncSessions(sessions);
+      return;
+    }
+    if (type == _mobileCommandSyncFlags) {
+      await _syncDebugFlagFromMain();
     }
   }
 

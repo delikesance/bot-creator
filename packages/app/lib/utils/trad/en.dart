@@ -104,6 +104,8 @@ const Map<String, String> appStringsEn = {
   'settings_tab': 'Settings',
   'more_tab': 'More',
   'quick_access_title': 'Quick Access',
+  'more_options_title': 'More Options',
+  'no_more_options': 'No other options available',
   'settings_theme_switch_light': 'Switch to light mode',
   'settings_theme_switch_dark': 'Switch to dark mode',
   'settings_appearance_title': 'Appearance & language',
@@ -425,7 +427,11 @@ const Map<String, String> appStringsEn = {
 
   // Bot internal pages — app/home.dart
   'bot_home_start': 'Start Bot',
+  'bot_home_starting': 'Starting…',
   'bot_home_stop': 'Stop Bot',
+  'bot_home_ios_notice_title': 'Local iOS constraint',
+  'bot_home_ios_notice_content':
+      'In local mode, iOS may suspend the app in the background. The bot can start, but keeping the Discord connection alive is not guaranteed like it is with a Runner.',
   'bot_home_view_logs': 'View bot logs',
   'bot_home_view_stats': 'View bot stats',
   'bot_home_view_replay': 'View debugger replays',

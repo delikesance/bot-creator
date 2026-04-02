@@ -378,8 +378,10 @@ class _BdfdAstTranspilationScope {
             continue;
           }
 
-          final tryActions = _transpileNodes(tryNodes);
-          final catchActions = _transpileNodes(catchNodes);
+          final tryActions = _transpileNodesPreservingTempVariables(tryNodes);
+          final catchActions = _transpileNodesPreservingTempVariables(
+            catchNodes,
+          );
 
           if (catchActions.isEmpty) {
             return _ConsumedLoopBlock(
@@ -444,7 +446,7 @@ class _BdfdAstTranspilationScope {
     );
 
     return _ConsumedLoopBlock(
-      precomputedActions: _transpileNodes(tryNodes),
+      precomputedActions: _transpileNodesPreservingTempVariables(tryNodes),
       nextIndex: nodes.length,
       bodyNodes: const <BdfdAstNode>[],
       iterations: 0,
@@ -1033,7 +1035,9 @@ class _BdfdAstTranspilationScope {
       _loopVariables[name] = 0; // sentinel – overridden by placeholder path
     }
 
-    final bodyActions = _transpileNodes(consumed.bodyNodes);
+    final bodyActions = _transpileNodesPreservingTempVariables(
+      consumed.bodyNodes,
+    );
 
     // Restore transpiler state.
     _runtimeLoopVarNames = null;
@@ -1202,8 +1206,8 @@ class _BdfdAstTranspilationScope {
     required List<BdfdAstNode> elseNodes,
   }) {
     final condition = _parseCondition(_stringifyArgument(ifNode, 0), ifNode);
-    final thenActions = _transpileNodes(thenNodes);
-    final elseActions = _transpileNodes(elseNodes);
+    final thenActions = _transpileNodesPreservingTempVariables(thenNodes);
+    final elseActions = _transpileNodesPreservingTempVariables(elseNodes);
 
     final elseIfPayload = elseIfBranches
         .map((branch) {
@@ -1214,7 +1218,7 @@ class _BdfdAstTranspilationScope {
           return <String, dynamic>{
             ...elseIfCondition.toPayload(prefix: 'condition.'),
             'actions':
-                _transpileNodes(
+                _transpileNodesPreservingTempVariables(
                   branch.nodes,
                 ).map((action) => action.toJson()).toList(),
           };
@@ -2891,7 +2895,16 @@ class _BdfdAstTranspilationScope {
       return const <Action>[];
     }
 
-    return transpileScript(BdfdScriptAst(nodes: node.arguments[index]));
+    return _transpileNodesPreservingTempVariables(node.arguments[index]);
+  }
+
+  List<Action> _transpileNodesPreservingTempVariables(List<BdfdAstNode> nodes) {
+    final previousTempVariables = Map<String, String>.from(_tempVariables);
+    final actions = _transpileNodes(nodes);
+    _tempVariables
+      ..clear()
+      ..addAll(previousTempVariables);
+    return actions;
   }
 
   _ParsedCondition _parseCondition(
@@ -3606,24 +3619,81 @@ class _BdfdAstTranspilationScope {
       case 'replacetext':
         return _inlineReplaceText(node);
       case 'tolowercase':
-        return _stringifyArgument(node, 0).toLowerCase();
+        final lowerValue = _stringifyArgument(node, 0);
+        if (_containsRuntimePlaceholder(lowerValue)) {
+          return _buildRuntimeBracketExpression('tolowercase', <String>[
+            lowerValue,
+          ]);
+        }
+        return lowerValue.toLowerCase();
       case 'touppercase':
-        return _stringifyArgument(node, 0).toUpperCase();
+        final upperValue = _stringifyArgument(node, 0);
+        if (_containsRuntimePlaceholder(upperValue)) {
+          return _buildRuntimeBracketExpression('touppercase', <String>[
+            upperValue,
+          ]);
+        }
+        return upperValue.toUpperCase();
       case 'totitlecase':
-        return _inlineTitleCase(_stringifyArgument(node, 0));
+        final titleValue = _stringifyArgument(node, 0);
+        if (_containsRuntimePlaceholder(titleValue)) {
+          return _buildRuntimeBracketExpression('totitlecase', <String>[
+            titleValue,
+          ]);
+        }
+        return _inlineTitleCase(titleValue);
       case 'charcount':
-        return _stringifyArgument(node, 0).length.toString();
+        final charCountValue = _stringifyArgument(node, 0);
+        if (_containsRuntimePlaceholder(charCountValue)) {
+          return _buildRuntimeBracketExpression('charcount', <String>[
+            charCountValue,
+          ]);
+        }
+        return charCountValue.length.toString();
       case 'bytecount':
-        return utf8.encode(_stringifyArgument(node, 0)).length.toString();
+        final byteCountValue = _stringifyArgument(node, 0);
+        if (_containsRuntimePlaceholder(byteCountValue)) {
+          return _buildRuntimeBracketExpression('bytecount', <String>[
+            byteCountValue,
+          ]);
+        }
+        return utf8.encode(byteCountValue).length.toString();
       case 'linescount':
         final text = _stringifyArgument(node, 0);
+        if (_containsRuntimePlaceholder(text)) {
+          return _buildRuntimeBracketExpression('linescount', <String>[text]);
+        }
         return text.isEmpty ? '0' : text.split('\n').length.toString();
       case 'croptext':
+        final cropText = _stringifyArgument(node, 0);
+        final cropLength = _stringifyArgument(node, 1);
+        final cropSuffix = _stringifyArgument(node, 2);
+        if (_containsRuntimePlaceholder(cropText) ||
+            _containsRuntimePlaceholder(cropLength) ||
+            _containsRuntimePlaceholder(cropSuffix)) {
+          return _buildRuntimeBracketExpression('croptext', <String>[
+            cropText,
+            cropLength,
+            cropSuffix,
+          ]);
+        }
         return _inlineCropText(node);
       case 'trimcontent':
-        return _stringifyArgument(node, 0).trim();
+        final trimContentValue = _stringifyArgument(node, 0);
+        if (_containsRuntimePlaceholder(trimContentValue)) {
+          return _buildRuntimeBracketExpression('trimcontent', <String>[
+            trimContentValue,
+          ]);
+        }
+        return trimContentValue.trim();
       case 'trimspace':
-        return _stringifyArgument(node, 0).trim();
+        final trimSpaceValue = _stringifyArgument(node, 0);
+        if (_containsRuntimePlaceholder(trimSpaceValue)) {
+          return _buildRuntimeBracketExpression('trimspace', <String>[
+            trimSpaceValue,
+          ]);
+        }
+        return trimSpaceValue.trim();
       case 'unescape':
         return _stringifyArgument(node, 0);
       case 'repeatmessage':
@@ -5097,6 +5167,14 @@ class _BdfdAstTranspilationScope {
       return '';
     }
     return '(($scope.bc_$key))';
+  }
+
+  bool _containsRuntimePlaceholder(String value) {
+    return value.contains('((');
+  }
+
+  String _buildRuntimeBracketExpression(String name, List<String> args) {
+    return '(($name[${args.join(';')}]))';
   }
 
   String _normalizeScopedVariableKey(String rawKey) {

@@ -917,6 +917,115 @@ void main() {
       expect(result.actions, hasLength(1));
       expect(result.actions.single.payload['content'], 'Result: HELLO');
     });
+
+    test(
+      'runtime inline math stays dynamic and branch-local temp vars do not leak',
+      () {
+        final result = BdfdCompiler().compile(
+          r'$if[$isbot[$authorID]==false]'
+          '\n'
+          r' $enabledecimals[yes]'
+          '\n'
+          r' $var[toadd;$multi[$charcount[$message];0.5]]'
+          '\n'
+          r' $channelSendMessage[$channelID;$message, charcount $charcount[$message], after mult $var[toadd]]'
+          '\n'
+          r' $if[$var[toadd]>15]'
+          '\n'
+          r'  $channelSendMessage[$channelID;over 15, clmaped]'
+          '\n'
+          r'  $var[toadd;15]'
+          '\n'
+          r' $endif'
+          '\n'
+          r' $channelSendMessage[$channelID;you have been given $var[toadd] xp]'
+          '\n'
+          r' $setUserVar[xp;$calculate[$getUserVar[xp]+$var[toadd]]]'
+          '\n'
+          r' $channelSendMessage[$channelID;new xp $getUserVar[xp]]'
+          '\n'
+          r'$endif',
+        );
+
+        expect(result.hasErrors, isFalse);
+        expect(result.actions, hasLength(1));
+        expect(result.actions.single.type, BotCreatorActionType.ifBlock);
+
+        final thenActions = List<Map<String, dynamic>>.from(
+              result.actions.single.payload['thenActions'] as List,
+            )
+            .map((json) => Action.fromJson(Map<String, dynamic>.from(json)))
+            .toList(growable: false);
+        expect(thenActions.map((action) => action.type), <BotCreatorActionType>[
+          BotCreatorActionType.sendMessage,
+          BotCreatorActionType.ifBlock,
+          BotCreatorActionType.sendMessage,
+          BotCreatorActionType.setScopedVariable,
+          BotCreatorActionType.sendMessage,
+        ]);
+
+        final previewContent = thenActions[0].payload['content'] as String;
+        expect(previewContent, contains('((charcount['));
+        expect(previewContent, contains('((multi['));
+
+        final runtimeVariables = <String, String>{
+          'message.content': 'bzbd',
+          'author.isBot': 'false',
+        };
+        expect(
+          resolveTemplatePlaceholders(previewContent, runtimeVariables),
+          'bzbd, charcount 4, after mult 2',
+        );
+
+        final clampCondition =
+            thenActions[1].payload['condition.variable'] as String;
+        expect(
+          resolveTemplatePlaceholders(clampCondition, runtimeVariables),
+          '2',
+        );
+
+        final awardContent = thenActions[2].payload['content'] as String;
+        expect(
+          resolveTemplatePlaceholders(awardContent, runtimeVariables),
+          'you have been given 2 xp',
+        );
+
+        final setXpValue = thenActions[3].payload['value'] as String;
+        final resolvedXp = resolveTemplatePlaceholders(
+          setXpValue,
+          runtimeVariables,
+        );
+        expect(resolvedXp, '2');
+
+        runtimeVariables['user.bc_xp'] = resolvedXp;
+        final newXpContent = thenActions[4].payload['content'] as String;
+        expect(
+          resolveTemplatePlaceholders(newXpContent, runtimeVariables),
+          'new xp 2',
+        );
+      },
+    );
+
+    test(
+      'runtime uppercase keeps placeholder keys intact until resolution',
+      () {
+        final result = BdfdCompiler().compile(
+          r'$reply[$toUpperCase[$username]]',
+        );
+
+        expect(result.hasErrors, isFalse);
+        expect(result.actions, hasLength(1));
+
+        final content = result.actions.single.payload['content'] as String;
+        expect(content, '((touppercase[((user.username))]))');
+        expect(
+          resolveTemplatePlaceholders(content, <String, String>{
+            'user.username': 'niek dev',
+          }),
+          'NIEK DEV',
+        );
+      },
+    );
   });
 
   group(r'$callWorkflow', () {

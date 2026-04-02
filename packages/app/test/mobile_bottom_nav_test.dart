@@ -106,17 +106,17 @@ void main() {
 
   group('Quick-access sections', () {
     test('secondarySections maps to correct entry indices', () {
-      // Matches the indices in _buildEntries: Emojis=4, Dashboard=5, Settings=6
+      // Matches the indices in _buildEntries: Emojis=6, Dashboard=7, Settings=8
       const sections = [
-        {'index': 4, 'labelKey': 'emojis_tab'},
-        {'index': 5, 'labelKey': 'dashboard_title'},
-        {'index': 6, 'labelKey': 'settings_tab'},
+        {'index': 6, 'labelKey': 'emojis_tab'},
+        {'index': 7, 'labelKey': 'dashboard_title'},
+        {'index': 8, 'labelKey': 'settings_tab'},
       ];
 
       expect(sections.length, 3);
-      expect(sections[0]['index'], 4);
-      expect(sections[1]['index'], 5);
-      expect(sections[2]['index'], 6);
+      expect(sections[0]['index'], 6);
+      expect(sections[1]['index'], 7);
+      expect(sections[2]['index'], 8);
     });
 
     test('onNavigateToSection propagates correct index', () {
@@ -126,12 +126,12 @@ void main() {
       }
 
       // Simulate tapping Dashboard quick-access chip
-      onNavigate(5);
-      expect(navigatedIndex, 5);
+      onNavigate(7);
+      expect(navigatedIndex, 7);
 
       // Simulate tapping Settings quick-access chip
-      onNavigate(6);
-      expect(navigatedIndex, 6);
+      onNavigate(8);
+      expect(navigatedIndex, 8);
     });
   });
 

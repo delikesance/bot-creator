@@ -261,6 +261,15 @@ class _MemoryBotDataStore implements BotDataStore {
   }
 
   @override
+  Future<void> setScopedVariableDefinition(
+    String botId,
+    String key,
+    String scope,
+    dynamic defaultValue, {
+    String valueType = 'string',
+  }) async {}
+
+  @override
   Future<Map<String, dynamic>> getGlobalVariables(String botId) async =>
       Map<String, dynamic>.from(globalVariables);
 

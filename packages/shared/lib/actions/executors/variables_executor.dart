@@ -37,6 +37,52 @@ String _scopedReferenceKey(String rawKey) {
   return key.startsWith('bc_') ? key : 'bc_$key';
 }
 
+String _inferDefinitionValueType(dynamic value) {
+  if (value is num) {
+    return 'number';
+  }
+  if (value is bool) {
+    return 'bool';
+  }
+  if (value is List || value is Map<String, dynamic>) {
+    return 'json';
+  }
+  return 'string';
+}
+
+Future<void> _ensureScopedDefinitionExists({
+  required BotDataStore store,
+  required String botId,
+  required String scope,
+  required String storageKey,
+  required dynamic defaultValue,
+}) async {
+  final definitions = await store.getScopedVariableDefinitions(botId);
+  final exists = definitions.any((entry) {
+    final entryScope = (entry['scope'] ?? '').toString().trim();
+    final entryKeyRaw = (entry['key'] ?? '').toString().trim();
+    if (entryScope != scope || entryKeyRaw.isEmpty) {
+      return false;
+    }
+    try {
+      return _scopedStorageKey(entryKeyRaw) == storageKey;
+    } catch (_) {
+      return false;
+    }
+  });
+  if (exists) {
+    return;
+  }
+
+  await store.setScopedVariableDefinition(
+    botId,
+    storageKey,
+    scope,
+    defaultValue,
+    valueType: _inferDefinitionValueType(defaultValue),
+  );
+}
+
 dynamic _resolveVariableValuePayload(
   Map<String, dynamic> payload,
   String Function(String input) resolveValue,
@@ -395,6 +441,13 @@ Future<dynamic> _readPersistedVariable({
       binding.storageKey,
       value,
     );
+    await _ensureScopedDefinitionExists(
+      store: store,
+      botId: botId,
+      scope: binding.scope,
+      storageKey: binding.storageKey,
+      defaultValue: value,
+    );
   }
   return value;
 }
@@ -435,6 +488,13 @@ Future<void> _writePersistedVariable({
     binding.contextId,
     binding.storageKey,
     value,
+  );
+  await _ensureScopedDefinitionExists(
+    store: store,
+    botId: botId,
+    scope: binding.scope,
+    storageKey: binding.storageKey,
+    defaultValue: value,
   );
   final runtimeValue = _stringifyRuntimeValue(value);
   variables['${binding.scope}.${binding.referenceKey}'] = runtimeValue;
@@ -681,6 +741,13 @@ Future<bool> executeVariablesAction({
 
       final value = _resolveVariableValuePayload(payload, resolveValue);
       await store.setScopedVariable(botId, scope, contextId, storageKey, value);
+      await _ensureScopedDefinitionExists(
+        store: store,
+        botId: botId,
+        scope: scope,
+        storageKey: storageKey,
+        defaultValue: value,
+      );
       final runtimeValue = _stringifyRuntimeValue(value);
       variables['$scope.$referenceKey'] = runtimeValue;
       if (rawKey.isNotEmpty && rawKey != referenceKey) {
@@ -786,6 +853,13 @@ Future<bool> executeVariablesAction({
           contextId,
           storageKey,
           value,
+        );
+        await _ensureScopedDefinitionExists(
+          store: store,
+          botId: botId,
+          scope: scope,
+          storageKey: storageKey,
+          defaultValue: value,
         );
       }
       final runtimeValue = _stringifyRuntimeValue(value);

@@ -20,7 +20,8 @@ class GlobalVariablesPage extends StatefulWidget {
   State<GlobalVariablesPage> createState() => _GlobalVariablesPageState();
 }
 
-class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
+class _GlobalVariablesPageState extends State<GlobalVariablesPage>
+    with WidgetsBindingObserver {
   static const List<String> _scopes = <String>[
     'guild',
     'user',
@@ -42,7 +43,21 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     unawaited(_init());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      unawaited(_load());
+    }
   }
 
   bool get _isScopedMode => _mode == _VariableMode.scoped;
@@ -637,9 +652,18 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
 
   Widget _buildGlobalList() {
     if (_globalVariables.isEmpty) {
-      return Center(child: Text(AppStrings.t('globals_empty')));
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: 320,
+            child: Center(child: Text(AppStrings.t('globals_empty'))),
+          ),
+        ],
+      );
     }
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _globalVariables.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
@@ -671,14 +695,23 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
 
   Widget _buildScopedList() {
     if (_scopedDefinitions.isEmpty) {
-      return const Center(
-        child: Text(
-          'Aucune variable scopée définie.\nElles sont créées automatiquement au premier accès.',
-          textAlign: TextAlign.center,
-        ),
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(
+            height: 320,
+            child: Center(
+              child: Text(
+                'Aucune variable scopée définie.\nElles sont créées automatiquement au premier accès.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
       );
     }
     return ListView.separated(
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: _scopedDefinitions.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (ctx, i) {
@@ -748,7 +781,16 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(AppStrings.t('globals_title'))),
+      appBar: AppBar(
+        title: Text(AppStrings.t('globals_title')),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed:
             () =>
@@ -793,10 +835,13 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                         ),
                       ),
                     Expanded(
-                      child:
-                          _isScopedMode
-                              ? _buildScopedList()
-                              : _buildGlobalList(),
+                      child: RefreshIndicator(
+                        onRefresh: _load,
+                        child:
+                            _isScopedMode
+                                ? _buildScopedList()
+                                : _buildGlobalList(),
+                      ),
                     ),
                   ],
                 ),

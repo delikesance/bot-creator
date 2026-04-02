@@ -107,6 +107,8 @@
   'settings_tab': 'Paramètres',
   'more_tab': 'Plus',
   'quick_access_title': 'Accès rapide',
+  'more_options_title': 'Plus d\'options',
+  'no_more_options': 'Aucune autre option disponible',
   'settings_theme_switch_light': 'Passer en mode clair',
   'settings_theme_switch_dark': 'Passer en mode sombre',
   'settings_appearance_title': 'Apparence et langue',
@@ -439,7 +441,11 @@
 
   // Pages internes au bot — app/home.dart
   'bot_home_start': 'Lancer le bot',
+  'bot_home_starting': 'Démarrage…',
   'bot_home_stop': 'Arrêter le bot',
+  'bot_home_ios_notice_title': 'Contrainte iOS locale',
+  'bot_home_ios_notice_content':
+      'En mode local, iOS peut suspendre l’application en arrière-plan. Le bot peut démarrer, mais le maintien de la connexion Discord n’est pas garanti comme avec un Runner.',
   'bot_home_view_logs': 'Voir les logs du bot',
   'bot_home_view_stats': 'Voir les stats du bot',
   'bot_home_view_replay': 'Voir les replays du débogueur',

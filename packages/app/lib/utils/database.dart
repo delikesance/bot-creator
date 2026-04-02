@@ -1087,6 +1087,7 @@ class AppManager implements BotDataStore {
   }
 
   /// Adds or updates a scoped variable definition in the bot JSON.
+  @override
   Future<void> setScopedVariableDefinition(
     String botId,
     String key,
