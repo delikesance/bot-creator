@@ -613,7 +613,7 @@ Future<void> createCommand(
     if (data.isNotEmpty) {
       commandData['data'] = data;
     }
-    appManager.saveAppCommand(
+    await appManager.saveAppCommand(
       client.user.id.toString(),
       command.id.toString(),
       commandData,
@@ -642,7 +642,7 @@ Future<void> updateCommand(
     if (data.isNotEmpty) {
       commandData['data'] = data;
     }
-    appManager.saveAppCommand(
+    await appManager.saveAppCommand(
       client.user.id.toString(),
       command.id.toString(),
       commandData,

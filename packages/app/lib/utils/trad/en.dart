@@ -717,18 +717,17 @@ const Map<String, String> appStringsEn = {
   'cmd_execution_mode_bdfd_desc':
       'Write the command body as BDFD-style script while keeping command definition visual.',
   'cmd_execution_mode_bdfd_note':
-      'The script is compiled to internal actions, with diagnostics shown before save and reused at runtime.',
+      'The script is compiled to internal actions. Diagnostics are shown while editing; invalid scripts fail when the command runs.',
   'cmd_bdfd_script_label': 'BDFD script body',
   'cmd_bdfd_script_hint':
       r'$nomention\n$if[$hasPerms[$authorID;administrator]==true]\nHello from Bot Creator',
   'cmd_bdfd_diagnostics_title': 'BDFD diagnostics',
-  'cmd_bdfd_diagnostics_clean':
-      'No blocking issue detected in the current script.',
+  'cmd_bdfd_diagnostics_clean': 'No issue detected in the current script.',
   'cmd_bdfd_diagnostics_error': 'Error',
   'cmd_bdfd_diagnostics_warning': 'Warning',
   'cmd_bdfd_script_empty_error': 'BDFD script body cannot be empty.',
   'cmd_bdfd_script_validation_error':
-      'This BDFD script still contains blocking diagnostics:',
+      'This BDFD script still contains diagnostics:',
   'cmd_bdfd_autocomplete_title': 'BDFD prefix autocomplete',
   'cmd_bdfd_autocomplete_hint':
       'Type \$ and start writing a function name to get quick script suggestions.',

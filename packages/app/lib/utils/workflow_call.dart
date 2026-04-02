@@ -122,6 +122,22 @@ Map<String, dynamic> normalizeStoredWorkflowDefinition(
   Map<String, dynamic> workflow,
 ) {
   final normalized = Map<String, dynamic>.from(workflow);
+  final rawType = (normalized['workflowType'] ?? '').toString().trim();
+  final hasLegacyEventHints =
+      normalized['eventTrigger'] != null ||
+      (normalized['event']?.toString().trim().isNotEmpty ?? false) ||
+      (normalized['listenFor']?.toString().trim().isNotEmpty ?? false);
+  if (rawType.isEmpty && hasLegacyEventHints) {
+    normalized['workflowType'] = workflowTypeEvent;
+    if (normalized['eventTrigger'] == null) {
+      normalized['eventTrigger'] = normalizeWorkflowEventTrigger(
+        <String, dynamic>{
+          'event': normalized['event'],
+          'listenFor': normalized['listenFor'],
+        },
+      );
+    }
+  }
   normalized['name'] = (normalized['name'] ?? '').toString().trim();
   normalized['workflowType'] = normalizeWorkflowType(
     normalized['workflowType'],

@@ -107,25 +107,6 @@ extension _CommandCreateValidation on _CommandCreatePageState {
         );
         return false;
       }
-
-      _refreshBdfdCompileResult(notify: false);
-      if (_hasBdfdCompileErrors) {
-        showDialog(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: Text(AppStrings.t('error')),
-                content: Text(_buildBdfdValidationMessage()),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(AppStrings.t('ok')),
-                  ),
-                ],
-              ),
-        );
-        return false;
-      }
     }
 
     if (!_isBdfdScriptMode && _legacyModeEnabled) {
