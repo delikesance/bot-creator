@@ -687,47 +687,52 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
                 _isScopedMode ? _editScopedDefinition() : _editGlobalVariable(),
         child: const Icon(Icons.add),
       ),
-      body:
-          _loading
-              ? const Center(child: CircularProgressIndicator())
-              : Column(
-                children: [
-                  _buildSourceToggle(),
-                  _buildModeToggle(),
-                  if (_error != null)
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: Material(
-                        color: Theme.of(context).colorScheme.errorContainer,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error_outline, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _error!,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
+      body: SafeArea(
+        top: false,
+        child:
+            _loading
+                ? const Center(child: CircularProgressIndicator())
+                : Column(
+                  children: [
+                    _buildSourceToggle(),
+                    _buildModeToggle(),
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Material(
+                          color: Theme.of(context).colorScheme.errorContainer,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _error!,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                              ),
-                              TextButton(
-                                onPressed: _load,
-                                child: const Text('Retry'),
-                              ),
-                            ],
+                                TextButton(
+                                  onPressed: _load,
+                                  child: const Text('Retry'),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
+                    Expanded(
+                      child:
+                          _isScopedMode
+                              ? _buildScopedList()
+                              : _buildGlobalList(),
                     ),
-                  Expanded(
-                    child:
-                        _isScopedMode ? _buildScopedList() : _buildGlobalList(),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+      ),
     );
   }
 }

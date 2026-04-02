@@ -37,30 +37,32 @@ class TemplateGalleryPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.t('template_gallery_title'))),
-      body:
-          builtInTemplates.isEmpty
-              ? Center(child: Text(AppStrings.t('template_gallery_empty')))
-              : ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      AppStrings.t('template_gallery_subtitle'),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+      body: SafeArea(
+        child:
+            builtInTemplates.isEmpty
+                ? Center(child: Text(AppStrings.t('template_gallery_empty')))
+                : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        AppStrings.t('template_gallery_subtitle'),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
-                  ),
-                  ...builtInTemplates.map(
-                    (template) => _TemplateCard(
-                      template: template,
-                      botId: botId,
-                      client: client,
+                    ...builtInTemplates.map(
+                      (template) => _TemplateCard(
+                        template: template,
+                        botId: botId,
+                        client: client,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+      ),
     );
   }
 }

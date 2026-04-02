@@ -433,11 +433,14 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(child: _buildEditorBody()),
-          if (_showDiagnostics) _buildDiagnosticsBar(),
-        ],
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(child: _buildEditorBody()),
+            if (_showDiagnostics) _buildDiagnosticsBar(),
+          ],
+        ),
       ),
     );
   }

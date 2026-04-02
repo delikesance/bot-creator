@@ -2860,6 +2860,11 @@ class DiscordRunner {
       unawaited(_applyStatus(client, firstStatus));
     });
 
+    if (config.statuses.length == 1) {
+      _log.info('Single status configured, skipping rotation timer.');
+      return;
+    }
+
     final nextDelaySeconds = _randomDelaySeconds(
       min: firstStatus.minIntervalSeconds,
       max: firstStatus.maxIntervalSeconds,

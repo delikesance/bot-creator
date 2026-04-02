@@ -213,10 +213,7 @@ class _AppCommandsPageState extends State<AppCommandsPage>
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: contentMaxWidth),
                   child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 16,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
                     itemCount:
                         commands.length +
                         (adsEnabled

@@ -422,6 +422,10 @@ Future<void> _applyDesktopInitialStatusThenRotate(
     unawaited(_applyDesktopStatus(botId, gateway, firstStatus, presenceStatus));
   });
 
+  if (statuses.length == 1) {
+    return;
+  }
+
   final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
   final max = (firstStatus['maxIntervalSeconds'] as int?) ?? min;
   final delaySeconds =

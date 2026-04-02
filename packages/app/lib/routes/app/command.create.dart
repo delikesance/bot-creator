@@ -1613,296 +1613,313 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
             ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final contentMaxWidth =
-              constraints.maxWidth >= 1200
-                  ? 980.0
-                  : (constraints.maxWidth >= 900 ? 860.0 : 680.0);
+      body: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final contentMaxWidth =
+                constraints.maxWidth >= 1200
+                    ? 980.0
+                    : (constraints.maxWidth >= 900 ? 860.0 : 680.0);
 
-          return Center(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: contentMaxWidth),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: <Widget>[
-                    Text(
-                      !_isEditingExistingCommand
-                          ? "Create a new command"
-                          : "Update command",
-                      style: const TextStyle(fontSize: 24),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    if (_isLoading)
-                      const CircularProgressIndicator()
-                    else if (_isDataIncomplete) ...[
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          border: Border.all(color: Colors.orange.shade300),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              color: Colors.orange.shade700,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                AppStrings.t('cmd_offline_incomplete_warning'),
-                                style: TextStyle(
-                                  color: Colors.orange.shade800,
-                                  fontSize: 13,
+            return Center(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: contentMaxWidth),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Text(
+                        !_isEditingExistingCommand
+                            ? "Create a new command"
+                            : "Update command",
+                        style: const TextStyle(fontSize: 24),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 20),
+                      if (_isLoading)
+                        const CircularProgressIndicator()
+                      else if (_isDataIncomplete) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            border: Border.all(color: Colors.orange.shade300),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.orange.shade700,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  AppStrings.t(
+                                    'cmd_offline_incomplete_warning',
+                                  ),
+                                  style: TextStyle(
+                                    color: Colors.orange.shade800,
+                                    fontSize: 13,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.terminal),
-                          title: Text(
-                            _commandName.isNotEmpty
-                                ? _commandName
-                                : (_existingCommandStorageId ?? ''),
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle:
-                              _commandDescription.isNotEmpty
-                                  ? Text(_commandDescription)
-                                  : null,
-                          trailing: IconButton(
-                            icon: const Icon(Icons.menu_book_outlined),
-                            tooltip: AppStrings.t('cmd_show_variables'),
-                            onPressed: _openDocumentationCenter,
+                            ],
                           ),
                         ),
-                      ),
-                    ] else
-                      Form(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            BasicInfoCard(
-                              commandName: _commandName,
-                              commandDescription: _commandDescription,
-                              commandType: _commandType,
-                              isLegacyCommand:
-                                  _legacyModeEnabled &&
-                                  _legacyOnlyLocalCommand &&
-                                  _commandType ==
-                                      ApplicationCommandType.chatInput,
-                              canEditCommandType: !_isEditingExistingCommand,
-                              showDescriptionField: _supportsCommandDescription,
-                              integrationTypes: _integrationTypes,
-                              contexts: _contexts,
-                              onNameChanged: (val) {
-                                setState(() {
-                                  _commandName = val;
-                                });
-                              },
-                              onDescriptionChanged: (val) {
-                                setState(() {
-                                  _commandDescription = val;
-                                });
-                              },
-                              onCommandTypeChanged: (val) {
-                                setState(() {
-                                  _persistActiveSubcommandWorkflow();
-                                  _commandType = val;
-                                  if (!_supportsSimpleMode) {
-                                    _editorMode = _editorModeAdvanced;
-                                    _legacyModeEnabled = false;
-                                    _legacyOnlyLocalCommand = false;
-                                  }
-                                  _simpleModeLocked =
-                                      _editorMode == _editorModeAdvanced;
-                                  if (_commandType !=
-                                      ApplicationCommandType.chatInput) {
-                                    _subcommandWorkflows =
-                                        <String, Map<String, dynamic>>{};
-                                    _activeSubcommandRoute = _rootWorkflowRoute;
-                                  } else {
-                                    _syncSubcommandWorkflowRoutes();
-                                  }
-                                });
-                              },
-                              onLegacyCommandChanged: (enabled) {
-                                setState(() {
-                                  _persistActiveSubcommandWorkflow();
-                                  _commandType =
-                                      ApplicationCommandType.chatInput;
-                                  _legacyModeEnabled = enabled;
-                                  _legacyOnlyLocalCommand = enabled;
-                                  if (_legacyModeEnabled &&
-                                      _responseType == 'modal') {
-                                    _responseType = 'normal';
-                                  }
-                                  _syncSubcommandWorkflowRoutes();
-                                });
-                              },
-                              onIntegrationTypesChanged: (val) {
-                                setState(() {
-                                  _integrationTypes = val;
-                                });
-                              },
-                              onContextsChanged: (val) {
-                                setState(() {
-                                  _contexts = val;
-                                });
-                              },
-                              onDefaultMemberPermissionsChanged: (value) {
-                                setState(() {
-                                  _defaultMemberPermissions = value;
-                                });
-                              },
-                              defaultMemberPermissions:
-                                  _defaultMemberPermissions,
-                              nameValidator: _validateName,
-                            ),
-                            const SizedBox(height: 12),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: TextButton.icon(
-                                onPressed: _openDocumentationCenter,
-                                icon: const Icon(Icons.menu_book_outlined),
-                                label: Text(AppStrings.t('cmd_show_variables')),
+                        const SizedBox(height: 16),
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.terminal),
+                            title: Text(
+                              _commandName.isNotEmpty
+                                  ? _commandName
+                                  : (_existingCommandStorageId ?? ''),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            if (_supportsSimpleMode && !_isBdfdScriptMode) ...[
-                              _buildEditorModeCard(context),
+                            subtitle:
+                                _commandDescription.isNotEmpty
+                                    ? Text(_commandDescription)
+                                    : null,
+                            trailing: IconButton(
+                              icon: const Icon(Icons.menu_book_outlined),
+                              tooltip: AppStrings.t('cmd_show_variables'),
+                              onPressed: _openDocumentationCenter,
+                            ),
+                          ),
+                        ),
+                      ] else
+                        Form(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              BasicInfoCard(
+                                commandName: _commandName,
+                                commandDescription: _commandDescription,
+                                commandType: _commandType,
+                                isLegacyCommand:
+                                    _legacyModeEnabled &&
+                                    _legacyOnlyLocalCommand &&
+                                    _commandType ==
+                                        ApplicationCommandType.chatInput,
+                                canEditCommandType: !_isEditingExistingCommand,
+                                showDescriptionField:
+                                    _supportsCommandDescription,
+                                integrationTypes: _integrationTypes,
+                                contexts: _contexts,
+                                onNameChanged: (val) {
+                                  setState(() {
+                                    _commandName = val;
+                                  });
+                                },
+                                onDescriptionChanged: (val) {
+                                  setState(() {
+                                    _commandDescription = val;
+                                  });
+                                },
+                                onCommandTypeChanged: (val) {
+                                  setState(() {
+                                    _persistActiveSubcommandWorkflow();
+                                    _commandType = val;
+                                    if (!_supportsSimpleMode) {
+                                      _editorMode = _editorModeAdvanced;
+                                      _legacyModeEnabled = false;
+                                      _legacyOnlyLocalCommand = false;
+                                    }
+                                    _simpleModeLocked =
+                                        _editorMode == _editorModeAdvanced;
+                                    if (_commandType !=
+                                        ApplicationCommandType.chatInput) {
+                                      _subcommandWorkflows =
+                                          <String, Map<String, dynamic>>{};
+                                      _activeSubcommandRoute =
+                                          _rootWorkflowRoute;
+                                    } else {
+                                      _syncSubcommandWorkflowRoutes();
+                                    }
+                                  });
+                                },
+                                onLegacyCommandChanged: (enabled) {
+                                  setState(() {
+                                    _persistActiveSubcommandWorkflow();
+                                    _commandType =
+                                        ApplicationCommandType.chatInput;
+                                    _legacyModeEnabled = enabled;
+                                    _legacyOnlyLocalCommand = enabled;
+                                    if (_legacyModeEnabled &&
+                                        _responseType == 'modal') {
+                                      _responseType = 'normal';
+                                    }
+                                    _syncSubcommandWorkflowRoutes();
+                                  });
+                                },
+                                onIntegrationTypesChanged: (val) {
+                                  setState(() {
+                                    _integrationTypes = val;
+                                  });
+                                },
+                                onContextsChanged: (val) {
+                                  setState(() {
+                                    _contexts = val;
+                                  });
+                                },
+                                onDefaultMemberPermissionsChanged: (value) {
+                                  setState(() {
+                                    _defaultMemberPermissions = value;
+                                  });
+                                },
+                                defaultMemberPermissions:
+                                    _defaultMemberPermissions,
+                                nameValidator: _validateName,
+                              ),
                               const SizedBox(height: 12),
-                            ],
-                            _buildExecutionModeCard(),
-                            const SizedBox(height: 12),
-                            if (_supportsCommandOptions &&
-                                !_isBdfdScriptMode) ...[
-                              _buildLegacyModeCard(),
-                              const SizedBox(height: 12),
-                            ],
-                            if (_isBdfdScriptMode) ...[
-                              if (_supportsCommandOptions) ...[
-                                _buildCommandOptionsCard(),
-                                const SizedBox(height: 16),
-                              ],
-                            ] else if (_isSimpleMode) ...[
-                              _buildSimpleActionsCard(),
-                              const SizedBox(height: 12),
-                              _buildSimpleResponseCard(),
-                            ] else ...[
-                              if (_subcommandWorkflows.isNotEmpty) ...[
-                                _buildSubcommandWorkflowSelectorCard(),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: _openDocumentationCenter,
+                                  icon: const Icon(Icons.menu_book_outlined),
+                                  label: Text(
+                                    AppStrings.t('cmd_show_variables'),
+                                  ),
+                                ),
+                              ),
+                              if (_supportsSimpleMode &&
+                                  !_isBdfdScriptMode) ...[
+                                _buildEditorModeCard(context),
                                 const SizedBox(height: 12),
                               ],
-                              ReplyCard(
-                                responseType: _responseType,
-                                onResponseTypeChanged: (type) {
-                                  setState(() {
-                                    if (_legacyModeEnabled && type == 'modal') {
-                                      _responseType = 'normal';
-                                    } else {
-                                      _responseType = type;
-                                    }
-                                    _persistActiveSubcommandWorkflow();
-                                  });
-                                },
-                                responseController: _responseController,
-                                variableSuggestionBar:
-                                    _buildVariableSuggestionBar(
-                                      _responseController,
-                                    ),
-                                responseEmbeds: _responseEmbeds,
-                                onEmbedsChanged: (embeds) {
-                                  setState(() {
-                                    _responseEmbeds = embeds;
-                                    _persistActiveSubcommandWorkflow();
-                                  });
-                                },
-                                responseComponents: _responseComponents,
-                                onComponentsChanged: (components) {
-                                  setState(() {
-                                    _responseComponents = components;
-                                    _persistActiveSubcommandWorkflow();
-                                  });
-                                },
-                                responseModal: _responseModal,
-                                onModalChanged: (modal) {
-                                  setState(() {
-                                    _responseModal = modal;
-                                    _persistActiveSubcommandWorkflow();
-                                  });
-                                },
-                                responseWorkflow: _responseWorkflow,
-                                normalizeWorkflow: _normalizeWorkflow,
-                                variableSuggestions: _actionVariableSuggestions,
-                                emojiSuggestions: _appEmojis,
-                                botIdForConfig: _botIdForConfig,
-                                onWorkflowChanged: (workflow) {
-                                  setState(() {
-                                    _responseWorkflow = workflow;
-                                    _persistActiveSubcommandWorkflow();
-                                  });
-                                },
-                                workflowSummary: _workflowSummary(),
-                                activeRouteLabel:
-                                    _subcommandWorkflows.isNotEmpty
-                                        ? _workflowRouteLabel(
-                                          _activeSubcommandRoute,
-                                        )
-                                        : null,
-                                activeRouteIsGrouped:
-                                    _subcommandWorkflows.isNotEmpty &&
-                                    _activeSubcommandRoute.contains('/'),
-                                allowModal: _allowModalResponses,
-                              ),
-                              if (_supportsCommandOptions) ...[
-                                const SizedBox(height: 16),
-                                _buildCommandOptionsCard(),
-                                const SizedBox(height: 16),
+                              _buildExecutionModeCard(),
+                              const SizedBox(height: 12),
+                              if (_supportsCommandOptions &&
+                                  !_isBdfdScriptMode) ...[
+                                _buildLegacyModeCard(),
+                                const SizedBox(height: 12),
                               ],
-                              ActionsCard(
-                                actions: _actions,
-                                onActionsChanged: (val) {
-                                  setState(() {
-                                    _actions = val;
-                                    _persistActiveSubcommandWorkflow();
-                                  });
-                                },
-                                actionVariableSuggestions:
-                                    _actionVariableSuggestions,
-                                emojiSuggestions: _appEmojis,
-                                botIdForConfig: _botIdForConfig,
-                                activeRouteLabel:
-                                    _subcommandWorkflows.isNotEmpty
-                                        ? _workflowRouteLabel(
-                                          _activeSubcommandRoute,
-                                        )
-                                        : null,
-                                activeRouteIsGrouped:
-                                    _subcommandWorkflows.isNotEmpty &&
-                                    _activeSubcommandRoute.contains('/'),
-                              ),
+                              if (_isBdfdScriptMode) ...[
+                                if (_supportsCommandOptions) ...[
+                                  _buildCommandOptionsCard(),
+                                  const SizedBox(height: 16),
+                                ],
+                              ] else if (_isSimpleMode) ...[
+                                _buildSimpleActionsCard(),
+                                const SizedBox(height: 12),
+                                _buildSimpleResponseCard(),
+                              ] else ...[
+                                if (_subcommandWorkflows.isNotEmpty) ...[
+                                  _buildSubcommandWorkflowSelectorCard(),
+                                  const SizedBox(height: 12),
+                                ],
+                                ReplyCard(
+                                  responseType: _responseType,
+                                  onResponseTypeChanged: (type) {
+                                    setState(() {
+                                      if (_legacyModeEnabled &&
+                                          type == 'modal') {
+                                        _responseType = 'normal';
+                                      } else {
+                                        _responseType = type;
+                                      }
+                                      _persistActiveSubcommandWorkflow();
+                                    });
+                                  },
+                                  responseController: _responseController,
+                                  variableSuggestionBar:
+                                      _buildVariableSuggestionBar(
+                                        _responseController,
+                                      ),
+                                  responseEmbeds: _responseEmbeds,
+                                  onEmbedsChanged: (embeds) {
+                                    setState(() {
+                                      _responseEmbeds = embeds;
+                                      _persistActiveSubcommandWorkflow();
+                                    });
+                                  },
+                                  responseComponents: _responseComponents,
+                                  onComponentsChanged: (components) {
+                                    setState(() {
+                                      _responseComponents = components;
+                                      _persistActiveSubcommandWorkflow();
+                                    });
+                                  },
+                                  responseModal: _responseModal,
+                                  onModalChanged: (modal) {
+                                    setState(() {
+                                      _responseModal = modal;
+                                      _persistActiveSubcommandWorkflow();
+                                    });
+                                  },
+                                  responseWorkflow: _responseWorkflow,
+                                  normalizeWorkflow: _normalizeWorkflow,
+                                  variableSuggestions:
+                                      _actionVariableSuggestions,
+                                  emojiSuggestions: _appEmojis,
+                                  botIdForConfig: _botIdForConfig,
+                                  onWorkflowChanged: (workflow) {
+                                    setState(() {
+                                      _responseWorkflow = workflow;
+                                      _persistActiveSubcommandWorkflow();
+                                    });
+                                  },
+                                  workflowSummary: _workflowSummary(),
+                                  activeRouteLabel:
+                                      _subcommandWorkflows.isNotEmpty
+                                          ? _workflowRouteLabel(
+                                            _activeSubcommandRoute,
+                                          )
+                                          : null,
+                                  activeRouteIsGrouped:
+                                      _subcommandWorkflows.isNotEmpty &&
+                                      _activeSubcommandRoute.contains('/'),
+                                  allowModal: _allowModalResponses,
+                                ),
+                                if (_supportsCommandOptions) ...[
+                                  const SizedBox(height: 16),
+                                  _buildCommandOptionsCard(),
+                                  const SizedBox(height: 16),
+                                ],
+                                ActionsCard(
+                                  actions: _actions,
+                                  onActionsChanged: (val) {
+                                    setState(() {
+                                      _actions = val;
+                                      _persistActiveSubcommandWorkflow();
+                                    });
+                                  },
+                                  actionVariableSuggestions:
+                                      _actionVariableSuggestions,
+                                  emojiSuggestions: _appEmojis,
+                                  botIdForConfig: _botIdForConfig,
+                                  activeRouteLabel:
+                                      _subcommandWorkflows.isNotEmpty
+                                          ? _workflowRouteLabel(
+                                            _activeSubcommandRoute,
+                                          )
+                                          : null,
+                                  activeRouteIsGrouped:
+                                      _subcommandWorkflows.isNotEmpty &&
+                                      _activeSubcommandRoute.contains('/'),
+                                ),
+                              ],
+                              const SizedBox(height: 20),
                             ],
-                            const SizedBox(height: 20),
-                          ],
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

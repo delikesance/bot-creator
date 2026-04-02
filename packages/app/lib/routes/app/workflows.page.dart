@@ -2533,7 +2533,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
               ? const Center(child: CircularProgressIndicator())
               : _workflows.isEmpty
               ? Center(child: Text(AppStrings.t('workflows_empty')))
-              : ListView(children: workflowChildren),
+              : ListView(
+                padding: const EdgeInsets.only(bottom: 80),
+                children: workflowChildren,
+              ),
     );
   }
 

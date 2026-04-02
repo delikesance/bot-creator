@@ -298,6 +298,10 @@ class DiscordBotTaskHandler extends TaskHandler {
       );
     });
 
+    if (statuses.length == 1) {
+      return;
+    }
+
     final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
     final max = (firstStatus['maxIntervalSeconds'] as int?) ?? min;
     final delaySeconds =

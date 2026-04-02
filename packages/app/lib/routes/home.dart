@@ -582,6 +582,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ),
                   Expanded(
                     child: GridView.builder(
+                      padding: const EdgeInsets.only(bottom: 80),
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
                         crossAxisSpacing: 14,
