@@ -2,6 +2,7 @@
 
 const String workflowTypeGeneral = 'general';
 const String workflowTypeEvent = 'event';
+const String workflowTypeInboundWebhook = 'inboundWebhook';
 
 class WorkflowArgumentDefinition {
   final String name;
@@ -42,6 +43,9 @@ String normalizeWorkflowType(dynamic raw) {
   final value = (raw ?? '').toString().trim().toLowerCase();
   if (value == workflowTypeEvent) {
     return workflowTypeEvent;
+  }
+  if (value == workflowTypeInboundWebhook.toLowerCase()) {
+    return workflowTypeInboundWebhook;
   }
   return workflowTypeGeneral;
 }

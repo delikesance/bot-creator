@@ -11,7 +11,7 @@ import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
 import 'package:bot_creator/utils/ads_placement_policy.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
-import 'package:bot_creator/utils/subscription_service.dart';
+import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:bot_creator/widgets/native_ad_slot.dart';
@@ -374,7 +374,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       return;
     }
 
-    if (SubscriptionService.isSubscribed) {
+    if (PremiumCapabilities.hasCapability(PremiumCapability.noAds)) {
       return;
     }
 

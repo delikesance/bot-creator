@@ -341,6 +341,29 @@ class RunnerClient {
     return RunnerStatus.fromJson(json);
   }
 
+  /// Hot-reloads the bot config on the runner without disconnecting from Discord.
+  ///
+  /// Commands and workflows take effect immediately. If the bot is not currently
+  /// running the config is persisted for the next start.
+  Future<void> reloadBot(
+    String botId,
+    String botName,
+    Map<String, dynamic> configJson,
+  ) async {
+    final normalizedBotId = botId.trim();
+    if (normalizedBotId.isEmpty) {
+      throw const RunnerClientException('Missing botId for reloadBot().');
+    }
+    await _post(
+      '/bots/${Uri.encodeComponent(normalizedBotId)}/reload',
+      <String, dynamic>{
+        'botId': normalizedBotId,
+        if (botName.isNotEmpty) 'botName': botName,
+        'config': configJson,
+      },
+    );
+  }
+
   /// Fetches recent log lines from the runner.
   ///
   /// [limit] controls the maximum number of lines returned (default: 300).

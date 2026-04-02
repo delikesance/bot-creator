@@ -108,7 +108,18 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
     if (key.isEmpty) {
       return key;
     }
-    return key.startsWith('bc_') ? key : 'bc_$key';
+    if (key.startsWith('bc_') && key.length > 3) {
+      return key.substring(3);
+    }
+    return key;
+  }
+
+  String _toLegacyScopedReferenceKey(String rawKey) {
+    final key = _toScopedReferenceKey(rawKey);
+    if (key.isEmpty) {
+      return key;
+    }
+    return 'bc_$key';
   }
 
   Future<void> _load() async {
@@ -252,6 +263,33 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
   }
 
   Future<void> _deleteGlobalVariable(String key) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (ctx) => AlertDialog.adaptive(
+                title: const Text('Supprimer la variable globale'),
+                content: Text('Supprimer "$key" ?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(AppStrings.t('cancel')),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(
+                      AppStrings.t('delete'),
+                      style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!shouldDelete) {
+      return;
+    }
+
     if (_isRunnerMode) {
       await _requireRunnerClient().removeGlobalVariable(widget.botId, key);
     } else {
@@ -381,6 +419,33 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
   }
 
   Future<void> _deleteScopedDefinition(String key) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (ctx) => AlertDialog.adaptive(
+                title: const Text('Supprimer la variable scopée'),
+                content: Text('Supprimer "$key" ?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(AppStrings.t('cancel')),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(
+                      AppStrings.t('delete'),
+                      style: TextStyle(color: Theme.of(ctx).colorScheme.error),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!shouldDelete) {
+      return;
+    }
+
     final existing = _scopedDefinitions
         .cast<Map<String, dynamic>?>()
         .firstWhere(
@@ -608,7 +673,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
     if (_scopedDefinitions.isEmpty) {
       return const Center(
         child: Text(
-          'Aucune variable scoped définie.\nAppuyez sur + pour en ajouter une.',
+          'Aucune variable scopée définie.\nElles sont créées automatiquement au premier accès.',
           textAlign: TextAlign.center,
         ),
       );
@@ -622,6 +687,7 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
         final scope = def['scope']?.toString() ?? '';
         final defaultValue = def['defaultValue']?.toString() ?? '';
         final refKey = _toScopedReferenceKey(key);
+        final legacyRefKey = _toLegacyScopedReferenceKey(key);
 
         return ListTile(
           title: Text(key),
@@ -635,7 +701,9 @@ class _GlobalVariablesPageState extends State<GlobalVariablesPage> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'ref: $scope.$refKey',
+                  refKey == legacyRefKey
+                      ? 'ref: $scope.$refKey'
+                      : 'ref: $scope.$refKey (legacy: $scope.$legacyRefKey)',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 11),

@@ -2956,8 +2956,8 @@ class ActionCard extends StatelessWidget {
       'Message content': 'Contenu du message',
       'Audit log reason': 'Raison du journal d\'audit',
       'Global variable key': 'Clé de variable globale',
-      'Scoped variable key (must start with bc_)':
-          'Clé de variable scopée (doit commencer par bc_)',
+      'Scoped variable key (bc_ optional)':
+          'Clé de variable scopée (bc_ optionnel)',
       'Saved workflow name to execute': 'Nom du workflow enregistré à exécuter',
       'Optional entry point override (defaults to workflow entry)':
           'Surcharge optionnelle du point d\'entrée (par défaut: entrée du workflow)',
@@ -2981,8 +2981,8 @@ class ActionCard extends StatelessWidget {
           'Valeur texte (supporte les placeholders ((...)))',
       'Runtime variable alias (ex: token)':
           'Alias de variable runtime (ex: token)',
-      'Runtime variable alias (ex: guild.bc_score)':
-          'Alias de variable runtime (ex: guild.bc_score)',
+      'Runtime variable alias (ex: guild.score)':
+          'Alias de variable runtime (ex: guild.score)',
       'Listener TTL in minutes (max 60)': 'TTL du listener en minutes (max 60)',
       'Remove listener after first click':
           'Supprimer le listener après le premier clic',
@@ -3096,7 +3096,18 @@ class _VariableKeyParameterFieldState
     if (key.isEmpty) {
       return key;
     }
-    return key.startsWith('bc_') ? key : 'bc_$key';
+    if (key.startsWith('bc_') && key.length > 3) {
+      return key.substring(3);
+    }
+    return key;
+  }
+
+  String _toLegacyScopedReferenceKey(String rawKey) {
+    final key = _toScopedReferenceKey(rawKey);
+    if (key.isEmpty) {
+      return key;
+    }
+    return 'bc_$key';
   }
 
   @override
@@ -3193,17 +3204,21 @@ class _VariableKeyParameterFieldState
                 initialValue: selectedValue,
                 isExpanded: true,
                 items: items
-                    .map(
-                      (key) => DropdownMenuItem<String>(
+                    .map((key) {
+                      final canonicalRef = _toScopedReferenceKey(key);
+                      final legacyRef = _toLegacyScopedReferenceKey(key);
+                      final scopedLabel =
+                          canonicalRef == legacyRef
+                              ? '$key  (ref: $canonicalRef)'
+                              : '$key  (ref: $canonicalRef, legacy: $legacyRef)';
+                      return DropdownMenuItem<String>(
                         value: key,
                         child: Text(
-                          widget.scoped
-                              ? '$key  (ref: ${_toScopedReferenceKey(key)})'
-                              : key,
+                          widget.scoped ? scopedLabel : key,
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    )
+                      );
+                    })
                     .toList(growable: false),
                 onChanged:
                     _loading
@@ -3219,9 +3234,9 @@ class _VariableKeyParameterFieldState
                       _loading
                           ? 'Loading keys...'
                           : (items.isEmpty
-                              ? 'No saved keys found. Create keys in Global Variables.'
+                              ? 'No saved keys found. Keys are created automatically on first access.'
                               : (widget.scoped
-                                  ? 'Select stored key (auto-complete uses bc_ prefix)'
+                                  ? 'Select a stored key (bc_ prefix is optional)'
                                   : 'Select a saved key')),
                 ),
               ),

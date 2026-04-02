@@ -70,11 +70,11 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
   Map<String, dynamic> _responseWorkflow = _defaultWorkflow();
   Set<String> _persistedGlobalVariableNames = <String>{};
   Set<String> _scopedVariableSuggestionNames = {
-    'guild.bc_key',
-    'user.bc_key',
-    'channel.bc_key',
-    'guildMember.bc_key',
-    'message.bc_key',
+    'guild.key',
+    'user.key',
+    'channel.key',
+    'guildMember.key',
+    'message.key',
   };
   bool _isLoading = true;
   List<AppEmoji> _appEmojis = [];
@@ -552,7 +552,7 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
                 initialValue: _legacyPrefixOverride,
                 decoration: const InputDecoration(
                   labelText: 'Prefix override (optional)',
-                  hintText: 'Example: ? or ((guild.bc_prefix | !))',
+                  hintText: 'Example: ? or ((guild.prefix | !))',
                   border: OutlineInputBorder(),
                 ),
                 onChanged: (value) {
@@ -1570,6 +1570,43 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
               icon: const Icon(Icons.delete),
               tooltip: AppStrings.t('cmd_delete_tooltip'),
               onPressed: () async {
+                final shouldDelete =
+                    await showDialog<bool>(
+                      context: context,
+                      builder:
+                          (dialogContext) => AlertDialog.adaptive(
+                            title: Text(AppStrings.t('cmd_delete_tooltip')),
+                            content: const Text(
+                              'This command will be deleted permanently. Continue?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed:
+                                    () =>
+                                        Navigator.of(dialogContext).pop(false),
+                                child: Text(AppStrings.t('cancel')),
+                              ),
+                              TextButton(
+                                onPressed:
+                                    () => Navigator.of(dialogContext).pop(true),
+                                child: Text(
+                                  AppStrings.t('delete'),
+                                  style: TextStyle(
+                                    color:
+                                        Theme.of(
+                                          dialogContext,
+                                        ).colorScheme.error,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                    ) ??
+                    false;
+                if (!shouldDelete) {
+                  return;
+                }
+
                 final botId = _botIdForConfig;
                 final commandId = _existingCommandStorageId;
                 if (botId == null) {

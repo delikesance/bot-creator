@@ -13,6 +13,15 @@ class SubscriptionPage extends StatefulWidget {
 
   /// Show the subscription page as a modal bottom sheet.
   static Future<void> show(BuildContext context) {
+    if (!SubscriptionService.supportsNativeBilling) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(AppStrings.t('subscription_not_available_on_platform')),
+        ),
+      );
+      return Future<void>.value();
+    }
+
     AppAnalytics.logEvent(name: 'subscription_page_opened');
     return showModalBottomSheet<void>(
       context: context,

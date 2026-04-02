@@ -24,10 +24,13 @@ class ComponentNodeEditor extends StatelessWidget {
   final ComponentNode node;
   final ValueChanged<ComponentNode> onChanged;
   final VoidCallback onRemove;
+
   /// Optional: show an "up" arrow to move this node earlier in its parent list.
   final VoidCallback? onMoveUp;
+
   /// Optional: show a "down" arrow to move this node later in its parent list.
   final VoidCallback? onMoveDown;
+
   /// Nesting depth — 0 for root nodes, +1 for each level of children.
   final int depth;
   final List<VariableSuggestion> variableSuggestions;
@@ -45,6 +48,40 @@ class ComponentNodeEditor extends StatelessWidget {
     this.botIdForConfig,
   });
 
+  Future<void> _confirmAndRemove(BuildContext context) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog.adaptive(
+                title: const Text('Remove component'),
+                content: const Text(
+                  'This component will be removed from the layout. Continue?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(
+                      'Remove',
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!shouldDelete) {
+      return;
+    }
+    onRemove();
+  }
+
   @override
   Widget build(BuildContext context) {
     final accentColor = _depthColor(depth);
@@ -54,7 +91,10 @@ class ComponentNodeEditor extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           border: Border(
-            left: BorderSide(color: accentColor.withValues(alpha: 0.6), width: 3),
+            left: BorderSide(
+              color: accentColor.withValues(alpha: 0.6),
+              width: 3,
+            ),
           ),
         ),
         child: Card(
@@ -144,7 +184,9 @@ class ComponentNodeEditor extends StatelessWidget {
                           color: Colors.red.shade400,
                         ),
                         tooltip: 'Remove',
-                        onPressed: onRemove,
+                        onPressed: () {
+                          _confirmAndRemove(context);
+                        },
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -185,7 +227,8 @@ class ComponentNodeEditor extends StatelessWidget {
     };
   }
 
-  String _getTitleForType(ComponentV2Type type) => ComponentNodeFactory.labelFor(type);
+  String _getTitleForType(ComponentV2Type type) =>
+      ComponentNodeFactory.labelFor(type);
 
   Widget _buildEditorBody(BuildContext context) {
     if (node is ActionRowNode) {
@@ -281,24 +324,24 @@ class ComponentNodeEditor extends StatelessWidget {
                 idx == 0
                     ? null
                     : () {
-                        final list = List<ComponentNode>.from(row.components);
-                        final tmp = list[idx - 1];
-                        list[idx - 1] = list[idx];
-                        list[idx] = tmp;
-                        row.components = list;
-                        onChanged(row);
-                      },
+                      final list = List<ComponentNode>.from(row.components);
+                      final tmp = list[idx - 1];
+                      list[idx - 1] = list[idx];
+                      list[idx] = tmp;
+                      row.components = list;
+                      onChanged(row);
+                    },
             onMoveDown:
                 idx == row.components.length - 1
                     ? null
                     : () {
-                        final list = List<ComponentNode>.from(row.components);
-                        final tmp = list[idx + 1];
-                        list[idx + 1] = list[idx];
-                        list[idx] = tmp;
-                        row.components = list;
-                        onChanged(row);
-                      },
+                      final list = List<ComponentNode>.from(row.components);
+                      final tmp = list[idx + 1];
+                      list[idx + 1] = list[idx];
+                      list[idx] = tmp;
+                      row.components = list;
+                      onChanged(row);
+                    },
             variableSuggestions: variableSuggestions,
             botIdForConfig: botIdForConfig,
           );
@@ -681,24 +724,24 @@ class ComponentNodeEditor extends StatelessWidget {
                 idx == 0
                     ? null
                     : () {
-                        final list = List<TextDisplayNode>.from(node.components);
-                        final tmp = list[idx - 1];
-                        list[idx - 1] = list[idx];
-                        list[idx] = tmp;
-                        node.components = list;
-                        onChanged(node);
-                      },
+                      final list = List<TextDisplayNode>.from(node.components);
+                      final tmp = list[idx - 1];
+                      list[idx - 1] = list[idx];
+                      list[idx] = tmp;
+                      node.components = list;
+                      onChanged(node);
+                    },
             onMoveDown:
                 idx == node.components.length - 1
                     ? null
                     : () {
-                        final list = List<TextDisplayNode>.from(node.components);
-                        final tmp = list[idx + 1];
-                        list[idx + 1] = list[idx];
-                        list[idx] = tmp;
-                        node.components = list;
-                        onChanged(node);
-                      },
+                      final list = List<TextDisplayNode>.from(node.components);
+                      final tmp = list[idx + 1];
+                      list[idx + 1] = list[idx];
+                      list[idx] = tmp;
+                      node.components = list;
+                      onChanged(node);
+                    },
             variableSuggestions: variableSuggestions,
             botIdForConfig: botIdForConfig,
           );
@@ -842,24 +885,24 @@ class ComponentNodeEditor extends StatelessWidget {
                 idx == 0
                     ? null
                     : () {
-                        final list = List<ComponentNode>.from(node.components);
-                        final tmp = list[idx - 1];
-                        list[idx - 1] = list[idx];
-                        list[idx] = tmp;
-                        node.components = list;
-                        onChanged(node);
-                      },
+                      final list = List<ComponentNode>.from(node.components);
+                      final tmp = list[idx - 1];
+                      list[idx - 1] = list[idx];
+                      list[idx] = tmp;
+                      node.components = list;
+                      onChanged(node);
+                    },
             onMoveDown:
                 idx == node.components.length - 1
                     ? null
                     : () {
-                        final list = List<ComponentNode>.from(node.components);
-                        final tmp = list[idx + 1];
-                        list[idx + 1] = list[idx];
-                        list[idx] = tmp;
-                        node.components = list;
-                        onChanged(node);
-                      },
+                      final list = List<ComponentNode>.from(node.components);
+                      final tmp = list[idx + 1];
+                      list[idx + 1] = list[idx];
+                      list[idx] = tmp;
+                      node.components = list;
+                      onChanged(node);
+                    },
             variableSuggestions: variableSuggestions,
             botIdForConfig: botIdForConfig,
           );

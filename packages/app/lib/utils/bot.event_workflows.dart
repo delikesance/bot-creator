@@ -176,9 +176,26 @@ Future<void> _registerLocalEventWorkflowListeners(
   }
 
   Future<void> dispatch(EventExecutionContext context) async {
+    // Re-read app data on each dispatch so that saves to commands or workflows
+    // take effect immediately without restarting the bot.
+    final liveAppData = await manager.getApp(botId);
+    final liveWorkflows = List<Map<String, dynamic>>.from(
+          (liveAppData['workflows'] as List?)?.whereType<Map>().map(
+                (entry) => normalizeStoredWorkflowDefinition(
+                  Map<String, dynamic>.from(entry),
+                ),
+              ) ??
+              const <Map<String, dynamic>>[],
+        )
+        .where((workflow) {
+          return normalizeWorkflowType(workflow['workflowType']) ==
+              workflowTypeEvent;
+        })
+        .toList(growable: false);
+
     final normalizedEventName = context.eventName.toLowerCase();
 
-    final matching = workflows
+    final matching = liveWorkflows
         .where((workflow) {
           final trigger = normalizeWorkflowEventTrigger(
             workflow['eventTrigger'],
@@ -244,7 +261,7 @@ Future<void> _registerLocalEventWorkflowListeners(
           gateway,
           manager: manager,
           botId: botId,
-          appData: appData,
+          appData: liveAppData,
           context: context,
           onLog: onLog,
         ),

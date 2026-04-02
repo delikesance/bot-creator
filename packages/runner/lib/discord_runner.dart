@@ -146,13 +146,15 @@ String _formatRunnerBdfdDiagnostics(List<BdfdCompileDiagnostic> diagnostics) {
 /// Connects to Discord via nyxx, registers command listeners, and dispatches
 /// interactions to the shared action handlers — matching commands by their Discord ID.
 class DiscordRunner {
-  final BotConfig config;
+  BotConfig config;
   final RunnerDataStore store;
   final CommandStatsStore? statsStore;
 
   NyxxGateway? _gateway;
   DateTime? _startedAt;
   Timer? _statusRotationTimer;
+  Timer? _scheduledWorkflowTimer;
+  final Map<String, DateTime> _scheduledLastRun = <String, DateTime>{};
   final Random _random = Random();
 
   DiscordRunner(this.config, {this.statsStore})
@@ -168,6 +170,21 @@ class DiscordRunner {
       }
     }
     return result;
+  }
+
+  List<Map<String, dynamic>> get _scheduledTriggers {
+    return config.scheduledTriggers
+        .map((entry) => Map<String, dynamic>.from(entry))
+        .where((entry) {
+          if (entry['enabled'] == false) {
+            return false;
+          }
+          final workflowName = (entry['workflowName'] ?? '').toString().trim();
+          final everyMinutes =
+              int.tryParse((entry['everyMinutes'] ?? '').toString()) ?? 0;
+          return workflowName.isNotEmpty && everyMinutes > 0;
+        })
+        .toList(growable: false);
   }
 
   Future<void> start() async {
@@ -212,12 +229,23 @@ class DiscordRunner {
     }
 
     _log.info('Resolved gateway intents: ${mergedKeys.join(', ')}');
+    _log.info(
+      config.autoSharding
+          ? 'Auto-sharding enabled (Discord recommended shard count).'
+          : 'Auto-sharding disabled (forcing a single shard).',
+    );
 
     final intents = _buildIntentsFromKeys(mergedKeys);
-    _gateway = await Nyxx.connectGateway(
-      config.token,
-      intents,
-      options: GatewayClientOptions(
+    final apiOptions = GatewayApiOptions(
+      token: config.token,
+      intents: intents,
+      shards: config.autoSharding ? null : const <int>[0],
+      totalShards: config.autoSharding ? null : 1,
+    );
+
+    _gateway = await Nyxx.connectGatewayWithOptions(
+      apiOptions,
+      GatewayClientOptions(
         loggerName: 'BotCreatorRunner',
         plugins: [Logging(logLevel: Level.INFO)],
       ),
@@ -237,6 +265,7 @@ class DiscordRunner {
     });
 
     _registerEventWorkflowListeners();
+    _startScheduledWorkflowLoop();
 
     _log.info(
       'Gateway connected — listening for interactions and ${_eventWorkflows.length} event workflow(s).',
@@ -246,10 +275,146 @@ class DiscordRunner {
   Future<void> stop() async {
     _statusRotationTimer?.cancel();
     _statusRotationTimer = null;
+    _scheduledWorkflowTimer?.cancel();
+    _scheduledWorkflowTimer = null;
+    _scheduledLastRun.clear();
     await _gateway?.close();
     _gateway = null;
     await store.dispose();
     _log.info('Runner stopped.');
+  }
+
+  /// Hot-reloads the bot configuration without disconnecting from Discord.
+  ///
+  /// Updates commands and workflows in-memory so new interactions
+  /// immediately use the updated config. The scheduled-trigger timer is
+  /// restarted to pick up any changes. The gateway connection is kept alive,
+  /// so there is no visible downtime for users.
+  bool reloadConfig(BotConfig newConfig) {
+    final requiresReconnect =
+        config.token.trim() != newConfig.token.trim() ||
+        !_sameIntents(config.intents, newConfig.intents) ||
+        config.autoSharding != newConfig.autoSharding;
+
+    config = newConfig;
+    store.updateWorkflows(newConfig.workflows);
+    _scheduledWorkflowTimer?.cancel();
+    _scheduledWorkflowTimer = null;
+    _scheduledLastRun.clear();
+    _startScheduledWorkflowLoop();
+    _log.info(
+      'Config reloaded (live): ${newConfig.commands.length} command(s), '
+      '${newConfig.workflows.length} workflow(s).',
+    );
+    return requiresReconnect;
+  }
+
+  Future<void> executeInboundWebhook({
+    required String workflowName,
+    required Map<String, dynamic> payload,
+    required Map<String, String> headers,
+    String? requestId,
+    String? sourceIp,
+  }) async {
+    final gateway = _gateway;
+    if (gateway == null) {
+      throw StateError('Bot is not connected to Discord.');
+    }
+
+    final normalizedWorkflowName = workflowName.trim();
+    if (normalizedWorkflowName.isEmpty) {
+      throw StateError('Missing workflow name.');
+    }
+
+    final workflow = config.workflows
+        .map(normalizeStoredWorkflowDefinition)
+        .where((entry) {
+          final type = normalizeWorkflowType(entry['workflowType']);
+          if (type == workflowTypeEvent) {
+            return false;
+          }
+          return (entry['name'] ?? '').toString().trim().toLowerCase() ==
+              normalizedWorkflowName.toLowerCase();
+        })
+        .cast<Map<String, dynamic>?>()
+        .firstWhere((entry) => entry != null, orElse: () => null);
+
+    if (workflow == null) {
+      throw StateError('Workflow "$normalizedWorkflowName" was not found.');
+    }
+
+    final actions = List<Action>.from(
+      ((workflow['actions'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((json) => Action.fromJson(Map<String, dynamic>.from(json))),
+    );
+    if (actions.isEmpty) {
+      throw StateError('Workflow "$normalizedWorkflowName" has no actions.');
+    }
+
+    final botId = gateway.user.id.toString();
+    final runtimeVariables = <String, String>{
+      'workflow.type': workflowTypeInboundWebhook,
+      'inbound.event.name': 'inboundWebhook',
+      'inbound.workflow.name': normalizedWorkflowName,
+      'inbound.request.id': (requestId ?? '').trim(),
+      'inbound.source.ip': (sourceIp ?? '').trim(),
+      'inbound.payload.json': jsonEncode(payload),
+    };
+
+    for (final entry in payload.entries) {
+      final key = entry.key.toString().trim();
+      if (key.isEmpty) {
+        continue;
+      }
+      runtimeVariables['inbound.payload.$key'] =
+          entry.value == null ? '' : entry.value.toString();
+    }
+    for (final entry in headers.entries) {
+      final key = entry.key.trim().toLowerCase();
+      if (key.isEmpty) {
+        continue;
+      }
+      runtimeVariables['inbound.header.$key'] = entry.value;
+    }
+
+    runtimeVariables.addAll(extractBotRuntimeDetails(gateway));
+    _injectGatewayBotVariables(runtimeVariables);
+
+    await hydrateRuntimeVariables(
+      store: store,
+      botId: botId,
+      runtimeVariables: runtimeVariables,
+      guildContextId: null,
+      channelContextId: null,
+      userContextId: null,
+      messageContextId: null,
+    );
+
+    final providedArguments = normalizeWorkflowCallArguments(payload['args']);
+    applyWorkflowInvocationContext(
+      variables: runtimeVariables,
+      workflowName: normalizedWorkflowName,
+      entryPoint: normalizeWorkflowEntryPoint(workflow['entryPoint']),
+      definitions: parseWorkflowArgumentDefinitions(workflow['arguments']),
+      providedArguments: providedArguments,
+    );
+
+    await handleActions(
+      gateway,
+      null,
+      actions: actions,
+      store: store,
+      botId: botId,
+      variables: runtimeVariables,
+      resolveTemplate:
+          (input) => resolveTemplatePlaceholders(
+            input,
+            Map<String, String>.from(runtimeVariables),
+          ),
+      onLog: (msg) => _log.info(msg),
+    );
+    _log.info('Executed inbound workflow "$normalizedWorkflowName".');
   }
 
   // ── Internal ─────────────────────────────────────────────────────────────
@@ -271,6 +436,157 @@ class DiscordRunner {
     if (_startedAt != null) {
       variables['bot.uptime'] =
           DateTime.now().difference(_startedAt!).inSeconds.toString();
+    }
+  }
+
+  void _startScheduledWorkflowLoop() {
+    _scheduledWorkflowTimer?.cancel();
+
+    final triggers = _scheduledTriggers;
+    if (triggers.isEmpty) {
+      _log.info('No scheduled triggers configured.');
+      return;
+    }
+
+    _log.info(
+      'Scheduled workflow loop started (${triggers.length} trigger(s)).',
+    );
+
+    _scheduledWorkflowTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      unawaited(_tickScheduledWorkflows());
+    });
+    unawaited(_tickScheduledWorkflows());
+  }
+
+  Future<void> _tickScheduledWorkflows() async {
+    if (_gateway == null) {
+      return;
+    }
+
+    final botId = _gateway!.user.id.toString();
+    final now = DateTime.now().toUtc();
+    final workflowsByName = <String, Map<String, dynamic>>{
+      for (final workflow in config.workflows)
+        (workflow['name'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase(): normalizeStoredWorkflowDefinition(workflow),
+    };
+
+    for (final trigger in _scheduledTriggers) {
+      final triggerId = (trigger['id'] ?? '').toString().trim();
+      if (triggerId.isEmpty) {
+        continue;
+      }
+      final workflowName = (trigger['workflowName'] ?? '').toString().trim();
+      final everyMinutes =
+          int.tryParse((trigger['everyMinutes'] ?? '').toString()) ?? 0;
+      if (workflowName.isEmpty || everyMinutes <= 0) {
+        continue;
+      }
+
+      final lastRun = _scheduledLastRun[triggerId];
+      if (lastRun != null &&
+          now.difference(lastRun) < Duration(minutes: everyMinutes)) {
+        continue;
+      }
+
+      final workflow = workflowsByName[workflowName.toLowerCase()];
+      if (workflow == null) {
+        continue;
+      }
+
+      _scheduledLastRun[triggerId] = now;
+      await _executeScheduledWorkflow(
+        botId: botId,
+        workflow: workflow,
+        trigger: trigger,
+      );
+    }
+  }
+
+  bool _sameIntents(Map<String, bool> a, Map<String, bool> b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (final entry in a.entries) {
+      if ((b[entry.key] ?? false) != entry.value) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<void> _executeScheduledWorkflow({
+    required String botId,
+    required Map<String, dynamic> workflow,
+    required Map<String, dynamic> trigger,
+  }) async {
+    final workflowName = (workflow['name'] ?? '').toString().trim();
+    final entryPoint = normalizeWorkflowEntryPoint(workflow['entryPoint']);
+    final definitions = parseWorkflowArgumentDefinitions(workflow['arguments']);
+    final actions = List<Action>.from(
+      ((workflow['actions'] as List?) ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((json) => Action.fromJson(Map<String, dynamic>.from(json))),
+    );
+    if (actions.isEmpty || _gateway == null) {
+      return;
+    }
+
+    final runtimeVariables = <String, String>{
+      'workflow.type': 'scheduled',
+      'scheduler.trigger.id': (trigger['id'] ?? '').toString(),
+      'scheduler.trigger.label': (trigger['label'] ?? '').toString(),
+      'scheduler.trigger.everyMinutes':
+          (trigger['everyMinutes'] ?? '').toString(),
+      'scheduler.trigger.workflowName':
+          (trigger['workflowName'] ?? '').toString(),
+      'scheduler.event.name': 'scheduledTrigger',
+    };
+    runtimeVariables.addAll(extractBotRuntimeDetails(_gateway!));
+    _injectGatewayBotVariables(runtimeVariables);
+
+    await hydrateRuntimeVariables(
+      store: store,
+      botId: botId,
+      runtimeVariables: runtimeVariables,
+      guildContextId: null,
+      channelContextId: null,
+      userContextId: null,
+      messageContextId: null,
+    );
+
+    applyWorkflowInvocationContext(
+      variables: runtimeVariables,
+      workflowName: workflowName,
+      entryPoint: entryPoint,
+      definitions: definitions,
+      providedArguments: const <String, String>{},
+    );
+
+    try {
+      await handleActions(
+        _gateway!,
+        null,
+        actions: actions,
+        store: store,
+        botId: botId,
+        variables: runtimeVariables,
+        resolveTemplate:
+            (input) => resolveTemplatePlaceholders(
+              input,
+              Map<String, String>.from(runtimeVariables),
+            ),
+        onLog: (msg) => _log.info(msg),
+      );
+      _log.info('Executed scheduled workflow "$workflowName".');
+    } catch (error, stackTrace) {
+      _log.warning(
+        'Failed executing scheduled workflow "$workflowName": $error',
+        error,
+        stackTrace,
+      );
     }
   }
 
@@ -332,19 +648,45 @@ class DiscordRunner {
         );
       }
 
-      await _executeCommand(
-        client: client,
-        botId: botId,
-        interaction: interaction,
-        commandData: commandData,
-      );
+      final stopwatch = Stopwatch()..start();
+      var success = true;
+      try {
+        await _executeCommand(
+          client: client,
+          botId: botId,
+          interaction: interaction,
+          commandData: commandData,
+        );
+      } catch (_) {
+        success = false;
+        rethrow;
+      } finally {
+        stopwatch.stop();
 
-      // Record command usage
-      statsStore?.record(
-        botId: botId,
-        commandName: interaction.data.name,
-        guildId: interaction.guild?.id.toString() ?? '',
-      );
+        String normalizeLocale(dynamic rawValue) {
+          final raw = (rawValue ?? '').toString().trim();
+          if (raw.isEmpty) {
+            return '';
+          }
+          if (raw.contains('.')) {
+            return raw.split('.').last.toLowerCase();
+          }
+          return raw.toLowerCase();
+        }
+
+        final dynamic rawInteraction = interaction;
+
+        // Record command usage + execution health metrics.
+        statsStore?.record(
+          botId: botId,
+          commandName: interaction.data.name,
+          guildId: interaction.guild?.id.toString() ?? '',
+          locale: normalizeLocale(rawInteraction.locale),
+          guildLocale: normalizeLocale(rawInteraction.guildLocale),
+          success: success,
+          latencyMs: stopwatch.elapsedMilliseconds,
+        );
+      }
     } else if (interaction is MessageComponentInteraction) {
       await handleComponentInteraction(client, interaction, store, botId);
     } else if (interaction is ModalSubmitInteraction) {
@@ -1676,6 +2018,52 @@ class DiscordRunner {
       return false;
     }
 
+    final handledAwaited = await _tryExecuteAwaitedLegacyInput(
+      context,
+      botId: botId,
+      legacyCommands: legacyCommands,
+    );
+    if (handledAwaited) {
+      return true;
+    }
+
+    final defaultPrefix =
+        config.prefix.trim().isEmpty ? '!' : config.prefix.trim();
+    var hasDynamicPrefix = false;
+    var matchesStaticPrefix = false;
+    for (final command in legacyCommands) {
+      if (_parseAwaitedLegacyTrigger((command['name'] ?? '').toString()) !=
+          null) {
+        continue;
+      }
+
+      final data = Map<String, dynamic>.from(
+        (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
+      final value = Map<String, dynamic>.from(
+        (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
+      );
+      final commandOverride =
+          (value['legacyPrefixOverride'] ?? '').toString().trim();
+      final rawPrefix =
+          commandOverride.isNotEmpty ? commandOverride : defaultPrefix;
+      if (rawPrefix.contains('((')) {
+        hasDynamicPrefix = true;
+        continue;
+      }
+
+      final staticPrefix = rawPrefix.trim();
+      if (staticPrefix.isNotEmpty && content.startsWith(staticPrefix)) {
+        matchesStaticPrefix = true;
+        break;
+      }
+    }
+
+    // Fast-path for regular chat traffic: skip hydration when no prefix can match.
+    if (!hasDynamicPrefix && !matchesStaticPrefix) {
+      return false;
+    }
+
     final baseRuntimeVariables = <String, String>{
       ...context.variables,
       'workflow.type': 'command',
@@ -1704,15 +2092,6 @@ class DiscordRunner {
       runtimeVariables: baseRuntimeVariables,
     );
     if (handledBuiltInHelp) {
-      return true;
-    }
-
-    final handledAwaited = await _tryExecuteAwaitedLegacyInput(
-      context,
-      botId: botId,
-      legacyCommands: legacyCommands,
-    );
-    if (handledAwaited) {
       return true;
     }
 

@@ -722,12 +722,12 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                           labelText: 'Legacy command prefix',
                           border: OutlineInputBorder(),
                           hintText:
-                              '!, ? or ((guild.bc_prefix | user.bc_prefix | !))',
+                              '!, ? or ((guild.prefix | user.prefix | !))',
                         ),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Supports templates and scoped variables. Example: ((guild.bc_prefix | user.bc_prefix | !))',
+                        'Supports templates and scoped variables (bc_ optional). Example: ((guild.prefix | user.prefix | !))',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
@@ -1090,7 +1090,60 @@ class _AppSettingsPageState extends State<AppSettingsPage> {
                                       onPressed:
                                           _statusDrafts.length <= 1
                                               ? null
-                                              : () {
+                                              : () async {
+                                                final shouldDelete =
+                                                    await showDialog<bool>(
+                                                      context: context,
+                                                      builder:
+                                                          (
+                                                            dialogContext,
+                                                          ) => AlertDialog.adaptive(
+                                                            title: Text(
+                                                              AppStrings.t(
+                                                                'bot_settings_remove_status',
+                                                              ),
+                                                            ),
+                                                            content: const Text(
+                                                              'This status entry will be removed. Continue?',
+                                                            ),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed:
+                                                                    () => Navigator.of(
+                                                                      dialogContext,
+                                                                    ).pop(
+                                                                      false,
+                                                                    ),
+                                                                child: Text(
+                                                                  AppStrings.t(
+                                                                    'cancel',
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                              TextButton(
+                                                                onPressed:
+                                                                    () => Navigator.of(
+                                                                      dialogContext,
+                                                                    ).pop(true),
+                                                                child: Text(
+                                                                  AppStrings.t(
+                                                                    'delete',
+                                                                  ),
+                                                                  style: TextStyle(
+                                                                    color:
+                                                                        Theme.of(
+                                                                          dialogContext,
+                                                                        ).colorScheme.error,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                    ) ??
+                                                    false;
+                                                if (!shouldDelete) {
+                                                  return;
+                                                }
                                                 setState(() {
                                                   final removed = _statusDrafts
                                                       .removeAt(index);

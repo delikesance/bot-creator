@@ -119,7 +119,38 @@ class _ModalBuilderWidgetState extends State<ModalBuilderWidget> {
     _emit();
   }
 
-  void _removeInput(int index) {
+  Future<void> _removeInput(int index) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog.adaptive(
+                title: const Text('Remove modal field'),
+                content: const Text(
+                  'This field will be removed from the modal. Continue?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(
+                      'Remove',
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!shouldDelete) {
+      return;
+    }
+
     setState(() => _inputs.removeAt(index));
     _emit();
   }

@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:bot_creator/utils/database.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:bot_creator/utils/runner_client.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
+import 'package:bot_creator/widgets/subscription_page.dart';
 import 'package:flutter/material.dart';
 
 enum _DashboardStatsSource { local, runner }
@@ -22,6 +24,7 @@ class CommandDashboardPage extends StatefulWidget {
 class _CommandDashboardPageState extends State<CommandDashboardPage> {
   RunnerClient? _client;
   bool _loading = true;
+  bool _refreshingSources = false;
   String? _error;
   _DashboardStatsSource _source = _DashboardStatsSource.local;
 
@@ -30,6 +33,11 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
   int _totalAllTime = 0;
   List<_CommandCount> _commands = const [];
   List<_TimelineEntry> _timeline = const [];
+  List<_LocaleCount> _locales = const [];
+  int _failedInPeriod = 0;
+  double _errorRatePct = 0;
+  int _p50LatencyMs = 0;
+  int _p95LatencyMs = 0;
 
   List<RunnerConnectionConfig> _runners = const [];
   String? _activeRunnerId;
@@ -41,20 +49,47 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
   }
 
   Future<void> _init() async {
+    await _refreshRunnerSources(refetchStats: false);
+    await _fetchStats();
+  }
+
+  Future<void> _refreshRunnerSources({bool refetchStats = true}) async {
+    setState(() {
+      _refreshingSources = true;
+    });
+
     final runners = await RunnerSettings.getRunners();
     final config = await RunnerSettings.getConfig();
     if (!mounted) return;
+
+    var nextSource =
+        config == null
+            ? _DashboardStatsSource.local
+            : _DashboardStatsSource.runner;
+    var nextActiveRunnerId = config?.id;
+
+    if (nextSource == _DashboardStatsSource.runner &&
+        nextActiveRunnerId != null &&
+        runners.every((r) => r.id != nextActiveRunnerId)) {
+      nextSource = _DashboardStatsSource.local;
+      nextActiveRunnerId = null;
+    }
+
     setState(() {
       _runners = runners;
-      _activeRunnerId = config?.id;
-      _source =
-          config == null
-              ? _DashboardStatsSource.local
-              : _DashboardStatsSource.runner;
+      _activeRunnerId = nextActiveRunnerId;
+      _source = nextSource;
+      _refreshingSources = false;
     });
 
-    _client = config?.createClient();
-    await _fetchStats();
+    _client =
+        (nextSource == _DashboardStatsSource.runner && config != null)
+            ? config.createClient()
+            : null;
+
+    if (refetchStats) {
+      await _fetchStats();
+    }
   }
 
   Future<void> _switchSource(String sourceId) async {
@@ -105,6 +140,10 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
       if (!mounted) return;
       final rawCommands = json['commands'] as List? ?? [];
       final rawTimeline = json['timeline'] as List? ?? [];
+      final rawLocales = json['locales'] as List? ?? [];
+      final health = Map<String, dynamic>.from(
+        (json['health'] as Map?)?.cast<String, dynamic>() ?? const {},
+      );
       setState(() {
         _totalAllTime = (json['totalAllTime'] as num?)?.toInt() ?? 0;
         _commands =
@@ -126,6 +165,21 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
                   ),
                 )
                 .toList();
+        _locales =
+            rawLocales
+                .map(
+                  (e) => _LocaleCount(
+                    locale: (e['locale'] ?? '').toString(),
+                    count: (e['count'] as num?)?.toInt() ?? 0,
+                  ),
+                )
+                .where((entry) => entry.locale.isNotEmpty)
+                .toList()
+              ..sort((a, b) => b.count.compareTo(a.count));
+        _failedInPeriod = (health['failed'] as num?)?.toInt() ?? 0;
+        _errorRatePct = (health['errorRatePct'] as num?)?.toDouble() ?? 0;
+        _p50LatencyMs = (health['p50LatencyMs'] as num?)?.toInt() ?? 0;
+        _p95LatencyMs = (health['p95LatencyMs'] as num?)?.toInt() ?? 0;
         _loading = false;
       });
     } catch (e) {
@@ -162,6 +216,9 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
     }
 
     final periodTotal = _commands.fold<int>(0, (sum, c) => sum + c.count);
+    final hasExpandedAnalytics = PremiumCapabilities.hasCapability(
+      PremiumCapability.analyticsExpanded,
+    );
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -172,22 +229,22 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
           source: _source,
           activeRunnerId: _activeRunnerId,
           onSourceChanged: _switchSource,
+          onRefreshSources: _refreshingSources ? null : _refreshRunnerSources,
         ),
         // ── Period selector ──
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             for (final entry in [
               (24, 'dashboard_period_24h'),
               (168, 'dashboard_period_7d'),
               (720, 'dashboard_period_30d'),
             ])
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: ChoiceChip(
-                  label: Text(AppStrings.t(entry.$2)),
-                  selected: _hours == entry.$1,
-                  onSelected: (_) => _setPeriod(entry.$1),
-                ),
+              ChoiceChip(
+                label: Text(AppStrings.t(entry.$2)),
+                selected: _hours == entry.$1,
+                onSelected: (_) => _setPeriod(entry.$1),
               ),
           ],
         ),
@@ -198,9 +255,95 @@ class _CommandDashboardPageState extends State<CommandDashboardPage> {
           icon: Icons.functions,
           label: AppStrings.t('dashboard_total'),
           value: _totalAllTime.toString(),
-          subtitle: '$periodTotal in selected period',
+          subtitle: AppStrings.tr(
+            'dashboard_selected_period_total',
+            params: {'count': periodTotal.toString()},
+          ),
           colorScheme: colorScheme,
         ),
+        const SizedBox(height: 16),
+        if (hasExpandedAnalytics) ...[
+          Text(
+            AppStrings.t('dashboard_execution_health_title'),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MetricChip(
+                label: AppStrings.t('dashboard_failed_commands'),
+                value: _failedInPeriod.toString(),
+              ),
+              _MetricChip(
+                label: AppStrings.t('dashboard_error_rate'),
+                value: '${_errorRatePct.toStringAsFixed(1)}%',
+              ),
+              _MetricChip(
+                label: AppStrings.t('dashboard_p50_latency'),
+                value: '$_p50LatencyMs ms',
+              ),
+              _MetricChip(
+                label: AppStrings.t('dashboard_p95_latency'),
+                value: '$_p95LatencyMs ms',
+              ),
+            ],
+          ),
+        ] else ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppStrings.t('dashboard_premium_analytics_title'),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(AppStrings.t('dashboard_premium_analytics_desc')),
+                  if (PremiumCapabilities.canShowPurchaseUI) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: FilledButton.icon(
+                        onPressed: () => SubscriptionPage.show(context),
+                        icon: const Icon(Icons.workspace_premium_rounded),
+                        label: Text(AppStrings.t('premium_card_button')),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+        if (hasExpandedAnalytics && _locales.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text(
+            AppStrings.t('dashboard_top_locales'),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _locales
+                .take(8)
+                .map(
+                  (entry) =>
+                      Chip(label: Text('${entry.locale} (${entry.count})')),
+                )
+                .toList(growable: false),
+          ),
+        ],
         const SizedBox(height: 16),
 
         // ── Top commands ──
@@ -272,6 +415,59 @@ class _TimelineEntry {
   const _TimelineEntry({required this.hour, required this.count});
   final String hour;
   final int count;
+
+  String label() {
+    final bucket = int.tryParse(hour);
+    if (bucket == null) {
+      return hour;
+    }
+    final date =
+        DateTime.fromMillisecondsSinceEpoch(
+          bucket * 3600000,
+          isUtc: true,
+        ).toLocal();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(date.day)}/${two(date.month)} ${two(date.hour)}:00';
+  }
+}
+
+class _LocaleCount {
+  const _LocaleCount({required this.locale, required this.count});
+
+  final String locale;
+  final int count;
+}
+
+class _MetricChip extends StatelessWidget {
+  const _MetricChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _CenteredMessage extends StatelessWidget {
@@ -435,7 +631,7 @@ class _TimelineChart extends StatelessWidget {
                 final ratio = maxCount > 0 ? e.count / maxCount : 0.0;
                 return Tooltip(
                   message:
-                      '${e.hour}\n${e.count} ${AppStrings.t('dashboard_executions')}',
+                      '${e.label()}\n${AppStrings.tr('dashboard_executions', params: {'count': e.count.toString()})}',
                   child: Container(
                     width: barWidth - 1,
                     margin: const EdgeInsets.symmetric(horizontal: 0.5),
@@ -466,19 +662,21 @@ class _StatsSourceBanner extends StatelessWidget {
     required this.source,
     required this.activeRunnerId,
     required this.onSourceChanged,
+    required this.onRefreshSources,
   });
 
   final List<RunnerConnectionConfig> runners;
   final _DashboardStatsSource source;
   final String? activeRunnerId;
   final ValueChanged<String> onSourceChanged;
+  final Future<void> Function()? onRefreshSources;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final activeRunner =
         runners.where((r) => r.id == activeRunnerId).firstOrNull;
-    const localLabel = 'Local';
+    final localLabel = AppStrings.t('runner_source_local');
     final activeRunnerLabel =
         activeRunner == null
             ? '?'
@@ -549,6 +747,16 @@ class _StatsSourceBanner extends StatelessWidget {
                         color: colorScheme.onPrimaryContainer,
                       ),
                     ),
+          ),
+          IconButton(
+            tooltip: AppStrings.t('dashboard_refresh_sources_tooltip'),
+            onPressed:
+                onRefreshSources == null
+                    ? null
+                    : () {
+                      unawaited(onRefreshSources!());
+                    },
+            icon: const Icon(Icons.refresh, size: 18),
           ),
         ],
       ),

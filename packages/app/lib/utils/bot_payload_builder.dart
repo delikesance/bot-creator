@@ -2,10 +2,36 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bot_creator/utils/database.dart';
+import 'package:bot_creator/utils/premium_capabilities.dart';
+import 'package:bot_creator/utils/runner_client.dart';
+import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:bot_creator_shared/bot/bot_config.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 final _appManager = AppManager();
+
+/// Registers the [AppManager.onAfterSave] hook so that any command or
+/// workflow save automatically pushes an updated config to the runner
+/// (if one is configured and the bot is currently running).
+///
+/// Call this once during app initialisation.
+void initRunnerAutoReload() {
+  AppManager.onAfterSave = (String botId) async {
+    try {
+      final client = await RunnerSettings.createClient();
+      if (client == null) return;
+      final payload = await buildBotPayload(botId);
+      final app = await _appManager.getApp(botId);
+      final botName = (app['username'] ?? app['name'] ?? '').toString().trim();
+      await client.reloadBot(botId, botName, payload);
+      debugPrint('[AutoReload] Reloaded bot $botId on runner.');
+    } catch (error) {
+      // Silent best-effort: runner may be offline or bot may not be running.
+      debugPrint('[AutoReload] Runner reload skipped for $botId: $error');
+    }
+  };
+}
 
 /// Assembles a [BotConfig] JSON payload for a given bot by reading all data
 /// from [AppManager] (app details, global variables, workflows, statuses) and
@@ -51,6 +77,20 @@ Future<Map<String, dynamic>> buildBotPayload(String botId) async {
         const [],
   );
 
+  final scheduledTriggers = List<Map<String, dynamic>>.from(
+    (appData['scheduledTriggers'] as List?)?.whereType<Map>().map(
+          (entry) => Map<String, dynamic>.from(entry),
+        ) ??
+        const [],
+  );
+
+  final inboundWebhookEndpoints = List<Map<String, dynamic>>.from(
+    (appData['inboundWebhooks'] as List?)?.whereType<Map>().map(
+          (entry) => Map<String, dynamic>.from(entry),
+        ) ??
+        const [],
+  );
+
   final statuses =
       ((appData['activities'] ?? appData['statuses']) as List?)
           ?.whereType<Map>()
@@ -63,6 +103,15 @@ Future<Map<String, dynamic>> buildBotPayload(String botId) async {
   final config = BotConfig(
     token: token,
     builtInLegacyHelpEnabled: appData['builtInLegacyHelpEnabled'] != false,
+    inboundWebhooks: PremiumCapabilities.hasCapability(
+      PremiumCapability.inboundWebhooks,
+    ),
+    autoSharding: PremiumCapabilities.hasCapability(
+      PremiumCapability.autoSharding,
+    ),
+    autoRestart: PremiumCapabilities.hasCapability(
+      PremiumCapability.autoRestart,
+    ),
     username:
         (appData['username'] ?? '').toString().trim().isEmpty
             ? null
@@ -76,6 +125,8 @@ Future<Map<String, dynamic>> buildBotPayload(String botId) async {
     scopedVariables: scopedVariables,
     scopedVariableDefinitions: scopedVariableDefinitions,
     workflows: workflows,
+    scheduledTriggers: scheduledTriggers,
+    inboundWebhookEndpoints: inboundWebhookEndpoints,
     statuses: statuses,
     commands: commands,
   );

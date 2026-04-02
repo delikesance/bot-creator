@@ -1,5 +1,6 @@
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/bdfd_compatible_functions.dart';
+import 'package:bot_creator/routes/diagnostics_logs_page.dart';
 import 'package:bot_creator/routes/onboarding.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
@@ -634,6 +635,44 @@ class _SettingPageState extends State<SettingPage> {
                 TextButton(
                   onPressed: () async {
                     Navigator.of(sheetContext).pop();
+                    final confirmed =
+                        await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) {
+                            return AlertDialog(
+                              title: Text(
+                                AppStrings.t(
+                                  'settings_snapshot_delete_loading',
+                                ),
+                              ),
+                              content: Text(
+                                AppStrings.tr(
+                                  'settings_snapshots_delete_one_confirm',
+                                  params: {'label': snapshot.label},
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed:
+                                      () => Navigator.of(
+                                        dialogContext,
+                                      ).pop(false),
+                                  child: Text(AppStrings.t('cancel')),
+                                ),
+                                FilledButton(
+                                  onPressed:
+                                      () =>
+                                          Navigator.of(dialogContext).pop(true),
+                                  child: Text(AppStrings.t('delete')),
+                                ),
+                              ],
+                            );
+                          },
+                        ) ??
+                        false;
+                    if (!confirmed) {
+                      return;
+                    }
                     await _deleteSnapshot(snapshot);
                   },
                   child: Text(AppStrings.t('delete')),
@@ -663,6 +702,39 @@ class _SettingPageState extends State<SettingPage> {
             TextButton(
               onPressed: () async {
                 Navigator.of(dialogContext).pop();
+                final confirmed =
+                    await showDialog<bool>(
+                      context: context,
+                      builder: (confirmContext) {
+                        return AlertDialog(
+                          title: Text(
+                            AppStrings.t('settings_snapshot_delete_loading'),
+                          ),
+                          content: Text(
+                            AppStrings.tr(
+                              'settings_snapshots_delete_one_confirm',
+                              params: {'label': snapshot.label},
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed:
+                                  () => Navigator.of(confirmContext).pop(false),
+                              child: Text(AppStrings.t('cancel')),
+                            ),
+                            FilledButton(
+                              onPressed:
+                                  () => Navigator.of(confirmContext).pop(true),
+                              child: Text(AppStrings.t('delete')),
+                            ),
+                          ],
+                        );
+                      },
+                    ) ??
+                    false;
+                if (!confirmed) {
+                  return;
+                }
                 await _deleteSnapshot(snapshot);
               },
               child: Text(AppStrings.t('delete')),
@@ -756,51 +828,102 @@ class _SettingPageState extends State<SettingPage> {
     );
   }
 
-  Future<void> _showDiagnosticsDialog() async {
-    final text = await AppDiagnostics.readLog(maxLines: 250);
-    if (!mounted) {
+  Future<void> _showSnapshotQuickDeletePicker() async {
+    if (!mounted || _snapshots.isEmpty) {
       return;
     }
 
-    await showDialog<void>(
+    final sorted = List<BackupSnapshotSummary>.from(_snapshots)
+      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+
+    final selected = await showModalBottomSheet<BackupSnapshotSummary>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(AppStrings.t('settings_diagnostics_dialog_title')),
-          content: SizedBox(
-            width: 700,
-            child: SingleChildScrollView(
-              child: SelectableText(
-                text,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                AppStrings.t('settings_snapshots_delete_select_title'),
+                style: Theme.of(sheetContext).textTheme.titleMedium,
               ),
-            ),
+              const SizedBox(height: 6),
+              Text(
+                AppStrings.t('settings_snapshots_delete_select_desc'),
+                style: Theme.of(sheetContext).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 10),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: sorted.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, index) {
+                    final snapshot = sorted[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(snapshot.label),
+                      subtitle: Text(_snapshotListEntryLabel(snapshot)),
+                      trailing: const Icon(Icons.delete_outline),
+                      onTap: () => Navigator.of(sheetContext).pop(snapshot),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.of(sheetContext).pop(),
+                  child: Text(AppStrings.t('close')),
+                ),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await AppDiagnostics.copyLogToClipboard(maxLines: 300);
-                if (!context.mounted) {
-                  return;
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(AppStrings.t('settings_diagnostics_copied')),
-                  ),
-                );
-              },
-              child: Text(AppStrings.t('copy')),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(AppStrings.t('close')),
-            ),
-          ],
         );
       },
     );
+
+    if (selected == null || !mounted) {
+      return;
+    }
+
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) {
+            return AlertDialog(
+              title: Text(AppStrings.t('settings_snapshot_delete_loading')),
+              content: Text(
+                AppStrings.tr(
+                  'settings_snapshots_delete_one_confirm',
+                  params: {'label': selected.label},
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text(AppStrings.t('cancel')),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: Text(AppStrings.t('delete')),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) {
+      return;
+    }
+
+    await _deleteSnapshot(selected);
   }
 
   @override
@@ -1854,6 +1977,18 @@ class _SettingPageState extends State<SettingPage> {
                               ),
                               IconButton(
                                 tooltip: AppStrings.t(
+                                  'settings_snapshots_delete_select_tooltip',
+                                ),
+                                onPressed:
+                                    _isBusy ||
+                                            _loadingSnapshots ||
+                                            _snapshots.isEmpty
+                                        ? null
+                                        : _showSnapshotQuickDeletePicker,
+                                icon: const Icon(Icons.remove_circle_outline),
+                              ),
+                              IconButton(
+                                tooltip: AppStrings.t(
                                   'settings_snapshots_delete_all',
                                 ),
                                 onPressed:
@@ -1935,7 +2070,13 @@ class _SettingPageState extends State<SettingPage> {
                                 _isBusy
                                     ? null
                                     : () async {
-                                      await _showDiagnosticsDialog();
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder:
+                                              (_) =>
+                                                  const DiagnosticsLogsPage(),
+                                        ),
+                                      );
                                     },
                           ),
                         ),
@@ -1980,7 +2121,12 @@ class _SettingPageState extends State<SettingPage> {
                               _isBusy
                                   ? null
                                   : () async {
-                                    await _showDiagnosticsDialog();
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder:
+                                            (_) => const DiagnosticsLogsPage(),
+                                      ),
+                                    );
                                   },
                         ),
                         const SizedBox(height: 12),
@@ -2406,6 +2552,10 @@ class _PremiumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!SubscriptionService.supportsNativeBilling) {
+      return const SizedBox.shrink();
+    }
+
     final isActive = SubscriptionService.isSubscribed;
 
     if (isActive) {

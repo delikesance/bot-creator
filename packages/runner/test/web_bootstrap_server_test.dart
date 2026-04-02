@@ -209,6 +209,70 @@ void main() {
       expect(legacyValues.statusCode, HttpStatus.ok);
       expect(legacyJson['values']['u2'], 'yes');
     });
+
+    test('exposes inbound webhook endpoint contract', () async {
+      final port = await _allocatePort();
+      server = RunnerWebBootstrapServer(
+        host: '127.0.0.1',
+        port: port,
+        logStore: RunnerLogStore(),
+      );
+      await server!.start();
+
+      final base = Uri.parse('http://127.0.0.1:$port');
+      const botId = 'bot-inbound';
+
+      final sync = await http.post(
+        base.resolve('/bots/sync'),
+        headers: const <String, String>{'content-type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{
+          'botId': botId,
+          'botName': 'Inbound Bot',
+          'config': <String, dynamic>{
+            'token': 'abc',
+            'inboundWebhooks': true,
+            'inboundWebhookEndpoints': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'wh_1',
+                'path': 'incoming/orders',
+                'workflowName': 'incoming',
+                'secret': 'top-secret',
+                'enabled': true,
+              },
+            ],
+            'workflows': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'name': 'incoming',
+                'workflowType': 'general',
+                'entryPoint': 'main',
+                'actions': <Map<String, dynamic>>[],
+              },
+            ],
+          },
+        }),
+      );
+      expect(sync.statusCode, HttpStatus.ok);
+
+      final noSecret = await http.post(
+        base.resolve('/bots/$botId/inbound/incoming/orders'),
+        headers: const <String, String>{'content-type': 'application/json'},
+        body: jsonEncode(<String, dynamic>{'hello': 'world'}),
+      );
+      expect(noSecret.statusCode, HttpStatus.unauthorized);
+
+      final response = await http.post(
+        base.resolve('/bots/$botId/inbound/incoming/orders'),
+        headers: const <String, String>{
+          'content-type': 'application/json',
+          'x-bot-webhook-secret': 'top-secret',
+        },
+        body: jsonEncode(<String, dynamic>{'hello': 'world'}),
+      );
+
+      expect(response.statusCode, HttpStatus.conflict);
+      final json = Map<String, dynamic>.from(jsonDecode(response.body) as Map);
+      expect((json['error'] ?? '').toString(), contains('not running'));
+    });
   });
 }
 

@@ -4,6 +4,8 @@ import 'package:bot_creator/routes/app/commands.list.dart';
 import 'package:bot_creator/routes/app/emojis.page.dart';
 import 'package:bot_creator/routes/app/global.variables.dart';
 import 'package:bot_creator/routes/app/home.dart';
+import 'package:bot_creator/routes/app/inbound_webhooks.page.dart';
+import 'package:bot_creator/routes/app/scheduler.page.dart';
 import 'package:bot_creator/routes/app/settings.dart';
 import 'package:bot_creator/routes/app/workflows.page.dart';
 import 'package:bot_creator/utils/analytics.dart';
@@ -124,6 +126,40 @@ class _AppEditPageState extends State<AppEditPage>
             reason: _degradedReason,
             onRetry: _init,
             onDeleteLocal: () async {
+              final shouldDelete =
+                  await showDialog<bool>(
+                    context: context,
+                    builder:
+                        (dialogContext) => AlertDialog.adaptive(
+                          title: const Text('Delete bot locally'),
+                          content: const Text(
+                            'This removes the local bot data from this device. Continue?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed:
+                                  () => Navigator.of(dialogContext).pop(false),
+                              child: Text(AppStrings.t('cancel')),
+                            ),
+                            TextButton(
+                              onPressed:
+                                  () => Navigator.of(dialogContext).pop(true),
+                              child: Text(
+                                AppStrings.t('delete'),
+                                style: TextStyle(
+                                  color:
+                                      Theme.of(dialogContext).colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                  ) ??
+                  false;
+              if (!shouldDelete) {
+                return;
+              }
+
               await appManager.deleteApp(_botId);
               if (!mounted) {
                 return;
@@ -156,6 +192,18 @@ class _AppEditPageState extends State<AppEditPage>
           compactLabel: AppStrings.t('workflows_tab_short'),
           page: WorkflowsPage(botId: _botId),
         ),
+        _AppPageEntry(
+          icon: Icons.schedule,
+          label: AppStrings.t('scheduler_tab'),
+          compactLabel: AppStrings.t('scheduler_tab_short'),
+          page: SchedulerPage(botId: _botId),
+        ),
+        _AppPageEntry(
+          icon: Icons.webhook,
+          label: 'Webhooks',
+          compactLabel: 'Hooks',
+          page: InboundWebhooksPage(botId: _botId),
+        ),
       ];
     }
 
@@ -173,17 +221,17 @@ class _AppEditPageState extends State<AppEditPage>
           },
           secondarySections: const [
             QuickAccessSection(
-              index: 4,
+              index: 5,
               icon: Icons.emoji_emotions_outlined,
               labelKey: 'emojis_tab',
             ),
             QuickAccessSection(
-              index: 5,
+              index: 6,
               icon: Icons.bar_chart,
               labelKey: 'dashboard_title',
             ),
             QuickAccessSection(
-              index: 6,
+              index: 7,
               icon: Icons.settings,
               labelKey: 'settings_tab',
             ),
@@ -207,6 +255,20 @@ class _AppEditPageState extends State<AppEditPage>
         label: AppStrings.t('workflows_tab'),
         compactLabel: AppStrings.t('workflows_tab_short'),
         page: WorkflowsPage(botId: _botId),
+      ),
+      _AppPageEntry(
+        icon: Icons.schedule,
+        label: AppStrings.t('scheduler_tab'),
+        compactLabel: AppStrings.t('scheduler_tab_short'),
+        page: SchedulerPage(botId: _botId),
+        mobileSecondary: true,
+      ),
+      _AppPageEntry(
+        icon: Icons.webhook,
+        label: 'Webhooks',
+        compactLabel: 'Hooks',
+        page: InboundWebhooksPage(botId: _botId),
+        mobileSecondary: true,
       ),
       _AppPageEntry(
         icon: Icons.emoji_emotions_outlined,

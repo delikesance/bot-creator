@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bot_creator/utils/app_diagnostics.dart';
-import 'package:bot_creator/utils/subscription_service.dart';
+import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
@@ -74,7 +74,9 @@ class AdRewardService {
 
   static Future<bool> shouldOfferRewardedAd() async {
     if (!_initialized || !_isSupportedPlatform) return false;
-    if (SubscriptionService.isSubscribed) return false;
+    if (PremiumCapabilities.hasCapability(PremiumCapability.noAds)) {
+      return false;
+    }
     if (_lastShownAt != null &&
         DateTime.now().difference(_lastShownAt!) < _cooldown) {
       return false;

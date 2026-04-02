@@ -14,6 +14,163 @@ class _BdfdSyntaxColors {
   static const Color text = Color(0xFFE0E0E0);
 }
 
+class _BdfdAutoIndentFormatter extends TextInputFormatter {
+  const _BdfdAutoIndentFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (!newValue.selection.isValid || !newValue.selection.isCollapsed) {
+      return newValue;
+    }
+
+    final oldText = oldValue.text;
+    final newText = newValue.text;
+    if (newText.length <= oldText.length) {
+      return newValue;
+    }
+
+    final delta = newText.length - oldText.length;
+    if (delta != 1) {
+      return newValue;
+    }
+
+    final caret = newValue.selection.baseOffset;
+    if (caret <= 0 || caret > newText.length) {
+      return newValue;
+    }
+
+    final inserted = newText[caret - 1];
+    if (inserted != '\n') {
+      return newValue;
+    }
+
+    final previousLineBreak = newText.lastIndexOf('\n', caret - 2);
+    final previousLineStart = previousLineBreak < 0 ? 0 : previousLineBreak + 1;
+    final previousLine = newText.substring(previousLineStart, caret - 1);
+    final indentMatch = RegExp(r'^[ \t]+').firstMatch(previousLine);
+    final indent = indentMatch?.group(0) ?? '';
+    if (indent.isEmpty) {
+      return newValue;
+    }
+
+    final updatedText = newText.replaceRange(caret, caret, indent);
+    return TextEditingValue(
+      text: updatedText,
+      selection: TextSelection.collapsed(offset: caret + indent.length),
+      composing: TextRange.empty,
+    );
+  }
+}
+
+class _BdfdIndentGuidesPainter extends CustomPainter {
+  const _BdfdIndentGuidesPainter({
+    required this.source,
+    required this.activeLine,
+    required this.lineNumberGutterWidth,
+    required this.scrollX,
+    required this.scrollY,
+    required this.showHorizontalOffset,
+    this.lineHeight = 20,
+    this.charWidth = 7.8,
+    this.topPadding = 12,
+    this.leftPadding = 8,
+  });
+
+  final String source;
+  final int activeLine;
+  final double lineNumberGutterWidth;
+  final double scrollX;
+  final double scrollY;
+  final bool showHorizontalOffset;
+  final double lineHeight;
+  final double charWidth;
+  final double topPadding;
+  final double leftPadding;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final defaultPaint =
+        Paint()
+          ..color = const Color(0x33FFFFFF)
+          ..strokeWidth = 1;
+    final matchingPaint =
+        Paint()
+          ..color = const Color(0x66FFD54F)
+          ..strokeWidth = 1.2;
+    final activePaint =
+        Paint()
+          ..color = const Color(0xCCFFD54F)
+          ..strokeWidth = 1.8;
+
+    final lines = source.split('\n');
+    final activeIndentColumns =
+        activeLine >= 0 && activeLine < lines.length
+            ? _countIndentColumns(lines[activeLine])
+            : 0;
+
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      final y = topPadding + (i * lineHeight) - scrollY;
+      if (y + lineHeight < 0 || y > size.height) {
+        continue;
+      }
+
+      final indentColumns = _countIndentColumns(line);
+      if (indentColumns < 2) {
+        continue;
+      }
+
+      for (var col = 2; col <= indentColumns; col += 2) {
+        Paint paint = defaultPaint;
+        if (activeIndentColumns >= 2 && col <= activeIndentColumns) {
+          paint = matchingPaint;
+        }
+        if (i == activeLine && col <= activeIndentColumns) {
+          paint = activePaint;
+        }
+
+        final x =
+            lineNumberGutterWidth +
+            leftPadding +
+            (col * charWidth) -
+            (showHorizontalOffset ? scrollX : 0);
+        if (x < lineNumberGutterWidth + 2 || x > size.width) {
+          continue;
+        }
+        canvas.drawLine(Offset(x, y + 2), Offset(x, y + lineHeight - 2), paint);
+      }
+    }
+  }
+
+  int _countIndentColumns(String line) {
+    var columns = 0;
+    for (var i = 0; i < line.length; i++) {
+      final c = line[i];
+      if (c == ' ') {
+        columns += 1;
+      } else if (c == '\t') {
+        columns += 2;
+      } else {
+        break;
+      }
+    }
+    return columns;
+  }
+
+  @override
+  bool shouldRepaint(covariant _BdfdIndentGuidesPainter oldDelegate) {
+    return source != oldDelegate.source ||
+        activeLine != oldDelegate.activeLine ||
+        lineNumberGutterWidth != oldDelegate.lineNumberGutterWidth ||
+        scrollX != oldDelegate.scrollX ||
+        scrollY != oldDelegate.scrollY ||
+        showHorizontalOffset != oldDelegate.showHorizontalOffset;
+  }
+}
+
 class BdfdSyntaxController extends TextEditingController {
   BdfdSyntaxController({super.text});
 
@@ -84,7 +241,9 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
 
   BdfdCompileResult? _compileResult;
   bool _wordWrap = false;
+  bool _showIndentGuides = true;
   bool _showDiagnostics = true;
+  int _activeGuideLine = 0;
   int _autocompleteSelectedIndex = 0;
   List<MapEntry<String, String>> _autocompleteEntries =
       const <MapEntry<String, String>>[];
@@ -104,6 +263,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
     _controller = BdfdSyntaxController(text: widget.initialCode);
     _controller.addListener(_updateAutocomplete);
     _controller.addListener(_updateSignatureHint);
+    _controller.addListener(_updateActiveGuideLine);
     _editorScrollController.addListener(_syncLineNumberScroll);
     _recompile();
   }
@@ -112,6 +272,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
   void dispose() {
     _controller.removeListener(_updateAutocomplete);
     _controller.removeListener(_updateSignatureHint);
+    _controller.removeListener(_updateActiveGuideLine);
     _editorScrollController.removeListener(_syncLineNumberScroll);
     _editorScrollController.dispose();
     _editorHorizontalScrollController.dispose();
@@ -138,6 +299,15 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
 
     if (_isAutocompleteVisible && mounted) {
       setState(() {});
+    }
+  }
+
+  void _updateActiveGuideLine() {
+    final line = _caretLineColumn().line;
+    if (line != _activeGuideLine && mounted) {
+      setState(() {
+        _activeGuideLine = line;
+      });
     }
   }
 
@@ -301,14 +471,69 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
         0,
         _autocompleteEntries.length - 1,
       );
-      _insertAutocompleteTemplate(_autocompleteEntries[idx].value);
+      final selected = _autocompleteEntries[idx];
+      _insertAutocompleteTemplate(selected.key, selected.value);
       return KeyEventResult.handled;
     }
 
     return KeyEventResult.ignored;
   }
 
-  void _insertAutocompleteTemplate(String template) {
+  String _signatureLookupKeyForTemplate(String key, String template) {
+    if (bdfdSignatureHints.containsKey(key)) {
+      return key;
+    }
+
+    final match = RegExp(r'\$([A-Za-z0-9_]+)\[').firstMatch(template);
+    if (match != null) {
+      final parsed = (match.group(1) ?? '').toLowerCase();
+      if (bdfdSignatureHints.containsKey(parsed)) {
+        return parsed;
+      }
+    }
+
+    return key;
+  }
+
+  String _normalizeSignatureParameter(String raw) {
+    final withoutMeta = raw.replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
+    return withoutMeta == '...' ? '' : withoutMeta;
+  }
+
+  bool _isOptionalSignatureParameter(String raw) {
+    final lower = raw.toLowerCase();
+    if (!lower.contains('(') || !lower.contains(')')) {
+      return false;
+    }
+
+    return RegExp(r'\((?:[^)]*\bopt(?:ional)?\b[^)]*)\)').hasMatch(lower);
+  }
+
+  String _templateWithDefaultArguments(String key, String template) {
+    final bracketIdx = template.indexOf('[]');
+    if (bracketIdx < 0) {
+      return template;
+    }
+
+    final signatureKey = _signatureLookupKeyForTemplate(key, template);
+    final parameters = bdfdSignatureHints[signatureKey];
+    if (parameters == null || parameters.isEmpty) {
+      return template;
+    }
+
+    final defaults = parameters
+        .where((p) => !_isOptionalSignatureParameter(p))
+        .map(_normalizeSignatureParameter)
+        .where((p) => p.isNotEmpty)
+        .toList(growable: false);
+    if (defaults.isEmpty) {
+      return template;
+    }
+
+    return template.replaceFirst('[]', '[${defaults.join(' ; ')}]');
+  }
+
+  void _insertAutocompleteTemplate(String key, String template) {
     final text = _controller.text;
     final sel = _controller.selection;
     final caret = sel.isValid ? sel.baseOffset : text.length;
@@ -317,10 +542,13 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
       return;
     }
 
-    final replaced = text.replaceRange(start, caret, template);
-    final bracketIdx = template.indexOf('[]');
+    final resolvedTemplate = _templateWithDefaultArguments(key, template);
+    final replaced = text.replaceRange(start, caret, resolvedTemplate);
+    final bracketIdx = resolvedTemplate.indexOf('[');
     final nextOffset =
-        bracketIdx >= 0 ? start + bracketIdx + 1 : start + template.length;
+        bracketIdx >= 0
+            ? start + bracketIdx + 1
+            : start + resolvedTemplate.length;
 
     _controller.value = TextEditingValue(
       text: replaced,
@@ -372,6 +600,62 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
     Navigator.of(context).pop(_controller.text);
   }
 
+  void _insertAtCaret(String value) {
+    final text = _controller.text;
+    final selection = _controller.selection;
+    final start = selection.isValid ? selection.start : text.length;
+    final end = selection.isValid ? selection.end : text.length;
+    final safeStart = start.clamp(0, text.length);
+    final safeEnd = end.clamp(0, text.length);
+    final replaced = text.replaceRange(safeStart, safeEnd, value);
+    _controller.value = TextEditingValue(
+      text: replaced,
+      selection: TextSelection.collapsed(offset: safeStart + value.length),
+    );
+    setState(_recompile);
+    _editorFocusNode.requestFocus();
+  }
+
+  void _showEditorUxSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.tips_and_updates_outlined),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Editor UX',
+                    style: Theme.of(sheetContext).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              const Text('Includes:'),
+              const SizedBox(height: 6),
+              const Text('• Smart auto indentation on Enter'),
+              const Text('• Live indentation guides'),
+              const Text('• Mobile quick-keys for BDFD symbols'),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                child: Text(AppStrings.t('close')),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -408,6 +692,14 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
             onPressed: () => setState(() => _wordWrap = !_wordWrap),
           ),
           IconButton(
+            tooltip: 'Editor UX',
+            icon: const Icon(
+              Icons.tips_and_updates_outlined,
+              color: Colors.white70,
+            ),
+            onPressed: _showEditorUxSheet,
+          ),
+          IconButton(
             tooltip: AppStrings.t('bdfd_editor_diagnostics_toggle'),
             icon: Icon(
               _showDiagnostics ? Icons.bug_report : Icons.bug_report_outlined,
@@ -420,6 +712,17 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
             ),
             onPressed:
                 () => setState(() => _showDiagnostics = !_showDiagnostics),
+          ),
+          IconButton(
+            tooltip: 'Toggle indentation guides',
+            icon: Icon(
+              _showIndentGuides
+                  ? Icons.format_indent_increase
+                  : Icons.format_indent_decrease,
+              color: Colors.white70,
+            ),
+            onPressed:
+                () => setState(() => _showIndentGuides = !_showIndentGuides),
           ),
           TextButton(
             onPressed: _done,
@@ -438,6 +741,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
         child: Column(
           children: [
             Expanded(child: _buildEditorBody()),
+            if (!_isDesktopLike) _buildMobileSpecialCharsBar(),
             if (_showDiagnostics) _buildDiagnosticsBar(),
           ],
         ),
@@ -453,6 +757,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
         if (_wordWrap) {
           return Stack(
             children: [
+              _buildIndentGuidesOverlay(),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [_buildLineNumbers(), Expanded(child: editorField)],
@@ -465,6 +770,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
 
         return Stack(
           children: [
+            _buildIndentGuidesOverlay(),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -483,6 +789,108 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildIndentGuidesOverlay() {
+    if (!_showIndentGuides) {
+      return const SizedBox.shrink();
+    }
+
+    final scrollY =
+        _editorScrollController.hasClients
+            ? _editorScrollController.offset
+            : 0.0;
+    final scrollX =
+        (!_wordWrap && _editorHorizontalScrollController.hasClients)
+            ? _editorHorizontalScrollController.offset
+            : 0.0;
+
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: CustomPaint(
+          painter: _BdfdIndentGuidesPainter(
+            source: _controller.text,
+            activeLine: _activeGuideLine,
+            lineNumberGutterWidth: _lineNumberGutterWidth,
+            scrollX: scrollX,
+            scrollY: scrollY,
+            showHorizontalOffset: !_wordWrap,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileSpecialCharsBar() {
+    final theme = Theme.of(context);
+    final chars = <String>[r'$', ';', '[', ']'];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A2328),
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: _showEditorUxSheet,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    'EDITOR UX',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.amber,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Row(
+                children: chars
+                    .map(
+                      (char) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            minimumSize: const Size(48, 38),
+                            padding: EdgeInsets.zero,
+                          ),
+                          onPressed: () => _insertAtCaret(char),
+                          child: Text(
+                            char,
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -669,7 +1077,8 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
                     });
                   }
                 },
-                onTap: () => _insertAutocompleteTemplate(entry.value),
+                onTap:
+                    () => _insertAutocompleteTemplate(entry.key, entry.value),
                 child: Container(
                   height: itemHeight,
                   padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -771,6 +1180,7 @@ class _BdfdEditorPageState extends State<BdfdEditorPage> {
         controller: _controller,
         focusNode: _editorFocusNode,
         scrollController: _editorScrollController,
+        inputFormatters: const [_BdfdAutoIndentFormatter()],
         maxLines: null,
         expands: true,
         textAlignVertical: TextAlignVertical.top,
