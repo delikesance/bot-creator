@@ -1,6 +1,7 @@
 ﻿import 'package:nyxx/nyxx.dart';
 import 'package:bot_creator_shared/utils/interaction_listener_registry.dart';
 import 'package:bot_creator_shared/bot/bot_data_store.dart';
+import 'package:bot_creator_shared/events/event_contexts.dart';
 import 'package:bot_creator_shared/utils/runtime_variables.dart';
 import 'package:bot_creator_shared/utils/template_resolver.dart';
 import 'package:bot_creator_shared/utils/workflow_call.dart';
@@ -65,13 +66,7 @@ Future<void> handleComponentInteraction(
   // Build variables for the workflow
   final variables = <String, String>{
     ...await generateInteractionContextKeyValues(interaction),
-    'interaction.customId': customId,
-    'interaction.userId': userId,
-    'interaction.guildId': guildId?.toString() ?? '',
-    'interaction.channelId': fallbackChannelId?.toString() ?? '',
-    'interaction.messageId': interaction.message?.id.toString() ?? '',
-    // For select menus, provide selected values as comma-separated list
-    'interaction.values': interaction.data.values?.join(',') ?? '',
+    ...buildInteractionRuntimeVariables(interaction),
   };
 
   await _runListenerWorkflow(
@@ -126,27 +121,8 @@ Future<void> handleModalSubmitInteraction(
   // Build variables: one per modal input field
   final variables = <String, String>{
     ...await generateInteractionContextKeyValues(interaction),
-    'modal.customId': customId,
-    'interaction.userId': userId,
-    'interaction.guildId': interaction.guildId?.toString() ?? '',
-    'interaction.channelId': interaction.channelId?.toString() ?? '',
-    'interaction.messageId':
-        ((interaction as dynamic).message?.id as Snowflake?)?.toString() ?? '',
+    ...buildInteractionRuntimeVariables(interaction),
   };
-
-  // Extract each text input's value from submitted components
-  // ModalSubmitInteractionData.components is List<SubmittedComponent>
-  // Each SubmittedComponent is typically an ActionRowComponent that contains
-  // SubmittedTextInputComponents.
-  for (final component in interaction.data.components) {
-    if (component is SubmittedActionRowComponent) {
-      for (final inner in component.components) {
-        if (inner is SubmittedTextInputComponent) {
-          variables['modal.${inner.customId}'] = inner.value ?? '';
-        }
-      }
-    }
-  }
 
   await _runListenerWorkflow(
     client: client,

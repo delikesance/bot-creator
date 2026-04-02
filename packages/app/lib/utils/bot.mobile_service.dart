@@ -298,6 +298,10 @@ class DiscordBotTaskHandler extends TaskHandler {
       );
     });
 
+    if (statuses.length == 1) {
+      return;
+    }
+
     final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
     final max = (firstStatus['maxIntervalSeconds'] as int?) ?? min;
     final delaySeconds =
@@ -415,6 +419,15 @@ class DiscordBotTaskHandler extends TaskHandler {
             botId: null,
           );
         }
+      }
+    } catch (_) {}
+
+    try {
+      final replayPersisted = await FlutterForegroundTask.getData<bool>(
+        key: _debugReplayEnabledDataKey,
+      );
+      if (replayPersisted != null) {
+        _debugReplayCapturing = replayPersisted;
       }
     } catch (_) {}
   }

@@ -214,7 +214,8 @@ dynamic _resolveComputedVariableValue(String key, Map<String, String> updates) {
 List<String> _splitTopLevel(String input, String delimiter) {
   final parts = <String>[];
   final buffer = StringBuffer();
-  var depth = 0;
+  var parenthesisDepth = 0;
+  var bracketDepth = 0;
   String? quote;
   var escaping = false;
 
@@ -240,20 +241,36 @@ List<String> _splitTopLevel(String input, String delimiter) {
     }
 
     if (char == '(') {
-      depth++;
+      parenthesisDepth++;
       buffer.write(char);
       continue;
     }
 
     if (char == ')') {
-      if (depth > 0) {
-        depth--;
+      if (parenthesisDepth > 0) {
+        parenthesisDepth--;
       }
       buffer.write(char);
       continue;
     }
 
-    if (depth == 0 && input.startsWith(delimiter, index)) {
+    if (char == '[') {
+      bracketDepth++;
+      buffer.write(char);
+      continue;
+    }
+
+    if (char == ']') {
+      if (bracketDepth > 0) {
+        bracketDepth--;
+      }
+      buffer.write(char);
+      continue;
+    }
+
+    if (parenthesisDepth == 0 &&
+        bracketDepth == 0 &&
+        input.startsWith(delimiter, index)) {
       parts.add(buffer.toString());
       buffer.clear();
       index += delimiter.length - 1;
@@ -448,6 +465,66 @@ bool _isWrappedStringLiteral(String input) {
     name: name,
     inner: expression.substring(openIndex + 1, expression.length - 1),
   );
+}
+
+_ResolvedExpression? _resolveBracketCollectionVariableValue(
+  String key,
+  Map<String, String> updates,
+) {
+  final openIndex = key.lastIndexOf('[');
+  if (openIndex <= 0 || !key.endsWith(']')) {
+    return null;
+  }
+
+  final baseKey = key.substring(0, openIndex).trim();
+  if (baseKey.isEmpty) {
+    return null;
+  }
+
+  final rawCollection = _lookupVariableValue('__collection.$baseKey', updates);
+  if (rawCollection == null || rawCollection.isEmpty) {
+    return null;
+  }
+
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(rawCollection);
+  } catch (_) {
+    return null;
+  }
+
+  if (decoded is! List) {
+    return null;
+  }
+
+  final items = decoded.map(_stringifyResolvedValue).toList(growable: false);
+  final spec = key.substring(openIndex + 1, key.length - 1);
+  final trimmedSpec = spec.trim();
+
+  final numericIndex = int.tryParse(trimmedSpec);
+  if (numericIndex != null) {
+    final zeroBasedIndex = numericIndex - 1;
+    if (zeroBasedIndex < 0 || zeroBasedIndex >= items.length) {
+      return const _ResolvedExpression(found: true, value: '');
+    }
+    return _ResolvedExpression(found: true, value: items[zeroBasedIndex]);
+  }
+
+  if (trimmedSpec.isEmpty) {
+    return const _ResolvedExpression(found: true, value: '');
+  }
+
+  final separatorIndex = spec.indexOf(';');
+  final separator =
+      separatorIndex == -1 ? spec : spec.substring(0, separatorIndex);
+  final limitRaw =
+      separatorIndex == -1 ? '' : spec.substring(separatorIndex + 1).trim();
+  final limit = int.tryParse(limitRaw);
+  final boundedItems =
+      limit == null || limit < 0
+          ? items
+          : items.take(limit).toList(growable: false);
+  return _ResolvedExpression(found: true, value: boundedItems.join(separator));
 }
 
 ({String name, String inner})? _parseBracketFunctionCall(String expression) {
@@ -1173,6 +1250,14 @@ _ResolvedExpression _evaluateSingleExpression(
   final computed = _resolveComputedVariableValue(resolvedKey, updates);
   if (computed != null) {
     return _ResolvedExpression(found: true, value: computed);
+  }
+
+  final bracketCollection = _resolveBracketCollectionVariableValue(
+    resolvedKey,
+    updates,
+  );
+  if (bracketCollection != null) {
+    return bracketCollection;
   }
 
   if (_looksLikeLiteralFallback(trimmed)) {

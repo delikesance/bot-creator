@@ -31,7 +31,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
     if (key.isEmpty) {
       return key;
     }
-    return key.startsWith('bc_') ? key : 'bc_$key';
+    if (key.startsWith('bc_') && key.length > 3) {
+      return key.substring(3);
+    }
+    return key;
   }
 
   @override
@@ -2533,7 +2536,10 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
               ? const Center(child: CircularProgressIndicator())
               : _workflows.isEmpty
               ? Center(child: Text(AppStrings.t('workflows_empty')))
-              : ListView(children: workflowChildren),
+              : ListView(
+                padding: const EdgeInsets.only(bottom: 80),
+                children: workflowChildren,
+              ),
     );
   }
 

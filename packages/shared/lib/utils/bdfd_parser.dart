@@ -167,6 +167,46 @@ class _BdfdTokenParser {
         return _parseAddSection(functionToken);
       case 'addmediagallery':
         return _parseAddMediaGallery(functionToken);
+      case 'addmediagalleryitem':
+        return _parseAddMediaGalleryItem(functionToken);
+      case 'addactionrow':
+        return _parseAddActionRow(functionToken);
+      case 'addbuttoncv2':
+        return _parseAddButtonCV2(functionToken);
+      case 'addmentionableselect':
+        return _parseAddMentionableSelect(functionToken);
+      case 'adduserselect':
+        return _parseAddUserSelect(functionToken);
+      case 'addroleselect':
+        return _parseAddRoleSelect(functionToken);
+      case 'addchannelselect':
+        return _parseAddChannelSelect(functionToken);
+      case 'addstringselect':
+        return _parseAddStringSelect(functionToken);
+      case 'addstringselectoption':
+        return _parseAddStringSelectOption(functionToken);
+      case 'getmentionableselectuserid':
+        return _parseGetMentionableSelectUserID(functionToken);
+      case 'getmentionableselectuserids':
+        return _parseGetMentionableSelectUserIDs(functionToken);
+      case 'getuserselectuserid':
+        return _parseGetUserSelectUserID(functionToken);
+      case 'getuserselectuserids':
+        return _parseGetUserSelectUserIDs(functionToken);
+      case 'getroleselectroleid':
+        return _parseGetRoleSelectRoleID(functionToken);
+      case 'getroleselectroleids':
+        return _parseGetRoleSelectRoleIDs(functionToken);
+      case 'getchannelselectchannelid':
+        return _parseGetChannelSelectChannelID(functionToken);
+      case 'getchannelselectchannelids':
+        return _parseGetChannelSelectChannelIDs(functionToken);
+      case 'getstringselectvalue':
+        return _parseGetStringSelectValue(functionToken);
+      case 'getstringselectvalues':
+        return _parseGetStringSelectValues(functionToken);
+      case 'log':
+        return _parseLog(functionToken);
       case 'addthumbnail':
         return _parseAddThumbnail(functionToken);
       case 'addtimestamp':
@@ -377,6 +417,70 @@ class _BdfdTokenParser {
       _parseGenericFunctionCall(functionToken);
 
   BdfdFunctionCallAst _parseAddMediaGallery(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddMediaGalleryItem(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddActionRow(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddButtonCV2(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddMentionableSelect(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddUserSelect(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddRoleSelect(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetMentionableSelectUserID(
+    BdfdToken functionToken,
+  ) => _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetMentionableSelectUserIDs(
+    BdfdToken functionToken,
+  ) => _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetUserSelectUserID(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetUserSelectUserIDs(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetRoleSelectRoleID(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetRoleSelectRoleIDs(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddChannelSelect(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddStringSelect(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseAddStringSelectOption(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetChannelSelectChannelID(
+    BdfdToken functionToken,
+  ) => _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetChannelSelectChannelIDs(
+    BdfdToken functionToken,
+  ) => _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetStringSelectValue(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseGetStringSelectValues(BdfdToken functionToken) =>
+      _parseGenericFunctionCall(functionToken);
+
+  BdfdFunctionCallAst _parseLog(BdfdToken functionToken) =>
       _parseGenericFunctionCall(functionToken);
 
   BdfdFunctionCallAst _parseAddThumbnail(BdfdToken functionToken) =>

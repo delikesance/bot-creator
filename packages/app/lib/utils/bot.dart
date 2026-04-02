@@ -31,6 +31,7 @@ import 'package:logging/logging.dart';
 import 'package:nyxx/nyxx.dart';
 
 part 'bot.logs.dart';
+part 'bot.debug_replay.dart';
 part 'bot.template.dart';
 part 'bot.mobile_service.dart';
 part 'bot.commands.dart';
@@ -421,6 +422,10 @@ Future<void> _applyDesktopInitialStatusThenRotate(
   Timer(const Duration(seconds: 3), () {
     unawaited(_applyDesktopStatus(botId, gateway, firstStatus, presenceStatus));
   });
+
+  if (statuses.length == 1) {
+    return;
+  }
 
   final min = (firstStatus['minIntervalSeconds'] as int?) ?? 60;
   final max = (firstStatus['maxIntervalSeconds'] as int?) ?? min;

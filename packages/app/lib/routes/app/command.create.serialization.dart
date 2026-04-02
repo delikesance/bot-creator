@@ -82,7 +82,10 @@ extension _CommandCreateSerialization on _CommandCreatePageState {
     if (key.isEmpty) {
       return key;
     }
-    return key.startsWith('bc_') ? key : 'bc_$key';
+    if (key.startsWith('bc_') && key.length > 3) {
+      return key.substring(3);
+    }
+    return key;
   }
 
   List<Map<String, dynamic>> _normalizeImportedScopedActionKeys(

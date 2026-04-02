@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/i18n.dart';
+import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:bot_creator/utils/subscription_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -13,6 +14,15 @@ class SubscriptionPage extends StatefulWidget {
 
   /// Show the subscription page as a modal bottom sheet.
   static Future<void> show(BuildContext context) {
+    if (!SubscriptionService.supportsNativeBilling) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(AppStrings.t('subscription_not_available_on_platform')),
+        ),
+      );
+      return Future<void>.value();
+    }
+
     AppAnalytics.logEvent(name: 'subscription_page_opened');
     return showModalBottomSheet<void>(
       context: context,
@@ -89,6 +99,7 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final allFeatures = PremiumCapabilities.getAllFeaturesForSubscription();
 
     // Close automatically when subscription becomes active.
     if (SubscriptionService.isSubscribed) {
@@ -154,21 +165,24 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
               ),
               const SizedBox(height: 28),
 
-              // Benefits
-              _BenefitRow(
-                icon: Icons.block_rounded,
-                text: AppStrings.t('subscription_benefit_no_ads'),
-              ),
-              const SizedBox(height: 10),
-              _BenefitRow(
-                icon: Icons.flash_on_rounded,
-                text: AppStrings.t('subscription_benefit_fast_start'),
-              ),
-              const SizedBox(height: 10),
-              _BenefitRow(
-                icon: Icons.favorite_rounded,
-                text: AppStrings.t('subscription_benefit_support'),
-              ),
+              // Benefits (exhaustive premium feature list)
+              ...allFeatures.asMap().entries.map((entry) {
+                final feature = entry.value;
+                final comingSoon = PremiumCapabilities.isFeatureComingSoon(
+                  feature.capability,
+                );
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom: entry.key == allFeatures.length - 1 ? 0 : 10,
+                  ),
+                  child: _BenefitRow(
+                    icon: feature.icon,
+                    text: AppStrings.t(feature.titleKey),
+                    subtitle: AppStrings.t(feature.descriptionKey),
+                    comingSoon: comingSoon,
+                  ),
+                );
+              }),
               const SizedBox(height: 28),
 
               // Annual plan (recommended)
@@ -261,18 +275,70 @@ class _SubscriptionPageState extends State<SubscriptionPage> {
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
 
 class _BenefitRow extends StatelessWidget {
-  const _BenefitRow({required this.icon, required this.text});
+  const _BenefitRow({
+    required this.icon,
+    required this.text,
+    required this.subtitle,
+    this.comingSoon = false,
+  });
+
   final IconData icon;
   final String text;
+  final String subtitle;
+  final bool comingSoon;
 
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 22, color: Colors.amber),
         const SizedBox(width: 12),
         Expanded(
-          child: Text(text, style: Theme.of(context).textTheme.bodyLarge),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (comingSoon)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        AppStrings.t('subscription_feature_coming_soon'),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

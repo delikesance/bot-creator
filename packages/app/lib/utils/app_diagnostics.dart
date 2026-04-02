@@ -182,15 +182,19 @@ class AppDiagnostics {
     }
   }
 
-  static Future<String> readLog({int maxLines = 250}) async {
+  static Future<String> readLog({int? maxLines = 250}) async {
     if (_logFile == null || !await _logFile!.exists()) {
       return 'No diagnostics log found yet.';
     }
     final lines = await _logFile!.readAsLines();
-    if (lines.length <= maxLines) {
+    if (maxLines == null || maxLines <= 0 || lines.length <= maxLines) {
       return lines.join('\n');
     }
     return lines.sublist(lines.length - maxLines).join('\n');
+  }
+
+  static Future<String> readAllLog() async {
+    return readLog(maxLines: null);
   }
 
   static Future<void> clearLog() async {
@@ -201,7 +205,7 @@ class AppDiagnostics {
     await logInfo('Diagnostics log cleared');
   }
 
-  static Future<void> copyLogToClipboard({int maxLines = 250}) async {
+  static Future<void> copyLogToClipboard({int? maxLines = 250}) async {
     final text = await readLog(maxLines: maxLines);
     await Clipboard.setData(ClipboardData(text: text));
   }

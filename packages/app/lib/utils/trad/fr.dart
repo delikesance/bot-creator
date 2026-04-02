@@ -86,6 +86,8 @@
   'globals_tab_short': 'Vars',
   'workflows_tab': 'Workflows',
   'workflows_tab_short': 'Flow',
+  'scheduler_tab': 'Scheduler',
+  'scheduler_tab_short': 'Sched',
   'emojis_tab': 'Emojis',
   'emojis_tab_short': 'Emoji',
   'emojis_title': 'Emojis applicatifs',
@@ -213,10 +215,24 @@
       'Supprimer définitivement {count} snapshot(s) ? Cette action est irréversible.',
   'settings_snapshots_delete_all_loading': 'Suppression de tous les snapshots…',
   'settings_snapshots_delete_all_done': '{count} snapshot(s) supprimé(s).',
+  'settings_snapshots_delete_select_tooltip':
+      'Supprimer un snapshot sélectionné',
+  'settings_snapshots_delete_select_title': 'Supprimer un snapshot',
+  'settings_snapshots_delete_select_desc':
+      'Choisissez le snapshot à supprimer (du plus ancien au plus récent).',
+  'settings_snapshots_delete_one_confirm':
+      'Supprimer définitivement "{label}" ? Cette action est irréversible.',
   'settings_snapshots_refresh_loading': 'Actualisation des snapshots…',
   'settings_snapshots_empty': 'Aucun snapshot trouvé pour le moment.',
   'settings_snapshot_list_entry': '{date} • {count} fichiers • {size}',
   'settings_diagnostics_section_title': 'Diagnostics',
+  'settings_diagnostics_page_title': 'Logs de l’application',
+  'settings_diagnostics_page_scope_note':
+      'Affiche uniquement les logs de diagnostic de l’application (hors logs bot).',
+  'settings_diagnostics_refresh': 'Actualiser les logs',
+  'settings_diagnostics_copy_all': 'Copier tous les logs',
+  'settings_diagnostics_empty':
+      'Aucun log d’application disponible pour le moment.',
   'settings_view_startup_logs': 'Voir les logs de démarrage',
   'settings_clear_logs': 'Effacer les logs',
   'settings_logs_cleared': 'Logs de diagnostic effacés',
@@ -287,6 +303,7 @@
   'settings_compatibility_functions_category_embeds': 'Embeds',
   'settings_compatibility_functions_category_components':
       'Composants / Interactions',
+  'settings_compatibility_functions_category_logging': 'Journalisation',
   'settings_compatibility_functions_category_json': 'Helpers JSON',
   'settings_compatibility_functions_category_http': 'Helpers HTTP',
   'settings_compatibility_functions_category_variables': 'Variables scopees',
@@ -425,6 +442,7 @@
   'bot_home_stop': 'Arrêter le bot',
   'bot_home_view_logs': 'Voir les logs du bot',
   'bot_home_view_stats': 'Voir les stats du bot',
+  'bot_home_view_replay': 'Voir les replays du débogueur',
   'bot_home_sync': 'Synchroniser l’app',
   'bot_home_sync_success': 'Application synchronisée avec succès',
   'bot_home_invite': 'Inviter le bot',
@@ -539,6 +557,34 @@
   'bot_logs_ram_estimated': 'RAM bot estimée : {memory}',
   'bot_logs_go_to_latest': 'Aller au dernier log',
   'bot_logs_go_to_bottom': 'Aller en bas',
+
+  // Page Replay Débogueur
+  'debug_replay_title': 'Replay Débogueur',
+  'debug_replay_start_capture': 'Activer la capture',
+  'debug_replay_stop_capture': 'Désactiver la capture',
+  'debug_replay_clear': 'Effacer les replays',
+  'debug_replay_clear_title': 'Effacer les replays',
+  'debug_replay_clear_confirm':
+      'Tous les replays enregistrés seront supprimés. Continuer ?',
+  'debug_replay_empty_capturing':
+      'Capture en cours… Lancez une commande pour enregistrer un replay.',
+  'debug_replay_empty_idle':
+      'Capture désactivée. Activez-la et lancez une commande pour enregistrer un replay.',
+  'debug_replay_premium_title': 'Replay Débogueur Visuel',
+  'debug_replay_premium_desc':
+      'Enregistrez et rejouez vos exécutions de commandes étape par étape. Voyez exactement ce que chaque action a fait, combien de temps elle a pris et où les erreurs se sont produites.',
+  'debug_replay_overview': "Vue d'ensemble",
+  'debug_replay_play': 'Lire',
+  'debug_replay_pause': 'Pause',
+  'debug_replay_step_first': 'Première étape',
+  'debug_replay_step_last': 'Dernière étape',
+  'debug_replay_step_back': 'Étape précédente',
+  'debug_replay_step_forward': 'Étape suivante',
+  'debug_replay_duration_label': 'DURÉE',
+  'debug_replay_result_label': 'RÉSULTAT',
+  'debug_replay_result_empty': '(aucun résultat)',
+  'debug_replay_start_offset': '+{ms} ms depuis le début',
+  'debug_replay_loop_info': 'Boucle profondeur {depth}, itération {iteration}',
 
   // Page stats du bot
   'bot_stats_title': 'Statistiques du bot',
@@ -1217,15 +1263,27 @@
   'dashboard_period_7d': '7 derniers jours',
   'dashboard_period_30d': '30 derniers jours',
   'dashboard_top_commands': 'Top commandes',
+  'dashboard_top_locales': 'Top localisations',
+  'dashboard_execution_health_title': 'Santé des exécutions',
+  'dashboard_failed_commands': 'Échecs',
+  'dashboard_error_rate': 'Taux d\'erreur',
+  'dashboard_p50_latency': 'Latence p50',
+  'dashboard_p95_latency': 'Latence p95',
+  'dashboard_premium_analytics_title': 'Analytics Premium',
+  'dashboard_premium_analytics_desc':
+      'Débloquez le taux d\'erreur, les percentiles de latence et les insights de localisation.',
   'dashboard_timeline': 'Utilisation dans le temps',
   'dashboard_executions': '{count} exécutions',
+  'dashboard_selected_period_total': '{count} sur la période sélectionnée',
   'dashboard_loading': 'Chargement des stats...',
   'dashboard_error': 'Impossible de charger les stats : {error}',
+  'dashboard_refresh_sources_tooltip': 'Actualiser les serveurs d\'exécution',
   'dashboard_requires_runner':
       'Connectez un runner pour voir les statistiques d\'utilisation.',
   'dashboard_single_runner_notice':
       'Les stats affichées proviennent uniquement du runner actuellement configuré. Si vous utilisez plusieurs runners, cette vue peut être incomplète.',
   'runner_source_label': 'Runner : {name}',
+  'runner_source_local': 'Local',
   'runner_source_all': 'Tous les runners',
   'runner_select_source': 'Sélectionner le runner',
   'logs_runner_source': 'Logs de : {name}',
@@ -1246,11 +1304,36 @@
       'Merci pour votre soutien ! Toutes les publicités sont désactivées.',
   'subscription_title': 'Supprimer les pubs',
   'subscription_subtitle':
-      'Choisissez une offre pour profiter de l\'app sans publicité.',
+      'Choisissez une offre pour supprimer les pubs et débloquer toutes les fonctionnalités premium.',
   'subscription_benefit_no_ads': 'Aucune pub dans toute l\'application',
   'subscription_benefit_fast_start':
       'Bots démarrent instantanément, sans pop-up',
   'subscription_benefit_support': 'Soutenez le développement indépendant',
+  'subscription_feature_coming_soon': 'Bientôt disponible',
+  'subscription_feature_no_ads_title': 'Sans publicité',
+  'subscription_feature_no_ads_desc':
+      'Supprime toutes les insertions publicitaires dans l\'application.',
+  'subscription_feature_instant_start_title': 'Démarrage instantané',
+  'subscription_feature_instant_start_desc':
+      'Lance les bots immédiatement sans interruption publicitaire.',
+  'subscription_feature_analytics_title': 'Analytique avancée',
+  'subscription_feature_analytics_desc':
+      'Accédez au taux d\'erreur, aux percentiles de latence et aux insights de locale.',
+  'subscription_feature_scheduler_title': 'Déclencheurs planifiés',
+  'subscription_feature_scheduler_desc':
+      'Exécute des workflows automatiquement toutes les X minutes (jusqu\'à 10 actifs).',
+  'subscription_feature_webhooks_title': 'Webhooks entrants',
+  'subscription_feature_webhooks_desc':
+      'Crée des endpoints webhook sécurisés et route les appels vers les workflows.',
+  'subscription_feature_debug_replay_title': 'Replay visuel de debug',
+  'subscription_feature_debug_replay_desc':
+      'Enregistre et rejoue les actions de commande étape par étape.',
+  'subscription_feature_auto_sharding_title': 'Sharding automatique',
+  'subscription_feature_auto_sharding_desc':
+      'Répartit la charge des gros bots entre plusieurs shards.',
+  'subscription_feature_auto_restart_title': 'Redémarrage automatique',
+  'subscription_feature_auto_restart_desc':
+      'Redémarre automatiquement le bot quand un redémarrage complet est requis.',
   'subscription_annual_title': 'Annuel',
   'subscription_monthly_title': 'Mensuel',
   'subscription_per_year': 'par an',
@@ -1263,4 +1346,6 @@
       'L\'achat n\'a pas pu être finalisé. Veuillez réessayer.',
   'subscription_restored': 'Abonnement restauré avec succès !',
   'subscription_restore_not_found': 'Aucun abonnement actif trouvé.',
+  'subscription_not_available_on_platform':
+      'Les abonnements sont actuellement disponibles uniquement sur mobile.',
 };

@@ -122,6 +122,25 @@ void main() {
 
       expect(resolved, 'Value=');
     });
+
+    test('resolves BDFD select collection suffixes', () {
+      final resolved = resolveTemplatePlaceholders(
+        'Second=((interaction.stringSelect.value[2])) Joined=((interaction.stringSelect.values[, ])) Limited=((interaction.stringSelect.values[/;2]))',
+        <String, String>{
+          'interaction.stringSelect.value': 'alpha',
+          'interaction.stringSelect.values': 'alpha,beta,gamma',
+          '__collection.interaction.stringSelect.value':
+              '["alpha","beta","gamma"]',
+          '__collection.interaction.stringSelect.values':
+              '["alpha","beta","gamma"]',
+        },
+      );
+
+      expect(
+        resolved,
+        'Second=beta Joined=alpha, beta, gamma Limited=alpha/beta',
+      );
+    });
   });
 
   group('resolveTemplateExpressionValue', () {

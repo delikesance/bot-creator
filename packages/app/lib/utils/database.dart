@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:bot_creator/stores/sqlite_variable_store.dart';
+import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/normalize_command_data.dart' as normalize_lib;
 import 'package:bot_creator/utils/workflow_call.dart';
@@ -13,6 +14,14 @@ import 'package:nyxx/nyxx.dart';
 class AppManager implements BotDataStore {
   static final AppManager _instance = AppManager._internal();
   factory AppManager() => _instance;
+
+  /// Optional hook called after any save that should trigger a runner reload.
+  ///
+  /// Set this once at app startup (e.g. in main.dart) with a closure that
+  /// builds the bot payload and calls [RunnerClient.reloadBot].
+  /// The hook must be a no-throw fire-and-forget operation.
+  static Future<void> Function(String botId)? onAfterSave;
+
   final StreamController<List<dynamic>> _appsStreamController =
       StreamController<List<dynamic>>.broadcast();
   List<dynamic> _apps = [];
@@ -131,6 +140,12 @@ class AppManager implements BotDataStore {
             )
             ..['workflows'] = List<Map<String, dynamic>>.from(
               _coerceWorkflowList(existingData['workflows']),
+            )
+            ..['scheduledTriggers'] = List<Map<String, dynamic>>.from(
+              ((existingData['scheduledTriggers']) as List?)
+                      ?.whereType<Map>()
+                      .map((entry) => Map<String, dynamic>.from(entry)) ??
+                  const <Map<String, dynamic>>[],
             )
             ..['statuses'] = List<Map<String, dynamic>>.from(
               (existingData['statuses'] as List?)?.whereType<Map>().map(
@@ -436,6 +451,14 @@ class AppManager implements BotDataStore {
         'totalAllTime': 0,
         'commands': const <Map<String, dynamic>>[],
         'timeline': const <Map<String, dynamic>>[],
+        'locales': const <Map<String, dynamic>>[],
+        'health': const <String, dynamic>{
+          'total': 0,
+          'failed': 0,
+          'errorRatePct': 0.0,
+          'p50LatencyMs': 0,
+          'p95LatencyMs': 0,
+        },
       };
     }
 
@@ -506,6 +529,14 @@ class AppManager implements BotDataStore {
       'totalAllTime': totalAllTime,
       'commands': commands,
       'timeline': timeline,
+      'locales': const <Map<String, dynamic>>[],
+      'health': const <String, dynamic>{
+        'total': 0,
+        'failed': 0,
+        'errorRatePct': 0.0,
+        'p50LatencyMs': 0,
+        'p95LatencyMs': 0,
+      },
     };
   }
 
@@ -860,6 +891,33 @@ class AppManager implements BotDataStore {
       return trimmed;
     }
     return trimmed.startsWith('bc_') ? trimmed : 'bc_$trimmed';
+  }
+
+  String _normalizeInboundWebhookPath(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    final noLeading = trimmed.replaceFirst(RegExp(r'^/+'), '');
+    return noLeading.replaceAll(RegExp(r'/+'), '/');
+  }
+
+  Map<String, dynamic> _normalizeInboundWebhook(Map<String, dynamic> raw) {
+    final id = (raw['id'] ?? '').toString().trim();
+    final path = _normalizeInboundWebhookPath((raw['path'] ?? '').toString());
+    final workflowName = (raw['workflowName'] ?? '').toString().trim();
+    final secret = (raw['secret'] ?? '').toString().trim();
+    final enabled = raw['enabled'] != false;
+
+    return <String, dynamic>{
+      'id': id,
+      'path': path,
+      'workflowName': workflowName,
+      'secret': secret,
+      'enabled': enabled,
+      if (raw['createdAt'] != null) 'createdAt': raw['createdAt'],
+      if (raw['updatedAt'] != null) 'updatedAt': raw['updatedAt'],
+    };
   }
 
   Map<String, dynamic> _readScopedContextFromAppData(
@@ -1318,6 +1376,7 @@ class AppManager implements BotDataStore {
 
     app['workflows'] = workflows;
     await saveApp(id, app);
+    unawaited((onAfterSave ?? (_) async {}).call(id));
   }
 
   Future<void> deleteWorkflow(String id, String name) async {
@@ -1332,6 +1391,230 @@ class AppManager implements BotDataStore {
 
     app['workflows'] = workflows;
     await saveApp(id, app);
+  }
+
+  Future<List<Map<String, dynamic>>> getScheduledTriggers(String id) async {
+    final app = await getApp(id);
+    return ((app['scheduledTriggers'] as List?)
+            ?.whereType<Map>()
+            .map(
+              (entry) =>
+                  _normalizeScheduledTrigger(Map<String, dynamic>.from(entry)),
+            )
+            .where(
+              (entry) =>
+                  (entry['workflowName'] ?? '').toString().trim().isNotEmpty,
+            )
+            .toList(growable: false)) ??
+        const <Map<String, dynamic>>[];
+  }
+
+  Future<void> saveScheduledTrigger(
+    String id, {
+    required String workflowName,
+    required int everyMinutes,
+    bool enabled = true,
+    String? triggerId,
+    String? label,
+  }) async {
+    final app = Map<String, dynamic>.from(await getApp(id));
+    final triggers =
+        ((app['scheduledTriggers'] as List?)
+            ?.whereType<Map>()
+            .map(
+              (entry) =>
+                  _normalizeScheduledTrigger(Map<String, dynamic>.from(entry)),
+            )
+            .toList(growable: true)) ??
+        <Map<String, dynamic>>[];
+
+    final normalizedWorkflowName = workflowName.trim();
+    if (normalizedWorkflowName.isEmpty) {
+      throw ArgumentError('workflowName is required');
+    }
+
+    final normalizedId =
+        (triggerId ?? '').trim().isEmpty
+            ? 'sch_${DateTime.now().microsecondsSinceEpoch}'
+            : triggerId!.trim();
+
+    final index = triggers.indexWhere(
+      (entry) => (entry['id'] ?? '').toString() == normalizedId,
+    );
+
+    final limit = PremiumCapabilities.limitFor(
+      PremiumCapability.schedulerTriggers,
+    );
+    final wouldCreate = index < 0;
+    if (wouldCreate && triggers.length >= limit) {
+      throw StateError('scheduler_trigger_limit_reached:$limit');
+    }
+
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final payload = <String, dynamic>{
+      'id': normalizedId,
+      'workflowName': normalizedWorkflowName,
+      'label': (label ?? normalizedWorkflowName).trim(),
+      'everyMinutes': everyMinutes.clamp(1, 10080),
+      'enabled': enabled,
+      'updatedAt': nowIso,
+    };
+
+    if (index >= 0) {
+      payload['createdAt'] = triggers[index]['createdAt'] ?? nowIso;
+      triggers[index] = _normalizeScheduledTrigger(payload);
+    } else {
+      payload['createdAt'] = nowIso;
+      triggers.add(_normalizeScheduledTrigger(payload));
+    }
+
+    app['scheduledTriggers'] = triggers;
+    await saveApp(id, app);
+  }
+
+  Future<void> deleteScheduledTrigger(String id, String triggerId) async {
+    final app = Map<String, dynamic>.from(await getApp(id));
+    final triggers =
+        ((app['scheduledTriggers'] as List?)
+            ?.whereType<Map>()
+            .map((entry) => Map<String, dynamic>.from(entry))
+            .toList(growable: true)) ??
+        <Map<String, dynamic>>[];
+    triggers.removeWhere(
+      (entry) => (entry['id'] ?? '').toString().trim() == triggerId.trim(),
+    );
+    app['scheduledTriggers'] = triggers;
+    await saveApp(id, app);
+  }
+
+  Future<List<Map<String, dynamic>>> getInboundWebhooks(String id) async {
+    final app = await getApp(id);
+    return ((app['inboundWebhooks'] as List?)
+            ?.whereType<Map>()
+            .map(
+              (entry) =>
+                  _normalizeInboundWebhook(Map<String, dynamic>.from(entry)),
+            )
+            .where((entry) {
+              return (entry['path'] ?? '').toString().trim().isNotEmpty &&
+                  (entry['workflowName'] ?? '').toString().trim().isNotEmpty;
+            })
+            .toList(growable: false)) ??
+        const <Map<String, dynamic>>[];
+  }
+
+  Future<void> saveInboundWebhook(
+    String id, {
+    required String path,
+    required String workflowName,
+    required String secret,
+    bool enabled = true,
+    String? webhookId,
+  }) async {
+    final app = Map<String, dynamic>.from(await getApp(id));
+    final webhooks =
+        ((app['inboundWebhooks'] as List?)
+            ?.whereType<Map>()
+            .map(
+              (entry) =>
+                  _normalizeInboundWebhook(Map<String, dynamic>.from(entry)),
+            )
+            .toList(growable: true)) ??
+        <Map<String, dynamic>>[];
+
+    final normalizedPath = _normalizeInboundWebhookPath(path);
+    final normalizedWorkflow = workflowName.trim();
+    final normalizedSecret = secret.trim();
+    if (normalizedPath.isEmpty ||
+        normalizedWorkflow.isEmpty ||
+        normalizedSecret.isEmpty) {
+      throw ArgumentError('path, workflowName and secret are required');
+    }
+
+    final normalizedId =
+        (webhookId ?? '').trim().isEmpty
+            ? 'wh_${DateTime.now().microsecondsSinceEpoch}'
+            : webhookId!.trim();
+
+    final duplicatePath = webhooks.any((entry) {
+      return (entry['id'] ?? '').toString() != normalizedId &&
+          (entry['path'] ?? '').toString().trim().toLowerCase() ==
+              normalizedPath.toLowerCase();
+    });
+    if (duplicatePath) {
+      throw StateError('inbound_webhook_path_conflict');
+    }
+
+    final index = webhooks.indexWhere(
+      (entry) => (entry['id'] ?? '').toString() == normalizedId,
+    );
+
+    final limit = PremiumCapabilities.limitFor(
+      PremiumCapability.inboundWebhooks,
+    );
+    final wouldCreate = index < 0;
+    if (wouldCreate && webhooks.length >= limit) {
+      throw StateError('inbound_webhook_limit_reached:$limit');
+    }
+
+    final nowIso = DateTime.now().toUtc().toIso8601String();
+    final payload = <String, dynamic>{
+      'id': normalizedId,
+      'path': normalizedPath,
+      'workflowName': normalizedWorkflow,
+      'secret': normalizedSecret,
+      'enabled': enabled,
+      'updatedAt': nowIso,
+    };
+
+    if (index >= 0) {
+      payload['createdAt'] = webhooks[index]['createdAt'] ?? nowIso;
+      webhooks[index] = _normalizeInboundWebhook(payload);
+    } else {
+      payload['createdAt'] = nowIso;
+      webhooks.add(_normalizeInboundWebhook(payload));
+    }
+
+    app['inboundWebhooks'] = webhooks;
+    await saveApp(id, app);
+    unawaited((onAfterSave ?? (_) async {}).call(id));
+  }
+
+  Future<void> deleteInboundWebhook(String id, String webhookId) async {
+    final app = Map<String, dynamic>.from(await getApp(id));
+    final webhooks =
+        ((app['inboundWebhooks'] as List?)
+            ?.whereType<Map>()
+            .map((entry) => Map<String, dynamic>.from(entry))
+            .toList(growable: true)) ??
+        <Map<String, dynamic>>[];
+    webhooks.removeWhere(
+      (entry) => (entry['id'] ?? '').toString().trim() == webhookId.trim(),
+    );
+    app['inboundWebhooks'] = webhooks;
+    await saveApp(id, app);
+    unawaited((onAfterSave ?? (_) async {}).call(id));
+  }
+
+  Map<String, dynamic> _normalizeScheduledTrigger(Map<String, dynamic> raw) {
+    final id = (raw['id'] ?? '').toString().trim();
+    final workflowName = (raw['workflowName'] ?? '').toString().trim();
+    final label = (raw['label'] ?? workflowName).toString().trim();
+    final minutesRaw = int.tryParse((raw['everyMinutes'] ?? '').toString());
+    final everyMinutes =
+        (minutesRaw != null && minutesRaw > 0)
+            ? minutesRaw.clamp(1, 10080)
+            : 60;
+
+    return <String, dynamic>{
+      'id': id,
+      'workflowName': workflowName,
+      'label': label,
+      'everyMinutes': everyMinutes,
+      'enabled': raw['enabled'] != false,
+      if (raw['createdAt'] != null) 'createdAt': raw['createdAt'],
+      if (raw['updatedAt'] != null) 'updatedAt': raw['updatedAt'],
+    };
   }
 
   @override
@@ -1627,6 +1910,7 @@ class AppManager implements BotDataStore {
     final file = File("$path/apps/$id/$commandId.json");
     if (!await file.exists()) await file.create(recursive: true);
     await file.writeAsString(jsonEncode(normalizeCommandData(data)));
+    unawaited((onAfterSave ?? (_) async {}).call(id));
   }
 
   Map<String, dynamic> normalizeCommandData(Map<String, dynamic> command) {

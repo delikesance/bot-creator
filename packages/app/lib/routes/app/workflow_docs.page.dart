@@ -749,93 +749,96 @@ class _WorkflowDocumentationPageState extends State<WorkflowDocumentationPage> {
 
     return Scaffold(
       appBar: AppBar(title: Text(AppStrings.t('doc_center_title'))),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: TextField(
-              controller: _searchCtrl,
-              onChanged: (_) => setState(() {}),
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon:
-                    _searchCtrl.text.isEmpty
-                        ? null
-                        : IconButton(
-                          tooltip: AppStrings.t('doc_center_clear_search'),
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            setState(() {});
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
-                hintText: AppStrings.t('doc_center_search_hint'),
-                border: const OutlineInputBorder(),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: TextField(
+                controller: _searchCtrl,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon:
+                      _searchCtrl.text.isEmpty
+                          ? null
+                          : IconButton(
+                            tooltip: AppStrings.t('doc_center_clear_search'),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() {});
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                  hintText: AppStrings.t('doc_center_search_hint'),
+                  border: const OutlineInputBorder(),
+                ),
               ),
             ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
-              children: <Widget>[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: ChoiceChip(
-                    label: Text(AppStrings.t('doc_kind_all')),
-                    selected: _kindFilter == null,
-                    onSelected: (_) => setState(() => _kindFilter = null),
-                  ),
-                ),
-                for (final kind in DocKind.values)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: <Widget>[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: ChoiceChip(
-                      label: Text(_kindLabel(kind)),
-                      selected: _kindFilter == kind,
-                      onSelected: (_) => setState(() => _kindFilter = kind),
+                      label: Text(AppStrings.t('doc_kind_all')),
+                      selected: _kindFilter == null,
+                      onSelected: (_) => setState(() => _kindFilter = null),
                     ),
                   ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child:
-                docs.isEmpty
-                    ? Center(
-                      child: Text(
-                        AppStrings.t('doc_center_empty'),
-                        textAlign: TextAlign.center,
+                  for (final kind in DocKind.values)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: ChoiceChip(
+                        label: Text(_kindLabel(kind)),
+                        selected: _kindFilter == kind,
+                        onSelected: (_) => setState(() => _kindFilter = kind),
                       ),
-                    )
-                    : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      itemCount: docs.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final doc = docs[index];
-                        return Card(
-                          child: ListTile(
-                            leading: Icon(_kindIcon(doc.kind)),
-                            title: Text(doc.title),
-                            subtitle: Text(doc.subtitle),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                  builder:
-                                      (_) => _WorkflowDocDetailPage(doc: doc),
-                                ),
-                              );
-                            },
-                          ),
-                        );
-                      },
                     ),
-          ),
-        ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child:
+                  docs.isEmpty
+                      ? Center(
+                        child: Text(
+                          AppStrings.t('doc_center_empty'),
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                      : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        itemCount: docs.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final doc = docs[index];
+                          return Card(
+                            child: ListTile(
+                              leading: Icon(_kindIcon(doc.kind)),
+                              title: Text(doc.title),
+                              subtitle: Text(doc.subtitle),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute<void>(
+                                    builder:
+                                        (_) => _WorkflowDocDetailPage(doc: doc),
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -866,60 +869,63 @@ class _WorkflowDocDetailPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(doc.title)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: <Widget>[
-          Text(doc.subtitle, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(doc.summary),
-          if (doc.requiresIntent.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 14),
-            Text(
-              AppStrings.t('doc_required_intents'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: doc.requiresIntent
-                  .map((intent) => Chip(label: Text(intent)))
-                  .toList(growable: false),
-            ),
-          ],
-          if (doc.variables.isNotEmpty) ...<Widget>[
-            const SizedBox(height: 14),
-            Text(
-              AppStrings.t('doc_available_variables'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            _mono(doc.variables.join('\n')),
-          ],
-          for (final section in doc.sections) ...<Widget>[
-            const SizedBox(height: 14),
-            Text(
-              section.title,
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            for (final line in section.lines)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text('• $line'),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: <Widget>[
+            Text(doc.subtitle, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(doc.summary),
+            if (doc.requiresIntent.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 14),
+              Text(
+                AppStrings.t('doc_required_intents'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: doc.requiresIntent
+                    .map((intent) => Chip(label: Text(intent)))
+                    .toList(growable: false),
+              ),
+            ],
+            if (doc.variables.isNotEmpty) ...<Widget>[
+              const SizedBox(height: 14),
+              Text(
+                AppStrings.t('doc_available_variables'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              _mono(doc.variables.join('\n')),
+            ],
+            for (final section in doc.sections) ...<Widget>[
+              const SizedBox(height: 14),
+              Text(
+                section.title,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              for (final line in section.lines)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text('• $line'),
+                ),
+            ],
+            if (doc.example != null &&
+                doc.example!.trim().isNotEmpty) ...<Widget>[
+              const SizedBox(height: 14),
+              Text(
+                AppStrings.t('doc_example'),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              _mono(doc.example!),
+            ],
+            const SizedBox(height: 20),
           ],
-          if (doc.example != null &&
-              doc.example!.trim().isNotEmpty) ...<Widget>[
-            const SizedBox(height: 14),
-            Text(
-              AppStrings.t('doc_example'),
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-            _mono(doc.example!),
-          ],
-          const SizedBox(height: 20),
-        ],
+        ),
       ),
     );
   }

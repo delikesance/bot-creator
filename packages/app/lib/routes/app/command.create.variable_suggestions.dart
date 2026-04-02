@@ -30,22 +30,22 @@ extension _CommandCreateVariableSuggestions on _CommandCreatePageState {
       _scopedVariableSuggestionNames =
           scopedNames.isEmpty
               ? <String>{
-                'guild.bc_key',
-                'user.bc_key',
-                'channel.bc_key',
-                'guildMember.bc_key',
-                'message.bc_key',
+                'guild.key',
+                'user.key',
+                'channel.key',
+                'guildMember.key',
+                'message.key',
               }
               : scopedNames;
     } catch (_) {
       // Keep editor resilient if local persistence is temporarily unavailable.
       _persistedGlobalVariableNames = <String>{};
       _scopedVariableSuggestionNames = <String>{
-        'guild.bc_key',
-        'user.bc_key',
-        'channel.bc_key',
-        'guildMember.bc_key',
-        'message.bc_key',
+        'guild.key',
+        'user.key',
+        'channel.key',
+        'guildMember.key',
+        'message.key',
       };
     }
 

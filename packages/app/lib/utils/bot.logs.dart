@@ -659,6 +659,14 @@ void consumeForegroundTaskDataForBotLogs(Object data) {
     return;
   }
 
+  if (map['type'] == 'debug_replay') {
+    try {
+      final record = DebugReplayRecord.fromJson(map);
+      appendDebugReplay(record);
+    } catch (_) {}
+    return;
+  }
+
   if (map['type'] != 'bot_log') {
     return;
   }

@@ -162,7 +162,36 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
     _emit();
   }
 
-  void _removeEmbed(int index) {
+  Future<void> _removeEmbed(int index) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog.adaptive(
+                title: const Text('Delete embed'),
+                content: const Text('This embed will be removed. Continue?'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(
+                      'Delete',
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!shouldDelete) {
+      return;
+    }
+
     setState(() {
       _embeds.removeAt(index);
     });
@@ -198,7 +227,38 @@ class _ResponseEmbedsEditorState extends State<ResponseEmbedsEditor> {
     _emit();
   }
 
-  void _removeField(int embedIndex, int fieldIndex) {
+  Future<void> _removeField(int embedIndex, int fieldIndex) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog.adaptive(
+                title: const Text('Delete field'),
+                content: const Text(
+                  'This field will be removed from the embed. Continue?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(
+                      'Delete',
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!shouldDelete) {
+      return;
+    }
+
     final fields = List<Map<String, dynamic>>.from(
       _embeds[embedIndex]['fields'] ?? [],
     );

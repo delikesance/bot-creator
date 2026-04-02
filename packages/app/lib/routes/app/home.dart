@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app/bot_logs.dart';
 import 'package:bot_creator/routes/app/bot_stats.dart';
+import 'package:bot_creator/routes/app/debug_replay_page.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/bot_payload_builder.dart';
@@ -11,7 +12,7 @@ import 'package:bot_creator/utils/i18n.dart';
 import 'package:bot_creator/utils/ad_reward_service.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/ad_consent_service.dart';
-import 'package:bot_creator/utils/subscription_service.dart';
+import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -325,7 +326,7 @@ class _AppHomePageState extends State<AppHomePage>
         return;
       }
 
-      if (SubscriptionService.isSubscribed) {
+      if (PremiumCapabilities.hasCapability(PremiumCapability.noAds)) {
         return;
       }
 
@@ -758,6 +759,33 @@ class _AppHomePageState extends State<AppHomePage>
                           ],
                         ),
                       ),
+                      if (PremiumCapabilities.isCapabilityRolledOut(
+                        PremiumCapability.visualDebuggerReplay,
+                      )) ...[
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(44),
+                          ),
+                          onPressed: () {
+                            final botId = widget.client.user.id.toString();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DebugReplayPage(botId: botId),
+                              ),
+                            );
+                          },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.play_circle_outline),
+                              const SizedBox(width: 8),
+                              Text(AppStrings.t('bot_home_view_replay')),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       ElevatedButton(
                         style: ElevatedButton.styleFrom(

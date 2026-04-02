@@ -136,7 +136,35 @@ class _BdfdCompatibleFunctionsPageState
         r'$removeComponent',
         r'$defer',
         r'$input',
+        r'$addActionRow',
+        r'$addButtonCV2',
+        r'$addMediaGalleryItem',
+        r'$addMentionableSelect',
+        r'$getMentionableSelectUserID',
+        r'$getMentionableSelectUserIDs',
+        r'$getMentionableSelectUserCount',
+        r'$addUserSelect',
+        r'$getUserSelectUserID',
+        r'$getUserSelectUserIDs',
+        r'$getUserSelectUserCount',
+        r'$addRoleSelect',
+        r'$getRoleSelectRoleID',
+        r'$getRoleSelectRoleIDs',
+        r'$getRoleSelectRoleCount',
+        r'$addChannelSelect',
+        r'$getChannelSelectChannelID',
+        r'$getChannelSelectChannelIDs',
+        r'$getChannelSelectChannelCount',
+        r'$addStringSelect',
+        r'$addStringSelectOption',
+        r'$getStringSelectValue',
+        r'$getStringSelectValues',
+        r'$getStringSelectCount',
       ],
+    ),
+    _FunctionCategory(
+      titleKey: 'settings_compatibility_functions_category_logging',
+      functions: [r'$log', r'$logQuota', r'$suppressErrorLogging'],
     ),
     _FunctionCategory(
       titleKey: 'settings_compatibility_functions_category_json',
@@ -688,119 +716,125 @@ class _BdfdCompatibleFunctionsPageState
       appBar: AppBar(
         title: Text(AppStrings.t('settings_compatibility_functions_title')),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    AppStrings.t(
-                      'settings_compatibility_functions_matrix_subtitle',
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    AppStrings.tr(
-                      'settings_compatibility_functions_count_bot_creator',
-                      params: {'count': _botCreatorSupported.length.toString()},
-                    ),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    AppStrings.tr(
-                      'settings_compatibility_functions_count_bdfd',
-                      params: {'count': _bdfdReference.length.toString()},
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    AppStrings.tr(
-                      'settings_compatibility_functions_count_both',
-                      params: {'count': supportedByBoth.length.toString()},
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    AppStrings.tr(
-                      'settings_compatibility_functions_count_missing',
-                      params: {'count': missingInBotCreator.length.toString()},
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    AppStrings.tr(
-                      'settings_compatibility_functions_count_bot_only',
-                      params: {'count': botCreatorOnly.length.toString()},
-                    ),
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    onChanged: (value) => setState(() => _query = value),
-                    decoration: InputDecoration(
-                      hintText: AppStrings.t(
-                        'settings_compatibility_functions_search_hint',
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppStrings.t(
+                        'settings_compatibility_functions_matrix_subtitle',
                       ),
-                      prefixIcon: const Icon(Icons.search),
-                      border: const OutlineInputBorder(),
-                      isDense: true,
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    AppStrings.t(
-                      'settings_compatibility_functions_matrix_note',
+                    const SizedBox(height: 10),
+                    Text(
+                      AppStrings.tr(
+                        'settings_compatibility_functions_count_bot_creator',
+                        params: {
+                          'count': _botCreatorSupported.length.toString(),
+                        },
+                      ),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 6),
+                    Text(
+                      AppStrings.tr(
+                        'settings_compatibility_functions_count_bdfd',
+                        params: {'count': _bdfdReference.length.toString()},
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Text(
+                      AppStrings.tr(
+                        'settings_compatibility_functions_count_both',
+                        params: {'count': supportedByBoth.length.toString()},
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      AppStrings.tr(
+                        'settings_compatibility_functions_count_missing',
+                        params: {
+                          'count': missingInBotCreator.length.toString(),
+                        },
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      AppStrings.tr(
+                        'settings_compatibility_functions_count_bot_only',
+                        params: {'count': botCreatorOnly.length.toString()},
+                      ),
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      onChanged: (value) => setState(() => _query = value),
+                      decoration: InputDecoration(
+                        hintText: AppStrings.t(
+                          'settings_compatibility_functions_search_hint',
+                        ),
+                        prefixIcon: const Icon(Icons.search),
+                        border: const OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      AppStrings.t(
+                        'settings_compatibility_functions_matrix_note',
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          _StatusSectionCard(
-            title: AppStrings.t(
-              'settings_compatibility_functions_section_both',
+            const SizedBox(height: 12),
+            _StatusSectionCard(
+              title: AppStrings.t(
+                'settings_compatibility_functions_section_both',
+              ),
+              color: Theme.of(context).colorScheme.primaryContainer,
+              textColor: Theme.of(context).colorScheme.onPrimaryContainer,
+              functions: visibleBoth,
             ),
-            color: Theme.of(context).colorScheme.primaryContainer,
-            textColor: Theme.of(context).colorScheme.onPrimaryContainer,
-            functions: visibleBoth,
-          ),
-          const SizedBox(height: 12),
-          _StatusSectionCard(
-            title: AppStrings.t(
-              'settings_compatibility_functions_section_bot_only',
+            const SizedBox(height: 12),
+            _StatusSectionCard(
+              title: AppStrings.t(
+                'settings_compatibility_functions_section_bot_only',
+              ),
+              color: Theme.of(context).colorScheme.tertiaryContainer,
+              textColor: Theme.of(context).colorScheme.onTertiaryContainer,
+              functions: visibleBotOnly,
+              subtitle: AppStrings.t(
+                'settings_compatibility_functions_section_bot_only_note',
+              ),
             ),
-            color: Theme.of(context).colorScheme.tertiaryContainer,
-            textColor: Theme.of(context).colorScheme.onTertiaryContainer,
-            functions: visibleBotOnly,
-            subtitle: AppStrings.t(
-              'settings_compatibility_functions_section_bot_only_note',
+            const SizedBox(height: 12),
+            _StatusSectionCard(
+              title: AppStrings.t(
+                'settings_compatibility_functions_section_missing',
+              ),
+              color: Theme.of(context).colorScheme.errorContainer,
+              textColor: Theme.of(context).colorScheme.onErrorContainer,
+              functions: visibleMissing,
             ),
-          ),
-          const SizedBox(height: 12),
-          _StatusSectionCard(
-            title: AppStrings.t(
-              'settings_compatibility_functions_section_missing',
-            ),
-            color: Theme.of(context).colorScheme.errorContainer,
-            textColor: Theme.of(context).colorScheme.onErrorContainer,
-            functions: visibleMissing,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -897,6 +931,30 @@ $removeButtons[]
 $removeComponent
 $defer
 $input
+$addActionRow
+$addButtonCV2
+$addMediaGalleryItem
+$addMentionableSelect
+$getMentionableSelectUserID
+$getMentionableSelectUserIDs
+$getMentionableSelectUserCount
+$addUserSelect
+$getUserSelectUserID
+$getUserSelectUserIDs
+$getUserSelectUserCount
+$addRoleSelect
+$getRoleSelectRoleID
+$getRoleSelectRoleIDs
+$getRoleSelectRoleCount
+$addChannelSelect
+$getChannelSelectChannelID
+$getChannelSelectChannelIDs
+$getChannelSelectChannelCount
+$addStringSelect
+$addStringSelectOption
+$getStringSelectValue
+$getStringSelectValues
+$getStringSelectCount
 $addContainer
 $addField
 $addSection
@@ -1285,6 +1343,9 @@ $suppressErrors[]
 $try
 $stop
 $embedSuppressErrors
+$log
+$logQuota
+$suppressErrorLogging
 $checkUserPerms
 $ignoreChannels
 $onlyAdmin

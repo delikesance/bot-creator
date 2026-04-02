@@ -1311,7 +1311,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'key',
             type: ParameterType.string,
             defaultValue: '',
-            hint: 'Scoped variable key (must start with bc_)',
+            hint: 'Scoped variable key (bc_ optional)',
             required: true,
           ),
           ParameterDefinition(
@@ -1372,14 +1372,14 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'key',
             type: ParameterType.string,
             defaultValue: '',
-            hint: 'Scoped variable key (must start with bc_)',
+            hint: 'Scoped variable key (bc_ optional)',
             required: true,
           ),
           ParameterDefinition(
             key: 'storeAs',
             type: ParameterType.string,
             defaultValue: '',
-            hint: 'Runtime variable alias (ex: guild.bc_score)',
+            hint: 'Runtime variable alias (ex: guild.score)',
           ),
         ];
       case BotCreatorActionType.removeScopedVariable:
@@ -1396,7 +1396,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'key',
             type: ParameterType.string,
             defaultValue: '',
-            hint: 'Scoped variable key (must start with bc_)',
+            hint: 'Scoped variable key (bc_ optional)',
             required: true,
           ),
         ];
@@ -1414,14 +1414,14 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'oldKey',
             type: ParameterType.string,
             defaultValue: '',
-            hint: 'Current key (must start with bc_)',
+            hint: 'Current key (bc_ optional)',
             required: true,
           ),
           ParameterDefinition(
             key: 'newKey',
             type: ParameterType.string,
             defaultValue: '',
-            hint: 'New key (must start with bc_)',
+            hint: 'New key (bc_ optional)',
             required: true,
           ),
         ];
@@ -1439,7 +1439,7 @@ extension BotCreatorActionTypeExtension on BotCreatorActionType {
             key: 'key',
             type: ParameterType.string,
             defaultValue: '',
-            hint: 'Scoped variable key to index (must start with bc_)',
+            hint: 'Scoped variable key to index (bc_ optional)',
             required: true,
           ),
           ParameterDefinition(

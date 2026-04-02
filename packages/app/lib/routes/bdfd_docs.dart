@@ -100,6 +100,12 @@ const List<_DocCategory> _docCategories = [
       'addseparator',
       'addtextdisplay',
       'addthumbnail',
+      'addactionrow',
+      'addbuttoncv2',
+      'addmediagalleryitem',
+      'addmentionableselect',
+      'adduserselect',
+      'addroleselect',
     ],
   ),
   _DocCategory(
@@ -457,37 +463,42 @@ class _BdfdDocsPageState extends State<BdfdDocsPage> {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-            child: TextField(
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              decoration: InputDecoration(
-                hintText: AppStrings.t('bdfd_docs_search_hint'),
-                hintStyle: TextStyle(color: Colors.grey.shade500),
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: Colors.grey.shade400,
-                  size: 20,
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+              child: TextField(
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                decoration: InputDecoration(
+                  hintText: AppStrings.t('bdfd_docs_search_hint'),
+                  hintStyle: TextStyle(color: Colors.grey.shade500),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: Colors.grey.shade400,
+                    size: 20,
+                  ),
+                  filled: true,
+                  fillColor:
+                      isDark
+                          ? const Color(0xFF2D2D2D)
+                          : const Color(0xFF37474F),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
-                filled: true,
-                fillColor:
-                    isDark ? const Color(0xFF2D2D2D) : const Color(0xFF37474F),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
+                onChanged: (value) => setState(() => _query = value),
               ),
-              onChanged: (value) => setState(() => _query = value),
             ),
-          ),
-          Expanded(child: _buildBody()),
-        ],
+            Expanded(child: _buildBody()),
+          ],
+        ),
       ),
     );
   }

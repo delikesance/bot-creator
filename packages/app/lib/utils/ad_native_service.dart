@@ -5,7 +5,7 @@ import 'package:bot_creator/utils/ad_consent_service.dart';
 import 'package:bot_creator/utils/ads_placement_policy.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/app_diagnostics.dart';
-import 'package:bot_creator/utils/subscription_service.dart';
+import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -82,7 +82,7 @@ class AdNativeService {
       return false;
     }
 
-    if (SubscriptionService.isSubscribed) {
+    if (PremiumCapabilities.hasCapability(PremiumCapability.noAds)) {
       return false;
     }
 

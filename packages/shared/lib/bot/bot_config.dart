@@ -95,6 +95,9 @@ class BotConfig {
   final String token;
   final String prefix;
   final bool builtInLegacyHelpEnabled;
+  final bool inboundWebhooks;
+  final bool autoSharding;
+  final bool autoRestart;
   final String? username;
   final String? avatarPath;
   final Map<String, bool> intents;
@@ -102,6 +105,8 @@ class BotConfig {
   final Map<String, Map<String, Map<String, dynamic>>> scopedVariables;
   final List<Map<String, dynamic>> scopedVariableDefinitions;
   final List<Map<String, dynamic>> workflows;
+  final List<Map<String, dynamic>> scheduledTriggers;
+  final List<Map<String, dynamic>> inboundWebhookEndpoints;
   final List<BotStatusConfig> statuses;
 
   /// List of commands. Each entry looks like:
@@ -112,6 +117,9 @@ class BotConfig {
     required this.token,
     this.prefix = '!',
     this.builtInLegacyHelpEnabled = true,
+    this.inboundWebhooks = false,
+    this.autoSharding = false,
+    this.autoRestart = false,
     this.username,
     this.avatarPath,
     this.intents = const {},
@@ -119,6 +127,8 @@ class BotConfig {
     this.scopedVariables = const {},
     this.scopedVariableDefinitions = const [],
     this.workflows = const [],
+    this.scheduledTriggers = const [],
+    this.inboundWebhookEndpoints = const [],
     this.statuses = const [],
     this.commands = const [],
   });
@@ -131,6 +141,9 @@ class BotConfig {
               ? '!'
               : (json['prefix'] ?? '!').toString(),
       builtInLegacyHelpEnabled: json['builtInLegacyHelpEnabled'] != false,
+      inboundWebhooks: json['inboundWebhooks'] == true,
+      autoSharding: json['autoSharding'] == true,
+      autoRestart: json['autoRestart'] == true,
       username: _optionalString(json['username']),
       avatarPath: _optionalString(json['avatarPath']),
       intents: Map<String, bool>.from(
@@ -148,6 +161,22 @@ class BotConfig {
         (json['workflows'] as List?)?.whereType<Map>().map(
               (w) => normalizeStoredWorkflowDefinition(
                 Map<String, dynamic>.from(w),
+              ),
+            ) ??
+            const [],
+      ),
+      scheduledTriggers: List<Map<String, dynamic>>.from(
+        (json['scheduledTriggers'] as List?)?.whereType<Map>().map(
+              (trigger) => _normalizeScheduledTrigger(
+                Map<String, dynamic>.from(trigger),
+              ),
+            ) ??
+            const [],
+      ),
+      inboundWebhookEndpoints: List<Map<String, dynamic>>.from(
+        (json['inboundWebhookEndpoints'] as List?)?.whereType<Map>().map(
+              (entry) => _normalizeInboundWebhookEndpoint(
+                Map<String, dynamic>.from(entry),
               ),
             ) ??
             const [],
@@ -171,6 +200,9 @@ class BotConfig {
     'token': token,
     'prefix': prefix,
     'builtInLegacyHelpEnabled': builtInLegacyHelpEnabled,
+    'inboundWebhooks': inboundWebhooks,
+    'autoSharding': autoSharding,
+    'autoRestart': autoRestart,
     if (username != null) 'username': username,
     if (avatarPath != null) 'avatarPath': avatarPath,
     'intents': intents,
@@ -178,6 +210,8 @@ class BotConfig {
     'scopedVariables': scopedVariables,
     'scopedVariableDefinitions': scopedVariableDefinitions,
     'workflows': workflows,
+    'scheduledTriggers': scheduledTriggers,
+    'inboundWebhookEndpoints': inboundWebhookEndpoints,
     'statuses': statuses.map((s) => s.toJson()).toList(growable: false),
     'commands': commands,
   };
@@ -203,7 +237,56 @@ class BotConfig {
 
   @override
   String toString() =>
-      'BotConfig(commands: ${commands.length}, workflows: ${workflows.length})';
+      'BotConfig(commands: ${commands.length}, workflows: ${workflows.length}, scheduledTriggers: ${scheduledTriggers.length})';
+}
+
+Map<String, dynamic> _normalizeScheduledTrigger(Map<String, dynamic> raw) {
+  final id = (raw['id'] ?? '').toString().trim();
+  final workflowName = (raw['workflowName'] ?? '').toString().trim();
+  final label = (raw['label'] ?? workflowName).toString().trim();
+  final minutesRaw = int.tryParse((raw['everyMinutes'] ?? '').toString());
+  final everyMinutes =
+      (minutesRaw != null && minutesRaw > 0) ? minutesRaw.clamp(1, 10080) : 60;
+  final enabled = raw['enabled'] != false;
+
+  return <String, dynamic>{
+    'id': id,
+    'workflowName': workflowName,
+    'label': label,
+    'everyMinutes': everyMinutes,
+    'enabled': enabled,
+    if (raw['createdAt'] != null) 'createdAt': raw['createdAt'],
+    if (raw['updatedAt'] != null) 'updatedAt': raw['updatedAt'],
+  };
+}
+
+Map<String, dynamic> _normalizeInboundWebhookEndpoint(
+  Map<String, dynamic> raw,
+) {
+  final id = (raw['id'] ?? '').toString().trim();
+  final path = _normalizeInboundWebhookPath((raw['path'] ?? '').toString());
+  final workflowName = (raw['workflowName'] ?? '').toString().trim();
+  final secret = (raw['secret'] ?? '').toString().trim();
+  final enabled = raw['enabled'] != false;
+
+  return <String, dynamic>{
+    'id': id,
+    'path': path,
+    'workflowName': workflowName,
+    'secret': secret,
+    'enabled': enabled,
+    if (raw['createdAt'] != null) 'createdAt': raw['createdAt'],
+    if (raw['updatedAt'] != null) 'updatedAt': raw['updatedAt'],
+  };
+}
+
+String _normalizeInboundWebhookPath(String raw) {
+  final trimmed = raw.trim();
+  if (trimmed.isEmpty) {
+    return '';
+  }
+  final noLeading = trimmed.replaceFirst(RegExp(r'^/+'), '');
+  return noLeading.replaceAll(RegExp(r'/+'), '/');
 }
 
 String? _optionalString(dynamic value) {

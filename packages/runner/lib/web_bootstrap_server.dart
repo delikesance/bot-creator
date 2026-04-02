@@ -72,6 +72,9 @@ String _resolveVersion() {
 ///                           → {ok: true}
 /// POST /bots/{id}/start     → status payload
 /// POST /bots/{id}/stop      → status payload
+/// POST /bots/{id}/reload    → hot-reload config: {ok, reloaded}
+///                           → body: {botId, botName?, config: {...}}
+/// POST /bots/{id}/inbound/{path} → trigger inbound webhook workflow
 /// GET  /logs?limit=N        → {lines: [string]}
 class RunnerWebBootstrapServer {
   RunnerWebBootstrapServer({
@@ -172,6 +175,7 @@ class RunnerWebBootstrapServer {
     final path = request.uri.path;
     final scopedStartBotId = _extractBotAction(path, action: 'start');
     final scopedStopBotId = _extractBotAction(path, action: 'stop');
+    final scopedReloadBotId = _extractBotAction(path, action: 'reload');
     final scopedStatusBotId = _extractBotAction(path, action: 'status');
     final scopedMetricsBotId = _extractBotAction(path, action: 'metrics');
     final scopedStatsBotId = _extractBotAction(path, action: 'command-stats');
@@ -206,6 +210,7 @@ class RunnerWebBootstrapServer {
       path,
       actionPath: 'variables/scoped-definitions/remove',
     );
+    final scopedInboundWebhook = _extractBotInboundWorkflow(path);
     try {
       if (request.method == 'GET') {
         if (scopedStatusBotId != null) {
@@ -272,6 +277,10 @@ class RunnerWebBootstrapServer {
           await _handleRunnerStop(request, botIdFromPath: scopedStopBotId);
           return;
         }
+        if (scopedReloadBotId != null) {
+          await _handleBotsReload(request, botIdFromPath: scopedReloadBotId);
+          return;
+        }
         if (scopedSetGlobalBotId != null) {
           await _handleSetGlobalVariable(request, scopedSetGlobalBotId);
           return;
@@ -288,6 +297,14 @@ class RunnerWebBootstrapServer {
           await _handleRemoveScopedDefinition(
             request,
             scopedRemoveDefinitionsBotId,
+          );
+          return;
+        }
+        if (scopedInboundWebhook != null) {
+          await _handleInboundWebhook(
+            request,
+            botId: scopedInboundWebhook.botId,
+            pathKey: scopedInboundWebhook.pathKey,
           );
           return;
         }
@@ -416,6 +433,52 @@ class RunnerWebBootstrapServer {
     await _respondJson(request, _buildStatusPayload());
   }
 
+  /// POST /bots/{id}/reload — push an updated config and hot-reload the bot.
+  ///
+  /// Replaces the in-memory config so commands and workflows take effect
+  /// immediately without disconnecting from Discord.
+  /// If the bot is not running, just persists the config (same as /bots/sync).
+  Future<void> _handleBotsReload(
+    HttpRequest request, {
+    String? botIdFromPath,
+  }) async {
+    final payload = await _readJsonBody(request);
+    final botId = (botIdFromPath ?? payload['botId'] ?? '').toString().trim();
+    (payload['botName'] ?? '').toString().trim();
+
+    if (botId.isEmpty) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing botId.',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    final rawConfig = payload['config'];
+    if (rawConfig == null || rawConfig is! Map) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Missing or invalid config payload.',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    final BotConfig config;
+    try {
+      config = BotConfig.fromJson(Map<String, dynamic>.from(rawConfig));
+      config.validate();
+    } catch (e) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Invalid config: $e',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    await _runtimeController.reloadBot(botId, config);
+    await _respondJson(request, <String, dynamic>{
+      'ok': true,
+      'reloaded': _runtimeController.isBotRunning(botId),
+    });
+  }
+
   /// GET /logs — return recent log lines.
   Future<void> _handleLogs(HttpRequest request) async {
     final limitRaw = request.uri.queryParameters['limit'] ?? '200';
@@ -423,6 +486,101 @@ class RunnerWebBootstrapServer {
     final limit = (parsed == null || parsed <= 0) ? 200 : parsed;
     await _respondJson(request, <String, dynamic>{
       'lines': logStore.tail(limit: limit),
+    });
+  }
+
+  /// POST /bots/{id}/inbound/{path} — trigger an inbound webhook by path + secret.
+  Future<void> _handleInboundWebhook(
+    HttpRequest request, {
+    required String botId,
+    required String pathKey,
+  }) async {
+    final payload = await _readJsonBody(request);
+
+    final entry = await _runtimeController.botStore.loadEntry(botId);
+    if (entry == null) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Bot "$botId" not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+    if (!entry.config.inboundWebhooks) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Inbound webhooks are disabled for bot "$botId".',
+      }, statusCode: HttpStatus.forbidden);
+      return;
+    }
+
+    final endpoint = entry.config.inboundWebhookEndpoints
+        .whereType<Map>()
+        .map((raw) => Map<String, dynamic>.from(raw))
+        .firstWhere((candidate) {
+          final configuredPath =
+              (candidate['path'] ?? '').toString().trim().toLowerCase();
+          if (configuredPath != pathKey.trim().toLowerCase()) {
+            return false;
+          }
+          return candidate['enabled'] != false;
+        }, orElse: () => const <String, dynamic>{});
+
+    if (endpoint.isEmpty) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Inbound webhook path not found.',
+      }, statusCode: HttpStatus.notFound);
+      return;
+    }
+
+    final expectedSecret = (endpoint['secret'] ?? '').toString().trim();
+    final providedSecret =
+        (request.headers.value('x-bot-webhook-secret') ??
+                request.headers.value('x-webhook-secret') ??
+                request.uri.queryParameters['secret'] ??
+                '')
+            .trim();
+    if (expectedSecret.isEmpty || providedSecret != expectedSecret) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Invalid webhook secret.',
+      }, statusCode: HttpStatus.unauthorized);
+      return;
+    }
+
+    final workflowName = (endpoint['workflowName'] ?? '').toString().trim();
+    if (workflowName.isEmpty) {
+      await _respondJson(request, <String, dynamic>{
+        'error': 'Inbound webhook is misconfigured (missing workflowName).',
+      }, statusCode: HttpStatus.badRequest);
+      return;
+    }
+
+    final headers = <String, String>{};
+    request.headers.forEach((name, values) {
+      if (values.isEmpty) {
+        return;
+      }
+      headers[name.toLowerCase()] = values.join(',');
+    });
+
+    try {
+      await _runtimeController.triggerInboundWebhook(
+        botId,
+        workflowName: workflowName,
+        payload: payload,
+        headers: headers,
+        requestId: request.headers.value('x-request-id'),
+        sourceIp: request.connectionInfo?.remoteAddress.address,
+      );
+    } on StateError catch (error) {
+      await _respondJson(request, <String, dynamic>{
+        'error': error.message,
+      }, statusCode: HttpStatus.conflict);
+      return;
+    }
+
+    await _respondJson(request, <String, dynamic>{
+      'ok': true,
+      'botId': botId,
+      'path': pathKey,
+      'workflow': workflowName,
     });
   }
 
@@ -546,6 +704,8 @@ class RunnerWebBootstrapServer {
     final store = _runtimeController.commandStatsStore;
     final summary = store.querySummary(botId, sinceMs: sinceMs);
     final timeline = store.queryTimeline(botId, hours: hours);
+    final locales = store.queryLocales(botId, sinceMs: sinceMs);
+    final health = store.queryHealthMetrics(botId, sinceMs: sinceMs);
     final total = store.totalCount(botId);
 
     await _respondJson(request, <String, dynamic>{
@@ -554,6 +714,8 @@ class RunnerWebBootstrapServer {
       'totalAllTime': total,
       'commands': summary,
       'timeline': timeline,
+      'locales': locales,
+      'health': health,
     });
   }
 
@@ -883,6 +1045,20 @@ class RunnerWebBootstrapServer {
     return Uri.decodeComponent(parts[1]);
   }
 
+  _InboundWebhookRoute? _extractBotInboundWorkflow(String path) {
+    final parts = path.split('/').where((p) => p.isNotEmpty).toList();
+    if (parts.length < 4 || parts[0] != 'bots' || parts[2] != 'inbound') {
+      return null;
+    }
+
+    final botId = Uri.decodeComponent(parts[1]).trim();
+    final pathKey = Uri.decodeComponent(parts.sublist(3).join('/')).trim();
+    if (botId.isEmpty || pathKey.isEmpty) {
+      return null;
+    }
+    return _InboundWebhookRoute(botId: botId, pathKey: pathKey);
+  }
+
   Future<void> _ensureVariableStoreInitialized() {
     final sqlite = _sqliteVariableStore;
     if (sqlite == null) {
@@ -936,6 +1112,9 @@ class RunnerWebBootstrapServer {
     }
 
     final p = request.uri.path;
+    if (_extractBotInboundWorkflow(p) != null && request.method == 'POST') {
+      return false;
+    }
     return !(request.method == 'GET' && (p == '/health' || p == '/'));
   }
 
@@ -980,4 +1159,11 @@ class RunnerWebBootstrapServer {
     request.response.write(text);
     unawaited(request.response.close());
   }
+}
+
+class _InboundWebhookRoute {
+  const _InboundWebhookRoute({required this.botId, required this.pathKey});
+
+  final String botId;
+  final String pathKey;
 }

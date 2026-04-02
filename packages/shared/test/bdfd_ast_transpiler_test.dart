@@ -1452,7 +1452,9 @@ void main() {
               BdfdFunctionCallAst(
                 name: r'$addContainer',
                 arguments: [
+                  <BdfdAstNode>[BdfdTextAst('container1')],
                   <BdfdAstNode>[BdfdTextAst('#ff0000')],
+                  <BdfdAstNode>[BdfdTextAst('no')],
                 ],
               ),
             ],
@@ -1479,7 +1481,7 @@ void main() {
             BdfdFunctionCallAst(
               name: r'$addSection',
               arguments: [
-                <BdfdAstNode>[BdfdTextAst('Section text')],
+                <BdfdAstNode>[BdfdTextAst('section1')],
               ],
             ),
           ],
@@ -1495,7 +1497,7 @@ void main() {
         (result.actions.single.payload['components'] as Map)['items'] as List,
       );
       expect(items.single['type'], 'section');
-      expect(items.single['content'], 'Section text');
+      expect(items.single['id'], 'section1');
     });
 
     test(
@@ -1527,19 +1529,27 @@ void main() {
       },
     );
 
-    test(r'$addMediaGallery adds items to a new media gallery', () {
+    test(r'$addMediaGallery creates an empty media gallery with an ID', () {
       final result = BdfdAstTranspiler().transpile(
         const BdfdScriptAst(
           nodes: [
             BdfdFunctionCallAst(
               name: r'$addMediaGallery',
               arguments: [
-                <BdfdAstNode>[BdfdTextAst('https://example.com/img1.png')],
-                <BdfdAstNode>[BdfdTextAst('First image')],
+                <BdfdAstNode>[BdfdTextAst('gallery1')],
               ],
             ),
             BdfdFunctionCallAst(
-              name: r'$addMediaGallery',
+              name: r'$addMediaGalleryItem',
+              arguments: [
+                <BdfdAstNode>[BdfdTextAst('https://example.com/img1.png')],
+                <BdfdAstNode>[BdfdTextAst('First image')],
+                <BdfdAstNode>[BdfdTextAst('no')],
+                <BdfdAstNode>[BdfdTextAst('gallery1')],
+              ],
+            ),
+            BdfdFunctionCallAst(
+              name: r'$addMediaGalleryItem',
               arguments: [
                 <BdfdAstNode>[BdfdTextAst('https://example.com/img2.png')],
               ],
@@ -1556,6 +1566,7 @@ void main() {
       final items = List<Map<String, dynamic>>.from(
         (result.actions.single.payload['components'] as Map)['items'] as List,
       );
+      // gallery1 with one targeted item + one appended-to-last item
       expect(items, hasLength(1));
       expect(items.single['type'], 'mediaGallery');
       final galleryItems = List<Map<String, dynamic>>.from(
@@ -1577,14 +1588,32 @@ void main() {
               BdfdFunctionCallAst(
                 name: r'$addMediaGallery',
                 arguments: [
+                  <BdfdAstNode>[BdfdTextAst('gallery_a')],
+                ],
+              ),
+              BdfdFunctionCallAst(
+                name: r'$addMediaGalleryItem',
+                arguments: [
                   <BdfdAstNode>[BdfdTextAst('https://example.com/a.png')],
+                  <BdfdAstNode>[],
+                  <BdfdAstNode>[],
+                  <BdfdAstNode>[BdfdTextAst('gallery_a')],
                 ],
               ),
               BdfdFunctionCallAst(name: r'$addSeparator'),
               BdfdFunctionCallAst(
                 name: r'$addMediaGallery',
                 arguments: [
+                  <BdfdAstNode>[BdfdTextAst('gallery_b')],
+                ],
+              ),
+              BdfdFunctionCallAst(
+                name: r'$addMediaGalleryItem',
+                arguments: [
                   <BdfdAstNode>[BdfdTextAst('https://example.com/b.png')],
+                  <BdfdAstNode>[],
+                  <BdfdAstNode>[],
+                  <BdfdAstNode>[BdfdTextAst('gallery_b')],
                 ],
               ),
             ],
@@ -1675,7 +1704,7 @@ void main() {
   });
 
   group('ComponentV2 editing functions', () {
-    test(r'$editButton modifies the button at given row/col position', () {
+    test(r'$editButton modifies the button identified by custom ID', () {
       final result = BdfdAstTranspiler().transpile(
         const BdfdScriptAst(
           nodes: [
@@ -1709,12 +1738,11 @@ void main() {
             BdfdFunctionCallAst(
               name: r'$editButton',
               arguments: [
-                <BdfdAstNode>[BdfdTextAst('1')],
-                <BdfdAstNode>[BdfdTextAst('2')],
+                <BdfdAstNode>[BdfdTextAst('cmd_b')],
                 <BdfdAstNode>[BdfdTextAst('BetaEdited')],
                 <BdfdAstNode>[BdfdTextAst('success')],
-                <BdfdAstNode>[BdfdTextAst('cmd_b_edited')],
                 <BdfdAstNode>[BdfdTextAst('yes')],
+                <BdfdAstNode>[BdfdTextAst('⭐')],
               ],
             ),
           ],
@@ -1728,12 +1756,9 @@ void main() {
       final buttons = components
           .where((c) => c['type'] == 'button')
           .toList(growable: false);
-      // Row 1: Alpha (col 1), BetaEdited (col 2)
-      // Row 2: Gamma (col 1)
       expect(buttons[0]['label'], 'Alpha');
       expect(buttons[1]['label'], 'BetaEdited');
       expect(buttons[1]['style'], 'success');
-      expect(buttons[1]['customId'], 'cmd_b_edited');
       expect(buttons[1]['disabled'], true);
       expect(buttons[2]['label'], 'Gamma');
     });
@@ -1754,11 +1779,9 @@ void main() {
             BdfdFunctionCallAst(
               name: r'$editButton',
               arguments: [
-                <BdfdAstNode>[BdfdTextAst('1')],
-                <BdfdAstNode>[BdfdTextAst('1')],
+                <BdfdAstNode>[BdfdTextAst('https://old.example.com')],
                 <BdfdAstNode>[BdfdTextAst('Go')],
                 <BdfdAstNode>[BdfdTextAst('link')],
-                <BdfdAstNode>[BdfdTextAst('https://new.example.com')],
               ],
             ),
           ],
@@ -1771,11 +1794,11 @@ void main() {
       );
       final button = components.firstWhere((c) => c['type'] == 'button');
       expect(button['label'], 'Go');
-      expect(button['url'], 'https://new.example.com');
-      expect(button['customId'], '');
+      // URL stays the same since we matched by it but didn't change it
+      expect(button['url'], 'https://old.example.com');
     });
 
-    test(r'$editSelectMenu updates placeholder and disabled state', () {
+    test(r'$editSelectMenu updates min, max, and placeholder', () {
       final result = BdfdAstTranspiler().transpile(
         const BdfdScriptAst(
           nodes: [
@@ -1783,17 +1806,15 @@ void main() {
               name: r'$newSelectMenu',
               arguments: [
                 <BdfdAstNode>[BdfdTextAst('menu_1')],
-                <BdfdAstNode>[BdfdTextAst('Pick one')],
               ],
             ),
             BdfdFunctionCallAst(
               name: r'$editSelectMenu',
               arguments: [
                 <BdfdAstNode>[BdfdTextAst('menu_1')],
-                <BdfdAstNode>[BdfdTextAst('Updated placeholder')],
                 <BdfdAstNode>[BdfdTextAst('2')],
                 <BdfdAstNode>[BdfdTextAst('3')],
-                <BdfdAstNode>[BdfdTextAst('yes')],
+                <BdfdAstNode>[BdfdTextAst('Updated placeholder')],
               ],
             ),
           ],
@@ -1808,11 +1829,10 @@ void main() {
       expect(menu['placeholder'], 'Updated placeholder');
       expect(menu['minValues'], 2);
       expect(menu['maxValues'], 3);
-      expect(menu['disabled'], true);
     });
 
     test(
-      r'$editSelectMenuOption updates the option at given 1-based index',
+      r'$editSelectMenuOption updates the first option of the given menu',
       () {
         final result = BdfdAstTranspiler().transpile(
           const BdfdScriptAst(
@@ -1826,6 +1846,7 @@ void main() {
               BdfdFunctionCallAst(
                 name: r'$addSelectMenuOption',
                 arguments: [
+                  <BdfdAstNode>[BdfdTextAst('menu_x')],
                   <BdfdAstNode>[BdfdTextAst('Option A')],
                   <BdfdAstNode>[BdfdTextAst('val_a')],
                 ],
@@ -1833,6 +1854,7 @@ void main() {
               BdfdFunctionCallAst(
                 name: r'$addSelectMenuOption',
                 arguments: [
+                  <BdfdAstNode>[BdfdTextAst('menu_x')],
                   <BdfdAstNode>[BdfdTextAst('Option B')],
                   <BdfdAstNode>[BdfdTextAst('val_b')],
                 ],
@@ -1841,9 +1863,8 @@ void main() {
                 name: r'$editSelectMenuOption',
                 arguments: [
                   <BdfdAstNode>[BdfdTextAst('menu_x')],
-                  <BdfdAstNode>[BdfdTextAst('2')],
-                  <BdfdAstNode>[BdfdTextAst('Option B Edited')],
-                  <BdfdAstNode>[BdfdTextAst('val_b_edited')],
+                  <BdfdAstNode>[BdfdTextAst('Option A Edited')],
+                  <BdfdAstNode>[BdfdTextAst('val_a_edited')],
                   <BdfdAstNode>[BdfdTextAst('A helpful description')],
                   <BdfdAstNode>[BdfdTextAst('yes')],
                   <BdfdAstNode>[BdfdTextAst('⭐')],
@@ -1860,12 +1881,12 @@ void main() {
         final options = components
             .where((c) => c['type'] == 'selectMenuOption')
             .toList(growable: false);
-        expect(options[0]['label'], 'Option A');
-        expect(options[1]['label'], 'Option B Edited');
-        expect(options[1]['value'], 'val_b_edited');
-        expect(options[1]['description'], 'A helpful description');
-        expect(options[1]['default'], true);
-        expect(options[1]['emoji'], '⭐');
+        expect(options[0]['label'], 'Option A Edited');
+        expect(options[0]['value'], 'val_a_edited');
+        expect(options[0]['description'], 'A helpful description');
+        expect(options[0]['default'], true);
+        expect(options[0]['emoji'], '⭐');
+        expect(options[1]['label'], 'Option B');
       },
     );
 
@@ -1882,6 +1903,7 @@ void main() {
             BdfdFunctionCallAst(
               name: r'$addSelectMenuOption',
               arguments: [
+                <BdfdAstNode>[BdfdTextAst('menu_y')],
                 <BdfdAstNode>[BdfdTextAst('Opt')],
                 <BdfdAstNode>[BdfdTextAst('v')],
                 <BdfdAstNode>[BdfdTextAst('Original desc')],
@@ -1891,7 +1913,6 @@ void main() {
               name: r'$editSelectMenuOption',
               arguments: [
                 <BdfdAstNode>[BdfdTextAst('menu_y')],
-                <BdfdAstNode>[BdfdTextAst('1')],
                 <BdfdAstNode>[],
                 <BdfdAstNode>[],
                 <BdfdAstNode>[BdfdTextAst('')],

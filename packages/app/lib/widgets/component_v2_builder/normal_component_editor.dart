@@ -77,6 +77,40 @@ class _NormalComponentEditorWidgetState
     _emit();
   }
 
+  Future<void> _confirmAndRemoveNode(int index) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (dialogContext) => AlertDialog.adaptive(
+                title: const Text('Remove action row'),
+                content: const Text(
+                  'This row and all nested components will be removed. Continue?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(
+                      'Remove',
+                      style: TextStyle(
+                        color: Theme.of(dialogContext).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+    if (!shouldDelete) {
+      return;
+    }
+    _removeNode(index);
+  }
+
   void _updateNode(int index, ComponentNode updated) {
     setState(() {
       _components[index] = updated;
@@ -112,7 +146,9 @@ class _NormalComponentEditorWidgetState
                 const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                  onPressed: () => _removeNode(index),
+                  onPressed: () {
+                    _confirmAndRemoveNode(index);
+                  },
                   constraints: const BoxConstraints(),
                   padding: EdgeInsets.zero,
                 ),

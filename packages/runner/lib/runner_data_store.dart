@@ -330,6 +330,16 @@ class RunnerDataStore implements BotDataStore {
     );
   }
 
+  /// Replaces the in-memory workflow list without recreating the store.
+  ///
+  /// Called by [DiscordRunner.reloadConfig] so that workflow lookups
+  /// immediately use the updated configuration without a full bot restart.
+  void updateWorkflows(List<Map<String, dynamic>> workflows) {
+    _workflows
+      ..clear()
+      ..addAll(workflows);
+  }
+
   @override
   Future<Map<String, dynamic>?> getWorkflowByName(
     String botId,

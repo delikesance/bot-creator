@@ -322,7 +322,46 @@ class OptionWidgetState extends State<OptionWidget> {
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.delete),
-                onPressed: () {
+                onPressed: () async {
+                  final shouldDelete =
+                      await showDialog<bool>(
+                        context: context,
+                        builder:
+                            (dialogContext) => AlertDialog.adaptive(
+                              title: const Text('Delete option'),
+                              content: const Text(
+                                'This option will be removed. Continue?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed:
+                                      () => Navigator.of(
+                                        dialogContext,
+                                      ).pop(false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed:
+                                      () =>
+                                          Navigator.of(dialogContext).pop(true),
+                                  child: Text(
+                                    'Delete',
+                                    style: TextStyle(
+                                      color:
+                                          Theme.of(
+                                            dialogContext,
+                                          ).colorScheme.error,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                      ) ??
+                      false;
+                  if (!shouldDelete) {
+                    return;
+                  }
+
                   setState(() {
                     levelOptions.removeAt(index);
                     _updateWidget();
@@ -677,8 +716,7 @@ class OptionWidgetState extends State<OptionWidget> {
                                                     if (newKey
                                                         .trim()
                                                         .isNotEmpty) {
-                                                      updated[newKey
-                                                              .trim()] =
+                                                      updated[newKey.trim()] =
                                                           v;
                                                     }
                                                     saveArgs(updated);
@@ -709,7 +747,56 @@ class OptionWidgetState extends State<OptionWidget> {
                                                     Icons.delete_outline,
                                                   ),
                                                   tooltip: 'Remove',
-                                                  onPressed: () {
+                                                  onPressed: () async {
+                                                    final shouldDelete =
+                                                        await showDialog<bool>(
+                                                          context: context,
+                                                          builder:
+                                                              (
+                                                                dialogContext,
+                                                              ) => AlertDialog.adaptive(
+                                                                title: const Text(
+                                                                  'Delete argument',
+                                                                ),
+                                                                content: const Text(
+                                                                  'This argument will be removed. Continue?',
+                                                                ),
+                                                                actions: [
+                                                                  TextButton(
+                                                                    onPressed:
+                                                                        () => Navigator.of(
+                                                                          dialogContext,
+                                                                        ).pop(
+                                                                          false,
+                                                                        ),
+                                                                    child: const Text(
+                                                                      'Cancel',
+                                                                    ),
+                                                                  ),
+                                                                  TextButton(
+                                                                    onPressed:
+                                                                        () => Navigator.of(
+                                                                          dialogContext,
+                                                                        ).pop(
+                                                                          true,
+                                                                        ),
+                                                                    child: Text(
+                                                                      'Delete',
+                                                                      style: TextStyle(
+                                                                        color:
+                                                                            Theme.of(
+                                                                              dialogContext,
+                                                                            ).colorScheme.error,
+                                                                      ),
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                        ) ??
+                                                        false;
+                                                    if (!shouldDelete) {
+                                                      return;
+                                                    }
                                                     final updated = Map<
                                                       String,
                                                       dynamic
@@ -797,18 +884,17 @@ class OptionWidgetState extends State<OptionWidget> {
                                             'sc_name_${option.name}_$i',
                                           ),
                                           initialValue:
-                                              (choice['name'] ?? '')
-                                                  .toString(),
+                                              (choice['name'] ?? '').toString(),
                                           decoration: InputDecoration(
                                             labelText: 'Label ${i + 1}',
-                                            border:
-                                                const OutlineInputBorder(),
+                                            border: const OutlineInputBorder(),
                                             isDense: true,
                                           ),
                                           onChanged: (v) {
-                                            final updated = List<
-                                              Map<String, dynamic>
-                                            >.from(staticChoices);
+                                            final updated =
+                                                List<Map<String, dynamic>>.from(
+                                                  staticChoices,
+                                                );
                                             updated[i] = {
                                               ...updated[i],
                                               'name': v,
@@ -825,14 +911,14 @@ class OptionWidgetState extends State<OptionWidget> {
                                                   .toString(),
                                           decoration: InputDecoration(
                                             labelText: 'Value ${i + 1}',
-                                            border:
-                                                const OutlineInputBorder(),
+                                            border: const OutlineInputBorder(),
                                             isDense: true,
                                           ),
                                           onChanged: (v) {
-                                            final updated = List<
-                                              Map<String, dynamic>
-                                            >.from(staticChoices);
+                                            final updated =
+                                                List<Map<String, dynamic>>.from(
+                                                  staticChoices,
+                                                );
                                             updated[i] = {
                                               ...updated[i],
                                               'value': v,
@@ -845,11 +931,56 @@ class OptionWidgetState extends State<OptionWidget> {
                                             Icons.delete_outline,
                                           ),
                                           tooltip: 'Remove',
-                                          onPressed: () {
-                                            final updated = List<
-                                                Map<String, dynamic>
-                                              >.from(staticChoices)
-                                              ..removeAt(i);
+                                          onPressed: () async {
+                                            final shouldDelete =
+                                                await showDialog<bool>(
+                                                  context: context,
+                                                  builder:
+                                                      (
+                                                        dialogContext,
+                                                      ) => AlertDialog.adaptive(
+                                                        title: const Text(
+                                                          'Delete option',
+                                                        ),
+                                                        content: const Text(
+                                                          'This choice will be removed. Continue?',
+                                                        ),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed:
+                                                                () => Navigator.of(
+                                                                  dialogContext,
+                                                                ).pop(false),
+                                                            child: const Text(
+                                                              'Cancel',
+                                                            ),
+                                                          ),
+                                                          TextButton(
+                                                            onPressed:
+                                                                () => Navigator.of(
+                                                                  dialogContext,
+                                                                ).pop(true),
+                                                            child: Text(
+                                                              'Delete',
+                                                              style: TextStyle(
+                                                                color:
+                                                                    Theme.of(
+                                                                      dialogContext,
+                                                                    ).colorScheme.error,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                ) ??
+                                                false;
+                                            if (!shouldDelete) {
+                                              return;
+                                            }
+                                            final updated =
+                                                List<Map<String, dynamic>>.from(
+                                                  staticChoices,
+                                                )..removeAt(i);
                                             saveChoices(updated);
                                           },
                                         ),
@@ -907,9 +1038,7 @@ class OptionWidgetState extends State<OptionWidget> {
                             onChanged: (String value) {
                               setState(() {
                                 option.minValue =
-                                    value.isEmpty
-                                        ? null
-                                        : num.tryParse(value);
+                                    value.isEmpty ? null : num.tryParse(value);
                                 _updateWidget();
                               });
                             },
@@ -925,9 +1054,7 @@ class OptionWidgetState extends State<OptionWidget> {
                             onChanged: (String value) {
                               setState(() {
                                 option.maxValue =
-                                    value.isEmpty
-                                        ? null
-                                        : num.tryParse(value);
+                                    value.isEmpty ? null : num.tryParse(value);
                                 _updateWidget();
                               });
                             },
@@ -1006,7 +1133,52 @@ class OptionWidgetState extends State<OptionWidget> {
                                               Icons.delete,
                                               size: 20,
                                             ),
-                                            onPressed: () {
+                                            onPressed: () async {
+                                              final shouldDelete =
+                                                  await showDialog<bool>(
+                                                    context: context,
+                                                    builder:
+                                                        (
+                                                          dialogContext,
+                                                        ) => AlertDialog.adaptive(
+                                                          title: const Text(
+                                                            'Delete localization',
+                                                          ),
+                                                          content: const Text(
+                                                            'This localization entry will be removed. Continue?',
+                                                          ),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed:
+                                                                  () => Navigator.of(
+                                                                    dialogContext,
+                                                                  ).pop(false),
+                                                              child: const Text(
+                                                                'Cancel',
+                                                              ),
+                                                            ),
+                                                            TextButton(
+                                                              onPressed:
+                                                                  () => Navigator.of(
+                                                                    dialogContext,
+                                                                  ).pop(true),
+                                                              child: Text(
+                                                                'Delete',
+                                                                style: TextStyle(
+                                                                  color:
+                                                                      Theme.of(
+                                                                        dialogContext,
+                                                                      ).colorScheme.error,
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                  ) ??
+                                                  false;
+                                              if (!shouldDelete) {
+                                                return;
+                                              }
                                               setState(() {
                                                 option.nameLocalizations!
                                                     .remove(locale);
@@ -1078,7 +1250,51 @@ class OptionWidgetState extends State<OptionWidget> {
                                 ),
                                 trailing: IconButton(
                                   icon: const Icon(Icons.delete),
-                                  onPressed: () {
+                                  onPressed: () async {
+                                    final shouldDelete =
+                                        await showDialog<bool>(
+                                          context: context,
+                                          builder:
+                                              (
+                                                dialogContext,
+                                              ) => AlertDialog.adaptive(
+                                                title: const Text(
+                                                  'Delete choice',
+                                                ),
+                                                content: const Text(
+                                                  'This choice will be removed. Continue?',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed:
+                                                        () => Navigator.of(
+                                                          dialogContext,
+                                                        ).pop(false),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                  TextButton(
+                                                    onPressed:
+                                                        () => Navigator.of(
+                                                          dialogContext,
+                                                        ).pop(true),
+                                                    child: Text(
+                                                      'Delete',
+                                                      style: TextStyle(
+                                                        color:
+                                                            Theme.of(
+                                                              dialogContext,
+                                                            ).colorScheme.error,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                        ) ??
+                                        false;
+                                    if (!shouldDelete) {
+                                      return;
+                                    }
+
                                     setState(() {
                                       option.choices!.removeAt(choiceIndex);
                                       _updateWidget();
@@ -1248,8 +1464,7 @@ class OptionWidgetState extends State<OptionWidget> {
               Row(
                 children: [
                   Expanded(child: second),
-                  if (trailing != null)
-                    SizedBox(width: 40),
+                  if (trailing != null) SizedBox(width: 40),
                 ],
               ),
             ],

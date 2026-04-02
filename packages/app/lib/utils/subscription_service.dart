@@ -38,6 +38,9 @@ class SubscriptionService {
   /// Whether the user holds an active premium subscription.
   static bool get isSubscribed => _isSubscribed;
 
+  /// Whether native in-app subscriptions are available on this platform.
+  static bool get supportsNativeBilling => _isSupportedPlatform;
+
   /// The active product ID (if subscribed).
   static String? get activeProductId => _activeProductId;
 

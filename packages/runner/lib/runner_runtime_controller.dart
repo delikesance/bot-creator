@@ -187,6 +187,77 @@ class RunnerRuntimeController {
     await stopAllBots();
   }
 
+  /// Hot-reloads the config for a running bot without disconnecting
+  /// from Discord.  Also persists the updated config to the store so
+  /// a subsequent [startBot] call uses the latest version.
+  Future<void> reloadBot(String botId, BotConfig newConfig) async {
+    final name = _botNames[botId] ?? botId;
+    await _botStore.save(botId, name, newConfig);
+    final runner = _runners[botId];
+    if (runner != null) {
+      final requiresReconnect = runner.reloadConfig(newConfig);
+      if (requiresReconnect && newConfig.autoRestart) {
+        await _restartRunningBotWithConfig(
+          botId,
+          name: name,
+          config: newConfig,
+        );
+      }
+      _lastSeenAtByBot[botId] = DateTime.now().toUtc();
+    }
+  }
+
+  Future<void> triggerInboundWebhook(
+    String botId, {
+    required String workflowName,
+    required Map<String, dynamic> payload,
+    required Map<String, String> headers,
+    String? requestId,
+    String? sourceIp,
+  }) async {
+    final runner = _runners[botId];
+    if (runner == null) {
+      throw StateError('Bot "$botId" is not running.');
+    }
+    if (!runner.config.inboundWebhooks) {
+      throw StateError('Inbound webhooks are disabled for bot "$botId".');
+    }
+
+    await runner.executeInboundWebhook(
+      workflowName: workflowName,
+      payload: payload,
+      headers: headers,
+      requestId: requestId,
+      sourceIp: sourceIp,
+    );
+    _lastSeenAtByBot[botId] = DateTime.now().toUtc();
+  }
+
+  Future<void> _restartRunningBotWithConfig(
+    String botId, {
+    required String name,
+    required BotConfig config,
+  }) async {
+    final existing = _runners[botId];
+    if (existing == null) {
+      return;
+    }
+
+    await existing.stop();
+    _runners.remove(botId);
+
+    final replacement = DiscordRunner(config, statsStore: _commandStatsStore);
+    try {
+      await replacement.start();
+      _runners[botId] = replacement;
+      _botNames[botId] = name;
+      _lastErrorByBot.remove(botId);
+    } catch (error) {
+      _lastErrorByBot[botId] = error.toString();
+      rethrow;
+    }
+  }
+
   int? _readCurrentProcessRssBytes() {
     try {
       return ProcessInfo.currentRss;

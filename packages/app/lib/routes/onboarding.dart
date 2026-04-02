@@ -268,65 +268,70 @@ class _CreateBotStep extends StatelessWidget {
           ),
         ],
       ),
-      body: _OnboardingScrollableSection(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        top: false,
+        child: _OnboardingScrollableSection(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.key_rounded,
+                  size: 50,
+                  color: Colors.blue,
+                ),
               ),
-              child: const Icon(
-                Icons.key_rounded,
-                size: 50,
-                color: Colors.blue,
+              const SizedBox(height: 32),
+              Text(
+                AppStrings.t('onboarding_create_desc'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              AppStrings.t('onboarding_create_desc'),
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              AppStrings.t('onboarding_create_steps'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+              const SizedBox(height: 16),
+              Text(
+                AppStrings.t('onboarding_create_steps'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-              child: Text(
-                AppStrings.t('onboarding_create_tip'),
-                style: const TextStyle(fontSize: 13),
+              const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.amber.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Text(
+                  AppStrings.t('onboarding_create_tip'),
+                  style: const TextStyle(fontSize: 13),
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.open_in_browser),
-                label: Text(AppStrings.t('onboarding_create_tutorial')),
-                onPressed: () async {
-                  final uri = Uri.parse(
-                    'https://bot-creator.fr/tutorials/2025/05/18/how-to-create-a-bot-token-bot-creator.html',
-                  );
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                },
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.open_in_browser),
+                  label: Text(AppStrings.t('onboarding_create_tutorial')),
+                  onPressed: () async {
+                    final uri = Uri.parse(
+                      'https://bot-creator.fr/tutorials/2025/05/18/how-to-create-a-bot-token-bot-creator.html',
+                    );
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _OnboardingBottomAction(
@@ -369,60 +374,63 @@ class _AddCommandStep extends StatelessWidget {
           ),
         ],
       ),
-      body: _OnboardingScrollableSection(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        top: false,
+        child: _OnboardingScrollableSection(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.terminal_rounded,
+                  size: 50,
+                  color: Colors.green,
+                ),
               ),
-              child: const Icon(
-                Icons.terminal_rounded,
-                size: 50,
-                color: Colors.green,
+              const SizedBox(height: 32),
+              Text(
+                AppStrings.t('onboarding_command_desc'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              AppStrings.t('onboarding_command_desc'),
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              AppStrings.t('onboarding_command_text'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 16),
+              Text(
+                AppStrings.t('onboarding_command_text'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Exemple:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    AppStrings.t('onboarding_command_example'),
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ],
+              const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Exemple:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      AppStrings.t('onboarding_command_example'),
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _OnboardingBottomAction(
@@ -465,51 +473,56 @@ class _StartBotStep extends StatelessWidget {
           ),
         ],
       ),
-      body: _OnboardingScrollableSection(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(16),
+      body: SafeArea(
+        top: false,
+        child: _OnboardingScrollableSection(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Icon(
+                  Icons.play_circle_outline_rounded,
+                  size: 50,
+                  color: Colors.orange,
+                ),
               ),
-              child: const Icon(
-                Icons.play_circle_outline_rounded,
-                size: 50,
-                color: Colors.orange,
+              const SizedBox(height: 32),
+              Text(
+                AppStrings.t('onboarding_start_desc'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              AppStrings.t('onboarding_start_desc'),
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              AppStrings.t('onboarding_start_text'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
+              const SizedBox(height: 16),
+              Text(
+                AppStrings.t('onboarding_start_text'),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
-              child: Text(
-                AppStrings.t('onboarding_start_tip'),
-                style: const TextStyle(fontSize: 13),
+              const SizedBox(height: 32),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.green.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Text(
+                  AppStrings.t('onboarding_start_tip'),
+                  style: const TextStyle(fontSize: 13),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: _OnboardingBottomAction(

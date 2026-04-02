@@ -345,7 +345,13 @@ Future<dynamic> _readPersistedVariable({
     if (key.isEmpty) {
       throw Exception('key is required for global variables');
     }
-    return store.getGlobalVariable(botId, key);
+    var value = await store.getGlobalVariable(botId, key);
+    if (value == null) {
+      // Auto-create missing global variables to simplify BDFD imports.
+      value = '';
+      await store.setGlobalVariable(botId, key, value);
+    }
+    return value;
   }
 
   final binding = _resolveScopedBinding(
@@ -356,12 +362,41 @@ Future<dynamic> _readPersistedVariable({
     fallbackChannelId: fallbackChannelId,
     interaction: interaction,
   );
-  return store.getScopedVariable(
+  var value = await store.getScopedVariable(
     botId,
     binding.scope,
     binding.contextId,
     binding.storageKey,
   );
+  if (value == null && binding.referenceKey != binding.storageKey) {
+    value = await store.getScopedVariable(
+      botId,
+      binding.scope,
+      binding.contextId,
+      binding.referenceKey,
+    );
+    if (value != null) {
+      await store.setScopedVariable(
+        botId,
+        binding.scope,
+        binding.contextId,
+        binding.storageKey,
+        value,
+      );
+    }
+  }
+  if (value == null) {
+    // Auto-create missing scoped variables to simplify BDFD imports.
+    value = '';
+    await store.setScopedVariable(
+      botId,
+      binding.scope,
+      binding.contextId,
+      binding.storageKey,
+      value,
+    );
+  }
+  return value;
 }
 
 Future<void> _writePersistedVariable({
@@ -711,6 +746,15 @@ Future<bool> executeVariablesAction({
           contextId,
           referenceKey,
         );
+        if (value != null) {
+          await store.setScopedVariable(
+            botId,
+            scope,
+            contextId,
+            storageKey,
+            value,
+          );
+        }
       }
       if (value == null && referenceKey != storageKey) {
         final legacyContextIds = _legacyContextIdsForScope(scope, contextId);
@@ -733,7 +777,17 @@ Future<bool> executeVariablesAction({
           }
         }
       }
-      value ??= '';
+      if (value == null) {
+        // Auto-create missing scoped variables on first read.
+        value = '';
+        await store.setScopedVariable(
+          botId,
+          scope,
+          contextId,
+          storageKey,
+          value,
+        );
+      }
       final runtimeValue = _stringifyRuntimeValue(value);
       final storeAs =
           resolveValue(
@@ -1217,7 +1271,12 @@ Future<bool> executeVariablesAction({
       if (key.isEmpty) {
         throw Exception('key is required for getGlobalVariable');
       }
-      final value = await store.getGlobalVariable(botId, key) ?? '';
+      var value = await store.getGlobalVariable(botId, key);
+      if (value == null) {
+        // Auto-create missing global variables on first read.
+        value = '';
+        await store.setGlobalVariable(botId, key, value);
+      }
       final valueAsString = _stringifyRuntimeValue(value);
       final storeAs =
           resolveValue((payload['storeAs'] ?? 'global.$key').toString()).trim();

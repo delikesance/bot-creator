@@ -83,6 +83,8 @@ const Map<String, String> appStringsEn = {
   'globals_tab_short': 'Vars',
   'workflows_tab': 'Workflows',
   'workflows_tab_short': 'Flow',
+  'scheduler_tab': 'Scheduler',
+  'scheduler_tab_short': 'Sched',
   'emojis_tab': 'Emojis',
   'emojis_tab_short': 'Emoji',
   'emojis_title': 'Application Emojis',
@@ -206,10 +208,22 @@ const Map<String, String> appStringsEn = {
       'Permanently delete {count} snapshot(s)? This action cannot be undone.',
   'settings_snapshots_delete_all_loading': 'Deleting all snapshots…',
   'settings_snapshots_delete_all_done': '{count} snapshot(s) deleted.',
+  'settings_snapshots_delete_select_tooltip': 'Delete a selected snapshot',
+  'settings_snapshots_delete_select_title': 'Delete a snapshot',
+  'settings_snapshots_delete_select_desc':
+      'Select the snapshot to remove (oldest first).',
+  'settings_snapshots_delete_one_confirm':
+      'Permanently delete "{label}"? This action cannot be undone.',
   'settings_snapshots_refresh_loading': 'Refreshing snapshots…',
   'settings_snapshots_empty': 'No snapshots found yet.',
   'settings_snapshot_list_entry': '{date} • {count} files • {size}',
   'settings_diagnostics_section_title': 'Diagnostics',
+  'settings_diagnostics_page_title': 'Application Logs',
+  'settings_diagnostics_page_scope_note':
+      'Shows app diagnostics logs only (bot logs are excluded).',
+  'settings_diagnostics_refresh': 'Refresh logs',
+  'settings_diagnostics_copy_all': 'Copy all logs',
+  'settings_diagnostics_empty': 'No application logs yet.',
   'settings_view_startup_logs': 'View startup logs',
   'settings_clear_logs': 'Clear logs',
   'settings_logs_cleared': 'Diagnostics log cleared',
@@ -277,6 +291,7 @@ const Map<String, String> appStringsEn = {
   'settings_compatibility_functions_category_embeds': 'Embeds',
   'settings_compatibility_functions_category_components':
       'Components / Interactions',
+  'settings_compatibility_functions_category_logging': 'Logging',
   'settings_compatibility_functions_category_json': 'JSON helpers',
   'settings_compatibility_functions_category_http': 'HTTP helpers',
   'settings_compatibility_functions_category_variables': 'Scoped variables',
@@ -413,6 +428,7 @@ const Map<String, String> appStringsEn = {
   'bot_home_stop': 'Stop Bot',
   'bot_home_view_logs': 'View bot logs',
   'bot_home_view_stats': 'View bot stats',
+  'bot_home_view_replay': 'View debugger replays',
   'bot_home_sync': 'Sync App',
   'bot_home_sync_success': 'App synced successfully',
   'bot_home_invite': 'Invite Bot',
@@ -524,6 +540,34 @@ const Map<String, String> appStringsEn = {
   'bot_logs_ram_estimated': 'Estimated bot RAM: {memory}',
   'bot_logs_go_to_latest': 'Go to latest log',
   'bot_logs_go_to_bottom': 'Go to bottom',
+
+  // Debug Replay page
+  'debug_replay_title': 'Debugger Replay',
+  'debug_replay_start_capture': 'Enable capture',
+  'debug_replay_stop_capture': 'Disable capture',
+  'debug_replay_clear': 'Clear replays',
+  'debug_replay_clear_title': 'Clear replays',
+  'debug_replay_clear_confirm':
+      'All recorded replays will be deleted. Continue?',
+  'debug_replay_empty_capturing':
+      'Capturing… Run a command to record a replay.',
+  'debug_replay_empty_idle':
+      'Capture is off. Enable it and run a command to record a replay.',
+  'debug_replay_premium_title': 'Visual Debugger Replay',
+  'debug_replay_premium_desc':
+      'Record and replay your command executions step by step. See exactly what each action did, how long it took, and where errors occurred.',
+  'debug_replay_overview': 'Overview',
+  'debug_replay_play': 'Play',
+  'debug_replay_pause': 'Pause',
+  'debug_replay_step_first': 'First step',
+  'debug_replay_step_last': 'Last step',
+  'debug_replay_step_back': 'Previous step',
+  'debug_replay_step_forward': 'Next step',
+  'debug_replay_duration_label': 'DURATION',
+  'debug_replay_result_label': 'RESULT',
+  'debug_replay_result_empty': '(no result)',
+  'debug_replay_start_offset': '+{ms} ms from start',
+  'debug_replay_loop_info': 'Loop depth {depth}, iteration {iteration}',
 
   // Bot stats page
   'bot_stats_title': 'Bot Stats',
@@ -1187,15 +1231,27 @@ const Map<String, String> appStringsEn = {
   'dashboard_period_7d': 'Last 7 days',
   'dashboard_period_30d': 'Last 30 days',
   'dashboard_top_commands': 'Top commands',
+  'dashboard_top_locales': 'Top locales',
+  'dashboard_execution_health_title': 'Execution health',
+  'dashboard_failed_commands': 'Failed',
+  'dashboard_error_rate': 'Error rate',
+  'dashboard_p50_latency': 'Latency p50',
+  'dashboard_p95_latency': 'Latency p95',
+  'dashboard_premium_analytics_title': 'Premium analytics',
+  'dashboard_premium_analytics_desc':
+      'Unlock error rate, latency percentiles, and locale insights.',
   'dashboard_timeline': 'Usage over time',
   'dashboard_executions': '{count} executions',
+  'dashboard_selected_period_total': '{count} in selected period',
   'dashboard_loading': 'Loading stats...',
   'dashboard_error': 'Could not load stats: {error}',
+  'dashboard_refresh_sources_tooltip': 'Refresh execution servers',
   'dashboard_requires_runner':
       'Connect to a runner to see command usage stats.',
   'dashboard_single_runner_notice':
       'Stats shown are from the currently configured runner only. If you run bots on multiple runners, this view may be incomplete.',
   'runner_source_label': 'Runner: {name}',
+  'runner_source_local': 'Local',
   'runner_source_all': 'All runners',
   'runner_select_source': 'Select runner',
   'logs_runner_source': 'Logs from: {name}',
@@ -1214,10 +1270,36 @@ const Map<String, String> appStringsEn = {
   'premium_active_title': 'Premium active',
   'premium_active_desc': 'Thank you for your support! All ads are disabled.',
   'subscription_title': 'Remove Ads',
-  'subscription_subtitle': 'Choose a plan to enjoy an ad-free experience.',
+  'subscription_subtitle':
+      'Choose a plan to remove ads and unlock all premium features.',
   'subscription_benefit_no_ads': 'No ads anywhere in the app',
   'subscription_benefit_fast_start': 'Bots start instantly, no popup',
   'subscription_benefit_support': 'Support independent development',
+  'subscription_feature_coming_soon': 'Coming soon',
+  'subscription_feature_no_ads_title': 'No ads',
+  'subscription_feature_no_ads_desc':
+      'Remove all ad placements across the app experience.',
+  'subscription_feature_instant_start_title': 'Instant start',
+  'subscription_feature_instant_start_desc':
+      'Start bots immediately without rewarded ad interruption.',
+  'subscription_feature_analytics_title': 'Advanced analytics',
+  'subscription_feature_analytics_desc':
+      'Access error rate, latency percentiles, and locale insights.',
+  'subscription_feature_scheduler_title': 'Scheduler triggers',
+  'subscription_feature_scheduler_desc':
+      'Run workflows automatically every X minutes (up to 10 active).',
+  'subscription_feature_webhooks_title': 'Inbound webhooks',
+  'subscription_feature_webhooks_desc':
+      'Create secure webhook endpoints and route calls to workflows.',
+  'subscription_feature_debug_replay_title': 'Visual debug replay',
+  'subscription_feature_debug_replay_desc':
+      'Record and replay command actions step by step for debugging.',
+  'subscription_feature_auto_sharding_title': 'Automatic sharding',
+  'subscription_feature_auto_sharding_desc':
+      'Scale large bots by distributing load across shard workers.',
+  'subscription_feature_auto_restart_title': 'Automatic restart',
+  'subscription_feature_auto_restart_desc':
+      'Restart the bot automatically when a full restart is required.',
   'subscription_annual_title': 'Annual',
   'subscription_monthly_title': 'Monthly',
   'subscription_per_year': 'per year',
@@ -1229,4 +1311,6 @@ const Map<String, String> appStringsEn = {
   'subscription_error': 'Purchase could not be completed. Please try again.',
   'subscription_restored': 'Subscription restored successfully!',
   'subscription_restore_not_found': 'No active subscription found.',
+  'subscription_not_available_on_platform':
+      'Subscriptions are currently available on mobile only.',
 };

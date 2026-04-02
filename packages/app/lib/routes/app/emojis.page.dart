@@ -347,7 +347,7 @@ class _EmojisPageState extends State<EmojisPage> {
       builder: (context, constraints) {
         final crossAxisCount = (constraints.maxWidth / 160).floor().clamp(2, 6);
         return GridView.builder(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 12,
