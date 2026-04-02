@@ -107,40 +107,59 @@ class _DebugReplayPageState extends State<DebugReplayPage> {
           ],
         ],
       ),
-      body: hasCapability ? _buildBody(context) : _buildPremiumGate(context),
+      body: hasCapability ? _buildBody(context) : _buildSoftLockedBody(context),
     );
   }
 
-  Widget _buildPremiumGate(BuildContext context) {
-    return Center(
+  Widget _buildSoftLockedBody(BuildContext context) {
+    return Column(
+      children: [
+        _buildPremiumInlineCard(context),
+        Expanded(
+          child: _buildBody(
+            context,
+            allowCapture: false,
+            allowOpenDetail: false,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPremiumInlineCard(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 12, 12, 8),
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(14),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.play_circle_outline,
-              size: 64,
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.6),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              AppStrings.t('debug_replay_premium_title'),
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              textAlign: TextAlign.center,
+            Row(
+              children: [
+                Icon(
+                  Icons.play_circle_outline,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.8),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    AppStrings.t('debug_replay_premium_title'),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             Text(
               AppStrings.t('debug_replay_premium_desc'),
-              textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             if (PremiumCapabilities.canShowPurchaseUI) ...[
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               FilledButton.icon(
                 onPressed: () => SubscriptionPage.show(context),
                 icon: const Icon(Icons.workspace_premium_rounded),
@@ -153,7 +172,11 @@ class _DebugReplayPageState extends State<DebugReplayPage> {
     );
   }
 
-  Widget _buildBody(BuildContext context) {
+  Widget _buildBody(
+    BuildContext context, {
+    bool allowCapture = true,
+    bool allowOpenDetail = true,
+  }) {
     if (_replays.isEmpty) {
       return Center(
         child: Padding(
@@ -170,7 +193,7 @@ class _DebugReplayPageState extends State<DebugReplayPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                _capturing
+                _capturing && allowCapture
                     ? AppStrings.t('debug_replay_empty_capturing')
                     : AppStrings.t('debug_replay_empty_idle'),
                 textAlign: TextAlign.center,
@@ -180,7 +203,7 @@ class _DebugReplayPageState extends State<DebugReplayPage> {
                   ).colorScheme.onSurface.withValues(alpha: 0.55),
                 ),
               ),
-              if (!_capturing) ...[
+              if (!_capturing && allowCapture) ...[
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   onPressed: () {
@@ -205,13 +228,16 @@ class _DebugReplayPageState extends State<DebugReplayPage> {
         final replay = _replays[index];
         return _ReplayListTile(
           replay: replay,
-          onTap: () {
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => DebugReplayDetailPage(replay: replay),
-              ),
-            );
-          },
+          onTap:
+              allowOpenDetail
+                  ? () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DebugReplayDetailPage(replay: replay),
+                      ),
+                    );
+                  }
+                  : null,
         );
       },
     );
@@ -222,7 +248,7 @@ class _ReplayListTile extends StatelessWidget {
   const _ReplayListTile({required this.replay, required this.onTap});
 
   final DebugReplayRecord replay;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +277,8 @@ class _ReplayListTile extends StatelessWidget {
         '${replay.actionCount} action(s) • ${replay.totalMs} ms • $timeAgo',
         style: Theme.of(context).textTheme.bodySmall,
       ),
-      trailing: const Icon(Icons.chevron_right, size: 18),
+      trailing:
+          onTap != null ? const Icon(Icons.chevron_right, size: 18) : null,
     );
   }
 

@@ -265,20 +265,20 @@ class _SchedulerPageState extends State<SchedulerPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
                 Icon(Icons.workspace_premium_rounded, color: Colors.amber),
                 SizedBox(width: 8),
-                Text(
-                  'Premium Scheduler',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                Expanded(
+                  child: Text(
+                    AppStrings.t('subscription_feature_scheduler_title'),
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Run workflows automatically every X minutes with up to 10 active schedules.',
-            ),
+            Text(AppStrings.t('subscription_feature_scheduler_desc')),
             const SizedBox(height: 12),
             if (PremiumCapabilities.canShowPurchaseUI)
               FilledButton.icon(

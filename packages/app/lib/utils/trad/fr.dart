@@ -1304,11 +1304,36 @@
       'Merci pour votre soutien ! Toutes les publicités sont désactivées.',
   'subscription_title': 'Supprimer les pubs',
   'subscription_subtitle':
-      'Choisissez une offre pour profiter de l\'app sans publicité.',
+      'Choisissez une offre pour supprimer les pubs et débloquer toutes les fonctionnalités premium.',
   'subscription_benefit_no_ads': 'Aucune pub dans toute l\'application',
   'subscription_benefit_fast_start':
       'Bots démarrent instantanément, sans pop-up',
   'subscription_benefit_support': 'Soutenez le développement indépendant',
+  'subscription_feature_coming_soon': 'Bientôt disponible',
+  'subscription_feature_no_ads_title': 'Sans publicité',
+  'subscription_feature_no_ads_desc':
+      'Supprime toutes les insertions publicitaires dans l\'application.',
+  'subscription_feature_instant_start_title': 'Démarrage instantané',
+  'subscription_feature_instant_start_desc':
+      'Lance les bots immédiatement sans interruption publicitaire.',
+  'subscription_feature_analytics_title': 'Analytique avancée',
+  'subscription_feature_analytics_desc':
+      'Accédez au taux d\'erreur, aux percentiles de latence et aux insights de locale.',
+  'subscription_feature_scheduler_title': 'Déclencheurs planifiés',
+  'subscription_feature_scheduler_desc':
+      'Exécute des workflows automatiquement toutes les X minutes (jusqu\'à 10 actifs).',
+  'subscription_feature_webhooks_title': 'Webhooks entrants',
+  'subscription_feature_webhooks_desc':
+      'Crée des endpoints webhook sécurisés et route les appels vers les workflows.',
+  'subscription_feature_debug_replay_title': 'Replay visuel de debug',
+  'subscription_feature_debug_replay_desc':
+      'Enregistre et rejoue les actions de commande étape par étape.',
+  'subscription_feature_auto_sharding_title': 'Sharding automatique',
+  'subscription_feature_auto_sharding_desc':
+      'Répartit la charge des gros bots entre plusieurs shards.',
+  'subscription_feature_auto_restart_title': 'Redémarrage automatique',
+  'subscription_feature_auto_restart_desc':
+      'Redémarre automatiquement le bot quand un redémarrage complet est requis.',
   'subscription_annual_title': 'Annuel',
   'subscription_monthly_title': 'Mensuel',
   'subscription_per_year': 'par an',

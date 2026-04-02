@@ -331,20 +331,20 @@ class _InboundWebhooksPageState extends State<InboundWebhooksPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
                 Icon(Icons.workspace_premium_rounded, color: Colors.amber),
                 SizedBox(width: 8),
-                Text(
-                  'Premium Inbound Webhooks',
-                  style: TextStyle(fontWeight: FontWeight.w700),
+                Expanded(
+                  child: Text(
+                    AppStrings.t('subscription_feature_webhooks_title'),
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Create HTTP webhook endpoints (path + secret) and route each one to a workflow. Runner required.',
-            ),
+            Text(AppStrings.t('subscription_feature_webhooks_desc')),
             const SizedBox(height: 12),
             if (PremiumCapabilities.canShowPurchaseUI)
               FilledButton.icon(

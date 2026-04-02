@@ -1270,10 +1270,36 @@ const Map<String, String> appStringsEn = {
   'premium_active_title': 'Premium active',
   'premium_active_desc': 'Thank you for your support! All ads are disabled.',
   'subscription_title': 'Remove Ads',
-  'subscription_subtitle': 'Choose a plan to enjoy an ad-free experience.',
+  'subscription_subtitle':
+      'Choose a plan to remove ads and unlock all premium features.',
   'subscription_benefit_no_ads': 'No ads anywhere in the app',
   'subscription_benefit_fast_start': 'Bots start instantly, no popup',
   'subscription_benefit_support': 'Support independent development',
+  'subscription_feature_coming_soon': 'Coming soon',
+  'subscription_feature_no_ads_title': 'No ads',
+  'subscription_feature_no_ads_desc':
+      'Remove all ad placements across the app experience.',
+  'subscription_feature_instant_start_title': 'Instant start',
+  'subscription_feature_instant_start_desc':
+      'Start bots immediately without rewarded ad interruption.',
+  'subscription_feature_analytics_title': 'Advanced analytics',
+  'subscription_feature_analytics_desc':
+      'Access error rate, latency percentiles, and locale insights.',
+  'subscription_feature_scheduler_title': 'Scheduler triggers',
+  'subscription_feature_scheduler_desc':
+      'Run workflows automatically every X minutes (up to 10 active).',
+  'subscription_feature_webhooks_title': 'Inbound webhooks',
+  'subscription_feature_webhooks_desc':
+      'Create secure webhook endpoints and route calls to workflows.',
+  'subscription_feature_debug_replay_title': 'Visual debug replay',
+  'subscription_feature_debug_replay_desc':
+      'Record and replay command actions step by step for debugging.',
+  'subscription_feature_auto_sharding_title': 'Automatic sharding',
+  'subscription_feature_auto_sharding_desc':
+      'Scale large bots by distributing load across shard workers.',
+  'subscription_feature_auto_restart_title': 'Automatic restart',
+  'subscription_feature_auto_restart_desc':
+      'Restart the bot automatically when a full restart is required.',
   'subscription_annual_title': 'Annual',
   'subscription_monthly_title': 'Monthly',
   'subscription_per_year': 'per year',
