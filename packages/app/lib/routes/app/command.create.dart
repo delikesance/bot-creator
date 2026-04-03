@@ -209,21 +209,6 @@ class _CommandCreatePageState extends State<CommandCreatePage> {
     return '$location${diagnostic.message}';
   }
 
-  String _buildBdfdValidationMessage() {
-    final errorDiagnostics = _bdfdDiagnostics
-        .where(
-          (diagnostic) =>
-              diagnostic.severity == BdfdCompileDiagnosticSeverity.error,
-        )
-        .take(5)
-        .map(_formatBdfdDiagnostic)
-        .join('\n');
-    if (errorDiagnostics.isEmpty) {
-      return AppStrings.t('cmd_bdfd_script_empty_error');
-    }
-    return '${AppStrings.t('cmd_bdfd_script_validation_error')}\n\n$errorDiagnostics';
-  }
-
   bool get _supportsCommandDescription =>
       _commandType == ApplicationCommandType.chatInput;
 

@@ -1,0 +1,10 @@
+[
+    {
+        "language": "fr-FR",
+        "text": "Refonte majeure de l'editeur BDFD: auto-completion plus proche de VS Code, affichee sous le code en cours et mieux adaptee au mobile. Couverture etendue des fonctions BDFD dans l'auto-completion, y compris des placeholders comme $args. Correctifs importants sur les commandes Legacy (resolution des arguments, execution des branches conditionnelles, suppression des reponses parasites). Le script BDFD peut maintenant etre sauvegarde meme avec diagnostics, avec erreur explicite au moment de l'execution si la compilation echoue. Correction UI mobile: le bouton de suppression d'un workflow respecte la safe area. Correctif runner: les mises a jour de commandes/workflows sont bien prises en compte apres reload, sans comportement stale lie au cache."
+    },
+    {
+        "language": "en-US",
+        "text": "Major BDFD editor refresh: autocomplete now behaves closer to VS Code, appears under the active code, and is better optimized for mobile. Added broader BDFD function coverage in autocomplete, including placeholders such as $args. Fixed key Legacy command issues (argument resolution, conditional branch execution, and unwanted extra replies). BDFD scripts can now be saved even with diagnostics, with explicit runtime errors if compilation fails during execution. Mobile UI fix: workflow delete action now respects safe area spacing. Runner reload fix: command/workflow updates are now applied correctly after reload, avoiding stale cache-like behavior."
+    }
+]

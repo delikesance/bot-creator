@@ -89,44 +89,7 @@ extension _CommandCreateValidation on _CommandCreatePageState {
       }
     }
 
-    if (_isBdfdScriptMode) {
-      if (_bdfdScriptController.text.trim().isEmpty) {
-        showDialog(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: Text(AppStrings.t('error')),
-                content: Text(AppStrings.t('cmd_bdfd_script_empty_error')),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(AppStrings.t('ok')),
-                  ),
-                ],
-              ),
-        );
-        return false;
-      }
-
-      _refreshBdfdCompileResult(notify: false);
-      if (_hasBdfdCompileErrors) {
-        showDialog(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: Text(AppStrings.t('error')),
-                content: Text(_buildBdfdValidationMessage()),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text(AppStrings.t('ok')),
-                  ),
-                ],
-              ),
-        );
-        return false;
-      }
-    }
+    // In BDFD mode, diagnostics are informational only and must not block save.
 
     if (!_isBdfdScriptMode && _legacyModeEnabled) {
       if (_commandType != ApplicationCommandType.chatInput) {

@@ -195,7 +195,7 @@ class RunnerRuntimeController {
     await _botStore.save(botId, name, newConfig);
     final runner = _runners[botId];
     if (runner != null) {
-      final requiresReconnect = runner.reloadConfig(newConfig);
+      final requiresReconnect = await runner.reloadConfig(newConfig);
       if (requiresReconnect && newConfig.autoRestart) {
         await _restartRunningBotWithConfig(
           botId,

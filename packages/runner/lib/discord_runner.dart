@@ -143,6 +143,54 @@ String _formatRunnerBdfdDiagnostics(List<BdfdCompileDiagnostic> diagnostics) {
   return 'This BDFD script could not be compiled:\n$summary';
 }
 
+enum EventWorkflowListenerMode { none, messageCreateOnly, full }
+
+bool isLegacyCommandEnabledInConfigEntry(Map<String, dynamic> command) {
+  final data = Map<String, dynamic>.from(
+    (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
+  );
+  final value = Map<String, dynamic>.from(
+    (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
+  );
+  final commandType =
+      (value['commandType'] ?? command['type'] ?? 'chatInput')
+          .toString()
+          .toLowerCase();
+  return value['legacyModeEnabled'] == true &&
+      (commandType == 'chatinput' ||
+          commandType == 'chat_input' ||
+          commandType == 'chat-input' ||
+          commandType == 'slash');
+}
+
+EventWorkflowListenerMode resolveEventWorkflowListenerMode(BotConfig config) {
+  final hasEventWorkflows = config.workflows.any((workflow) {
+    final normalized = normalizeStoredWorkflowDefinition(workflow);
+    return normalizeWorkflowType(normalized['workflowType']) ==
+        workflowTypeEvent;
+  });
+  if (hasEventWorkflows) {
+    return EventWorkflowListenerMode.full;
+  }
+
+  final hasLegacyCommands = config.commands.any(
+    isLegacyCommandEnabledInConfigEntry,
+  );
+  if (hasLegacyCommands) {
+    return EventWorkflowListenerMode.messageCreateOnly;
+  }
+
+  return EventWorkflowListenerMode.none;
+}
+
+bool shouldRebindEventWorkflowListeners(
+  BotConfig previousConfig,
+  BotConfig newConfig,
+) {
+  return resolveEventWorkflowListenerMode(previousConfig) !=
+      resolveEventWorkflowListenerMode(newConfig);
+}
+
 /// Connects to Discord via nyxx, registers command listeners, and dispatches
 /// interactions to the shared action handlers — matching commands by their Discord ID.
 class DiscordRunner {
@@ -155,6 +203,8 @@ class DiscordRunner {
   Timer? _statusRotationTimer;
   Timer? _scheduledWorkflowTimer;
   final Map<String, DateTime> _scheduledLastRun = <String, DateTime>{};
+  final List<StreamSubscription<dynamic>> _eventWorkflowSubscriptions =
+      <StreamSubscription<dynamic>>[];
   final Random _random = Random();
 
   DiscordRunner(this.config, {this.statsStore})
@@ -278,6 +328,7 @@ class DiscordRunner {
     _scheduledWorkflowTimer?.cancel();
     _scheduledWorkflowTimer = null;
     _scheduledLastRun.clear();
+    await _cancelEventWorkflowListeners();
     await _gateway?.close();
     _gateway = null;
     await store.dispose();
@@ -290,11 +341,16 @@ class DiscordRunner {
   /// immediately use the updated config. The scheduled-trigger timer is
   /// restarted to pick up any changes. The gateway connection is kept alive,
   /// so there is no visible downtime for users.
-  bool reloadConfig(BotConfig newConfig) {
+  Future<bool> reloadConfig(BotConfig newConfig) async {
+    final previousConfig = config;
     final requiresReconnect =
-        config.token.trim() != newConfig.token.trim() ||
-        !_sameIntents(config.intents, newConfig.intents) ||
-        config.autoSharding != newConfig.autoSharding;
+        previousConfig.token.trim() != newConfig.token.trim() ||
+        !_sameIntents(previousConfig.intents, newConfig.intents) ||
+        previousConfig.autoSharding != newConfig.autoSharding;
+    final listenerModeChanged = shouldRebindEventWorkflowListeners(
+      previousConfig,
+      newConfig,
+    );
 
     config = newConfig;
     store.updateWorkflows(newConfig.workflows);
@@ -302,6 +358,9 @@ class DiscordRunner {
     _scheduledWorkflowTimer = null;
     _scheduledLastRun.clear();
     _startScheduledWorkflowLoop();
+    if (_gateway != null && listenerModeChanged) {
+      await _rebindEventWorkflowListeners();
+    }
     _log.info(
       'Config reloaded (live): ${newConfig.commands.length} command(s), '
       '${newConfig.workflows.length} workflow(s).',
@@ -763,6 +822,9 @@ class DiscordRunner {
     if (gateway == null) {
       return;
     }
+    if (_eventWorkflowSubscriptions.isNotEmpty) {
+      return;
+    }
 
     final hasLegacyCommands = config.commands.any(_isLegacyCommandEnabled);
     if (_eventWorkflows.isEmpty && !hasLegacyCommands) {
@@ -774,7 +836,7 @@ class DiscordRunner {
       String eventName, {
       EventExecutionContext Function(T event)? buildContext,
     }) {
-      stream.listen((event) async {
+      final subscription = stream.listen((event) async {
         await _dispatchEventWorkflows(
           eventName: eventName,
           context:
@@ -787,6 +849,7 @@ class DiscordRunner {
               ),
         );
       });
+      _eventWorkflowSubscriptions.add(subscription);
     }
 
     if (_eventWorkflows.isEmpty && hasLegacyCommands) {
@@ -1098,6 +1161,18 @@ class DiscordRunner {
     );
   }
 
+  Future<void> _cancelEventWorkflowListeners() async {
+    for (final subscription in _eventWorkflowSubscriptions) {
+      await subscription.cancel();
+    }
+    _eventWorkflowSubscriptions.clear();
+  }
+
+  Future<void> _rebindEventWorkflowListeners() async {
+    await _cancelEventWorkflowListeners();
+    _registerEventWorkflowListeners();
+  }
+
   EventExecutionContext _baseEventContext({
     required String eventName,
     required Snowflake? guildId,
@@ -1175,21 +1250,7 @@ class DiscordRunner {
   }
 
   bool _isLegacyCommandEnabled(Map<String, dynamic> command) {
-    final data = Map<String, dynamic>.from(
-      (command['data'] as Map?)?.cast<String, dynamic>() ?? const {},
-    );
-    final value = Map<String, dynamic>.from(
-      (data['data'] as Map?)?.cast<String, dynamic>() ?? data,
-    );
-    final commandType =
-        (value['commandType'] ?? command['type'] ?? 'chatInput')
-            .toString()
-            .toLowerCase();
-    return value['legacyModeEnabled'] == true &&
-        (commandType == 'chatinput' ||
-            commandType == 'chat_input' ||
-            commandType == 'chat-input' ||
-            commandType == 'slash');
+    return isLegacyCommandEnabledInConfigEntry(command);
   }
 
   List<String> _splitLegacyTokens(String input) {
@@ -2171,14 +2232,16 @@ class DiscordRunner {
               .toString()
               .trim()
               .toLowerCase();
-      final actionsJson = await _resolveLegacyActionsJson(
-        value: value,
-        commandName: commandName,
-      );
-      if (actionsJson == null) {
+      late final List<Map<String, dynamic>> actionsJson;
+      try {
+        actionsJson = await _resolveLegacyActionsJson(
+          value: value,
+          commandName: commandName,
+        );
+      } catch (e) {
         await _sendLegacyMessage(
           context: context,
-          content: 'Failed to compile BDFD script for command "$commandName".',
+          content: 'Failed to run BDFD script for command "$commandName": $e',
           embeds: const <EmbedBuilder>[],
           asReply: _effectiveLegacyResponseTarget(value) == 'reply',
         );
@@ -2223,7 +2286,7 @@ class DiscordRunner {
     return false;
   }
 
-  Future<List<Map<String, dynamic>>?> _resolveLegacyActionsJson({
+  Future<List<Map<String, dynamic>>> _resolveLegacyActionsJson({
     required Map<String, dynamic> value,
     required String commandName,
   }) async {
@@ -2241,11 +2304,13 @@ class DiscordRunner {
     final source = (value['bdfdScriptContent'] ?? '').toString();
     final compileResult = BdfdCompiler().compile(source);
     if (compileResult.hasErrors) {
-      _log.warning(
-        'BDFD compile errors in legacy command "$commandName": '
-        '${_formatRunnerBdfdDiagnostics(compileResult.diagnostics)}',
+      final diagnostics = _formatRunnerBdfdDiagnostics(
+        compileResult.diagnostics,
       );
-      return null;
+      _log.warning(
+        'BDFD compile errors in legacy command "$commandName": $diagnostics',
+      );
+      throw StateError('BDFD compile error: $diagnostics');
     }
 
     return compileResult.actions
@@ -2378,11 +2443,22 @@ class DiscordRunner {
       final response = Map<String, dynamic>.from(
         (value['response'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
-      final actionsJson = await _resolveLegacyActionsJson(
-        value: value,
-        commandName: commandName,
-      );
-      if (actionsJson != null && actionsJson.isNotEmpty) {
+      late final List<Map<String, dynamic>> actionsJson;
+      try {
+        actionsJson = await _resolveLegacyActionsJson(
+          value: value,
+          commandName: commandName,
+        );
+      } catch (e) {
+        await _sendLegacyMessage(
+          context: context,
+          content: 'Failed to run BDFD script for command "$commandName": $e',
+          embeds: const <EmbedBuilder>[],
+          asReply: _effectiveLegacyResponseTarget(value) == 'reply',
+        );
+        return true;
+      }
+      if (actionsJson.isNotEmpty) {
         final actions = actionsJson
             .map((json) => _adaptLegacyActionForMessageCreate(json, context))
             .map(Action.fromJson)

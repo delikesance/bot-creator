@@ -186,6 +186,18 @@ void main() {
       );
     });
 
+    test('treats unresolved no-arg dollar token as literal text', () {
+      final result = BdfdCompiler().compile(r'$reply[$test]');
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(
+        result.actions.single.type,
+        BotCreatorActionType.respondWithMessage,
+      );
+      expect(result.actions.single.payload['content'], r'$test');
+    });
+
     test('preserves nested unsupported text functions as warnings only', () {
       final result = BdfdCompiler().compile(
         r'$description[Hello $unknownFunction[test]]',
@@ -297,6 +309,17 @@ void main() {
         BotCreatorActionType.respondWithMessage,
       );
       expect(result.actions.single.payload['content'], 'Count=3|Top=8');
+    });
+
+    test('compiles invalid jsonParse without blocking diagnostics', () {
+      final result = BdfdCompiler().compile(
+        r'$jsonParse[{invalid}]'
+        r'$reply[Value=$json[user;name]]',
+      );
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions.single.payload['content'], 'Value=');
     });
 
     test('compiles thread helpers without diagnostics', () {

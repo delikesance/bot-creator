@@ -2034,8 +2034,15 @@ class _WorkflowsPageState extends State<WorkflowsPage> {
               useSafeArea: true,
               builder: (sheetContext) {
                 final colorScheme = Theme.of(sheetContext).colorScheme;
+                final bottomSafePadding =
+                    MediaQuery.of(sheetContext).viewPadding.bottom;
                 return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    16,
+                    16,
+                    16 + bottomSafePadding,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -50,4 +50,24 @@ void main() {
     expect(config.builtInLegacyHelpEnabled, isFalse);
     expect(config.toJson()['builtInLegacyHelpEnabled'], isFalse);
   });
+
+  test('BotConfig.fromJson upgrades legacy event workflows', () {
+    final config = BotConfig.fromJson(<String, dynamic>{
+      'token': 'discord-token',
+      'workflows': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'name': 'Legacy Message Create',
+          'event': 'messageCreate',
+          'actions': <Map<String, dynamic>>[],
+        },
+      ],
+    });
+
+    expect(config.workflows, hasLength(1));
+    expect(config.workflows.first['workflowType'], 'event');
+    expect(config.workflows.first['eventTrigger'], <String, dynamic>{
+      'category': 'messages',
+      'event': 'messageCreate',
+    });
+  });
 }

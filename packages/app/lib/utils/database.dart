@@ -1853,9 +1853,14 @@ class AppManager implements BotDataStore {
     return normalized;
   }
 
-  Future<List<Map<String, dynamic>>> listAppCommands(String id) async {
-    final cached = _commandListCache[id];
-    if (cached != null) return cached;
+  Future<List<Map<String, dynamic>>> listAppCommands(
+    String id, {
+    bool forceRefresh = false,
+  }) async {
+    if (!forceRefresh) {
+      final cached = _commandListCache[id];
+      if (cached != null) return cached;
+    }
 
     final path = await _path();
     final dir = Directory("$path/apps/$id");

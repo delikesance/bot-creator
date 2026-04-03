@@ -546,6 +546,36 @@ void main() {
       );
     });
 
+    test(
+      'keeps invalid jsonParse non-blocking and returns empty JSON lookups',
+      () {
+        final result = BdfdAstTranspiler().transpile(
+          const BdfdScriptAst(
+            nodes: [
+              BdfdFunctionCallAst(
+                name: r'$jsonParse',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('{invalid}')],
+                ],
+              ),
+              BdfdTextAst('Value='),
+              BdfdFunctionCallAst(
+                name: r'$json',
+                arguments: [
+                  <BdfdAstNode>[BdfdTextAst('user')],
+                  <BdfdAstNode>[BdfdTextAst('name')],
+                ],
+              ),
+            ],
+          ),
+        );
+
+        expect(result.diagnostics, isEmpty);
+        expect(result.actions, hasLength(1));
+        expect(result.actions.single.payload['content'], 'Value=');
+      },
+    );
+
     test('transpiles startThread inline with returned ID placeholder', () {
       final result = BdfdAstTranspiler().transpile(
         const BdfdScriptAst(

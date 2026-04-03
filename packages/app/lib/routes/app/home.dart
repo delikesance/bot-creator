@@ -825,7 +825,7 @@ class _AppHomePageState extends State<AppHomePage>
                       if (widget.secondarySections.isNotEmpty &&
                           widget.onNavigateToSection != null)
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 16),
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -833,19 +833,23 @@ class _AppHomePageState extends State<AppHomePage>
                               Padding(
                                 padding: const EdgeInsets.only(
                                   left: 4,
-                                  bottom: 12,
+                                  bottom: 10,
                                 ),
                                 child: Text(
                                   AppStrings.t('quick_access_title'),
-                                  style: Theme.of(context).textTheme.titleSmall
-                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.2,
+                                  ),
                                 ),
                               ),
                               GridView.count(
                                 crossAxisCount: 3,
-                                mainAxisSpacing: 8,
-                                crossAxisSpacing: 8,
-                                childAspectRatio: 0.82,
+                                mainAxisSpacing: 10,
+                                crossAxisSpacing: 10,
+                                childAspectRatio: 1.02,
                                 shrinkWrap: true,
                                 physics: const NeverScrollableScrollPhysics(),
                                 children: [
@@ -1087,27 +1091,28 @@ class _QuickAccessChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return Material(
-      color: colorScheme.surfaceContainerHigh,
-      borderRadius: BorderRadius.circular(16),
+      color: colorScheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 24, color: colorScheme.primary),
-              const SizedBox(height: 6),
+              Icon(icon, size: 20, color: colorScheme.primary),
+              const SizedBox(height: 5),
               Text(
                 label,
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  height: 1.15,
                   color: colorScheme.onSurface,
                 ),
               ),

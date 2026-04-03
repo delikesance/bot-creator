@@ -21,7 +21,7 @@ Future<void> _registerLocalEventWorkflowListeners(
       })
       .toList(growable: false);
 
-  final allCommands = await manager.listAppCommands(botId);
+  final allCommands = await manager.listAppCommands(botId, forceRefresh: true);
   final legacyCommands = allCommands
       .where(_isLegacyLocalCommand)
       .toList(growable: false);
@@ -876,7 +876,7 @@ final RegExp _bdfdPermissionPattern = RegExp(
   caseSensitive: false,
 );
 
-Future<List<Map<String, dynamic>>?> _resolveLocalLegacyActionsJson({
+Future<List<Map<String, dynamic>>> _resolveLocalLegacyActionsJson({
   required Map<String, dynamic> data,
   required String commandName,
   void Function(String message)? onLog,
@@ -895,11 +895,13 @@ Future<List<Map<String, dynamic>>?> _resolveLocalLegacyActionsJson({
   final source = (data['bdfdScriptContent'] ?? '').toString();
   final compileResult = BdfdCompiler().compile(source);
   if (compileResult.hasErrors) {
-    onLog?.call(
-      'BDFD compile errors in local legacy command "$commandName": '
-      '${_formatBdfdRuntimeDiagnostics(compileResult.diagnostics)}',
+    final diagnostics = _formatBdfdRuntimeDiagnostics(
+      compileResult.diagnostics,
     );
-    return null;
+    onLog?.call(
+      'BDFD compile errors in local legacy command "$commandName": $diagnostics',
+    );
+    throw StateError('BDFD compile error: $diagnostics');
   }
 
   return compileResult.actions
@@ -1031,12 +1033,24 @@ Future<bool> _tryExecuteLocalAwaitedInput(
     final response = Map<String, dynamic>.from(
       (data['response'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
-    final actionsJson = await _resolveLocalLegacyActionsJson(
-      data: data,
-      commandName: commandName,
-      onLog: onLog,
-    );
-    if (actionsJson != null && actionsJson.isNotEmpty) {
+    late final List<Map<String, dynamic>> actionsJson;
+    try {
+      actionsJson = await _resolveLocalLegacyActionsJson(
+        data: data,
+        commandName: commandName,
+        onLog: onLog,
+      );
+    } catch (e) {
+      await _sendLocalLegacyMessage(
+        gateway,
+        context: context,
+        content: 'Failed to run BDFD script for command "$commandName": $e',
+        embeds: const <EmbedBuilder>[],
+        asReply: _localLegacyResponseTarget(data) == 'reply',
+      );
+      return true;
+    }
+    if (actionsJson.isNotEmpty) {
       final actions = actionsJson
           .map(
             (entry) => Action.fromJson(
@@ -1867,8 +1881,9 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     return false;
   }
 
-  // Start loading commands (cached after first call).
-  final allCommandsFuture = manager.listAppCommands(botId);
+  // Load commands from disk for each dispatch so local runtime changes
+  // become visible without requiring a full app/service restart.
+  final allCommandsFuture = manager.listAppCommands(botId, forceRefresh: true);
 
   final baseRuntimeVariables = <String, String>{
     ...context.variables,
@@ -1971,11 +1986,23 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     final runtimeVariables = <String, String>{...baseRuntimeVariables};
 
     // Compile BDFD / resolve actions first (fast, pure CPU).
-    final actionsJson = await _resolveLocalLegacyActionsJson(
-      data: data,
-      commandName: commandName,
-      onLog: onLog,
-    );
+    late final List<Map<String, dynamic>> actionsJson;
+    try {
+      actionsJson = await _resolveLocalLegacyActionsJson(
+        data: data,
+        commandName: commandName,
+        onLog: onLog,
+      );
+    } catch (e) {
+      await _sendLocalLegacyMessage(
+        gateway,
+        context: context,
+        content: 'Failed to run BDFD script for command "$commandName": $e',
+        embeds: const <EmbedBuilder>[],
+        asReply: _localLegacyResponseTarget(data) == 'reply',
+      );
+      return true;
+    }
 
     // Determine whether expensive permission population is needed.
     final executionMode =
@@ -2035,16 +2062,6 @@ Future<bool> _tryExecuteLocalLegacyCommand(
     final response = Map<String, dynamic>.from(
       (data['response'] as Map?)?.cast<String, dynamic>() ?? const {},
     );
-    if (actionsJson == null) {
-      await _sendLocalLegacyMessage(
-        gateway,
-        context: context,
-        content: 'Failed to compile BDFD script for command "$commandName".',
-        embeds: const <EmbedBuilder>[],
-        asReply: responseTarget == 'reply',
-      );
-      return true;
-    }
     final actions = List<Action>.from(
       actionsJson.map(
         (entry) => Action.fromJson(

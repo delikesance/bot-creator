@@ -735,19 +735,19 @@
   'cmd_execution_mode_bdfd_desc':
       'Écrivez le corps de commande en script compatible BDFD tout en gardant la définition visuelle.',
   'cmd_execution_mode_bdfd_note':
-      'Le script est compilé vers les actions internes, avec diagnostics avant sauvegarde et réutilisation au runtime.',
+      'Le script est compilé en actions internes. Les diagnostics sont affichés pendant l’édition ; les scripts invalides échouent à l’exécution.',
   'cmd_bdfd_script_label': 'Corps du script BDFD',
   'cmd_bdfd_script_hint':
       r'$nomention\n$if[$hasPerms[$authorID;administrator]==true]\nHello from Bot Creator',
   'cmd_bdfd_diagnostics_title': 'Diagnostics BDFD',
   'cmd_bdfd_diagnostics_clean':
-      'Aucun problème bloquant détecté dans le script courant.',
+      'Aucun problème détecté dans le script courant.',
   'cmd_bdfd_diagnostics_error': 'Erreur',
   'cmd_bdfd_diagnostics_warning': 'Avertissement',
   'cmd_bdfd_script_empty_error':
       'Le corps du script BDFD ne peut pas être vide.',
   'cmd_bdfd_script_validation_error':
-      'Ce script BDFD contient encore des diagnostics bloquants :',
+      'Ce script BDFD contient encore des diagnostics :',
   'cmd_bdfd_autocomplete_title': 'Auto-complétion BDFD par préfixe',
   'cmd_bdfd_autocomplete_hint':
       'Tapez \$ puis le début d’une fonction pour afficher des suggestions rapides.',
