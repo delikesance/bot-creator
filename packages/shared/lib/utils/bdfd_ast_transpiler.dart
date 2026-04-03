@@ -279,7 +279,10 @@ class _BdfdAstTranspilationScope {
         }
       }
 
-      final emitted = _transpileStandaloneFunction(node);
+      final emitted = _transpileStandaloneFunction(
+        node,
+        pendingResponse: pendingResponse,
+      );
       actions.addAll(_drainDeferredInlineActions());
       if (emitted != null) {
         actions.add(emitted);
@@ -918,7 +921,7 @@ class _BdfdAstTranspilationScope {
           response.appendContent(placeholder);
           continue;
         }
-        _transpileStandaloneFunction(node);
+        _transpileStandaloneFunction(node, pendingResponse: response);
       }
       _applyCStyleLoopUpdate(update, _loopVariables);
       iterationCount++;
@@ -1192,7 +1195,7 @@ class _BdfdAstTranspilationScope {
           continue;
         }
         // JSON mutation functions — apply side-effect only.
-        _transpileStandaloneFunction(node);
+        _transpileStandaloneFunction(node, pendingResponse: response);
       }
     }
     _loopDepth -= 1;
@@ -1661,7 +1664,10 @@ class _BdfdAstTranspilationScope {
     }
   }
 
-  Action? _transpileStandaloneFunction(BdfdFunctionCallAst node) {
+  Action? _transpileStandaloneFunction(
+    BdfdFunctionCallAst node, {
+    _PendingResponse? pendingResponse,
+  }) {
     switch (node.normalizedName) {
       case 'if':
         return _transpileIf(node);
@@ -2030,6 +2036,12 @@ class _BdfdAstTranspilationScope {
       case 'debug':
         return _buildDebugAction(node);
       default:
+        if (pendingResponse != null && node.arguments.isEmpty) {
+          // Unknown no-arg tokens (for example `$test`) are treated as
+          // plain text literals to match BDFD fallback behavior.
+          pendingResponse.appendContent(node.name);
+          return null;
+        }
         _diagnostics.add(
           BdfdTranspileDiagnostic(
             message:
