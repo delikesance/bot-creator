@@ -148,4 +148,5 @@ Desktop supports `--dart-define` overrides for OAuth values (e.g., client id/sec
 
 ## License
 
-No license file is currently included in this repository.
+This repository is proprietary and subject to the restrictive terms in the
+root [LICENSE](LICENSE) file. No open source license is granted.

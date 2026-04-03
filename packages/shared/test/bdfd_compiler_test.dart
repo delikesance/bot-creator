@@ -311,6 +311,17 @@ void main() {
       expect(result.actions.single.payload['content'], 'Count=3|Top=8');
     });
 
+    test('compiles invalid jsonParse without blocking diagnostics', () {
+      final result = BdfdCompiler().compile(
+        r'$jsonParse[{invalid}]'
+        r'$reply[Value=$json[user;name]]',
+      );
+
+      expect(result.hasErrors, isFalse);
+      expect(result.actions, hasLength(1));
+      expect(result.actions.single.payload['content'], 'Value=');
+    });
+
     test('compiles thread helpers without diagnostics', () {
       final result = BdfdCompiler().compile(
         r'$startThread[Cool Thread;123;;1440;yes]'

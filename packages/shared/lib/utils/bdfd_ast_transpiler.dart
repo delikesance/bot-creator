@@ -4366,14 +4366,8 @@ class _BdfdAstTranspilationScope {
       _jsonContext = jsonDecode(raw);
       _hasJsonContext = true;
     } catch (_) {
-      _diagnostics.add(
-        BdfdTranspileDiagnostic(
-          message: '${node.name} received invalid JSON input.',
-          start: node.start,
-          end: node.end,
-          functionName: node.name,
-        ),
-      );
+      _hasJsonContext = false;
+      _jsonContext = null;
     }
   }
 

@@ -1,0 +1,83 @@
+Bot Creator Proprietary License
+Version 1.0
+
+Copyright (c) 2026 Jeremy
+All rights reserved.
+
+1. Ownership
+
+This repository, including all source code, binaries, assets, documentation,
+configuration, examples, generated output, and related materials
+("Software"), is proprietary and confidential. Title, ownership, and all
+intellectual property rights in and to the Software remain exclusively with
+the copyright holder.
+
+2. No License Granted
+
+No license or other permission is granted to any person or entity except as
+required by applicable law or expressly granted in prior written permission by
+the copyright holder.
+
+Without limiting the previous sentence, you may not, whether for commercial,
+non-commercial, internal, personal, research, academic, or evaluation
+purposes:
+
+- use, execute, reproduce, copy, modify, adapt, translate, or create
+  derivative works of the Software;
+- distribute, publish, sublicense, assign, sell, lease, rent, lend, transfer,
+  disclose, or otherwise make the Software available to any third party;
+- host, deploy, run as a service, or otherwise use the Software in any
+  production, staging, testing, or demonstration environment;
+- benchmark, scrape, mirror, archive, or republish the Software or any
+  substantial portion of it;
+- use the Software or any output, assets, or contents from it to train,
+  fine-tune, evaluate, or improve any machine learning or artificial
+  intelligence system;
+- remove, alter, or obscure any copyright, trademark, confidentiality, or
+  proprietary notice.
+
+3. Access Does Not Equal Permission
+
+Possession of or access to the Software, including through a source code host,
+backup, archive, package, mirror, fork, or local copy, does not grant any
+right to use the Software beyond rights that cannot be excluded under
+applicable law and any rights separately granted in prior written permission.
+
+4. Contributions
+
+Unless the copyright holder explicitly agrees otherwise in writing, any
+suggestions, patches, pull requests, issues, comments, or other contributions
+submitted regarding the Software may be rejected, ignored, or used by the
+copyright holder without any obligation to you, and do not change the license
+status of the Software.
+
+5. Termination
+
+Any unauthorized use is prohibited and automatically void. Upon request by the
+copyright holder, you must immediately stop using the Software and delete all
+copies in your possession or control, except to the extent applicable law
+forbids such a requirement.
+
+6. No Trademark Rights
+
+No trademark, service mark, trade name, logo, or branding rights are granted
+under this license.
+
+7. Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS" WITHOUT ANY WARRANTY OR CONDITION OF ANY
+KIND, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING WITHOUT LIMITATION ANY
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE,
+NON-INFRINGEMENT, ACCURACY, OR AVAILABILITY.
+
+8. Liability Limitation
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER SHALL
+NOT BE LIABLE FOR ANY CLAIM, DAMAGES, LOSSES, OR OTHER LIABILITY ARISING FROM
+OR RELATING TO THE SOFTWARE OR THIS LICENSE, WHETHER IN CONTRACT, TORT, STRICT
+LIABILITY, OR OTHERWISE.
+
+9. Written Permission
+
+Any exception to this license must be granted in prior written permission by
+the copyright holder.
