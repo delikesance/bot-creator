@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bot_creator/firebase_options.dart';
+import 'package:bot_creator/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -334,6 +335,7 @@ class _MyAppState extends State<MyApp> {
       locale: Locale(localeProvider.locale.code),
       supportedLocales: const [Locale('en'), Locale('fr')],
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
@@ -398,7 +400,7 @@ class _MyMainPageState extends State<MyMainPage> {
                 foregroundColor: Colors.white,
                 elevation: 6,
                 highlightElevation: 10,
-                tooltip: AppStrings.t('home_create_app'),
+                tooltip: AppLocalizations.of(context)!.homeCreateApp,
                 child: const Icon(Icons.add_rounded),
               ),
     );

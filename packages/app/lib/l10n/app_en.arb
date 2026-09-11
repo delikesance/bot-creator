@@ -1,0 +1,24 @@
+{
+  "@@locale": "en",
+  "homeOverline": "MY PROJECTS",
+  "homeRefreshTooltip": "Refresh",
+  "homeDocsTooltip": "Documentation",
+  "homeSettingsTooltip": "Settings",
+  "homeTurnkeyTitle": "Turnkey bots",
+  "homeTurnkeySubtitle": "Deploy ready-to-use bots",
+  "homeHostingAdd": "Add time",
+  "homeHostingUnlimited": "Unlimited",
+  "homeHostingUnitMonth": "mo",
+  "homeHostingUnitDay": "d",
+  "homeHostingUnitHour": "h",
+  "homeHostingUnitMinute": "m",
+  "homeStartAction": "Start",
+  "homeCreateApp": "Create application",
+  "homeServersNoun": "{count, plural, =1{server} other{servers}}",
+  "@homeServersNoun": {
+    "description": "Server noun, pluralized (the count itself is shown separately).",
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:bot_creator/l10n/app_localizations.dart';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app.dart';
 import 'package:bot_creator/routes/bdfd_docs.dart';
@@ -490,6 +491,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           builder: (context, constraints) {
             final width = constraints.maxWidth;
             final isWide = width >= kDesktopBreakpoint;
+            // Les features « mobile only » (ajouter du temps, bots clé en main)
+            // ne dépendent PAS de la largeur mais bien de la plateforme : elles
+            // n'existent que sur la vraie application mobile (Android / iOS).
+            // Le desktop reste responsive mais ne les affiche jamais.
+            final isMobilePlatform =
+                !kIsWeb && (Platform.isAndroid || Platform.isIOS);
             final columns = isWide ? 2 : 1;
             final contentMaxWidth = isWide ? 1000.0 : 640.0;
             final sidePad = isWide ? 28.0 : 16.0;
@@ -509,8 +516,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
               const SizedBox(height: 22),
               // « Bots Clé en main » : feature disponible uniquement sur la
-              // vraie version mobile → masquée sur desktop.
-              if (!isWide) ...[
+              // vraie application mobile → jamais sur desktop.
+              if (isMobilePlatform) ...[
                 _TurnkeyCard(onTap: () => _openPage(const AppCreatePage())),
                 const SizedBox(height: 22),
               ],
@@ -566,7 +573,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     context,
                     app,
                     initiallyExpanded: isWide,
-                    showAddHosting: !isWide,
+                    showAddHosting: isMobilePlatform,
                   ),
               ];
 
@@ -718,11 +725,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 }
 
 /// Formate une durée d'hébergement restante de façon compacte (2 unités max),
-/// p.ex. « 136 mois · 9j ».
-String _formatHostingCompact(int expiresAtMs) {
+/// p.ex. « 136 mois · 9j ». Les libellés d'unités viennent de l'i18n (.arb).
+String _formatHostingCompact(int expiresAtMs, AppLocalizations l10n) {
   final remaining = expiresAtMs - DateTime.now().millisecondsSinceEpoch;
   if (remaining <= 0) {
-    return '0${AppStrings.t('home_hosting_unit_minute')}';
+    return '0${l10n.homeHostingUnitMinute}';
   }
   final totalMinutes = remaining ~/ 60000;
   final minutes = totalMinutes % 60;
@@ -734,15 +741,15 @@ String _formatHostingCompact(int expiresAtMs) {
 
   final parts = <String>[];
   if (months > 0) {
-    parts.add('$months ${AppStrings.t('home_hosting_unit_month')}');
+    parts.add('$months ${l10n.homeHostingUnitMonth}');
   }
-  if (days > 0) parts.add('$days${AppStrings.t('home_hosting_unit_day')}');
-  if (hours > 0) parts.add('$hours${AppStrings.t('home_hosting_unit_hour')}');
+  if (days > 0) parts.add('$days${l10n.homeHostingUnitDay}');
+  if (hours > 0) parts.add('$hours${l10n.homeHostingUnitHour}');
   if (minutes > 0) {
-    parts.add('$minutes${AppStrings.t('home_hosting_unit_minute')}');
+    parts.add('$minutes${l10n.homeHostingUnitMinute}');
   }
   if (parts.isEmpty) {
-    parts.add('0${AppStrings.t('home_hosting_unit_minute')}');
+    parts.add('0${l10n.homeHostingUnitMinute}');
   }
   return parts.take(2).join(' · ');
 }
@@ -767,6 +774,7 @@ class _HomeHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Row(
       children: [
         Expanded(
@@ -774,7 +782,7 @@ class _HomeHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                AppStrings.t('home_overline'),
+                l10n.homeOverline,
                 style: TextStyle(
                   color: scheme.onSurfaceVariant,
                   fontSize: 12,
@@ -806,25 +814,25 @@ class _HomeHeader extends StatelessWidget {
           FilledButton.icon(
             onPressed: onCreate,
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: Text(AppStrings.t('home_create_app')),
+            label: Text(l10n.homeCreateApp),
           ),
           const SizedBox(width: 12),
         ],
         _HeaderIconButton(
           icon: Icons.sync_rounded,
-          tooltip: AppStrings.t('home_refresh_tooltip'),
+          tooltip: l10n.homeRefreshTooltip,
           onTap: onRefresh,
         ),
         const SizedBox(width: 10),
         _HeaderIconButton(
           icon: Icons.menu_book_rounded,
-          tooltip: AppStrings.t('home_docs_tooltip'),
+          tooltip: l10n.homeDocsTooltip,
           onTap: onDocs,
         ),
         const SizedBox(width: 10),
         _HeaderIconButton(
           icon: Icons.settings_rounded,
-          tooltip: AppStrings.t('home_settings_tooltip'),
+          tooltip: l10n.homeSettingsTooltip,
           onTap: onSettings,
         ),
       ],
@@ -880,6 +888,7 @@ class _TurnkeyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
     return Material(
       color: scheme.surfaceContainer,
       borderRadius: BorderRadius.circular(22),
@@ -901,7 +910,7 @@ class _TurnkeyCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      AppStrings.t('home_turnkey_title'),
+                      l10n.homeTurnkeyTitle,
                       style: const TextStyle(
                         fontSize: 15.5,
                         fontWeight: FontWeight.w700,
@@ -909,7 +918,7 @@ class _TurnkeyCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      AppStrings.t('home_turnkey_subtitle'),
+                      l10n.homeTurnkeySubtitle,
                       style: TextStyle(
                         fontSize: 12.5,
                         color: scheme.onSurfaceVariant,
@@ -1055,23 +1064,22 @@ class _BotCardState extends State<_BotCard> {
   /// Contenu révélé au dépliage : infos (serveurs, hébergement) + actions
   /// (démarrer/arrêter, ajouter du temps, gérer).
   Widget _buildExpandedContent(BuildContext context, ColorScheme scheme) {
+    final l10n = AppLocalizations.of(context)!;
     final count = widget.guildCount ?? 0;
     final serverChip = _InfoChip(
       icon: Icons.dns_rounded,
       value: count.toString(),
-      label: AppStrings.t(
-        count > 1 ? 'home_servers_noun_other' : 'home_servers_noun_one',
-      ),
+      label: l10n.homeServersNoun(count),
     );
     final hostingChip =
         widget.hostingExpiresAt != null
             ? _InfoChip(
               icon: Icons.bolt_rounded,
-              value: _formatHostingCompact(widget.hostingExpiresAt!),
+              value: _formatHostingCompact(widget.hostingExpiresAt!, l10n),
             )
             : _InfoChip(
               icon: Icons.all_inclusive_rounded,
-              value: AppStrings.t('home_hosting_unlimited'),
+              value: l10n.homeHostingUnlimited,
               badge: true,
             );
 
@@ -1087,38 +1095,48 @@ class _BotCardState extends State<_BotCard> {
           children: [serverChip, hostingChip],
         ),
         const SizedBox(height: 14),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          crossAxisAlignment: WrapCrossAlignment.center,
+        // Démarrer / Arrêter et Gérer côte à côte, chacun 50 % de la largeur.
+        Row(
           children: [
-            _CardActionButton(
-              icon:
-                  widget.isRunning
-                      ? Icons.stop_rounded
-                      : Icons.play_arrow_rounded,
-              label: AppStrings.t(
-                widget.isRunning ? 'home_stop' : 'home_start_action',
+            Expanded(
+              child: _CardActionButton(
+                icon:
+                    widget.isRunning
+                        ? Icons.stop_rounded
+                        : Icons.play_arrow_rounded,
+                label:
+                    widget.isRunning
+                        ? AppStrings.t('home_stop')
+                        : l10n.homeStartAction,
+                onTap: widget.canToggle ? widget.onToggle : null,
+                loading: widget.isTogglingThisBot,
+                accent: widget.isRunning ? kDangerColor : null,
               ),
-              onTap: widget.canToggle ? widget.onToggle : null,
-              loading: widget.isTogglingThisBot,
-              accent: widget.isRunning ? kDangerColor : null,
             ),
-            if (widget.showAddHosting)
-              _CardActionButton(
-                icon: Icons.add_rounded,
-                label: AppStrings.t('home_hosting_add'),
-                onTap: widget.onAddHosting,
-                accent: kBrandPurple,
-                foreground: kBrandPurpleSoft,
+            const SizedBox(width: 10),
+            Expanded(
+              child: _CardActionButton(
+                icon: Icons.tune_rounded,
+                label: AppStrings.t('home_manage'),
+                onTap: widget.onManage,
               ),
-            _CardActionButton(
-              icon: Icons.tune_rounded,
-              label: AppStrings.t('home_manage'),
-              onTap: widget.onManage,
             ),
           ],
         ),
+        // Ajouter du temps (mobile only) : pleine largeur, en dessous.
+        if (widget.showAddHosting) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: _CardActionButton(
+              icon: Icons.add_rounded,
+              label: l10n.homeHostingAdd,
+              onTap: widget.onAddHosting,
+              accent: kBrandPurple,
+              foreground: kBrandPurpleSoft,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -1390,6 +1408,7 @@ class _CardActionButton extends StatelessWidget {
           onTap: enabled ? onTap : null,
           child: Container(
             height: _height,
+            width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
               color: bg,
@@ -1398,6 +1417,7 @@ class _CardActionButton extends StatelessWidget {
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (loading)
                   SizedBox(
@@ -1411,12 +1431,16 @@ class _CardActionButton extends StatelessWidget {
                 else
                   Icon(icon, size: 16, color: fg),
                 const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: fg,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fg,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
