@@ -782,6 +782,7 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
         ),
+        const SizedBox(width: 12),
         if (showCreate && onCreate != null) ...[
           FilledButton.icon(
             onPressed: onCreate,
