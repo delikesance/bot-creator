@@ -201,6 +201,10 @@ const Color kDangerColor = Color(0xFFE5484D);
 const Color kOnlineColor = Color(0xFF3BD671);
 const Color kScaffoldDark = Color(0xFF0B0B0F);
 
+/// Largeur minimale (en dp logiques) à partir de laquelle on bascule sur la
+/// mise en page « desktop » (multi-colonnes, actions dans l'en-tête).
+const double kDesktopBreakpoint = 720;
+
 /// Central theme factory so every screen inherits the new art direction.
 class AppTheme {
   const AppTheme._();
@@ -363,27 +367,37 @@ class MyMainPage extends StatefulWidget {
 class _MyMainPageState extends State<MyMainPage> {
   @override
   Widget build(BuildContext context) {
+    // Sur desktop, l'action « Créer » vit dans l'en-tête ; on masque le FAB.
+    final isWide = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     return Scaffold(
       body: const SafeArea(bottom: false, child: HomePage()),
       floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AppCreatePage()),
-          );
-        },
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF15151B),
-        elevation: 6,
-        highlightElevation: 10,
-        icon: const Icon(Icons.add_rounded),
-        label: Text(
-          AppStrings.t('home_create_app'),
-          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-        ),
-      ),
+      floatingActionButton:
+          isWide
+              ? null
+              : FloatingActionButton.extended(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AppCreatePage(),
+                    ),
+                  );
+                },
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF15151B),
+                elevation: 6,
+                highlightElevation: 10,
+                icon: const Icon(Icons.add_rounded),
+                label: Text(
+                  AppStrings.t('home_create_app'),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
     );
   }
 }

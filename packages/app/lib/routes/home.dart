@@ -495,18 +495,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            const maxContentWidth = 640.0;
             final width = constraints.maxWidth;
+            final isWide = width >= kDesktopBreakpoint;
+            final columns =
+                width >= 1100
+                    ? 3
+                    : (width >= kDesktopBreakpoint ? 2 : 1);
+            final contentMaxWidth =
+                width >= 1100 ? 1120.0 : (isWide ? 900.0 : 640.0);
+            final sidePad = isWide ? 28.0 : 16.0;
             final horizontal =
-                width > maxContentWidth
-                    ? (width - maxContentWidth) / 2 + 20.0
-                    : 16.0;
+                width > contentMaxWidth
+                    ? (width - contentMaxWidth) / 2 + sidePad
+                    : sidePad;
+            final innerWidth = width - horizontal * 2;
 
             final children = <Widget>[
               _HomeHeader(
                 onRefresh: _handleRefresh,
                 onDocs: () => _openPage(const BdfdDocsPage()),
                 onSettings: () => _openPage(const SettingPage()),
+                showCreate: isWide,
+                onCreate: () => _openPage(const AppCreatePage()),
               ),
               const SizedBox(height: 22),
               _TurnkeyCard(onTap: () => _openPage(const AppCreatePage())),
@@ -557,69 +567,87 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 );
               }
 
-              for (var index = 0; index < apps.length; index++) {
-                final app = apps[index];
-                final name =
-                    app['name']?.toString() ??
-                    AppStrings.t('home_unknown_app');
-                final id = app['id']?.toString() ?? '';
-                final avatar = app['avatar']?.toString();
-                final guildCount = app['guild_count'] as int?;
-                final hostingExpiresAt =
-                    (app['hosting_expires_at'] as num?)?.toInt();
-                final isRunning = _runningBotIds.contains(id);
-                final pulseCtrl = _getOrCreatePulseController(id);
+              final cards = <Widget>[
+                for (final app in apps) _buildBotCard(context, app),
+              ];
 
+              if (columns == 1) {
+                for (var i = 0; i < cards.length; i++) {
+                  children.add(
+                    Padding(
+                      padding: EdgeInsets.only(
+                        bottom: i == cards.length - 1 ? 0 : 14,
+                      ),
+                      child: cards[i],
+                    ),
+                  );
+                }
+              } else {
+                const gap = 16.0;
+                final cardWidth =
+                    (innerWidth - (columns - 1) * gap) / columns;
                 children.add(
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: index == apps.length - 1 ? 0 : 14,
-                    ),
-                    child: _BotCard(
-                      key: ValueKey<String>(id),
-                      name: name,
-                      avatar: avatar,
-                      guildCount: guildCount,
-                      hostingExpiresAt: hostingExpiresAt,
-                      isRunning: isRunning,
-                      canToggle: !_isTogglingBot,
-                      isTogglingThisBot: _togglingBotId == id,
-                      runnerLabel:
-                          isRunning && _runnerModeEnabled
-                              ? _activeRunnerLabel
-                              : null,
-                      pulseController: pulseCtrl,
-                      onManage:
-                          () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => AppEditPage(
-                                    appName: name,
-                                    id: int.tryParse(id) ?? 0,
-                                  ),
-                            ),
-                          ).then((_) => _initRunningState()),
-                      onToggle: () => _toggleBot(botId: id, botName: name),
-                      onLogs:
-                          isRunning
-                              ? () => _openPage(BotLogsPage(botId: id))
-                              : null,
-                      onAddHosting: () => _openPage(const SubscriptionPage()),
-                    ),
+                  Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      for (final card in cards)
+                        SizedBox(width: cardWidth, child: card),
+                    ],
                   ),
                 );
               }
             }
 
             return ListView(
-              padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 120),
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                12,
+                horizontal,
+                isWide ? 40 : 120,
+              ),
               physics: const AlwaysScrollableScrollPhysics(),
               children: children,
             );
           },
         );
       },
+    );
+  }
+
+  /// Construit une carte bot à partir d'une entrée du flux d'apps.
+  Widget _buildBotCard(BuildContext context, dynamic app) {
+    final name = app['name']?.toString() ?? AppStrings.t('home_unknown_app');
+    final id = app['id']?.toString() ?? '';
+    final avatar = app['avatar']?.toString();
+    final guildCount = app['guild_count'] as int?;
+    final hostingExpiresAt = (app['hosting_expires_at'] as num?)?.toInt();
+    final isRunning = _runningBotIds.contains(id);
+    final pulseCtrl = _getOrCreatePulseController(id);
+
+    return _BotCard(
+      key: ValueKey<String>(id),
+      name: name,
+      avatar: avatar,
+      guildCount: guildCount,
+      hostingExpiresAt: hostingExpiresAt,
+      isRunning: isRunning,
+      canToggle: !_isTogglingBot,
+      isTogglingThisBot: _togglingBotId == id,
+      runnerLabel:
+          isRunning && _runnerModeEnabled ? _activeRunnerLabel : null,
+      pulseController: pulseCtrl,
+      onManage:
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => AppEditPage(appName: name, id: int.tryParse(id) ?? 0),
+            ),
+          ).then((_) => _initRunningState()),
+      onToggle: () => _toggleBot(botId: id, botName: name),
+      onLogs: isRunning ? () => _openPage(BotLogsPage(botId: id)) : null,
+      onAddHosting: () => _openPage(const SubscriptionPage()),
     );
   }
 
@@ -719,11 +747,15 @@ class _HomeHeader extends StatelessWidget {
     required this.onRefresh,
     required this.onDocs,
     required this.onSettings,
+    this.onCreate,
+    this.showCreate = false,
   });
 
   final VoidCallback onRefresh;
   final VoidCallback onDocs;
   final VoidCallback onSettings;
+  final VoidCallback? onCreate;
+  final bool showCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -755,6 +787,14 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
         ),
+        if (showCreate && onCreate != null) ...[
+          FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(AppStrings.t('home_create_app')),
+          ),
+          const SizedBox(width: 12),
+        ],
         _HeaderIconButton(
           icon: Icons.sync_rounded,
           tooltip: AppStrings.t('home_refresh_tooltip'),
