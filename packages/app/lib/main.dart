@@ -202,7 +202,7 @@ const Color kBrandPurple = Color(0xFF6A0FA2);
 const Color kBrandPurpleSoft = Color(0xFFA64DE0);
 const Color kDangerColor = Color(0xFFE5484D);
 const Color kOnlineColor = Color(0xFF3BD671);
-const Color kScaffoldDark = Color(0xFF0B0B0F);
+const Color kScaffoldDark = Color(0xFF0D0E12);
 
 /// Largeur minimale (en dp logiques) à partir de laquelle on bascule sur la
 /// mise en page « desktop » (multi-colonnes, actions dans l'en-tête).
@@ -224,16 +224,16 @@ class AppTheme {
             ? base.copyWith(
               primary: kBrandPurple,
               secondary: kBrandPurpleSoft,
-              surface: const Color(0xFF121218),
-              surfaceContainerLowest: const Color(0xFF0C0C11),
-              surfaceContainerLow: const Color(0xFF141419),
-              surfaceContainer: const Color(0xFF17171D),
-              surfaceContainerHigh: const Color(0xFF1E1E26),
-              surfaceContainerHighest: const Color(0xFF262630),
-              onSurface: const Color(0xFFF3F3F6),
-              onSurfaceVariant: const Color(0xFF9A9AA6),
-              outline: const Color(0xFF2C2C36),
-              outlineVariant: const Color(0xFF22222B),
+              surface: const Color(0xFF1A1B23),
+              surfaceContainerLowest: const Color(0xFF101118),
+              surfaceContainerLow: const Color(0xFF15161D),
+              surfaceContainer: const Color(0xFF1A1B23),
+              surfaceContainerHigh: const Color(0xFF22232D),
+              surfaceContainerHighest: const Color(0xFF2A2B36),
+              onSurface: const Color(0xFFF1F2F5),
+              onSurfaceVariant: const Color(0xFF9A9CA8),
+              outline: const Color(0x24FFFFFF),
+              outlineVariant: const Color(0x1AFFFFFF),
               error: kDangerColor,
             )
             : base.copyWith(primary: kBrandPurple);
@@ -375,11 +375,11 @@ class _MyMainPageState extends State<MyMainPage> {
     return Scaffold(
       body: const SafeArea(bottom: false, child: HomePage()),
       floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       floatingActionButton:
           isWide
               ? null
-              : FloatingActionButton.extended(
+              : FloatingActionButton(
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -388,18 +388,12 @@ class _MyMainPageState extends State<MyMainPage> {
                     ),
                   );
                 },
-                backgroundColor: Colors.white,
-                foregroundColor: const Color(0xFF15151B),
+                backgroundColor: kBrandPurple,
+                foregroundColor: Colors.white,
                 elevation: 6,
                 highlightElevation: 10,
-                icon: const Icon(Icons.add_rounded),
-                label: Text(
-                  AppStrings.t('home_create_app'),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
+                tooltip: AppStrings.t('home_create_app'),
+                child: const Icon(Icons.add_rounded),
               ),
     );
   }

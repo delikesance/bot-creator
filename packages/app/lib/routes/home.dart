@@ -3,11 +3,9 @@ import 'dart:io';
 
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app.dart';
-import 'package:bot_creator/routes/app/bot_logs.dart';
 import 'package:bot_creator/routes/bdfd_docs.dart';
 import 'package:bot_creator/routes/create.dart';
 import 'package:bot_creator/routes/settings.dart';
-import 'package:bot_creator/widgets/subscription_page.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/bot_payload_builder.dart';
@@ -22,6 +20,7 @@ import 'package:bot_creator/widgets/native_ad_slot.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
@@ -36,10 +35,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// IDs des bots en cours d'exécution.
   Set<String> _runningBotIds = <String>{};
-  bool _runnerModeEnabled = false;
-
-  /// Label du runner actif (null si local).
-  String? _activeRunnerLabel;
 
   /// Vrai pendant qu'un démarrage/arrêt est en cours.
   bool _isTogglingBot = false;
@@ -92,8 +87,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (!mounted) return;
       setState(() {
         _runningBotIds = runningIds;
-        _runnerModeEnabled = true;
-        _activeRunnerLabel = config!.name ?? config.url;
       });
       _syncPulse(runningIds);
       return;
@@ -130,7 +123,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (!mounted) return;
     setState(() {
       _runningBotIds = runningIds;
-      _runnerModeEnabled = false;
     });
     _syncPulse(runningIds);
   }
@@ -497,12 +489,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           builder: (context, constraints) {
             final width = constraints.maxWidth;
             final isWide = width >= kDesktopBreakpoint;
-            final columns =
-                width >= 1100
-                    ? 3
-                    : (width >= kDesktopBreakpoint ? 2 : 1);
-            final contentMaxWidth =
-                width >= 1100 ? 1120.0 : (isWide ? 900.0 : 640.0);
+            final columns = isWide ? 2 : 1;
+            final contentMaxWidth = isWide ? 1000.0 : 640.0;
             final sidePad = isWide ? 28.0 : 16.0;
             final horizontal =
                 width > contentMaxWidth
@@ -568,8 +556,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               }
 
               final cards = <Widget>[
-                for (final app in apps)
-                  _buildBotCard(context, app, expandable: !isWide),
+                for (final app in apps) _buildBotCard(context, app),
               ];
 
               if (columns == 1) {
@@ -617,11 +604,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   /// Construit une carte bot à partir d'une entrée du flux d'apps.
-  Widget _buildBotCard(
-    BuildContext context,
-    dynamic app, {
-    bool expandable = true,
-  }) {
+  Widget _buildBotCard(BuildContext context, dynamic app) {
     final name = app['name']?.toString() ?? AppStrings.t('home_unknown_app');
     final id = app['id']?.toString() ?? '';
     final avatar = app['avatar']?.toString();
@@ -639,8 +622,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       isRunning: isRunning,
       canToggle: !_isTogglingBot,
       isTogglingThisBot: _togglingBotId == id,
-      runnerLabel:
-          isRunning && _runnerModeEnabled ? _activeRunnerLabel : null,
       pulseController: pulseCtrl,
       onManage:
           () => Navigator.push(
@@ -651,9 +632,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ).then((_) => _initRunningState()),
       onToggle: () => _toggleBot(botId: id, botName: name),
-      onLogs: isRunning ? () => _openPage(BotLogsPage(botId: id)) : null,
-      onAddHosting: () => _openPage(const SubscriptionPage()),
-      expandable: expandable,
     );
   }
 
@@ -720,8 +698,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 }
 
-/// Formate une durée d'hébergement restante en « X mois, Xj, Xh, Xm ».
-String _formatHostingRemaining(int expiresAtMs) {
+/// Formate une durée d'hébergement restante de façon compacte (2 unités max),
+/// p.ex. « 136 mois · 9j ».
+String _formatHostingCompact(int expiresAtMs) {
   final remaining = expiresAtMs - DateTime.now().millisecondsSinceEpoch;
   if (remaining <= 0) {
     return '0${AppStrings.t('home_hosting_unit_minute')}';
@@ -738,12 +717,15 @@ String _formatHostingRemaining(int expiresAtMs) {
   if (months > 0) {
     parts.add('$months ${AppStrings.t('home_hosting_unit_month')}');
   }
-  if (months > 0 || days > 0) {
-    parts.add('$days${AppStrings.t('home_hosting_unit_day')}');
+  if (days > 0) parts.add('$days${AppStrings.t('home_hosting_unit_day')}');
+  if (hours > 0) parts.add('$hours${AppStrings.t('home_hosting_unit_hour')}');
+  if (minutes > 0) {
+    parts.add('$minutes${AppStrings.t('home_hosting_unit_minute')}');
   }
-  parts.add('$hours${AppStrings.t('home_hosting_unit_hour')}');
-  parts.add('$minutes${AppStrings.t('home_hosting_unit_minute')}');
-  return parts.join(', ');
+  if (parts.isEmpty) {
+    parts.add('0${AppStrings.t('home_hosting_unit_minute')}');
+  }
+  return parts.take(2).join(' · ');
 }
 
 // ── En-tête d'accueil ─────────────────────────────────────────────────────────
@@ -782,12 +764,19 @@ class _HomeHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 3),
-              Text(
-                AppStrings.t('app_title'),
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  height: 1.05,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  AppStrings.t('app_title'),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: GoogleFonts.syne(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                    letterSpacing: -0.5,
+                  ),
                 ),
               ),
             ],
@@ -963,7 +952,7 @@ class _BrandIconSquare extends StatelessWidget {
 
 // ── Carte bot ─────────────────────────────────────────────────────────────────
 
-class _BotCard extends StatefulWidget {
+class _BotCard extends StatelessWidget {
   const _BotCard({
     super.key,
     required this.name,
@@ -976,10 +965,6 @@ class _BotCard extends StatefulWidget {
     required this.pulseController,
     required this.onManage,
     required this.onToggle,
-    required this.onLogs,
-    required this.onAddHosting,
-    this.runnerLabel,
-    this.expandable = true,
   });
 
   final String name;
@@ -989,166 +974,145 @@ class _BotCard extends StatefulWidget {
   final bool isRunning;
   final bool canToggle;
   final bool isTogglingThisBot;
-  final String? runnerLabel;
-
-  /// Sur desktop, les cartes sont toujours ouvertes et non repliables.
-  final bool expandable;
   final AnimationController pulseController;
   final VoidCallback onManage;
   final VoidCallback onToggle;
-  final VoidCallback? onLogs;
-  final VoidCallback onAddHosting;
-
-  @override
-  State<_BotCard> createState() => _BotCardState();
-}
-
-class _BotCardState extends State<_BotCard> {
-  late bool _expanded = widget.isRunning;
-
-  bool get _isExpanded => widget.expandable ? _expanded : true;
-
-  @override
-  void didUpdateWidget(covariant _BotCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isRunning != oldWidget.isRunning) {
-      _expanded = widget.isRunning;
-    }
-  }
-
-  String _subtitle() {
-    final count = widget.guildCount ?? 0;
-    if (count > 0) {
-      final String key;
-      if (widget.isRunning) {
-        key =
-            count > 1
-                ? 'home_servers_active_other'
-                : 'home_servers_active_one';
-      } else {
-        key = count > 1 ? 'home_server_count_other' : 'home_server_count_one';
-      }
-      return AppStrings.tr(key, params: {'count': count.toString()});
-    }
-    return widget.isRunning
-        ? AppStrings.t('home_status_online')
-        : AppStrings.t('home_status_offline');
-  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
+    final count = guildCount ?? 0;
+
+    final chips = <Widget>[];
+    if (count > 0) {
+      chips.add(
+        _InfoChip(
+          icon: Icons.dns_rounded,
+          text: AppStrings.tr(
+            count > 1 ? 'home_server_count_other' : 'home_server_count_one',
+            params: {'count': count.toString()},
+          ),
+        ),
+      );
+    }
+    if (hostingExpiresAt != null) {
+      chips.add(
+        _InfoChip(
+          icon: Icons.bolt_rounded,
+          text: _formatHostingCompact(hostingExpiresAt!),
+          accent: isRunning,
+        ),
+      );
+    } else {
+      chips.add(
+        _InfoChip(
+          icon: Icons.all_inclusive_rounded,
+          text: AppStrings.t('home_hosting_unlimited'),
+        ),
+      );
+    }
+
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
+        gradient: _cardGradient(scheme, isRunning),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: scheme.outlineVariant),
+        border: Border.all(
+          color:
+              isRunning
+                  ? kBrandPurple.withValues(alpha: 0.35)
+                  : scheme.outlineVariant,
+        ),
+        boxShadow:
+            isRunning
+                ? [
+                  BoxShadow(
+                    color: kBrandPurple.withValues(alpha: 0.22),
+                    blurRadius: 30,
+                    spreadRadius: -8,
+                    offset: const Offset(0, 10),
+                  ),
+                ]
+                : null,
       ),
       child: Material(
         type: MaterialType.transparency,
-        child: Column(
-          children: [
-            // ── En-tête (tap pour déplier / replier) ───────────────────────
-            InkWell(
-              onTap:
-                  widget.expandable
-                      ? () => setState(() => _expanded = !_expanded)
-                      : null,
-              borderRadius: BorderRadius.circular(22),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Row(
-                  children: [
-                    _AvatarSquare(
-                      imageUrl: widget.avatar,
-                      isRunning: widget.isRunning,
-                      pulseController: widget.pulseController,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _subtitle(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+        child: InkWell(
+          onTap: onManage,
+          borderRadius: BorderRadius.circular(22),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                _AvatarSquare(
+                  imageUrl: avatar,
+                  isRunning: isRunning,
+                  pulseController: pulseController,
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _displayStyle(16.5, color: scheme.onSurface),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    _ActionPill(
-                      isRunning: widget.isRunning,
-                      loading: widget.isTogglingThisBot,
-                      onTap: widget.canToggle ? widget.onToggle : null,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // ── Contenu déplié ─────────────────────────────────────────────
-            AnimatedCrossFade(
-              duration: const Duration(milliseconds: 180),
-              crossFadeState:
-                  _isExpanded
-                      ? CrossFadeState.showFirst
-                      : CrossFadeState.showSecond,
-              firstChild: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
-                child: Column(
-                  children: [
-                    if (widget.runnerLabel != null) ...[
-                      _RunnerChip(label: widget.runnerLabel!),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 9),
+                      Wrap(spacing: 8, runSpacing: 6, children: chips),
                     ],
-                    _HostingBlock(
-                      expiresAtMs: widget.hostingExpiresAt,
-                      onAdd: widget.onAddHosting,
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: widget.onManage,
-                            icon: const Icon(Icons.tune_rounded, size: 18),
-                            label: Text(AppStrings.t('home_manage_app')),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        _SquareIconButton(
-                          icon: Icons.article_outlined,
-                          tooltip: AppStrings.t('home_logs_tooltip'),
-                          onTap: widget.onLogs,
-                        ),
-                      ],
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              secondChild: const SizedBox(width: double.infinity),
+                const SizedBox(width: 12),
+                _ActionPill(
+                  isRunning: isRunning,
+                  loading: isTogglingThisBot,
+                  onTap: canToggle ? onToggle : null,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// Style de titre « display » (Syne) pour l'identité visuelle.
+TextStyle _displayStyle(
+  double size, {
+  Color? color,
+  FontWeight weight = FontWeight.w700,
+}) {
+  return GoogleFonts.syne(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    letterSpacing: -0.2,
+  );
+}
+
+/// Dégradé subtil derrière les cartes pour donner de la profondeur.
+Gradient _cardGradient(ColorScheme scheme, bool isRunning) {
+  if (isRunning) {
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color.alphaBlend(
+          kBrandPurple.withValues(alpha: 0.18),
+          scheme.surfaceContainer,
+        ),
+        scheme.surfaceContainer,
+      ],
+    );
+  }
+  return LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [scheme.surfaceContainerHigh, scheme.surfaceContainer],
+  );
 }
 
 class _AvatarSquare extends StatelessWidget {
@@ -1197,17 +1161,27 @@ class _AvatarSquare extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Opacity(
                     opacity: glow,
-                    child: Container(
-                      width: 9,
-                      height: 9,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color:
-                            isRunning
-                                ? kOnlineColor
-                                : scheme.onSurfaceVariant,
-                      ),
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color:
+                          isRunning ? kOnlineColor : scheme.onSurfaceVariant,
+                      boxShadow:
+                          isRunning
+                              ? [
+                                BoxShadow(
+                                  color: kOnlineColor.withValues(
+                                    alpha: 0.75 * glow,
+                                  ),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                              : null,
                     ),
+                  ),
                   ),
                 );
               },
@@ -1234,45 +1208,56 @@ class _ActionPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final fg = isRunning ? kDangerColor : scheme.onSurface;
+    final borderColor =
+        isRunning ? kDangerColor.withValues(alpha: 0.5) : scheme.outline;
     return Material(
-      color: scheme.surfaceContainerHigh,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(999),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: scheme.outlineVariant),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (loading)
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
-                )
-              else
-                Icon(
-                  isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                  size: 16,
-                  color: fg,
-                ),
-              const SizedBox(width: 6),
-              Text(
-                isRunning
-                    ? AppStrings.t('home_stop')
-                    : AppStrings.t('home_start_action'),
-                style: TextStyle(
-                  color: fg,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: borderColor),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (loading)
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: fg,
+                      ),
+                    )
+                  else
+                    Icon(
+                      isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                      size: 16,
+                      color: fg,
+                    ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isRunning
+                        ? AppStrings.t('home_stop')
+                        : AppStrings.t('home_start_action'),
+                    style: TextStyle(
+                      color: fg,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1280,195 +1265,65 @@ class _ActionPill extends StatelessWidget {
   }
 }
 
-class _SquareIconButton extends StatelessWidget {
-  const _SquareIconButton({
+/// Petite pastille d'information (compteur de serveurs, hébergement…).
+/// Les chiffres sont en police à chasse fixe (JetBrains Mono).
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
     required this.icon,
-    required this.tooltip,
-    required this.onTap,
+    required this.text,
+    this.accent = false,
   });
 
   final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
+  final String text;
+  final bool accent;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final enabled = onTap != null;
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(14),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            width: 48,
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: Icon(
-              icon,
-              size: 20,
-              color:
-                  enabled
-                      ? scheme.onSurface
-                      : scheme.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RunnerChip extends StatelessWidget {
-  const _RunnerChip({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: scheme.outlineVariant),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.dns_outlined, size: 14, color: scheme.primary),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11.5, color: scheme.primary),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HostingBlock extends StatelessWidget {
-  const _HostingBlock({required this.expiresAtMs, required this.onAdd});
-
-  final int? expiresAtMs;
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final unlimited = expiresAtMs == null;
-    final value =
-        unlimited
-            ? AppStrings.t('home_hosting_unlimited')
-            : _formatHostingRemaining(expiresAtMs!);
-
+    final iconColor = accent ? kBrandPurpleSoft : scheme.onSurfaceVariant;
+    final textColor = accent ? scheme.onSurface : scheme.onSurfaceVariant;
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outlineVariant),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color:
+              accent
+                  ? kBrandPurple.withValues(alpha: 0.4)
+                  : scheme.outlineVariant,
+        ),
+        boxShadow:
+            accent
+                ? [
+                  BoxShadow(
+                    color: kBrandPurpleSoft.withValues(alpha: 0.22),
+                    blurRadius: 12,
+                    spreadRadius: -4,
+                  ),
+                ]
+                : null,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.t('home_hosting_remaining'),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                Row(
-                  children: [
-                    if (unlimited) ...[
-                      Icon(
-                        Icons.all_inclusive_rounded,
-                        size: 18,
-                        color: scheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    Flexible(
-                      child: Text(
-                        value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          Icon(icon, size: 13, color: iconColor),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                color: textColor,
+              ),
             ),
           ),
-          const SizedBox(width: 8),
-          _AddHostingButton(onTap: onAdd),
         ],
-      ),
-    );
-  }
-}
-
-class _AddHostingButton extends StatelessWidget {
-  const _AddHostingButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.add_rounded,
-                size: 18,
-                color: scheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                AppStrings.t('home_hosting_add'),
-                style: TextStyle(
-                  color: scheme.onSurfaceVariant,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
