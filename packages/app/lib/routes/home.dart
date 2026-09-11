@@ -983,34 +983,29 @@ class _BotCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final count = guildCount ?? 0;
 
-    final chips = <Widget>[];
-    if (count > 0) {
-      chips.add(
-        _InfoChip(
-          icon: Icons.dns_rounded,
-          text: AppStrings.tr(
-            count > 1 ? 'home_server_count_other' : 'home_server_count_one',
-            params: {'count': count.toString()},
-          ),
-        ),
-      );
-    }
-    if (hostingExpiresAt != null) {
-      chips.add(
-        _InfoChip(
-          icon: Icons.bolt_rounded,
-          text: _formatHostingCompact(hostingExpiresAt!),
-          accent: isRunning,
-        ),
-      );
-    } else {
-      chips.add(
-        _InfoChip(
-          icon: Icons.all_inclusive_rounded,
-          text: AppStrings.t('home_hosting_unlimited'),
-        ),
-      );
-    }
+    final Widget? serverChip =
+        count > 0
+            ? _InfoChip(
+              icon: Icons.dns_rounded,
+              text: AppStrings.tr(
+                count > 1
+                    ? 'home_server_count_other'
+                    : 'home_server_count_one',
+                params: {'count': count.toString()},
+              ),
+            )
+            : null;
+    final Widget hostingChip =
+        hostingExpiresAt != null
+            ? _InfoChip(
+              icon: Icons.bolt_rounded,
+              text: _formatHostingCompact(hostingExpiresAt!),
+              accent: isRunning,
+            )
+            : _InfoChip(
+              icon: Icons.all_inclusive_rounded,
+              text: AppStrings.t('home_hosting_unlimited'),
+            );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1041,34 +1036,42 @@ class _BotCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _AvatarSquare(
-                  imageUrl: avatar,
-                  isRunning: isRunning,
-                  pulseController: pulseController,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+                Row(
+                  children: [
+                    _AvatarSquare(
+                      imageUrl: avatar,
+                      isRunning: isRunning,
+                      pulseController: pulseController,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
                         name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: _displayStyle(16.5, color: scheme.onSurface),
                       ),
-                      const SizedBox(height: 9),
-                      Wrap(spacing: 8, runSpacing: 6, children: chips),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 12),
+                    _ActionPill(
+                      isRunning: isRunning,
+                      loading: isTogglingThisBot,
+                      onTap: canToggle ? onToggle : null,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                _ActionPill(
-                  isRunning: isRunning,
-                  loading: isTogglingThisBot,
-                  onTap: canToggle ? onToggle : null,
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    if (serverChip != null) ...[
+                      serverChip,
+                      const SizedBox(width: 8),
+                    ],
+                    Flexible(child: hostingChip),
+                  ],
                 ),
               ],
             ),
