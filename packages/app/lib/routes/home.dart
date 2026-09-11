@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:bot_creator/l10n/app_localizations.dart';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app.dart';
-import 'package:bot_creator/routes/app/bot_logs.dart';
+import 'package:bot_creator/routes/bdfd_docs.dart';
+import 'package:bot_creator/routes/create.dart';
+import 'package:bot_creator/routes/settings.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/bot_payload_builder.dart';
@@ -15,9 +18,11 @@ import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:bot_creator/widgets/native_ad_slot.dart';
+import 'package:bot_creator/widgets/subscription_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'dart:developer' as developer;
@@ -32,13 +37,12 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   /// IDs des bots en cours d'exécution.
   Set<String> _runningBotIds = <String>{};
-  bool _runnerModeEnabled = false;
-
-  /// Label du runner actif (null si local).
-  String? _activeRunnerLabel;
 
   /// Vrai pendant qu'un démarrage/arrêt est en cours.
   bool _isTogglingBot = false;
+
+  /// ID du bot dont le démarrage/arrêt est en cours (pour le spinner).
+  String? _togglingBotId;
 
   /// Un AnimationController par carte (clé = bot id) pour l'effet pulse.
   final Map<String, AnimationController> _pulseControllers = {};
@@ -85,8 +89,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       if (!mounted) return;
       setState(() {
         _runningBotIds = runningIds;
-        _runnerModeEnabled = true;
-        _activeRunnerLabel = config!.name ?? config.url;
       });
       _syncPulse(runningIds);
       return;
@@ -123,7 +125,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     if (!mounted) return;
     setState(() {
       _runningBotIds = runningIds;
-      _runnerModeEnabled = false;
     });
     _syncPulse(runningIds);
   }
@@ -161,7 +162,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required String botName,
   }) async {
     if (_isTogglingBot) return;
-    setState(() => _isTogglingBot = true);
+    setState(() {
+      _isTogglingBot = true;
+      _togglingBotId = botId;
+    });
 
     try {
       final isRunning = _runningBotIds.contains(botId);
@@ -365,7 +369,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         );
       }
     } finally {
-      if (mounted) setState(() => _isTogglingBot = false);
+      if (mounted) {
+        setState(() {
+          _isTogglingBot = false;
+          _togglingBotId = null;
+        });
+      }
     }
   }
 
@@ -453,79 +462,82 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return consentGranted;
   }
 
+  // ── Navigation helpers ──────────────────────────────────────────────────────
+
+  Future<void> _handleRefresh() async {
+    await appManager.refreshApps();
+    if (mounted) await _initRunningState();
+  }
+
+  Future<void> _openPage(Widget page) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
+    if (mounted) await _initRunningState();
+  }
+
   // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final int crossAxisCount;
-        final double horizontalPadding;
-        final double cardHeight;
+    return StreamBuilder<List<dynamic>>(
+      stream: appManager.getAppStream(),
+      initialData: const <dynamic>[],
+      builder: (context, snapshot) {
+        final apps = snapshot.data;
 
-        // Responsive grid based on screen width
-        if (width < 420) {
-          // Small phone - single column
-          crossAxisCount = 1;
-          horizontalPadding = 12.0;
-          cardHeight = 280.0;
-        } else if (width < 600) {
-          // Mobile - 2 columns
-          crossAxisCount = 2;
-          horizontalPadding = 12.0;
-          cardHeight = 295.0;
-        } else if (width >= 1500) {
-          // Extra large desktop - 5 columns
-          crossAxisCount = 5;
-          horizontalPadding = 24.0;
-          cardHeight = 282.0;
-        } else if (width >= 1200) {
-          // Large desktop - 4 columns
-          crossAxisCount = 4;
-          horizontalPadding = 24.0;
-          cardHeight = 285.0;
-        } else if (width >= 900) {
-          // Tablet - 3 columns
-          crossAxisCount = 3;
-          horizontalPadding = 20.0;
-          cardHeight = 276.0;
-        } else if (width >= 760) {
-          // Medium tablet - 3 columns
-          crossAxisCount = 3;
-          horizontalPadding = 16.0;
-          cardHeight = 272.0;
-        } else {
-          // Small tablet - 2 columns
-          crossAxisCount = 2;
-          horizontalPadding = 16.0;
-          cardHeight = 274.0;
-        }
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final isWide = width >= kDesktopBreakpoint;
+            // Les features « mobile only » (ajouter du temps, bots clé en main)
+            // ne dépendent PAS de la largeur mais bien de la plateforme : elles
+            // n'existent que sur la vraie application mobile (Android / iOS).
+            // Le desktop reste responsive mais ne les affiche jamais.
+            final isMobilePlatform =
+                !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+            final columns = isWide ? 2 : 1;
+            final contentMaxWidth = isWide ? 1000.0 : 640.0;
+            final sidePad = isWide ? 28.0 : 16.0;
+            final horizontal =
+                width > contentMaxWidth
+                    ? (width - contentMaxWidth) / 2 + sidePad
+                    : sidePad;
+            final innerWidth = width - horizontal * 2;
 
-        final cardWidth =
-            (width - (horizontalPadding * 2) - ((crossAxisCount - 1) * 12)) /
-            crossAxisCount;
-        final childAspectRatio = cardWidth / cardHeight;
+            final children = <Widget>[
+              _HomeHeader(
+                onRefresh: _handleRefresh,
+                onDocs: () => _openPage(const BdfdDocsPage()),
+                onSettings: () => _openPage(const SettingPage()),
+                showCreate: isWide,
+                onCreate: () => _openPage(const AppCreatePage()),
+              ),
+              const SizedBox(height: 22),
+              // « Bots Clé en main » : feature disponible uniquement sur la
+              // vraie application mobile → jamais sur desktop.
+              if (isMobilePlatform) ...[
+                _TurnkeyCard(onTap: () => _openPage(const AppCreatePage())),
+                const SizedBox(height: 22),
+              ],
+            ];
 
-        return Padding(
-          padding: EdgeInsets.all(horizontalPadding),
-          child: StreamBuilder<List<dynamic>>(
-            stream: appManager.getAppStream(),
-            initialData: const <dynamic>[],
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                developer.log(
-                  'Error loading data: ${snapshot.error}',
-                  name: 'HomePage',
-                );
-                return Center(child: Text(AppStrings.t('app_loading_error')));
-              }
-
-              final apps = snapshot.data;
-              if (apps == null || apps.isEmpty) {
-                return const _EmptyStateWithSupport();
-              }
-
+            if (snapshot.hasError) {
+              developer.log(
+                'Error loading data: ${snapshot.error}',
+                name: 'HomePage',
+              );
+              children.add(
+                _buildInfoCard(
+                  context,
+                  Icons.error_outline_rounded,
+                  AppStrings.t('app_loading_error'),
+                ),
+              );
+            } else if (apps == null || apps.isEmpty) {
+              children.add(const _EmptyStateWithSupport());
+            } else {
               final namesById = <String, String>{
                 for (final app in apps)
                   (app['id']?.toString() ?? ''):
@@ -535,387 +547,1046 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               final activeSessionIds = _runningBotIds.toList(growable: false)
                 ..sort();
 
-              return Column(
-                children: [
-                  if (_supportsForegroundTask && activeSessionIds.isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color:
-                            Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Sessions mobiles actives (${activeSessionIds.length})',
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final botId in activeSessionIds)
-                                Chip(
-                                  avatar: const Icon(Icons.smart_toy, size: 16),
-                                  label: Text(namesById[botId] ?? botId),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (AdsPlacementPolicy.isPlacementEnabled(
-                        NativeAdPlacement.homeBots,
-                      ) &&
-                      apps.length >= AdsPlacementPolicy.listInterval)
-                    const NativeAdSlot(
-                      placement: NativeAdPlacement.homeBots,
-                      height: 118,
-                      margin: EdgeInsets.only(bottom: 12),
-                    ),
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.only(bottom: 80),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: childAspectRatio,
-                      ),
-                      itemCount: apps.length,
-                      itemBuilder: (context, index) {
-                        final app = apps[index];
-                        final name =
-                            app['name']?.toString() ??
-                            AppStrings.t('home_unknown_app');
-                        final id = app['id']?.toString() ?? '';
-                        final avatar = app['avatar']?.toString();
-                        final guildCount = app['guild_count'] as int?;
-                        final isRunning = _runningBotIds.contains(id);
-                        const runtimeToggleAllowed = true;
-                        // Multi-bot is allowed on runner, mobile foreground, and
-                        // local desktop runtimes. Disable only while a toggle
-                        // operation is currently in progress.
-                        final canToggle =
-                            runtimeToggleAllowed && !_isTogglingBot;
+              if (_supportsForegroundTask && activeSessionIds.isNotEmpty) {
+                children.add(
+                  _buildSessionsBanner(context, activeSessionIds, namesById),
+                );
+                children.add(const SizedBox(height: 16));
+              }
 
-                        final pulseCtrl = _getOrCreatePulseController(id);
-
-                        return _BotCard(
-                          name: name,
-                          id: id,
-                          avatar: avatar,
-                          guildCount: guildCount,
-                          compact: width >= 760,
-                          isRunning: isRunning,
-                          canToggle: canToggle,
-                          isTogglingThisBot: _isTogglingBot && isRunning,
-                          runnerLabel:
-                              isRunning && _runnerModeEnabled
-                                  ? _activeRunnerLabel
-                                  : null,
-                          pulseController: pulseCtrl,
-                          onManage:
-                              () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => AppEditPage(
-                                        appName: name,
-                                        id: int.tryParse(id) ?? 0,
-                                      ),
-                                ),
-                              ).then((_) => _initRunningState()),
-                          onToggle: () => _toggleBot(botId: id, botName: name),
-                          onLogs:
-                              isRunning
-                                  ? () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => BotLogsPage(botId: id),
-                                    ),
-                                  )
-                                  : null,
-                        );
-                      },
-                    ),
+              if (AdsPlacementPolicy.isPlacementEnabled(
+                    NativeAdPlacement.homeBots,
+                  ) &&
+                  apps.length >= AdsPlacementPolicy.listInterval) {
+                children.add(
+                  const NativeAdSlot(
+                    placement: NativeAdPlacement.homeBots,
+                    height: 118,
+                    margin: EdgeInsets.only(bottom: 16),
                   ),
-                ],
-              );
-            },
-          ),
+                );
+              }
+
+              final cards = <Widget>[
+                for (final app in apps)
+                  _buildBotCard(
+                    context,
+                    app,
+                    initiallyExpanded: isWide,
+                    showAddHosting: isMobilePlatform,
+                  ),
+              ];
+
+              if (columns == 1) {
+                for (var i = 0; i < cards.length; i++) {
+                  children.add(
+                    Padding(
+                      padding: EdgeInsets.only(
+                        bottom: i == cards.length - 1 ? 0 : 14,
+                      ),
+                      child: cards[i],
+                    ),
+                  );
+                }
+              } else {
+                const gap = 16.0;
+                final cardWidth =
+                    (innerWidth - (columns - 1) * gap) / columns;
+                children.add(
+                  Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      for (final card in cards)
+                        SizedBox(width: cardWidth, child: card),
+                    ],
+                  ),
+                );
+              }
+            }
+
+            return ListView(
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                24,
+                horizontal,
+                isWide ? 40 : 120,
+              ),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: children,
+            );
+          },
         );
       },
     );
   }
+
+  /// Construit une carte bot à partir d'une entrée du flux d'apps.
+  Widget _buildBotCard(
+    BuildContext context,
+    dynamic app, {
+    required bool initiallyExpanded,
+    required bool showAddHosting,
+  }) {
+    final name = app['name']?.toString() ?? AppStrings.t('home_unknown_app');
+    final id = app['id']?.toString() ?? '';
+    final avatar = app['avatar']?.toString();
+    final guildCount = app['guild_count'] as int?;
+    final hostingExpiresAt = (app['hosting_expires_at'] as num?)?.toInt();
+    final isRunning = _runningBotIds.contains(id);
+    final pulseCtrl = _getOrCreatePulseController(id);
+
+    return _BotCard(
+      key: ValueKey<String>(id),
+      name: name,
+      avatar: avatar,
+      guildCount: guildCount,
+      hostingExpiresAt: hostingExpiresAt,
+      isRunning: isRunning,
+      canToggle: !_isTogglingBot,
+      isTogglingThisBot: _togglingBotId == id,
+      initiallyExpanded: initiallyExpanded,
+      showAddHosting: showAddHosting,
+      pulseController: pulseCtrl,
+      onManage:
+          () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder:
+                  (_) => AppEditPage(appName: name, id: int.tryParse(id) ?? 0),
+            ),
+          ).then((_) => _initRunningState()),
+      onToggle: () => _toggleBot(botId: id, botName: name),
+      onAddHosting: () => SubscriptionPage.show(context),
+    );
+  }
+
+  Widget _buildInfoCard(BuildContext context, IconData icon, String message) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionsBanner(
+    BuildContext context,
+    List<String> activeSessionIds,
+    Map<String, String> namesById,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sessions mobiles actives (${activeSessionIds.length})',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final botId in activeSessionIds)
+                Chip(
+                  avatar: const Icon(Icons.smart_toy, size: 16),
+                  label: Text(namesById[botId] ?? botId),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-// ── Widget carte ─────────────────────────────────────────────────────────────
+/// Formate une durée d'hébergement restante de façon compacte (2 unités max),
+/// p.ex. « 136 mois · 9j ». Les libellés d'unités viennent de l'i18n (.arb).
+String _formatHostingCompact(int expiresAtMs, AppLocalizations l10n) {
+  final remaining = expiresAtMs - DateTime.now().millisecondsSinceEpoch;
+  if (remaining <= 0) {
+    return '0${l10n.homeHostingUnitMinute}';
+  }
+  final totalMinutes = remaining ~/ 60000;
+  final minutes = totalMinutes % 60;
+  final totalHours = totalMinutes ~/ 60;
+  final hours = totalHours % 24;
+  final totalDays = totalHours ~/ 24;
+  final days = totalDays % 30;
+  final months = totalDays ~/ 30;
 
-class _BotCard extends StatelessWidget {
+  final parts = <String>[];
+  if (months > 0) {
+    parts.add('$months ${l10n.homeHostingUnitMonth}');
+  }
+  if (days > 0) parts.add('$days${l10n.homeHostingUnitDay}');
+  if (hours > 0) parts.add('$hours${l10n.homeHostingUnitHour}');
+  if (minutes > 0) {
+    parts.add('$minutes${l10n.homeHostingUnitMinute}');
+  }
+  if (parts.isEmpty) {
+    parts.add('0${l10n.homeHostingUnitMinute}');
+  }
+  return parts.take(2).join(' · ');
+}
+
+// ── En-tête d'accueil ─────────────────────────────────────────────────────────
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({
+    required this.onRefresh,
+    required this.onDocs,
+    required this.onSettings,
+    this.onCreate,
+    this.showCreate = false,
+  });
+
+  final VoidCallback onRefresh;
+  final VoidCallback onDocs;
+  final VoidCallback onSettings;
+  final VoidCallback? onCreate;
+  final bool showCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                l10n.homeOverline,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.6,
+                ),
+              ),
+              const SizedBox(height: 3),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  AppStrings.t('app_title'),
+                  maxLines: 1,
+                  softWrap: false,
+                  style: GoogleFonts.syne(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        if (showCreate && onCreate != null) ...[
+          FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(l10n.homeCreateApp),
+          ),
+          const SizedBox(width: 12),
+        ],
+        _HeaderIconButton(
+          icon: Icons.sync_rounded,
+          tooltip: l10n.homeRefreshTooltip,
+          onTap: onRefresh,
+        ),
+        const SizedBox(width: 10),
+        _HeaderIconButton(
+          icon: Icons.menu_book_rounded,
+          tooltip: l10n.homeDocsTooltip,
+          onTap: onDocs,
+        ),
+        const SizedBox(width: 10),
+        _HeaderIconButton(
+          icon: Icons.settings_rounded,
+          tooltip: l10n.homeSettingsTooltip,
+          onTap: onSettings,
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(13),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Icon(icon, size: 20, color: scheme.onSurfaceVariant),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Carte promo « Bots Clé en main » ──────────────────────────────────────────
+
+class _TurnkeyCard extends StatelessWidget {
+  const _TurnkeyCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context)!;
+    return Material(
+      color: scheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const _BrandIconSquare(icon: Icons.smart_toy_rounded, size: 48),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n.homeTurnkeyTitle,
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      l10n.homeTurnkeySubtitle,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Carré d'icône teinté de la couleur de marque (avec avatar optionnel).
+/// Couleur d'identité déterministe par bot (dérivée du nom/ID).
+Color _botColor(String seed) {
+  var hash = 0;
+  for (final unit in seed.codeUnits) {
+    hash = (hash * 31 + unit) & 0x7fffffff;
+  }
+  final hue = (hash % 360).toDouble();
+  return HSLColor.fromAHSL(1, hue, 0.5, 0.66).toColor();
+}
+
+class _BrandIconSquare extends StatelessWidget {
+  const _BrandIconSquare({
+    required this.icon,
+    this.size = 48,
+    this.imageUrl,
+    this.tint,
+  });
+
+  final IconData icon;
+  final double size;
+  final String? imageUrl;
+
+  /// Couleur d'accent propre à l'élément (identité du bot). Null = neutre.
+  final Color? tint;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    final tintColor = tint;
+
+    Widget fallbackIcon() => Icon(
+      icon,
+      color: tintColor ?? scheme.onSurfaceVariant,
+      size: size * 0.5,
+    );
+
+    // Avec une vraie photo de profil : bordure neutre discrète.
+    // Sinon : carré teinté de la couleur d'identité du bot (repli).
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color:
+            hasImage
+                ? scheme.surfaceContainerHigh
+                : (tintColor != null
+                    ? tintColor.withValues(alpha: 0.18)
+                    : scheme.surfaceContainerHigh),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color:
+              hasImage
+                  ? scheme.outlineVariant
+                  : (tintColor != null
+                      ? tintColor.withValues(alpha: 0.38)
+                      : scheme.outlineVariant),
+        ),
+      ),
+      child:
+          hasImage
+              ? Image.network(
+                imageUrl!,
+                fit: BoxFit.cover,
+                width: size,
+                height: size,
+                gaplessPlayback: true,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return Center(child: fallbackIcon());
+                },
+                errorBuilder: (_, _, _) => Center(child: fallbackIcon()),
+              )
+              : fallbackIcon(),
+    );
+  }
+}
+
+// ── Carte bot ─────────────────────────────────────────────────────────────────
+
+class _BotCard extends StatefulWidget {
   const _BotCard({
+    super.key,
     required this.name,
-    required this.id,
     required this.avatar,
     required this.guildCount,
-    required this.compact,
+    required this.hostingExpiresAt,
     required this.isRunning,
     required this.canToggle,
     required this.isTogglingThisBot,
+    required this.initiallyExpanded,
+    required this.showAddHosting,
     required this.pulseController,
     required this.onManage,
     required this.onToggle,
-    required this.onLogs,
-    this.runnerLabel,
+    required this.onAddHosting,
   });
 
   final String name;
-  final String id;
   final String? avatar;
   final int? guildCount;
-  final bool compact;
+  final int? hostingExpiresAt;
   final bool isRunning;
   final bool canToggle;
   final bool isTogglingThisBot;
-  final String? runnerLabel;
+  final bool initiallyExpanded;
+  final bool showAddHosting;
   final AnimationController pulseController;
   final VoidCallback onManage;
   final VoidCallback onToggle;
-  final VoidCallback? onLogs;
+  final VoidCallback onAddHosting;
 
-  String _serverCountLabel() {
-    final count = guildCount ?? 0;
-    final key = count > 1 ? 'home_server_count_other' : 'home_server_count_one';
-    return AppStrings.tr(key, params: {'count': count.toString()});
+  @override
+  State<_BotCard> createState() => _BotCardState();
+}
+
+class _BotCardState extends State<_BotCard> {
+  bool _hovered = false;
+  late bool _expanded = widget.initiallyExpanded;
+
+  void _toggleExpanded() => setState(() => _expanded = !_expanded);
+
+  /// Contenu révélé au dépliage : infos (serveurs, hébergement) + actions
+  /// (démarrer/arrêter, ajouter du temps, gérer).
+  Widget _buildExpandedContent(BuildContext context, ColorScheme scheme) {
+    final l10n = AppLocalizations.of(context)!;
+    final count = widget.guildCount ?? 0;
+    final serverChip = _InfoChip(
+      icon: Icons.dns_rounded,
+      value: count.toString(),
+      label: l10n.homeServersNoun(count),
+    );
+    final hostingChip =
+        widget.hostingExpiresAt != null
+            ? _InfoChip(
+              icon: Icons.bolt_rounded,
+              value: _formatHostingCompact(widget.hostingExpiresAt!, l10n),
+            )
+            : _InfoChip(
+              icon: Icons.all_inclusive_rounded,
+              value: l10n.homeHostingUnlimited,
+              badge: true,
+            );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 14),
+        Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [serverChip, hostingChip],
+        ),
+        const SizedBox(height: 14),
+        // Démarrer / Arrêter et Gérer côte à côte, chacun 50 % de la largeur.
+        Row(
+          children: [
+            Expanded(
+              child: _CardActionButton(
+                icon:
+                    widget.isRunning
+                        ? Icons.stop_rounded
+                        : Icons.play_arrow_rounded,
+                label:
+                    widget.isRunning
+                        ? AppStrings.t('home_stop')
+                        : l10n.homeStartAction,
+                onTap: widget.canToggle ? widget.onToggle : null,
+                loading: widget.isTogglingThisBot,
+                accent: widget.isRunning ? kDangerColor : null,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _CardActionButton(
+                icon: Icons.tune_rounded,
+                label: AppStrings.t('home_manage'),
+                onTap: widget.onManage,
+              ),
+            ),
+          ],
+        ),
+        // Ajouter du temps (mobile only) : pleine largeur, en dessous.
+        if (widget.showAddHosting) ...[
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: _CardActionButton(
+              icon: Icons.add_rounded,
+              label: l10n.homeHostingAdd,
+              onTap: widget.onAddHosting,
+              accent: kBrandPurple,
+              foreground: kBrandPurpleSoft,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final avatarRadius = compact ? 30.0 : 36.0;
-    final avatarFallbackSize = compact ? 60.0 : 72.0;
-    final contentPadding = compact ? 9.0 : 12.0;
-    final titleFontSize = compact ? 14.0 : 15.0;
-    final statusFontSize = compact ? 10.5 : 11.0;
-    final serverFontSize = compact ? 10.5 : 11.0;
-    final buttonVerticalPadding = compact ? 7.0 : 12.0;
+    final scheme = Theme.of(context).colorScheme;
 
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side:
-            isRunning
-                ? BorderSide(color: Colors.green.shade400, width: 1.5)
-                : BorderSide.none,
-      ),
-      elevation: isRunning ? 6 : 4,
-      child: Padding(
-        padding: EdgeInsets.all(contentPadding),
-        child: Column(
-          children: [
-            // ── Partie haute flexible ────────────────────────────────────────
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // ── Avatar ────────────────────────────────────────────────
-                  avatar != null && avatar!.isNotEmpty
-                      ? CircleAvatar(
-                        radius: avatarRadius,
-                        backgroundImage: NetworkImage(avatar!),
-                      )
-                      : Icon(Icons.account_circle, size: avatarFallbackSize),
+    // Bordure fine avec reflet plus clair vers le haut (dégradé 1px).
+    final Color borderTop = (widget.isRunning ? kBrandPurpleSoft : Colors.white)
+        .withValues(
+          alpha: _hovered ? 0.50 : (widget.isRunning ? 0.30 : 0.14),
+        );
+    final Color borderBottom = Colors.white.withValues(
+      alpha: _hovered ? 0.16 : 0.04,
+    );
 
-                  SizedBox(height: compact ? 8 : 10),
-
-                  // ── Nom ───────────────────────────────────────────────────
-                  Text(
-                    name,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: titleFontSize,
-                      fontWeight: FontWeight.w600,
-                      overflow: TextOverflow.ellipsis,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [borderTop, borderBottom],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          boxShadow:
+              _hovered
+                  ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 28,
+                      spreadRadius: -4,
+                      offset: const Offset(0, 14),
                     ),
-                  ),
-
-                  SizedBox(height: compact ? 4 : 5),
-
-                  // ── Statut avec animation pulse ────────────────────────────
-                  AnimatedBuilder(
-                    animation: pulseController,
-                    builder: (_, _) {
-                      final opacity =
-                          isRunning ? 0.4 + 0.6 * pulseController.value : 1.0;
-                      return Opacity(
-                        opacity: opacity,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isRunning ? Colors.green : Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              isRunning
-                                  ? AppStrings.t('home_status_online')
-                                  : AppStrings.t('home_status_offline'),
-                              style: TextStyle(
-                                fontSize: statusFontSize,
-                                fontWeight: FontWeight.w500,
-                                color: isRunning ? Colors.green : Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-
-                  // ── Runner affinity ────────────────────────────────────────
-                  if (runnerLabel != null) ...[
-                    SizedBox(height: compact ? 3 : 4),
+                  ]
+                  : null,
+        ),
+        padding: const EdgeInsets.all(1),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: _cardGradient(scheme, widget.isRunning, _hovered),
+            borderRadius: BorderRadius.circular(21),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: _toggleExpanded,
+              borderRadius: BorderRadius.circular(21),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // En-tête minimal : avatar + nom + pastille de statut.
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.dns_outlined,
-                          size: 13,
-                          color: colorScheme.primary,
+                        _AvatarSquare(
+                          seed: widget.name,
+                          imageUrl: widget.avatar,
+                          isRunning: widget.isRunning,
+                          pulseController: widget.pulseController,
+                          showBadge: false,
                         ),
-                        const SizedBox(width: 3),
-                        Flexible(
+                        const SizedBox(width: 14),
+                        Expanded(
                           child: Text(
-                            runnerLabel!,
-                            style: TextStyle(
-                              fontSize: compact ? 9.5 : 10.0,
-                              color: colorScheme.primary,
-                            ),
+                            widget.name,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            style: _displayStyle(16.5, color: scheme.onSurface),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        _StatusPill(
+                          isRunning: widget.isRunning,
+                          pulseController: widget.pulseController,
+                        ),
+                        const SizedBox(width: 6),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0.0,
+                          duration: const Duration(milliseconds: 180),
+                          child: Icon(
+                            Icons.expand_more_rounded,
+                            color: scheme.onSurfaceVariant,
+                            size: 22,
                           ),
                         ),
                       ],
                     ),
-                  ],
-
-                  // ── Compteur de serveurs ───────────────────────────────────
-                  if (guildCount != null && guildCount! > 0) ...[
-                    SizedBox(height: compact ? 4 : 5),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.groups,
-                          size: 16,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          _serverCountLabel(),
-                          style: TextStyle(
-                            fontSize: serverFontSize,
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                    // Zone dépliante.
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox(width: double.infinity),
+                      secondChild: _buildExpandedContent(context, scheme),
+                      crossFadeState:
+                          _expanded
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 200),
+                      sizeCurve: Curves.easeInOut,
                     ),
                   ],
-                ],
+                ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-            // ── Bouton Lancer / Arrêter ──────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: canToggle ? onToggle : null,
-                icon:
-                    isTogglingThisBot
-                        ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                        : Icon(
+/// Style de titre « display » (Syne) pour l'identité visuelle.
+TextStyle _displayStyle(
+  double size, {
+  Color? color,
+  FontWeight weight = FontWeight.w700,
+}) {
+  return GoogleFonts.syne(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    letterSpacing: -0.2,
+  );
+}
+
+/// Dégradé subtil derrière les cartes pour donner de la profondeur.
+/// S'éclaircit au survol pour signaler l'interactivité de toute la carte.
+Gradient _cardGradient(ColorScheme scheme, bool isRunning, bool hovered) {
+  final top =
+      isRunning
+          ? Color.alphaBlend(
+            kBrandPurple.withValues(alpha: 0.18),
+            scheme.surfaceContainerHigh,
+          )
+          : scheme.surfaceContainerHigh;
+  final bottom = scheme.surfaceContainer;
+  final lift = hovered ? 0.06 : 0.0;
+  Color raise(Color c) =>
+      Color.alphaBlend(Colors.white.withValues(alpha: lift), c);
+  return LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [raise(top), raise(bottom)],
+  );
+}
+
+class _AvatarSquare extends StatelessWidget {
+  const _AvatarSquare({
+    required this.seed,
+    required this.imageUrl,
+    required this.isRunning,
+    required this.pulseController,
+    this.showBadge = true,
+  });
+
+  final String seed;
+  final String? imageUrl;
+  final bool isRunning;
+  final AnimationController pulseController;
+  final bool showBadge;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 52,
+      height: 52,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          _BrandIconSquare(
+            icon: Icons.smart_toy_rounded,
+            size: 50,
+            imageUrl: imageUrl,
+            tint: _botColor(seed),
+          ),
+          // Pastille de statut, façon badge Discord (haut-droite de l'icône).
+          if (showBadge)
+            Positioned(
+            top: -4,
+            right: -4,
+            child: AnimatedBuilder(
+              animation: pulseController,
+              builder: (_, _) {
+                final glow =
+                    isRunning ? 0.4 + 0.6 * pulseController.value : 1.0;
+                final dotColor =
+                    isRunning ? kOnlineColor : scheme.onSurfaceVariant;
+                return Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: scheme.surface,
+                  ),
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: dotColor,
+                      boxShadow:
                           isRunning
-                              ? Icons.stop_rounded
-                              : Icons.play_arrow_rounded,
-                          size: 16,
-                        ),
-                label: Text(
-                  isRunning
-                      ? AppStrings.t('home_stop')
-                      : AppStrings.t('home_start'),
-                ),
-                style: ElevatedButton.styleFrom(
-                  shape: const StadiumBorder(),
-                  backgroundColor: isRunning ? Colors.red : Colors.green,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  disabledForegroundColor: Colors.white70,
-                  padding: EdgeInsets.symmetric(
-                    vertical: buttonVerticalPadding,
-                  ),
-                ),
-              ),
-            ),
-
-            SizedBox(height: compact ? 4 : 6),
-
-            // ── Ligne inférieure : Gérer + Logs ──────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: onManage,
-                    icon: const Icon(Icons.tune, size: 14),
-                    label: Text(AppStrings.t('home_manage')),
-                    style: ElevatedButton.styleFrom(
-                      shape: const StadiumBorder(),
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                        vertical: buttonVerticalPadding,
-                      ),
+                              ? [
+                                BoxShadow(
+                                  color: kOnlineColor.withValues(
+                                    alpha: 0.8 * glow,
+                                  ),
+                                  blurRadius: 9,
+                                  spreadRadius: 1,
+                                ),
+                              ]
+                              : null,
                     ),
                   ),
-                ),
-                SizedBox(width: compact ? 8 : 10),
-                IconButton.filled(
-                  onPressed: onLogs,
-                  icon: const Icon(Icons.article_outlined, size: 18),
-                  tooltip: AppStrings.t('home_logs_tooltip'),
-                  style: IconButton.styleFrom(
-                    backgroundColor:
-                        onLogs != null
-                            ? Colors.deepPurple.shade100
-                            : Colors.grey.shade200,
-                    foregroundColor:
-                        onLogs != null ? Colors.deepPurple : Colors.grey,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bouton d'action unifié des cartes (Démarrer/Arrêter, Ajouter du temps,
+/// Gérer). Même hauteur, même rayon, même typographie → cohérence visuelle.
+/// [accent] teinte le fond + la bordure ; [foreground] surcharge la couleur
+/// du texte/icône (sinon accent, sinon neutre `onSurface`).
+class _CardActionButton extends StatelessWidget {
+  const _CardActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.accent,
+    this.foreground,
+    this.loading = false,
+  });
+
+  static const double _height = 40;
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Color? accent;
+  final Color? foreground;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final Color fg = foreground ?? accent ?? scheme.onSurface;
+    final Color borderColor =
+        accent != null ? accent!.withValues(alpha: 0.45) : scheme.outline;
+    final Color? bg = accent?.withValues(alpha: 0.12);
+    final bool enabled = onTap != null && !loading;
+
+    return Opacity(
+      opacity: enabled ? 1 : 0.55,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          child: Container(
+            height: _height,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (loading)
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: fg,
+                    ),
+                  )
+                else
+                  Icon(icon, size: 16, color: fg),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: fg,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
             ),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// Pastille de statut de l'en-tête : rond de couleur + texte
+/// « En ligne » / « Hors ligne ». Le rond pulse doucement quand en ligne.
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.isRunning, required this.pulseController});
+
+  final bool isRunning;
+  final AnimationController pulseController;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final Color color = isRunning ? kOnlineColor : scheme.onSurfaceVariant;
+    final label = AppStrings.t(
+      isRunning ? 'home_status_online' : 'home_status_offline',
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: pulseController,
+            builder: (_, _) {
+              final glow = isRunning ? 0.4 + 0.6 * pulseController.value : 0.0;
+              return Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color,
+                  boxShadow:
+                      isRunning
+                          ? [
+                            BoxShadow(
+                              color: kOnlineColor.withValues(alpha: 0.8 * glow),
+                              blurRadius: 7,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                          : null,
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Petite pastille d'information : la **donnée** dynamique est mise en avant
+/// (accent pastel, chasse fixe), le **label** reste en gris lisible.
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({
+    required this.icon,
+    required this.value,
+    this.label,
+    this.badge = false,
+  });
+
+  final IconData icon;
+
+  /// Donnée dynamique (chiffre serveurs, durée, « Illimité »…) → accent.
+  final String value;
+
+  /// Label statique optionnel (« serveurs »…) → gris.
+  final String? label;
+
+  /// Pastille entièrement accentuée (ex. badge « Illimité »).
+  final bool badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color:
+            badge
+                ? kDataAccent.withValues(alpha: 0.12)
+                : scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color:
+              badge
+                  ? kDataAccent.withValues(alpha: 0.35)
+                  : scheme.outlineVariant,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: badge ? kDataAccent : kMetaText),
+          const SizedBox(width: 5),
+          Flexible(
+            child: RichText(
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: kDataAccent,
+                ),
+                children: [
+                  TextSpan(text: value),
+                  if (label != null)
+                    TextSpan(
+                      text: ' $label',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: kMetaText,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -939,10 +1610,9 @@ class _EmptyStateWithSupport extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 40, 20, 0),
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
@@ -981,7 +1651,6 @@ class _EmptyStateWithSupport extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

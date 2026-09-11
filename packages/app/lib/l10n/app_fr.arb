@@ -1,0 +1,18 @@
+{
+  "@@locale": "fr",
+  "homeOverline": "MES PROJETS",
+  "homeRefreshTooltip": "Actualiser",
+  "homeDocsTooltip": "Documentation",
+  "homeSettingsTooltip": "Paramètres",
+  "homeTurnkeyTitle": "Bots Clé en main",
+  "homeTurnkeySubtitle": "Déployez des bots prêts à l'emploi",
+  "homeHostingAdd": "Ajouter du temps",
+  "homeHostingUnlimited": "Illimité",
+  "homeHostingUnitMonth": "mois",
+  "homeHostingUnitDay": "j",
+  "homeHostingUnitHour": "h",
+  "homeHostingUnitMinute": "m",
+  "homeStartAction": "Démarrer",
+  "homeCreateApp": "Créer une application",
+  "homeServersNoun": "{count, plural, =1{serveur} other{serveurs}}"
+}

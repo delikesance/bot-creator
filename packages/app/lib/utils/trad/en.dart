@@ -402,6 +402,8 @@ const Map<String, String> appStringsEn = {
   'home_start': 'Start',
   'home_manage': 'Manage',
   'home_logs_tooltip': 'Bot logs',
+  // Note: the home-redesign strings are now managed in the ARB i18n
+  // (lib/l10n/app_*.arb) and generated via `flutter gen-l10n`.
   'rewarded_start_title': 'Support Bot Creator',
   'rewarded_start_message':
       'This ad helps fund the app and can only appear when you press Start. If no ad can be shown, the bot will still start normally.',

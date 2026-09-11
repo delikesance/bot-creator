@@ -416,6 +416,8 @@
   'home_start': 'Lancer',
   'home_manage': 'Gérer',
   'home_logs_tooltip': 'Logs du bot',
+  // Note : les chaînes de la refonte de l'accueil sont désormais gérées dans
+  // l'i18n ARB (lib/l10n/app_*.arb) et générées via `flutter gen-l10n`.
   'rewarded_start_title': 'Soutenir Bot Creator',
   'rewarded_start_message':
       'Cette pub sert simplement à financer l’application et ne peut s’afficher que lorsque vous appuyez sur démarrer. Si aucune pub ne peut être affichée, le bot démarre normalement.',

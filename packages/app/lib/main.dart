@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:bot_creator/firebase_options.dart';
+import 'package:bot_creator/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
@@ -10,7 +11,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:nyxx/nyxx.dart' hide Locale;
 import "routes/home.dart";
-import "routes/settings.dart";
 import 'package:provider/provider.dart';
 import 'routes/create.dart';
 import 'routes/onboarding.dart';
@@ -194,6 +194,99 @@ Future<void> _bootstrapAndRunApp() async {
   }
 }
 
+/// ── Direction artistique ──────────────────────────────────────────────────
+/// Palette de marque partagée par la refonte du front.
+/// Violet d'origine de l'app (choisi par le propriétaire) : RGBO(106, 15, 162).
+const Color kBrandPurple = Color(0xFF6A0FA2);
+
+/// Variante plus claire, lisible en texte/icône sur fond sombre.
+const Color kBrandPurpleSoft = Color(0xFFA64DE0);
+const Color kDangerColor = Color(0xFFE5484D);
+const Color kOnlineColor = Color(0xFF3BD671);
+const Color kScaffoldDark = Color(0xFF0D0E12);
+
+/// Gris moyen/clair pour les métadonnées (lisible sur fond sombre, WCAG-friendly).
+const Color kMetaText = Color(0xFFA1A1AA);
+
+/// Accent pastel réservé à la donnée dynamique (chiffre serveurs, badge Illimité…).
+const Color kDataAccent = Color(0xFFC4B5FD);
+
+/// Largeur minimale (en dp logiques) à partir de laquelle on bascule sur la
+/// mise en page « desktop » (multi-colonnes, actions dans l'en-tête).
+const double kDesktopBreakpoint = 720;
+
+/// Central theme factory so every screen inherits the new art direction.
+class AppTheme {
+  const AppTheme._();
+
+  static ThemeData build(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final base = ColorScheme.fromSeed(
+      seedColor: kBrandPurple,
+      brightness: brightness,
+    );
+
+    final scheme =
+        isDark
+            ? base.copyWith(
+              primary: kBrandPurple,
+              secondary: kBrandPurpleSoft,
+              surface: const Color(0xFF1A1B23),
+              surfaceContainerLowest: const Color(0xFF101118),
+              surfaceContainerLow: const Color(0xFF15161D),
+              surfaceContainer: const Color(0xFF1A1B23),
+              surfaceContainerHigh: const Color(0xFF22232D),
+              surfaceContainerHighest: const Color(0xFF2A2B36),
+              onSurface: const Color(0xFFF1F2F5),
+              onSurfaceVariant: const Color(0xFF9A9CA8),
+              outline: const Color(0x24FFFFFF),
+              outlineVariant: const Color(0x1AFFFFFF),
+              error: kDangerColor,
+            )
+            : base.copyWith(primary: kBrandPurple);
+
+    final scaffoldBg = isDark ? kScaffoldDark : scheme.surface;
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: scaffoldBg,
+      cardTheme: CardThemeData(
+        color: scheme.surfaceContainer,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: scaffoldBg,
+        surfaceTintColor: Colors.transparent,
+        foregroundColor: scheme.onSurface,
+        elevation: 0,
+        centerTitle: false,
+      ),
+      dividerTheme: DividerThemeData(color: scheme.outlineVariant, thickness: 1),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: kBrandPurple,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
   static final GlobalKey<NavigatorState> navigatorKey =
@@ -242,15 +335,13 @@ class _MyAppState extends State<MyApp> {
       locale: Locale(localeProvider.locale.code),
       supportedLocales: const [Locale('en'), Locale('fr')],
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData.dark(useMaterial3: true),
+      theme: AppTheme.build(Brightness.light),
+      darkTheme: AppTheme.build(Brightness.dark),
       themeMode: themeProvider.themeMode,
       debugShowCheckedModeBanner: false,
       home:
@@ -268,8 +359,10 @@ class _MyAppState extends State<MyApp> {
                   }
                 },
               )
-              : const MyMainPage(title: 'Bot Creator'),
-      routes: {'/home': (context) => const MyMainPage(title: 'Bot Creator')},
+              : MyMainPage(title: AppStrings.t('app_title')),
+      routes: {
+        '/home': (context) => MyMainPage(title: AppStrings.t('app_title')),
+      },
     );
   }
 }
@@ -285,36 +378,31 @@ class MyMainPage extends StatefulWidget {
 class _MyMainPageState extends State<MyMainPage> {
   @override
   Widget build(BuildContext context) {
+    // Sur desktop, l'action « Créer » vit dans l'en-tête ; on masque le FAB.
+    final isWide = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
-        title: Text(widget.title),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingPage()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: const HomePage(),
+      body: const SafeArea(bottom: false, child: HomePage()),
       floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AppCreatePage()),
-          );
-        },
-        backgroundColor: const Color.fromRGBO(106, 15, 162, 1),
-        icon: const Icon(Icons.add),
-        label: Text(AppStrings.t('app_create_button')),
-      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton:
+          isWide
+              ? null
+              : FloatingActionButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AppCreatePage(),
+                    ),
+                  );
+                },
+                backgroundColor: kBrandPurple,
+                foregroundColor: Colors.white,
+                elevation: 6,
+                highlightElevation: 10,
+                tooltip: AppLocalizations.of(context)!.homeCreateApp,
+                child: const Icon(Icons.add_rounded),
+              ),
     );
   }
 }
