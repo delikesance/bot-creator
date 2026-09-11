@@ -414,7 +414,7 @@ const Map<String, String> appStringsEn = {
   'home_servers_active_one': '{count} active server',
   'home_servers_active_other': '{count} active servers',
   'home_hosting_remaining': 'Remaining hosting',
-  'home_hosting_add': 'Add',
+  'home_hosting_add': 'Add time',
   'home_hosting_unlimited': 'Unlimited',
   'home_hosting_unit_month': 'mo',
   'home_hosting_unit_day': 'd',

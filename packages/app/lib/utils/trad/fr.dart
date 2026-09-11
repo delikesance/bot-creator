@@ -428,7 +428,7 @@
   'home_servers_active_one': '{count} serveur actif',
   'home_servers_active_other': '{count} serveurs actifs',
   'home_hosting_remaining': 'Hébergement restant',
-  'home_hosting_add': 'Ajouter',
+  'home_hosting_add': 'Ajouter du temps',
   'home_hosting_unlimited': 'Illimité',
   'home_hosting_unit_month': 'mois',
   'home_hosting_unit_day': 'j',

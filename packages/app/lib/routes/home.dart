@@ -508,8 +508,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 onCreate: () => _openPage(const AppCreatePage()),
               ),
               const SizedBox(height: 22),
-              _TurnkeyCard(onTap: () => _openPage(const AppCreatePage())),
-              const SizedBox(height: 22),
+              // « Bots Clé en main » : feature disponible uniquement sur la
+              // vraie version mobile → masquée sur desktop.
+              if (!isWide) ...[
+                _TurnkeyCard(onTap: () => _openPage(const AppCreatePage())),
+                const SizedBox(height: 22),
+              ],
             ];
 
             if (snapshot.hasError) {
@@ -558,7 +562,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
               final cards = <Widget>[
                 for (final app in apps)
-                  _buildBotCard(context, app, initiallyExpanded: isWide),
+                  _buildBotCard(
+                    context,
+                    app,
+                    initiallyExpanded: isWide,
+                    showAddHosting: !isWide,
+                  ),
               ];
 
               if (columns == 1) {
@@ -610,6 +619,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     BuildContext context,
     dynamic app, {
     required bool initiallyExpanded,
+    required bool showAddHosting,
   }) {
     final name = app['name']?.toString() ?? AppStrings.t('home_unknown_app');
     final id = app['id']?.toString() ?? '';
@@ -629,6 +639,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       canToggle: !_isTogglingBot,
       isTogglingThisBot: _togglingBotId == id,
       initiallyExpanded: initiallyExpanded,
+      showAddHosting: showAddHosting,
       pulseController: pulseCtrl,
       onManage:
           () => Navigator.push(
@@ -1010,6 +1021,7 @@ class _BotCard extends StatefulWidget {
     required this.canToggle,
     required this.isTogglingThisBot,
     required this.initiallyExpanded,
+    required this.showAddHosting,
     required this.pulseController,
     required this.onManage,
     required this.onToggle,
@@ -1024,6 +1036,7 @@ class _BotCard extends StatefulWidget {
   final bool canToggle;
   final bool isTogglingThisBot;
   final bool initiallyExpanded;
+  final bool showAddHosting;
   final AnimationController pulseController;
   final VoidCallback onManage;
   final VoidCallback onToggle;
@@ -1079,13 +1092,31 @@ class _BotCardState extends State<_BotCard> {
           runSpacing: 8,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            _ActionPill(
-              isRunning: widget.isRunning,
-              loading: widget.isTogglingThisBot,
+            _CardActionButton(
+              icon:
+                  widget.isRunning
+                      ? Icons.stop_rounded
+                      : Icons.play_arrow_rounded,
+              label: AppStrings.t(
+                widget.isRunning ? 'home_stop' : 'home_start_action',
+              ),
               onTap: widget.canToggle ? widget.onToggle : null,
+              loading: widget.isTogglingThisBot,
+              accent: widget.isRunning ? kDangerColor : null,
             ),
-            _AddTimeButton(onTap: widget.onAddHosting),
-            _ManageButton(onTap: widget.onManage),
+            if (widget.showAddHosting)
+              _CardActionButton(
+                icon: Icons.add_rounded,
+                label: AppStrings.t('home_hosting_add'),
+                onTap: widget.onAddHosting,
+                accent: kBrandPurple,
+                foreground: kBrandPurpleSoft,
+              ),
+            _CardActionButton(
+              icon: Icons.tune_rounded,
+              label: AppStrings.t('home_manage'),
+              onTap: widget.onManage,
+            ),
           ],
         ),
       ],
@@ -1317,70 +1348,78 @@ class _AvatarSquare extends StatelessWidget {
   }
 }
 
-class _ActionPill extends StatelessWidget {
-  const _ActionPill({
-    required this.isRunning,
-    required this.loading,
+/// Bouton d'action unifié des cartes (Démarrer/Arrêter, Ajouter du temps,
+/// Gérer). Même hauteur, même rayon, même typographie → cohérence visuelle.
+/// [accent] teinte le fond + la bordure ; [foreground] surcharge la couleur
+/// du texte/icône (sinon accent, sinon neutre `onSurface`).
+class _CardActionButton extends StatelessWidget {
+  const _CardActionButton({
+    required this.icon,
+    required this.label,
     required this.onTap,
+    this.accent,
+    this.foreground,
+    this.loading = false,
   });
 
-  final bool isRunning;
-  final bool loading;
+  static const double _height = 40;
+
+  final IconData icon;
+  final String label;
   final VoidCallback? onTap;
+  final Color? accent;
+  final Color? foreground;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final fg = isRunning ? kDangerColor : scheme.onSurface;
-    final borderColor =
-        isRunning ? kDangerColor.withValues(alpha: 0.5) : scheme.outline;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
-          child: DecoratedBox(
+    final Color fg = foreground ?? accent ?? scheme.onSurface;
+    final Color borderColor =
+        accent != null ? accent!.withValues(alpha: 0.45) : scheme.outline;
+    final Color? bg = accent?.withValues(alpha: 0.12);
+    final bool enabled = onTap != null && !loading;
+
+    return Opacity(
+      opacity: enabled ? 1 : 0.55,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: enabled ? onTap : null,
+          child: Container(
+            height: _height,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
+              color: bg,
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: borderColor),
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (loading)
-                    SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: fg,
-                      ),
-                    )
-                  else
-                    Icon(
-                      isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
-                      size: 16,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (loading)
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
                       color: fg,
                     ),
-                  const SizedBox(width: 6),
-                  Text(
-                    isRunning
-                        ? AppStrings.t('home_stop')
-                        : AppStrings.t('home_start_action'),
-                    style: TextStyle(
-                      color: fg,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  )
+                else
+                  Icon(icon, size: 16, color: fg),
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1448,105 +1487,6 @@ class _StatusPill extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Bouton neutre « Gérer » : ouvre l'édition du bot depuis la zone dépliée.
-class _ManageButton extends StatelessWidget {
-  const _ManageButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 34),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: scheme.outline),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.tune_rounded,
-                    size: 16,
-                    color: scheme.onSurface,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    AppStrings.t('home_manage'),
-                    style: TextStyle(
-                      color: scheme.onSurface,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Bouton compact « + Ajouter » pour prolonger l'hébergement du bot.
-/// Ouvre la page d'abonnement ; s'affiche à droite de la rangée d'infos.
-class _AddTimeButton extends StatelessWidget {
-  const _AddTimeButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(10),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 34),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: kBrandPurple.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: kBrandPurple.withValues(alpha: 0.45)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.add_rounded, size: 16, color: kBrandPurpleSoft),
-                  const SizedBox(width: 4),
-                  Text(
-                    AppStrings.t('home_hosting_add'),
-                    style: TextStyle(
-                      color: kBrandPurpleSoft,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
