@@ -940,21 +940,34 @@ class _BrandIconSquare extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
     final tintColor = tint;
+
+    Widget fallbackIcon() => Icon(
+      icon,
+      color: tintColor ?? scheme.onSurfaceVariant,
+      size: size * 0.5,
+    );
+
+    // Avec une vraie photo de profil : bordure neutre discrète.
+    // Sinon : carré teinté de la couleur d'identité du bot (repli).
     return Container(
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color:
-            tintColor != null
-                ? tintColor.withValues(alpha: 0.18)
-                : scheme.surfaceContainerHigh,
+            hasImage
+                ? scheme.surfaceContainerHigh
+                : (tintColor != null
+                    ? tintColor.withValues(alpha: 0.18)
+                    : scheme.surfaceContainerHigh),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color:
-              tintColor != null
-                  ? tintColor.withValues(alpha: 0.38)
-                  : scheme.outlineVariant,
+              hasImage
+                  ? scheme.outlineVariant
+                  : (tintColor != null
+                      ? tintColor.withValues(alpha: 0.38)
+                      : scheme.outlineVariant),
         ),
       ),
       child:
@@ -962,18 +975,16 @@ class _BrandIconSquare extends StatelessWidget {
               ? Image.network(
                 imageUrl!,
                 fit: BoxFit.cover,
-                errorBuilder:
-                    (_, _, _) => Icon(
-                      icon,
-                      color: tintColor ?? scheme.onSurfaceVariant,
-                      size: size * 0.5,
-                    ),
+                width: size,
+                height: size,
+                gaplessPlayback: true,
+                loadingBuilder: (context, child, progress) {
+                  if (progress == null) return child;
+                  return Center(child: fallbackIcon());
+                },
+                errorBuilder: (_, _, _) => Center(child: fallbackIcon()),
               )
-              : Icon(
-                icon,
-                color: tintColor ?? scheme.onSurfaceVariant,
-                size: size * 0.5,
-              ),
+              : fallbackIcon(),
     );
   }
 }
