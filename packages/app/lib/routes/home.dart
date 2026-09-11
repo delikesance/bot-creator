@@ -557,7 +557,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               }
 
               final cards = <Widget>[
-                for (final app in apps) _buildBotCard(context, app),
+                for (final app in apps)
+                  _buildBotCard(context, app, initiallyExpanded: isWide),
               ];
 
               if (columns == 1) {
@@ -605,7 +606,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   /// Construit une carte bot à partir d'une entrée du flux d'apps.
-  Widget _buildBotCard(BuildContext context, dynamic app) {
+  Widget _buildBotCard(
+    BuildContext context,
+    dynamic app, {
+    required bool initiallyExpanded,
+  }) {
     final name = app['name']?.toString() ?? AppStrings.t('home_unknown_app');
     final id = app['id']?.toString() ?? '';
     final avatar = app['avatar']?.toString();
@@ -623,6 +628,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       isRunning: isRunning,
       canToggle: !_isTogglingBot,
       isTogglingThisBot: _togglingBotId == id,
+      initiallyExpanded: initiallyExpanded,
       pulseController: pulseCtrl,
       onManage:
           () => Navigator.push(
@@ -1003,6 +1009,7 @@ class _BotCard extends StatefulWidget {
     required this.isRunning,
     required this.canToggle,
     required this.isTogglingThisBot,
+    required this.initiallyExpanded,
     required this.pulseController,
     required this.onManage,
     required this.onToggle,
@@ -1016,6 +1023,7 @@ class _BotCard extends StatefulWidget {
   final bool isRunning;
   final bool canToggle;
   final bool isTogglingThisBot;
+  final bool initiallyExpanded;
   final AnimationController pulseController;
   final VoidCallback onManage;
   final VoidCallback onToggle;
@@ -1027,25 +1035,22 @@ class _BotCard extends StatefulWidget {
 
 class _BotCardState extends State<_BotCard> {
   bool _hovered = false;
+  late bool _expanded = widget.initiallyExpanded;
 
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+  void _toggleExpanded() => setState(() => _expanded = !_expanded);
+
+  /// Contenu révélé au dépliage : infos (serveurs, hébergement) + actions
+  /// (démarrer/arrêter, ajouter du temps, gérer).
+  Widget _buildExpandedContent(BuildContext context, ColorScheme scheme) {
     final count = widget.guildCount ?? 0;
-
-    final Widget? serverChip =
-        count > 0
-            ? _InfoChip(
-              icon: Icons.dns_rounded,
-              value: count.toString(),
-              label: AppStrings.t(
-                count > 1
-                    ? 'home_servers_noun_other'
-                    : 'home_servers_noun_one',
-              ),
-            )
-            : null;
-    final Widget hostingChip =
+    final serverChip = _InfoChip(
+      icon: Icons.dns_rounded,
+      value: count.toString(),
+      label: AppStrings.t(
+        count > 1 ? 'home_servers_noun_other' : 'home_servers_noun_one',
+      ),
+    );
+    final hostingChip =
         widget.hostingExpiresAt != null
             ? _InfoChip(
               icon: Icons.bolt_rounded,
@@ -1056,6 +1061,40 @@ class _BotCardState extends State<_BotCard> {
               value: AppStrings.t('home_hosting_unlimited'),
               badge: true,
             );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 14),
+        Divider(height: 1, thickness: 1, color: scheme.outlineVariant),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [serverChip, hostingChip],
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _ActionPill(
+              isRunning: widget.isRunning,
+              loading: widget.isTogglingThisBot,
+              onTap: widget.canToggle ? widget.onToggle : null,
+            ),
+            _AddTimeButton(onTap: widget.onAddHosting),
+            _ManageButton(onTap: widget.onManage),
+          ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
 
     // Bordure fine avec reflet plus clair vers le haut (dégradé 1px).
     final Color borderTop = (widget.isRunning ? kBrandPurpleSoft : Colors.white)
@@ -1100,13 +1139,14 @@ class _BotCardState extends State<_BotCard> {
           child: Material(
             type: MaterialType.transparency,
             child: InkWell(
-              onTap: widget.onManage,
+              onTap: _toggleExpanded,
               borderRadius: BorderRadius.circular(21),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // En-tête minimal : avatar + nom + pastille de statut.
                     Row(
                       children: [
                         _AvatarSquare(
@@ -1114,6 +1154,7 @@ class _BotCardState extends State<_BotCard> {
                           imageUrl: widget.avatar,
                           isRunning: widget.isRunning,
                           pulseController: widget.pulseController,
+                          showBadge: false,
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -1124,28 +1165,33 @@ class _BotCardState extends State<_BotCard> {
                             style: _displayStyle(16.5, color: scheme.onSurface),
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        _ActionPill(
+                        const SizedBox(width: 12),
+                        _StatusPill(
                           isRunning: widget.isRunning,
-                          loading: widget.isTogglingThisBot,
-                          onTap: widget.canToggle ? widget.onToggle : null,
+                          pulseController: widget.pulseController,
                         ),
                         const SizedBox(width: 6),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0.0,
+                          duration: const Duration(milliseconds: 180),
+                          child: Icon(
+                            Icons.expand_more_rounded,
+                            color: scheme.onSurfaceVariant,
+                            size: 22,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        if (serverChip != null) ...[
-                          serverChip,
-                          const SizedBox(width: 8),
-                        ],
-                        Flexible(child: hostingChip),
-                        if (widget.hostingExpiresAt != null) ...[
-                          const SizedBox(width: 8),
-                          _AddTimeButton(onTap: widget.onAddHosting),
-                        ],
-                      ],
+                    // Zone dépliante.
+                    AnimatedCrossFade(
+                      firstChild: const SizedBox(width: double.infinity),
+                      secondChild: _buildExpandedContent(context, scheme),
+                      crossFadeState:
+                          _expanded
+                              ? CrossFadeState.showSecond
+                              : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 200),
+                      sizeCurve: Curves.easeInOut,
                     ),
                   ],
                 ),
@@ -1199,12 +1245,14 @@ class _AvatarSquare extends StatelessWidget {
     required this.imageUrl,
     required this.isRunning,
     required this.pulseController,
+    this.showBadge = true,
   });
 
   final String seed;
   final String? imageUrl;
   final bool isRunning;
   final AnimationController pulseController;
+  final bool showBadge;
 
   @override
   Widget build(BuildContext context) {
@@ -1222,7 +1270,8 @@ class _AvatarSquare extends StatelessWidget {
             tint: _botColor(seed),
           ),
           // Pastille de statut, façon badge Discord (haut-droite de l'icône).
-          Positioned(
+          if (showBadge)
+            Positioned(
             top: -4,
             right: -4,
             child: AnimatedBuilder(
@@ -1327,6 +1376,121 @@ class _ActionPill extends StatelessWidget {
                     style: TextStyle(
                       color: fg,
                       fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pastille de statut de l'en-tête : rond de couleur + texte
+/// « En ligne » / « Hors ligne ». Le rond pulse doucement quand en ligne.
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.isRunning, required this.pulseController});
+
+  final bool isRunning;
+  final AnimationController pulseController;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final Color color = isRunning ? kOnlineColor : scheme.onSurfaceVariant;
+    final label = AppStrings.t(
+      isRunning ? 'home_status_online' : 'home_status_offline',
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AnimatedBuilder(
+            animation: pulseController,
+            builder: (_, _) {
+              final glow = isRunning ? 0.4 + 0.6 * pulseController.value : 0.0;
+              return Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color,
+                  boxShadow:
+                      isRunning
+                          ? [
+                            BoxShadow(
+                              color: kOnlineColor.withValues(alpha: 0.8 * glow),
+                              blurRadius: 7,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                          : null,
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bouton neutre « Gérer » : ouvre l'édition du bot depuis la zone dépliée.
+class _ManageButton extends StatelessWidget {
+  const _ManageButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 34),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: scheme.outline),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    size: 16,
+                    color: scheme.onSurface,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    AppStrings.t('home_manage'),
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
