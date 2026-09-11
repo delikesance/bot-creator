@@ -568,7 +568,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               }
 
               final cards = <Widget>[
-                for (final app in apps) _buildBotCard(context, app),
+                for (final app in apps)
+                  _buildBotCard(context, app, expandable: !isWide),
               ];
 
               if (columns == 1) {
@@ -602,7 +603,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             return ListView(
               padding: EdgeInsets.fromLTRB(
                 horizontal,
-                12,
+                24,
                 horizontal,
                 isWide ? 40 : 120,
               ),
@@ -616,7 +617,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   /// Construit une carte bot à partir d'une entrée du flux d'apps.
-  Widget _buildBotCard(BuildContext context, dynamic app) {
+  Widget _buildBotCard(
+    BuildContext context,
+    dynamic app, {
+    bool expandable = true,
+  }) {
     final name = app['name']?.toString() ?? AppStrings.t('home_unknown_app');
     final id = app['id']?.toString() ?? '';
     final avatar = app['avatar']?.toString();
@@ -648,6 +653,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       onToggle: () => _toggleBot(botId: id, botName: name),
       onLogs: isRunning ? () => _openPage(BotLogsPage(botId: id)) : null,
       onAddHosting: () => _openPage(const SubscriptionPage()),
+      expandable: expandable,
     );
   }
 
@@ -968,6 +974,7 @@ class _BotCard extends StatefulWidget {
     required this.onLogs,
     required this.onAddHosting,
     this.runnerLabel,
+    this.expandable = true,
   });
 
   final String name;
@@ -978,6 +985,9 @@ class _BotCard extends StatefulWidget {
   final bool canToggle;
   final bool isTogglingThisBot;
   final String? runnerLabel;
+
+  /// Sur desktop, les cartes sont toujours ouvertes et non repliables.
+  final bool expandable;
   final AnimationController pulseController;
   final VoidCallback onManage;
   final VoidCallback onToggle;
@@ -990,6 +1000,8 @@ class _BotCard extends StatefulWidget {
 
 class _BotCardState extends State<_BotCard> {
   late bool _expanded = widget.isRunning;
+
+  bool get _isExpanded => widget.expandable ? _expanded : true;
 
   @override
   void didUpdateWidget(covariant _BotCard oldWidget) {
@@ -1039,7 +1051,10 @@ class _BotCardState extends State<_BotCard> {
           children: [
             // ── En-tête (tap pour déplier / replier) ───────────────────────
             InkWell(
-              onTap: () => setState(() => _expanded = !_expanded),
+              onTap:
+                  widget.expandable
+                      ? () => setState(() => _expanded = !_expanded)
+                      : null,
               borderRadius: BorderRadius.circular(22),
               child: Padding(
                 padding: const EdgeInsets.all(14),
@@ -1091,7 +1106,7 @@ class _BotCardState extends State<_BotCard> {
             AnimatedCrossFade(
               duration: const Duration(milliseconds: 180),
               crossFadeState:
-                  _expanded
+                  _isExpanded
                       ? CrossFadeState.showFirst
                       : CrossFadeState.showSecond,
               firstChild: Padding(
