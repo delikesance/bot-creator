@@ -17,6 +17,7 @@ import 'package:bot_creator/utils/premium_capabilities.dart';
 import 'package:bot_creator/utils/global.dart';
 import 'package:bot_creator/utils/runner_settings.dart';
 import 'package:bot_creator/widgets/native_ad_slot.dart';
+import 'package:bot_creator/widgets/subscription_page.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -632,6 +633,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ).then((_) => _initRunningState()),
       onToggle: () => _toggleBot(botId: id, botName: name),
+      onAddHosting: () => SubscriptionPage.show(context),
     );
   }
 
@@ -1004,6 +1006,7 @@ class _BotCard extends StatefulWidget {
     required this.pulseController,
     required this.onManage,
     required this.onToggle,
+    required this.onAddHosting,
   });
 
   final String name;
@@ -1016,6 +1019,7 @@ class _BotCard extends StatefulWidget {
   final AnimationController pulseController;
   final VoidCallback onManage;
   final VoidCallback onToggle;
+  final VoidCallback onAddHosting;
 
   @override
   State<_BotCard> createState() => _BotCardState();
@@ -1137,6 +1141,10 @@ class _BotCardState extends State<_BotCard> {
                           const SizedBox(width: 8),
                         ],
                         Flexible(child: hostingChip),
+                        if (widget.hostingExpiresAt != null) ...[
+                          const SizedBox(width: 8),
+                          _AddTimeButton(onTap: widget.onAddHosting),
+                        ],
                       ],
                     ),
                   ],
@@ -1319,6 +1327,54 @@ class _ActionPill extends StatelessWidget {
                     style: TextStyle(
                       color: fg,
                       fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bouton compact « + Ajouter » pour prolonger l'hébergement du bot.
+/// Ouvre la page d'abonnement ; s'affiche à droite de la rangée d'infos.
+class _AddTimeButton extends StatelessWidget {
+  const _AddTimeButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 34),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: kBrandPurple.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: kBrandPurple.withValues(alpha: 0.45)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.add_rounded, size: 16, color: kBrandPurpleSoft),
+                  const SizedBox(width: 4),
+                  Text(
+                    AppStrings.t('home_hosting_add'),
+                    style: TextStyle(
+                      color: kBrandPurpleSoft,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
