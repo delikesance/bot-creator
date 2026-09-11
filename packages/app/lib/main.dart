@@ -344,8 +344,10 @@ class _MyAppState extends State<MyApp> {
                   }
                 },
               )
-              : const MyMainPage(title: 'Bot Creator'),
-      routes: {'/home': (context) => const MyMainPage(title: 'Bot Creator')},
+              : MyMainPage(title: AppStrings.t('app_title')),
+      routes: {
+        '/home': (context) => MyMainPage(title: AppStrings.t('app_title')),
+      },
     );
   }
 }
