@@ -765,7 +765,6 @@ class _HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(
@@ -774,8 +773,8 @@ class _HomeHeader extends StatelessWidget {
             children: [
               Text(
                 AppStrings.t('home_overline'),
-                style: TextStyle(
-                  color: scheme.primary,
+                style: const TextStyle(
+                  color: kBrandPurpleSoft,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.6,
@@ -939,7 +938,7 @@ class _BrandIconSquare extends StatelessWidget {
       height: size,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: kBrandPurple.withValues(alpha: 0.16),
+        color: kBrandPurpleSoft.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(14),
       ),
       child:
@@ -949,9 +948,9 @@ class _BrandIconSquare extends StatelessWidget {
                 fit: BoxFit.cover,
                 errorBuilder:
                     (_, _, _) =>
-                        Icon(icon, color: kBrandPurple, size: size * 0.5),
+                        Icon(icon, color: kBrandPurpleSoft, size: size * 0.5),
               )
-              : Icon(icon, color: kBrandPurple, size: size * 0.5),
+              : Icon(icon, color: kBrandPurpleSoft, size: size * 0.5),
     );
   }
 }
@@ -1232,7 +1231,7 @@ class _ActionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isRunning ? kDangerColor : kBrandPurple;
+    final color = isRunning ? kDangerColor : kBrandPurpleSoft;
     return Material(
       color: color.withValues(alpha: 0.15),
       borderRadius: BorderRadius.circular(999),

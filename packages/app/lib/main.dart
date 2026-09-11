@@ -195,8 +195,11 @@ Future<void> _bootstrapAndRunApp() async {
 
 /// ── Direction artistique ──────────────────────────────────────────────────
 /// Palette de marque partagée par la refonte du front.
-const Color kBrandPurple = Color(0xFF7C5CFF);
-const Color kBrandPurpleSoft = Color(0xFF9C86FF);
+/// Violet d'origine de l'app (choisi par le propriétaire) : RGBO(106, 15, 162).
+const Color kBrandPurple = Color(0xFF6A0FA2);
+
+/// Variante plus claire, lisible en texte/icône sur fond sombre.
+const Color kBrandPurpleSoft = Color(0xFFA64DE0);
 const Color kDangerColor = Color(0xFFE5484D);
 const Color kOnlineColor = Color(0xFF3BD671);
 const Color kScaffoldDark = Color(0xFF0B0B0F);
