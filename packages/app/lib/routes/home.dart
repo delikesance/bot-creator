@@ -765,6 +765,7 @@ class _HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(
@@ -773,8 +774,8 @@ class _HomeHeader extends StatelessWidget {
             children: [
               Text(
                 AppStrings.t('home_overline'),
-                style: const TextStyle(
-                  color: kBrandPurpleSoft,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1.6,
@@ -932,14 +933,16 @@ class _BrandIconSquare extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
     return Container(
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: kBrandPurpleSoft.withValues(alpha: 0.18),
+        color: scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child:
           hasImage
@@ -947,10 +950,13 @@ class _BrandIconSquare extends StatelessWidget {
                 imageUrl!,
                 fit: BoxFit.cover,
                 errorBuilder:
-                    (_, _, _) =>
-                        Icon(icon, color: kBrandPurpleSoft, size: size * 0.5),
+                    (_, _, _) => Icon(
+                      icon,
+                      color: scheme.onSurfaceVariant,
+                      size: size * 0.5,
+                    ),
               )
-              : Icon(icon, color: kBrandPurpleSoft, size: size * 0.5),
+              : Icon(icon, color: scheme.onSurfaceVariant, size: size * 0.5),
     );
   }
 }
@@ -1037,12 +1043,7 @@ class _BotCardState extends State<_BotCard> {
       decoration: BoxDecoration(
         color: scheme.surfaceContainer,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color:
-              widget.isRunning
-                  ? kOnlineColor.withValues(alpha: 0.45)
-                  : scheme.outlineVariant,
-        ),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Material(
         type: MaterialType.transparency,
@@ -1231,14 +1232,19 @@ class _ActionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isRunning ? kDangerColor : kBrandPurpleSoft;
+    final scheme = Theme.of(context).colorScheme;
+    final fg = isRunning ? kDangerColor : scheme.onSurface;
     return Material(
-      color: color.withValues(alpha: 0.15),
+      color: scheme.surfaceContainerHigh,
       borderRadius: BorderRadius.circular(999),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1247,16 +1253,13 @@ class _ActionPill extends StatelessWidget {
                 SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: color,
-                  ),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
                 )
               else
                 Icon(
                   isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
                   size: 16,
-                  color: color,
+                  color: fg,
                 ),
               const SizedBox(width: 6),
               Text(
@@ -1264,7 +1267,7 @@ class _ActionPill extends StatelessWidget {
                     ? AppStrings.t('home_stop')
                     : AppStrings.t('home_start_action'),
                 style: TextStyle(
-                  color: color,
+                  color: fg,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
@@ -1399,10 +1402,10 @@ class _HostingBlock extends StatelessWidget {
                 Row(
                   children: [
                     if (unlimited) ...[
-                      const Icon(
+                      Icon(
                         Icons.all_inclusive_rounded,
                         size: 18,
-                        color: kBrandPurpleSoft,
+                        color: scheme.onSurfaceVariant,
                       ),
                       const SizedBox(width: 6),
                     ],
@@ -1437,6 +1440,7 @@ class _AddHostingButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(10),
@@ -1448,12 +1452,16 @@ class _AddHostingButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.add_rounded, size: 18, color: kBrandPurpleSoft),
+              Icon(
+                Icons.add_rounded,
+                size: 18,
+                color: scheme.onSurfaceVariant,
+              ),
               const SizedBox(width: 4),
               Text(
                 AppStrings.t('home_hosting_add'),
-                style: const TextStyle(
-                  color: kBrandPurpleSoft,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
