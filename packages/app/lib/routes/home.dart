@@ -1055,7 +1055,7 @@ class _BotCardState extends State<_BotCard> {
                       ? CrossFadeState.showFirst
                       : CrossFadeState.showSecond,
               firstChild: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 14),
                 child: Column(
                   children: [
                     if (widget.runnerLabel != null) ...[
