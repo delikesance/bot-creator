@@ -1044,9 +1044,11 @@ class _BotCardState extends State<_BotCard> {
     // Bordure fine avec reflet plus clair vers le haut (dégradé 1px).
     final Color borderTop = (widget.isRunning ? kBrandPurpleSoft : Colors.white)
         .withValues(
-          alpha: _hovered ? 0.30 : (widget.isRunning ? 0.30 : 0.14),
+          alpha: _hovered ? 0.50 : (widget.isRunning ? 0.30 : 0.14),
         );
-    final Color borderBottom = Colors.white.withValues(alpha: 0.04);
+    final Color borderBottom = Colors.white.withValues(
+      alpha: _hovered ? 0.16 : 0.04,
+    );
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -1065,10 +1067,10 @@ class _BotCardState extends State<_BotCard> {
               _hovered
                   ? [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 22,
-                      spreadRadius: -6,
-                      offset: const Offset(0, 12),
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 28,
+                      spreadRadius: -4,
+                      offset: const Offset(0, 14),
                     ),
                   ]
                   : null,
@@ -1076,7 +1078,7 @@ class _BotCardState extends State<_BotCard> {
         padding: const EdgeInsets.all(1),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            gradient: _cardGradient(scheme, widget.isRunning),
+            gradient: _cardGradient(scheme, widget.isRunning, _hovered),
             borderRadius: BorderRadius.circular(21),
           ),
           child: Material(
@@ -1151,24 +1153,23 @@ TextStyle _displayStyle(
 }
 
 /// Dégradé subtil derrière les cartes pour donner de la profondeur.
-Gradient _cardGradient(ColorScheme scheme, bool isRunning) {
-  if (isRunning) {
-    return LinearGradient(
-      begin: Alignment.topLeft,
-      end: Alignment.bottomRight,
-      colors: [
-        Color.alphaBlend(
-          kBrandPurple.withValues(alpha: 0.18),
-          scheme.surfaceContainer,
-        ),
-        scheme.surfaceContainer,
-      ],
-    );
-  }
+/// S'éclaircit au survol pour signaler l'interactivité de toute la carte.
+Gradient _cardGradient(ColorScheme scheme, bool isRunning, bool hovered) {
+  final top =
+      isRunning
+          ? Color.alphaBlend(
+            kBrandPurple.withValues(alpha: 0.18),
+            scheme.surfaceContainerHigh,
+          )
+          : scheme.surfaceContainerHigh;
+  final bottom = scheme.surfaceContainer;
+  final lift = hovered ? 0.06 : 0.0;
+  Color raise(Color c) =>
+      Color.alphaBlend(Colors.white.withValues(alpha: lift), c);
   return LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [scheme.surfaceContainerHigh, scheme.surfaceContainer],
+    colors: [raise(top), raise(bottom)],
   );
 }
 
