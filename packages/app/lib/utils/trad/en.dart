@@ -398,6 +398,8 @@ const Map<String, String> appStringsEn = {
   'home_status_offline': 'Offline',
   'home_server_count_one': '{count} server',
   'home_server_count_other': '{count} servers',
+  'home_servers_noun_one': 'server',
+  'home_servers_noun_other': 'servers',
   'home_stop': 'Stop',
   'home_start': 'Start',
   'home_manage': 'Manage',

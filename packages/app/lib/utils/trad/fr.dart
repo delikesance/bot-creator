@@ -412,6 +412,8 @@
   'home_status_offline': 'Hors ligne',
   'home_server_count_one': '{count} serveur',
   'home_server_count_other': '{count} serveurs',
+  'home_servers_noun_one': 'serveur',
+  'home_servers_noun_other': 'serveurs',
   'home_stop': 'Arrêter',
   'home_start': 'Lancer',
   'home_manage': 'Gérer',

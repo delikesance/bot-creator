@@ -909,29 +909,52 @@ class _TurnkeyCard extends StatelessWidget {
 }
 
 /// Carré d'icône teinté de la couleur de marque (avec avatar optionnel).
+/// Couleur d'identité déterministe par bot (dérivée du nom/ID).
+Color _botColor(String seed) {
+  var hash = 0;
+  for (final unit in seed.codeUnits) {
+    hash = (hash * 31 + unit) & 0x7fffffff;
+  }
+  final hue = (hash % 360).toDouble();
+  return HSLColor.fromAHSL(1, hue, 0.5, 0.66).toColor();
+}
+
 class _BrandIconSquare extends StatelessWidget {
   const _BrandIconSquare({
     required this.icon,
     this.size = 48,
     this.imageUrl,
+    this.tint,
   });
 
   final IconData icon;
   final double size;
   final String? imageUrl;
 
+  /// Couleur d'accent propre à l'élément (identité du bot). Null = neutre.
+  final Color? tint;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    final tintColor = tint;
     return Container(
       width: size,
       height: size,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
+        color:
+            tintColor != null
+                ? tintColor.withValues(alpha: 0.18)
+                : scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: scheme.outlineVariant),
+        border: Border.all(
+          color:
+              tintColor != null
+                  ? tintColor.withValues(alpha: 0.38)
+                  : scheme.outlineVariant,
+        ),
       ),
       child:
           hasImage
@@ -941,18 +964,22 @@ class _BrandIconSquare extends StatelessWidget {
                 errorBuilder:
                     (_, _, _) => Icon(
                       icon,
-                      color: scheme.onSurfaceVariant,
+                      color: tintColor ?? scheme.onSurfaceVariant,
                       size: size * 0.5,
                     ),
               )
-              : Icon(icon, color: scheme.onSurfaceVariant, size: size * 0.5),
+              : Icon(
+                icon,
+                color: tintColor ?? scheme.onSurfaceVariant,
+                size: size * 0.5,
+              ),
     );
   }
 }
 
 // ── Carte bot ─────────────────────────────────────────────────────────────────
 
-class _BotCard extends StatelessWidget {
+class _BotCard extends StatefulWidget {
   const _BotCard({
     super.key,
     required this.name,
@@ -979,101 +1006,128 @@ class _BotCard extends StatelessWidget {
   final VoidCallback onToggle;
 
   @override
+  State<_BotCard> createState() => _BotCardState();
+}
+
+class _BotCardState extends State<_BotCard> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final count = guildCount ?? 0;
+    final count = widget.guildCount ?? 0;
 
     final Widget? serverChip =
         count > 0
             ? _InfoChip(
               icon: Icons.dns_rounded,
-              text: AppStrings.tr(
+              value: count.toString(),
+              label: AppStrings.t(
                 count > 1
-                    ? 'home_server_count_other'
-                    : 'home_server_count_one',
-                params: {'count': count.toString()},
+                    ? 'home_servers_noun_other'
+                    : 'home_servers_noun_one',
               ),
             )
             : null;
     final Widget hostingChip =
-        hostingExpiresAt != null
+        widget.hostingExpiresAt != null
             ? _InfoChip(
               icon: Icons.bolt_rounded,
-              text: _formatHostingCompact(hostingExpiresAt!),
-              accent: isRunning,
+              value: _formatHostingCompact(widget.hostingExpiresAt!),
             )
             : _InfoChip(
               icon: Icons.all_inclusive_rounded,
-              text: AppStrings.t('home_hosting_unlimited'),
+              value: AppStrings.t('home_hosting_unlimited'),
+              badge: true,
             );
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: _cardGradient(scheme, isRunning),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color:
-              isRunning
-                  ? kBrandPurple.withValues(alpha: 0.35)
-                  : scheme.outlineVariant,
-        ),
-        boxShadow:
-            isRunning
-                ? [
-                  BoxShadow(
-                    color: kBrandPurple.withValues(alpha: 0.22),
-                    blurRadius: 30,
-                    spreadRadius: -8,
-                    offset: const Offset(0, 10),
-                  ),
-                ]
-                : null,
-      ),
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          onTap: onManage,
+    // Bordure fine avec reflet plus clair vers le haut (dégradé 1px).
+    final Color borderTop = (widget.isRunning ? kBrandPurpleSoft : Colors.white)
+        .withValues(
+          alpha: _hovered ? 0.30 : (widget.isRunning ? 0.30 : 0.14),
+        );
+    final Color borderBottom = Colors.white.withValues(alpha: 0.04);
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [borderTop, borderBottom],
+          ),
           borderRadius: BorderRadius.circular(22),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          boxShadow:
+              _hovered
+                  ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 22,
+                      spreadRadius: -6,
+                      offset: const Offset(0, 12),
+                    ),
+                  ]
+                  : null,
+        ),
+        padding: const EdgeInsets.all(1),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: _cardGradient(scheme, widget.isRunning),
+            borderRadius: BorderRadius.circular(21),
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: widget.onManage,
+              borderRadius: BorderRadius.circular(21),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _AvatarSquare(
-                      imageUrl: avatar,
-                      isRunning: isRunning,
-                      pulseController: pulseController,
+                    Row(
+                      children: [
+                        _AvatarSquare(
+                          seed: widget.name,
+                          imageUrl: widget.avatar,
+                          isRunning: widget.isRunning,
+                          pulseController: widget.pulseController,
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            widget.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: _displayStyle(16.5, color: scheme.onSurface),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        _ActionPill(
+                          isRunning: widget.isRunning,
+                          loading: widget.isTogglingThisBot,
+                          onTap: widget.canToggle ? widget.onToggle : null,
+                        ),
+                        const SizedBox(width: 6),
+                      ],
                     ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _displayStyle(16.5, color: scheme.onSurface),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _ActionPill(
-                      isRunning: isRunning,
-                      loading: isTogglingThisBot,
-                      onTap: canToggle ? onToggle : null,
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        if (serverChip != null) ...[
+                          serverChip,
+                          const SizedBox(width: 8),
+                        ],
+                        Flexible(child: hostingChip),
+                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    if (serverChip != null) ...[
-                      serverChip,
-                      const SizedBox(width: 8),
-                    ],
-                    Flexible(child: hostingChip),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -1120,11 +1174,13 @@ Gradient _cardGradient(ColorScheme scheme, bool isRunning) {
 
 class _AvatarSquare extends StatelessWidget {
   const _AvatarSquare({
+    required this.seed,
     required this.imageUrl,
     required this.isRunning,
     required this.pulseController,
   });
 
+  final String seed;
   final String? imageUrl;
   final bool isRunning;
   final AnimationController pulseController;
@@ -1133,58 +1189,53 @@ class _AvatarSquare extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return SizedBox(
-      width: 50,
-      height: 50,
+      width: 52,
+      height: 52,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Opacity(
-            opacity: isRunning ? 1.0 : 0.55,
-            child: _BrandIconSquare(
-              icon: Icons.smart_toy_rounded,
-              size: 50,
-              imageUrl: imageUrl,
-            ),
+          _BrandIconSquare(
+            icon: Icons.smart_toy_rounded,
+            size: 50,
+            imageUrl: imageUrl,
+            tint: _botColor(seed),
           ),
+          // Pastille de statut, façon badge Discord (haut-droite de l'icône).
           Positioned(
-            right: -2,
-            bottom: -2,
+            top: -4,
+            right: -4,
             child: AnimatedBuilder(
               animation: pulseController,
               builder: (_, _) {
                 final glow =
                     isRunning ? 0.4 + 0.6 * pulseController.value : 1.0;
+                final dotColor =
+                    isRunning ? kOnlineColor : scheme.onSurfaceVariant;
                 return Container(
-                  width: 15,
-                  height: 15,
+                  padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: scheme.surfaceContainer,
+                    color: scheme.surface,
                   ),
-                  alignment: Alignment.center,
-                  child: Opacity(
-                    opacity: glow,
                   child: Container(
-                    width: 9,
-                    height: 9,
+                    width: 10,
+                    height: 10,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color:
-                          isRunning ? kOnlineColor : scheme.onSurfaceVariant,
+                      color: dotColor,
                       boxShadow:
                           isRunning
                               ? [
                                 BoxShadow(
                                   color: kOnlineColor.withValues(
-                                    alpha: 0.75 * glow,
+                                    alpha: 0.8 * glow,
                                   ),
-                                  blurRadius: 8,
+                                  blurRadius: 9,
                                   spreadRadius: 1,
                                 ),
                               ]
                               : null,
                     ),
-                  ),
                   ),
                 );
               },
@@ -1268,61 +1319,73 @@ class _ActionPill extends StatelessWidget {
   }
 }
 
-/// Petite pastille d'information (compteur de serveurs, hébergement…).
-/// Les chiffres sont en police à chasse fixe (JetBrains Mono).
+/// Petite pastille d'information : la **donnée** dynamique est mise en avant
+/// (accent pastel, chasse fixe), le **label** reste en gris lisible.
 class _InfoChip extends StatelessWidget {
   const _InfoChip({
     required this.icon,
-    required this.text,
-    this.accent = false,
+    required this.value,
+    this.label,
+    this.badge = false,
   });
 
   final IconData icon;
-  final String text;
-  final bool accent;
+
+  /// Donnée dynamique (chiffre serveurs, durée, « Illimité »…) → accent.
+  final String value;
+
+  /// Label statique optionnel (« serveurs »…) → gris.
+  final String? label;
+
+  /// Pastille entièrement accentuée (ex. badge « Illimité »).
+  final bool badge;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final iconColor = accent ? kBrandPurpleSoft : scheme.onSurfaceVariant;
-    final textColor = accent ? scheme.onSurface : scheme.onSurfaceVariant;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHigh,
+        color:
+            badge
+                ? kDataAccent.withValues(alpha: 0.12)
+                : scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(999),
         border: Border.all(
           color:
-              accent
-                  ? kBrandPurple.withValues(alpha: 0.4)
+              badge
+                  ? kDataAccent.withValues(alpha: 0.35)
                   : scheme.outlineVariant,
         ),
-        boxShadow:
-            accent
-                ? [
-                  BoxShadow(
-                    color: kBrandPurpleSoft.withValues(alpha: 0.22),
-                    blurRadius: 12,
-                    spreadRadius: -4,
-                  ),
-                ]
-                : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: iconColor),
+          Icon(icon, size: 13, color: badge ? kDataAccent : kMetaText),
           const SizedBox(width: 5),
           Flexible(
-            child: Text(
-              text,
+            child: RichText(
               maxLines: 1,
               softWrap: false,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w500,
-                color: textColor,
+              text: TextSpan(
+                style: GoogleFonts.jetBrainsMono(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: kDataAccent,
+                ),
+                children: [
+                  TextSpan(text: value),
+                  if (label != null)
+                    TextSpan(
+                      text: ' $label',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w500,
+                        color: kMetaText,
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

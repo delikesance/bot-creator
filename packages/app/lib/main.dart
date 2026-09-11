@@ -204,6 +204,12 @@ const Color kDangerColor = Color(0xFFE5484D);
 const Color kOnlineColor = Color(0xFF3BD671);
 const Color kScaffoldDark = Color(0xFF0D0E12);
 
+/// Gris moyen/clair pour les métadonnées (lisible sur fond sombre, WCAG-friendly).
+const Color kMetaText = Color(0xFFA1A1AA);
+
+/// Accent pastel réservé à la donnée dynamique (chiffre serveurs, badge Illimité…).
+const Color kDataAccent = Color(0xFFC4B5FD);
+
 /// Largeur minimale (en dp logiques) à partir de laquelle on bascule sur la
 /// mise en page « desktop » (multi-colonnes, actions dans l'en-tête).
 const double kDesktopBreakpoint = 720;
