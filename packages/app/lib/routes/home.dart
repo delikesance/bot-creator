@@ -4,6 +4,10 @@ import 'dart:io';
 import 'package:bot_creator/main.dart';
 import 'package:bot_creator/routes/app.dart';
 import 'package:bot_creator/routes/app/bot_logs.dart';
+import 'package:bot_creator/routes/bdfd_docs.dart';
+import 'package:bot_creator/routes/create.dart';
+import 'package:bot_creator/routes/settings.dart';
+import 'package:bot_creator/widgets/subscription_page.dart';
 import 'package:bot_creator/utils/analytics.dart';
 import 'package:bot_creator/utils/bot.dart';
 import 'package:bot_creator/utils/bot_payload_builder.dart';
@@ -39,6 +43,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   /// Vrai pendant qu'un démarrage/arrêt est en cours.
   bool _isTogglingBot = false;
+
+  /// ID du bot dont le démarrage/arrêt est en cours (pour le spinner).
+  String? _togglingBotId;
 
   /// Un AnimationController par carte (clé = bot id) pour l'effet pulse.
   final Map<String, AnimationController> _pulseControllers = {};
@@ -161,7 +168,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     required String botName,
   }) async {
     if (_isTogglingBot) return;
-    setState(() => _isTogglingBot = true);
+    setState(() {
+      _isTogglingBot = true;
+      _togglingBotId = botId;
+    });
 
     try {
       final isRunning = _runningBotIds.contains(botId);
@@ -365,7 +375,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         );
       }
     } finally {
-      if (mounted) setState(() => _isTogglingBot = false);
+      if (mounted) {
+        setState(() {
+          _isTogglingBot = false;
+          _togglingBotId = null;
+        });
+      }
     }
   }
 
@@ -453,79 +468,66 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return consentGranted;
   }
 
+  // ── Navigation helpers ──────────────────────────────────────────────────────
+
+  Future<void> _handleRefresh() async {
+    await appManager.refreshApps();
+    if (mounted) await _initRunningState();
+  }
+
+  Future<void> _openPage(Widget page) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
+    if (mounted) await _initRunningState();
+  }
+
   // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final int crossAxisCount;
-        final double horizontalPadding;
-        final double cardHeight;
+    return StreamBuilder<List<dynamic>>(
+      stream: appManager.getAppStream(),
+      initialData: const <dynamic>[],
+      builder: (context, snapshot) {
+        final apps = snapshot.data;
 
-        // Responsive grid based on screen width
-        if (width < 420) {
-          // Small phone - single column
-          crossAxisCount = 1;
-          horizontalPadding = 12.0;
-          cardHeight = 280.0;
-        } else if (width < 600) {
-          // Mobile - 2 columns
-          crossAxisCount = 2;
-          horizontalPadding = 12.0;
-          cardHeight = 295.0;
-        } else if (width >= 1500) {
-          // Extra large desktop - 5 columns
-          crossAxisCount = 5;
-          horizontalPadding = 24.0;
-          cardHeight = 282.0;
-        } else if (width >= 1200) {
-          // Large desktop - 4 columns
-          crossAxisCount = 4;
-          horizontalPadding = 24.0;
-          cardHeight = 285.0;
-        } else if (width >= 900) {
-          // Tablet - 3 columns
-          crossAxisCount = 3;
-          horizontalPadding = 20.0;
-          cardHeight = 276.0;
-        } else if (width >= 760) {
-          // Medium tablet - 3 columns
-          crossAxisCount = 3;
-          horizontalPadding = 16.0;
-          cardHeight = 272.0;
-        } else {
-          // Small tablet - 2 columns
-          crossAxisCount = 2;
-          horizontalPadding = 16.0;
-          cardHeight = 274.0;
-        }
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            const maxContentWidth = 640.0;
+            final width = constraints.maxWidth;
+            final horizontal =
+                width > maxContentWidth
+                    ? (width - maxContentWidth) / 2 + 20.0
+                    : 16.0;
 
-        final cardWidth =
-            (width - (horizontalPadding * 2) - ((crossAxisCount - 1) * 12)) /
-            crossAxisCount;
-        final childAspectRatio = cardWidth / cardHeight;
+            final children = <Widget>[
+              _HomeHeader(
+                onRefresh: _handleRefresh,
+                onDocs: () => _openPage(const BdfdDocsPage()),
+                onSettings: () => _openPage(const SettingPage()),
+              ),
+              const SizedBox(height: 22),
+              _TurnkeyCard(onTap: () => _openPage(const AppCreatePage())),
+              const SizedBox(height: 22),
+            ];
 
-        return Padding(
-          padding: EdgeInsets.all(horizontalPadding),
-          child: StreamBuilder<List<dynamic>>(
-            stream: appManager.getAppStream(),
-            initialData: const <dynamic>[],
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                developer.log(
-                  'Error loading data: ${snapshot.error}',
-                  name: 'HomePage',
-                );
-                return Center(child: Text(AppStrings.t('app_loading_error')));
-              }
-
-              final apps = snapshot.data;
-              if (apps == null || apps.isEmpty) {
-                return const _EmptyStateWithSupport();
-              }
-
+            if (snapshot.hasError) {
+              developer.log(
+                'Error loading data: ${snapshot.error}',
+                name: 'HomePage',
+              );
+              children.add(
+                _buildInfoCard(
+                  context,
+                  Icons.error_outline_rounded,
+                  AppStrings.t('app_loading_error'),
+                ),
+              );
+            } else if (apps == null || apps.isEmpty) {
+              children.add(const _EmptyStateWithSupport());
+            } else {
               final namesById = <String, String>{
                 for (final app in apps)
                   (app['id']?.toString() ?? ''):
@@ -535,137 +537,388 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               final activeSessionIds = _runningBotIds.toList(growable: false)
                 ..sort();
 
-              return Column(
-                children: [
-                  if (_supportsForegroundTask && activeSessionIds.isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color:
-                            Theme.of(
-                              context,
-                            ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Sessions mobiles actives (${activeSessionIds.length})',
-                            style: Theme.of(context).textTheme.titleSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              for (final botId in activeSessionIds)
-                                Chip(
-                                  avatar: const Icon(Icons.smart_toy, size: 16),
-                                  label: Text(namesById[botId] ?? botId),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (AdsPlacementPolicy.isPlacementEnabled(
-                        NativeAdPlacement.homeBots,
-                      ) &&
-                      apps.length >= AdsPlacementPolicy.listInterval)
-                    const NativeAdSlot(
-                      placement: NativeAdPlacement.homeBots,
-                      height: 118,
-                      margin: EdgeInsets.only(bottom: 12),
-                    ),
-                  Expanded(
-                    child: GridView.builder(
-                      padding: const EdgeInsets.only(bottom: 80),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: childAspectRatio,
-                      ),
-                      itemCount: apps.length,
-                      itemBuilder: (context, index) {
-                        final app = apps[index];
-                        final name =
-                            app['name']?.toString() ??
-                            AppStrings.t('home_unknown_app');
-                        final id = app['id']?.toString() ?? '';
-                        final avatar = app['avatar']?.toString();
-                        final guildCount = app['guild_count'] as int?;
-                        final isRunning = _runningBotIds.contains(id);
-                        const runtimeToggleAllowed = true;
-                        // Multi-bot is allowed on runner, mobile foreground, and
-                        // local desktop runtimes. Disable only while a toggle
-                        // operation is currently in progress.
-                        final canToggle =
-                            runtimeToggleAllowed && !_isTogglingBot;
+              if (_supportsForegroundTask && activeSessionIds.isNotEmpty) {
+                children.add(
+                  _buildSessionsBanner(context, activeSessionIds, namesById),
+                );
+                children.add(const SizedBox(height: 16));
+              }
 
-                        final pulseCtrl = _getOrCreatePulseController(id);
+              if (AdsPlacementPolicy.isPlacementEnabled(
+                    NativeAdPlacement.homeBots,
+                  ) &&
+                  apps.length >= AdsPlacementPolicy.listInterval) {
+                children.add(
+                  const NativeAdSlot(
+                    placement: NativeAdPlacement.homeBots,
+                    height: 118,
+                    margin: EdgeInsets.only(bottom: 16),
+                  ),
+                );
+              }
 
-                        return _BotCard(
-                          name: name,
-                          id: id,
-                          avatar: avatar,
-                          guildCount: guildCount,
-                          compact: width >= 760,
-                          isRunning: isRunning,
-                          canToggle: canToggle,
-                          isTogglingThisBot: _isTogglingBot && isRunning,
-                          runnerLabel:
-                              isRunning && _runnerModeEnabled
-                                  ? _activeRunnerLabel
-                                  : null,
-                          pulseController: pulseCtrl,
-                          onManage:
-                              () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => AppEditPage(
-                                        appName: name,
-                                        id: int.tryParse(id) ?? 0,
-                                      ),
-                                ),
-                              ).then((_) => _initRunningState()),
-                          onToggle: () => _toggleBot(botId: id, botName: name),
-                          onLogs:
-                              isRunning
-                                  ? () => Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => BotLogsPage(botId: id),
-                                    ),
-                                  )
-                                  : null,
-                        );
-                      },
+              for (var index = 0; index < apps.length; index++) {
+                final app = apps[index];
+                final name =
+                    app['name']?.toString() ??
+                    AppStrings.t('home_unknown_app');
+                final id = app['id']?.toString() ?? '';
+                final avatar = app['avatar']?.toString();
+                final guildCount = app['guild_count'] as int?;
+                final hostingExpiresAt =
+                    (app['hosting_expires_at'] as num?)?.toInt();
+                final isRunning = _runningBotIds.contains(id);
+                final pulseCtrl = _getOrCreatePulseController(id);
+
+                children.add(
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: index == apps.length - 1 ? 0 : 14,
+                    ),
+                    child: _BotCard(
+                      key: ValueKey<String>(id),
+                      name: name,
+                      avatar: avatar,
+                      guildCount: guildCount,
+                      hostingExpiresAt: hostingExpiresAt,
+                      isRunning: isRunning,
+                      canToggle: !_isTogglingBot,
+                      isTogglingThisBot: _togglingBotId == id,
+                      runnerLabel:
+                          isRunning && _runnerModeEnabled
+                              ? _activeRunnerLabel
+                              : null,
+                      pulseController: pulseCtrl,
+                      onManage:
+                          () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => AppEditPage(
+                                    appName: name,
+                                    id: int.tryParse(id) ?? 0,
+                                  ),
+                            ),
+                          ).then((_) => _initRunningState()),
+                      onToggle: () => _toggleBot(botId: id, botName: name),
+                      onLogs:
+                          isRunning
+                              ? () => _openPage(BotLogsPage(botId: id))
+                              : null,
+                      onAddHosting: () => _openPage(const SubscriptionPage()),
                     ),
                   ),
-                ],
-              );
-            },
-          ),
+                );
+              }
+            }
+
+            return ListView(
+              padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 120),
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: children,
+            );
+          },
         );
       },
     );
   }
+
+  Widget _buildInfoCard(BuildContext context, IconData icon, String message) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSessionsBanner(
+    BuildContext context,
+    List<String> activeSessionIds,
+    Map<String, String> namesById,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sessions mobiles actives (${activeSessionIds.length})',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final botId in activeSessionIds)
+                Chip(
+                  avatar: const Icon(Icons.smart_toy, size: 16),
+                  label: Text(namesById[botId] ?? botId),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-// ── Widget carte ─────────────────────────────────────────────────────────────
+/// Formate une durée d'hébergement restante en « X mois, Xj, Xh, Xm ».
+String _formatHostingRemaining(int expiresAtMs) {
+  final remaining = expiresAtMs - DateTime.now().millisecondsSinceEpoch;
+  if (remaining <= 0) {
+    return '0${AppStrings.t('home_hosting_unit_minute')}';
+  }
+  final totalMinutes = remaining ~/ 60000;
+  final minutes = totalMinutes % 60;
+  final totalHours = totalMinutes ~/ 60;
+  final hours = totalHours % 24;
+  final totalDays = totalHours ~/ 24;
+  final days = totalDays % 30;
+  final months = totalDays ~/ 30;
 
-class _BotCard extends StatelessWidget {
+  final parts = <String>[];
+  if (months > 0) {
+    parts.add('$months ${AppStrings.t('home_hosting_unit_month')}');
+  }
+  if (months > 0 || days > 0) {
+    parts.add('$days${AppStrings.t('home_hosting_unit_day')}');
+  }
+  parts.add('$hours${AppStrings.t('home_hosting_unit_hour')}');
+  parts.add('$minutes${AppStrings.t('home_hosting_unit_minute')}');
+  return parts.join(', ');
+}
+
+// ── En-tête d'accueil ─────────────────────────────────────────────────────────
+
+class _HomeHeader extends StatelessWidget {
+  const _HomeHeader({
+    required this.onRefresh,
+    required this.onDocs,
+    required this.onSettings,
+  });
+
+  final VoidCallback onRefresh;
+  final VoidCallback onDocs;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppStrings.t('home_overline'),
+                style: TextStyle(
+                  color: scheme.primary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.6,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                AppStrings.t('app_title'),
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  height: 1.05,
+                ),
+              ),
+            ],
+          ),
+        ),
+        _HeaderIconButton(
+          icon: Icons.sync_rounded,
+          tooltip: AppStrings.t('home_refresh_tooltip'),
+          onTap: onRefresh,
+        ),
+        const SizedBox(width: 10),
+        _HeaderIconButton(
+          icon: Icons.menu_book_rounded,
+          tooltip: AppStrings.t('home_docs_tooltip'),
+          onTap: onDocs,
+        ),
+        const SizedBox(width: 10),
+        _HeaderIconButton(
+          icon: Icons.settings_rounded,
+          tooltip: AppStrings.t('home_settings_tooltip'),
+          onTap: onSettings,
+        ),
+      ],
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(13),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Icon(icon, size: 20, color: scheme.onSurfaceVariant),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Carte promo « Bots Clé en main » ──────────────────────────────────────────
+
+class _TurnkeyCard extends StatelessWidget {
+  const _TurnkeyCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(22),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const _BrandIconSquare(icon: Icons.smart_toy_rounded, size: 48),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppStrings.t('home_turnkey_title'),
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      AppStrings.t('home_turnkey_subtitle'),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Carré d'icône teinté de la couleur de marque (avec avatar optionnel).
+class _BrandIconSquare extends StatelessWidget {
+  const _BrandIconSquare({
+    required this.icon,
+    this.size = 48,
+    this.imageUrl,
+  });
+
+  final IconData icon;
+  final double size;
+  final String? imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: kBrandPurple.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child:
+          hasImage
+              ? Image.network(
+                imageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder:
+                    (_, _, _) =>
+                        Icon(icon, color: kBrandPurple, size: size * 0.5),
+              )
+              : Icon(icon, color: kBrandPurple, size: size * 0.5),
+    );
+  }
+}
+
+// ── Carte bot ─────────────────────────────────────────────────────────────────
+
+class _BotCard extends StatefulWidget {
   const _BotCard({
+    super.key,
     required this.name,
-    required this.id,
     required this.avatar,
     required this.guildCount,
-    required this.compact,
+    required this.hostingExpiresAt,
     required this.isRunning,
     required this.canToggle,
     required this.isTogglingThisBot,
@@ -673,14 +926,14 @@ class _BotCard extends StatelessWidget {
     required this.onManage,
     required this.onToggle,
     required this.onLogs,
+    required this.onAddHosting,
     this.runnerLabel,
   });
 
   final String name;
-  final String id;
   final String? avatar;
   final int? guildCount;
-  final bool compact;
+  final int? hostingExpiresAt;
   final bool isRunning;
   final bool canToggle;
   final bool isTogglingThisBot;
@@ -689,232 +942,470 @@ class _BotCard extends StatelessWidget {
   final VoidCallback onManage;
   final VoidCallback onToggle;
   final VoidCallback? onLogs;
+  final VoidCallback onAddHosting;
 
-  String _serverCountLabel() {
-    final count = guildCount ?? 0;
-    final key = count > 1 ? 'home_server_count_other' : 'home_server_count_one';
-    return AppStrings.tr(key, params: {'count': count.toString()});
+  @override
+  State<_BotCard> createState() => _BotCardState();
+}
+
+class _BotCardState extends State<_BotCard> {
+  late bool _expanded = widget.isRunning;
+
+  @override
+  void didUpdateWidget(covariant _BotCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isRunning != oldWidget.isRunning) {
+      _expanded = widget.isRunning;
+    }
+  }
+
+  String _subtitle() {
+    final count = widget.guildCount ?? 0;
+    if (count > 0) {
+      final String key;
+      if (widget.isRunning) {
+        key =
+            count > 1
+                ? 'home_servers_active_other'
+                : 'home_servers_active_one';
+      } else {
+        key = count > 1 ? 'home_server_count_other' : 'home_server_count_one';
+      }
+      return AppStrings.tr(key, params: {'count': count.toString()});
+    }
+    return widget.isRunning
+        ? AppStrings.t('home_status_online')
+        : AppStrings.t('home_status_offline');
   }
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final avatarRadius = compact ? 30.0 : 36.0;
-    final avatarFallbackSize = compact ? 60.0 : 72.0;
-    final contentPadding = compact ? 9.0 : 12.0;
-    final titleFontSize = compact ? 14.0 : 15.0;
-    final statusFontSize = compact ? 10.5 : 11.0;
-    final serverFontSize = compact ? 10.5 : 11.0;
-    final buttonVerticalPadding = compact ? 7.0 : 12.0;
-
-    return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side:
-            isRunning
-                ? BorderSide(color: Colors.green.shade400, width: 1.5)
-                : BorderSide.none,
+    final scheme = Theme.of(context).colorScheme;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainer,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color:
+              widget.isRunning
+                  ? kOnlineColor.withValues(alpha: 0.45)
+                  : scheme.outlineVariant,
+        ),
       ),
-      elevation: isRunning ? 6 : 4,
-      child: Padding(
-        padding: EdgeInsets.all(contentPadding),
+      child: Material(
+        type: MaterialType.transparency,
         child: Column(
           children: [
-            // ── Partie haute flexible ────────────────────────────────────────
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // ── Avatar ────────────────────────────────────────────────
-                  avatar != null && avatar!.isNotEmpty
-                      ? CircleAvatar(
-                        radius: avatarRadius,
-                        backgroundImage: NetworkImage(avatar!),
-                      )
-                      : Icon(Icons.account_circle, size: avatarFallbackSize),
-
-                  SizedBox(height: compact ? 8 : 10),
-
-                  // ── Nom ───────────────────────────────────────────────────
-                  Text(
-                    name,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: titleFontSize,
-                      fontWeight: FontWeight.w600,
-                      overflow: TextOverflow.ellipsis,
+            // ── En-tête (tap pour déplier / replier) ───────────────────────
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              borderRadius: BorderRadius.circular(22),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    _AvatarSquare(
+                      imageUrl: widget.avatar,
+                      isRunning: widget.isRunning,
+                      pulseController: widget.pulseController,
                     ),
-                  ),
-
-                  SizedBox(height: compact ? 4 : 5),
-
-                  // ── Statut avec animation pulse ────────────────────────────
-                  AnimatedBuilder(
-                    animation: pulseController,
-                    builder: (_, _) {
-                      final opacity =
-                          isRunning ? 0.4 + 0.6 * pulseController.value : 1.0;
-                      return Opacity(
-                        opacity: opacity,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isRunning ? Colors.green : Colors.grey,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              isRunning
-                                  ? AppStrings.t('home_status_online')
-                                  : AppStrings.t('home_status_offline'),
-                              style: TextStyle(
-                                fontSize: statusFontSize,
-                                fontWeight: FontWeight.w500,
-                                color: isRunning ? Colors.green : Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-
-                  // ── Runner affinity ────────────────────────────────────────
-                  if (runnerLabel != null) ...[
-                    SizedBox(height: compact ? 3 : 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.dns_outlined,
-                          size: 13,
-                          color: colorScheme.primary,
-                        ),
-                        const SizedBox(width: 3),
-                        Flexible(
-                          child: Text(
-                            runnerLabel!,
-                            style: TextStyle(
-                              fontSize: compact ? 9.5 : 10.0,
-                              color: colorScheme.primary,
-                            ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.name,
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 2),
+                          Text(
+                            _subtitle(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _ActionPill(
+                      isRunning: widget.isRunning,
+                      loading: widget.isTogglingThisBot,
+                      onTap: widget.canToggle ? widget.onToggle : null,
                     ),
                   ],
-
-                  // ── Compteur de serveurs ───────────────────────────────────
-                  if (guildCount != null && guildCount! > 0) ...[
-                    SizedBox(height: compact ? 4 : 5),
+                ),
+              ),
+            ),
+            // ── Contenu déplié ─────────────────────────────────────────────
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 180),
+              crossFadeState:
+                  _expanded
+                      ? CrossFadeState.showFirst
+                      : CrossFadeState.showSecond,
+              firstChild: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                child: Column(
+                  children: [
+                    if (widget.runnerLabel != null) ...[
+                      _RunnerChip(label: widget.runnerLabel!),
+                      const SizedBox(height: 12),
+                    ],
+                    _HostingBlock(
+                      expiresAtMs: widget.hostingExpiresAt,
+                      onAdd: widget.onAddHosting,
+                    ),
+                    const SizedBox(height: 12),
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(
-                          Icons.groups,
-                          size: 16,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          _serverCountLabel(),
-                          style: TextStyle(
-                            fontSize: serverFontSize,
-                            color: colorScheme.onSurfaceVariant,
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: widget.onManage,
+                            icon: const Icon(Icons.tune_rounded, size: 18),
+                            label: Text(AppStrings.t('home_manage_app')),
                           ),
+                        ),
+                        const SizedBox(width: 10),
+                        _SquareIconButton(
+                          icon: Icons.article_outlined,
+                          tooltip: AppStrings.t('home_logs_tooltip'),
+                          onTap: widget.onLogs,
                         ),
                       ],
                     ),
                   ],
-                ],
-              ),
-            ),
-
-            // ── Bouton Lancer / Arrêter ──────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: canToggle ? onToggle : null,
-                icon:
-                    isTogglingThisBot
-                        ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                        : Icon(
-                          isRunning
-                              ? Icons.stop_rounded
-                              : Icons.play_arrow_rounded,
-                          size: 16,
-                        ),
-                label: Text(
-                  isRunning
-                      ? AppStrings.t('home_stop')
-                      : AppStrings.t('home_start'),
                 ),
-                style: ElevatedButton.styleFrom(
-                  shape: const StadiumBorder(),
-                  backgroundColor: isRunning ? Colors.red : Colors.green,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  disabledForegroundColor: Colors.white70,
-                  padding: EdgeInsets.symmetric(
-                    vertical: buttonVerticalPadding,
+              ),
+              secondChild: const SizedBox(width: double.infinity),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarSquare extends StatelessWidget {
+  const _AvatarSquare({
+    required this.imageUrl,
+    required this.isRunning,
+    required this.pulseController,
+  });
+
+  final String? imageUrl;
+  final bool isRunning;
+  final AnimationController pulseController;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 50,
+      height: 50,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Opacity(
+            opacity: isRunning ? 1.0 : 0.55,
+            child: _BrandIconSquare(
+              icon: Icons.smart_toy_rounded,
+              size: 50,
+              imageUrl: imageUrl,
+            ),
+          ),
+          Positioned(
+            right: -2,
+            bottom: -2,
+            child: AnimatedBuilder(
+              animation: pulseController,
+              builder: (_, _) {
+                final glow =
+                    isRunning ? 0.4 + 0.6 * pulseController.value : 1.0;
+                return Container(
+                  width: 15,
+                  height: 15,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: scheme.surfaceContainer,
                   ),
-                ),
-              ),
-            ),
-
-            SizedBox(height: compact ? 4 : 6),
-
-            // ── Ligne inférieure : Gérer + Logs ──────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: onManage,
-                    icon: const Icon(Icons.tune, size: 14),
-                    label: Text(AppStrings.t('home_manage')),
-                    style: ElevatedButton.styleFrom(
-                      shape: const StadiumBorder(),
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                        vertical: buttonVerticalPadding,
+                  alignment: Alignment.center,
+                  child: Opacity(
+                    opacity: glow,
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color:
+                            isRunning
+                                ? kOnlineColor
+                                : scheme.onSurfaceVariant,
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: compact ? 8 : 10),
-                IconButton.filled(
-                  onPressed: onLogs,
-                  icon: const Icon(Icons.article_outlined, size: 18),
-                  tooltip: AppStrings.t('home_logs_tooltip'),
-                  style: IconButton.styleFrom(
-                    backgroundColor:
-                        onLogs != null
-                            ? Colors.deepPurple.shade100
-                            : Colors.grey.shade200,
-                    foregroundColor:
-                        onLogs != null ? Colors.deepPurple : Colors.grey,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionPill extends StatelessWidget {
+  const _ActionPill({
+    required this.isRunning,
+    required this.loading,
+    required this.onTap,
+  });
+
+  final bool isRunning;
+  final bool loading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isRunning ? kDangerColor : kBrandPurple;
+    return Material(
+      color: color.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (loading)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: color,
                   ),
+                )
+              else
+                Icon(
+                  isRunning ? Icons.stop_rounded : Icons.play_arrow_rounded,
+                  size: 16,
+                  color: color,
+                ),
+              const SizedBox(width: 6),
+              Text(
+                isRunning
+                    ? AppStrings.t('home_stop')
+                    : AppStrings.t('home_start_action'),
+                style: TextStyle(
+                  color: color,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SquareIconButton extends StatelessWidget {
+  const _SquareIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = onTap != null;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Icon(
+              icon,
+              size: 20,
+              color:
+                  enabled
+                      ? scheme.onSurface
+                      : scheme.onSurfaceVariant.withValues(alpha: 0.4),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RunnerChip extends StatelessWidget {
+  const _RunnerChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.dns_outlined, size: 14, color: scheme.primary),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11.5, color: scheme.primary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HostingBlock extends StatelessWidget {
+  const _HostingBlock({required this.expiresAtMs, required this.onAdd});
+
+  final int? expiresAtMs;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final unlimited = expiresAtMs == null;
+    final value =
+        unlimited
+            ? AppStrings.t('home_hosting_unlimited')
+            : _formatHostingRemaining(expiresAtMs!);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.t('home_hosting_remaining'),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    if (unlimited) ...[
+                      const Icon(
+                        Icons.all_inclusive_rounded,
+                        size: 18,
+                        color: kBrandPurpleSoft,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Flexible(
+                      child: Text(
+                        value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
+          ),
+          const SizedBox(width: 8),
+          _AddHostingButton(onTap: onAdd),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddHostingButton extends StatelessWidget {
+  const _AddHostingButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add_rounded, size: 18, color: kBrandPurpleSoft),
+              const SizedBox(width: 4),
+              Text(
+                AppStrings.t('home_hosting_add'),
+                style: const TextStyle(
+                  color: kBrandPurpleSoft,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -939,10 +1430,9 @@ class _EmptyStateWithSupport extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 40, 20, 0),
+      child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
@@ -981,7 +1471,6 @@ class _EmptyStateWithSupport extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }
